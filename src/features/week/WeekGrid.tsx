@@ -1,0 +1,174 @@
+import React from 'react';
+import type { DaySummary } from '../../hooks/useCalendarData';
+import { useLabels } from '../../hooks/useLabels';
+
+interface WeekDayItem {
+  dateStr: string;
+  dayName: string;
+  isToday: boolean;
+  isWeekend: boolean;
+}
+
+interface WeekGridProps {
+  days: WeekDayItem[];
+  dataMap: Record<string, DaySummary>;
+  onSelectDate: (dateStr: string) => void;
+  onQuickAdd: (dateStr: string) => void;
+  isEditorMode: boolean;
+}
+
+export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, isEditorMode }: WeekGridProps) {
+  const { getLabelColor, getLabel } = useLabels();
+
+  return (
+    <div className={"grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 " + (days.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-7") + " gap-3"}>
+      {days.map((day) => {
+        const summary = dataMap[day.dateStr] || {};
+        const events = summary.eventList || [];
+        const schedules = summary.schedules || {};
+        const periodKeys = Object.keys(schedules).map(Number).sort((a, b) => a - b);
+
+        const [, month, dateNum] = day.dateStr.split('-');
+
+        return (
+          <div
+            key={day.dateStr}
+            onClick={() => onSelectDate(day.dateStr)}
+            className={`bg-white rounded-2xl border p-3.5 flex flex-col justify-between transition-all cursor-pointer group hover:shadow-md hover:border-primary/50 min-h-[380px] ${
+              day.isToday ? 'border-primary ring-2 ring-primary/20 shadow-xs' : 'border-slate-200/80 shadow-xs'
+            }`}
+          >
+            <div>
+              {/* 상단 날짜 및 요일 헤더 */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs ${
+                      day.isToday
+                        ? 'bg-primary text-white shadow-xs'
+                        : day.isWeekend
+                        ? 'bg-rose-50 text-rose-600'
+                        : 'bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {day.dayName}
+                </span>
+                
+                <span className="hidden">
+                  </span>
+                  <span className="text-xs font-bold text-slate-700">
+                    {Number(month)}.{Number(dateNum)}
+                  </span>
+                </div>
+
+                <span className="text-[10px] text-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                  하루 ➔
+                </span>
+              </div>
+
+              {/* 시간표 섹션 */}
+              <div className="mb-4">
+                <div className="text-[11px] font-extrabold text-slate-400 mb-2 flex items-center gap-1">
+                  <span>⏰</span> 시간표
+                </div>
+
+                {periodKeys.length > 0 ? (
+                  <div className="space-y-1">
+                    {periodKeys.map((p) => {
+                      const item = schedules[p];
+                      return (
+                        <div
+                          key={p}
+                          className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-50 border border-slate-100 text-xs"
+                        >
+                          <span className="font-bold text-[10px] text-primary shrink-0">{p}교시</span>
+                          <span className="font-semibold text-slate-800 truncate text-[11px]">
+                            {item.subject || '수업'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-slate-300 py-1 pl-1">
+                    수업 없음
+                  </div>
+                )}
+              </div>
+
+              {/* 오늘 할 일 섹션 */}
+              <div>
+                <div className="text-[11px] font-extrabold text-slate-400 mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    <span>📌</span> 할 일 & 일정
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {events.length > 0 && (
+                      <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-full font-bold">
+                        {events.length}
+                      </span>
+                    )}
+                    {isEditorMode && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onQuickAdd(day.dateStr); }}
+                        className="ml-1 w-5 h-5 rounded hover:bg-slate-200 text-slate-400 hover:text-primary flex items-center justify-center transition-colors text-xs font-bold leading-none"
+                        title="새 일정 추가"
+                      >
+                        +
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {events.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {events.map((ev) => {
+                      const hasLabel = !!ev.label;
+                      const labelColor = hasLabel ? getLabelColor(ev.label!) : null;
+                      const labelDef = hasLabel ? getLabel(ev.label!) : null;
+                      const isCompletable = labelDef ? !!labelDef.forward : true;
+
+                      return (
+                        <div
+                          key={ev.id}
+                          className={`px-2 py-1.5 rounded-lg text-xs leading-tight transition-all border flex items-center gap-1.5 ${
+                            ev.completed
+                              ? 'bg-slate-50 border-slate-100 text-slate-400 line-through'
+                              : 'bg-blue-50/60 border-blue-100 text-slate-800 font-medium'
+                          }`}
+                        >
+                          {hasLabel && labelColor && (
+                            <span
+                              className="text-[9px] font-bold px-1 py-0.5 rounded shrink-0 whitespace-nowrap"
+                              style={{
+                                backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
+                                color: ev.completed ? '#94a3b8' : labelColor.text,
+                                border: '1px solid ' + (ev.completed ? '#e2e8f0' : labelColor.border)
+                              }}
+                            >
+                              {ev.label}
+                            </span>
+                          )}
+                          <span className="break-words flex-1">{ev.content}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-slate-300 py-1 pl-1">
+                    등록된 일정 없음
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 하단 푸터 영역 */}
+            <div className="pt-3 mt-3 border-t border-slate-50 text-[10px] text-slate-400 text-center">
+              자세히 보기
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
