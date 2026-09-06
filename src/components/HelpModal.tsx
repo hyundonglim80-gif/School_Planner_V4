@@ -59,7 +59,7 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
                 <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Ctrl + Enter</kbd>
               </div>
               <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
-                <span className="text-slate-600">할 일 빠른 등록</span>
+                <span className="text-slate-600">일정 빠른 등록</span>
                 <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Enter</kbd>
               </div>
               <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between sm:col-span-2">
@@ -83,9 +83,9 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
             </div>
 
             <div className="p-3 bg-amber-50/60 border border-amber-100 rounded-xl space-y-1">
-              <div className="font-bold text-amber-800">📥 지난 미완료 할 일 가져오기</div>
+              <div className="font-bold text-amber-800">📥 지난 미완료 일정 가져오기</div>
               <p className="text-slate-600">
-                하루 뷰의 오늘 할 일 상단에서 <strong>'미완료 할 일 가져오기'</strong>를 누르면 최근 14일간 깜빡하고 완료하지 못한 업무들을 오늘로 이월합니다.
+                하루 뷰의 오늘 일정 상단에서 <strong>'미완료 일정 가져오기'</strong>를 누르면 최근 14일간 깜빡하고 완료하지 못한 업무들을 오늘로 이월합니다.
               </p>
             </div>
 

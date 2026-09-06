@@ -142,10 +142,10 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
               labelIds: e.labelIds,
               linkedItems: e.linkedItems || [],
             };
-          });
+          }).filter((e: EventItem) => e.content && e.content.trim().length > 0);
           setEventList(mapped);
         } else if (rawText) {
-          setEventList(parseV3EventText(rawText));
+          setEventList(parseV3EventText(rawText).filter((e: EventItem) => e.content && e.content.trim().length > 0));
         } else {
           setEventList([]);
         }
@@ -201,7 +201,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           labelIds: j.labelIds || [],
           linkedItems: j.linkedItems || [],
           imageUrl: j.imageUrl || '',
-        }));
+        })).filter((j: JournalEntry) => (j.content && j.content.trim().length > 0) || !!j.imageUrl);
         setJournals(mapped);
       } else {
         setJournals([]);
@@ -229,8 +229,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       ? doc(db, 'groups', groupId, 'events', dateStr)
       : doc(db, 'users', user.uid, 'events', dateStr);
 
-    const serializedText = formatV3EventText(newList);
-    const v3EventList = newList.map(item => ({
+    const validList = newList.filter(item => item.content && item.content.trim().length > 0);
+    const serializedText = formatV3EventText(validList);
+    const v3EventList = validList.map(item => ({
       id: item.id,
       content: item.content,
       completed: !!item.completed,
@@ -258,7 +259,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       completed: parsed ? parsed.completed : false,
       label: parsed && parsed.label ? parsed.label : undefined,
     };
-    const newList = [...eventList, newItem];
+    const newList = [...eventList, newItem].filter(item => item.content && item.content.trim().length > 0);
     await saveEventItems(newList);
   }, [eventList, saveEventItems]);
 
@@ -275,9 +276,14 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   }, [eventList, saveEventItems]);
 
   const updateEventItem = useCallback(async (id: string, updates: Partial<EventItem>) => {
-    const newList = eventList.map(item =>
-      item.id === id ? { ...item, ...updates } : item
-    );
+    if (updates.content !== undefined && !updates.content.trim()) {
+      const newList = eventList.filter(item => item.id !== id);
+      await saveEventItems(newList);
+      return;
+    }
+    const newList = eventList
+      .map(item => item.id === id ? { ...item, ...updates } : item)
+      .filter(item => item.content && item.content.trim().length > 0);
     await saveEventItems(newList);
   }, [eventList, saveEventItems]);
 
@@ -383,18 +389,28 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const user = auth.currentUser;
     if (!user || !dateStr) return;
 
+    const target = journals.find(j => j.id === id);
+    const newContent = updates.content !== undefined ? updates.content.trim() : (target?.content || '');
+    const newImage = updates.imageUrl !== undefined ? updates.imageUrl : (target?.imageUrl || '');
+
+    if (!newContent && !newImage) {
+      await deleteJournalEntry(id);
+      return;
+    }
+
     const journalDocRef = groupId
       ? doc(db, 'groups', groupId, 'journals', dateStr)
       : doc(db, 'users', user.uid, 'journals', dateStr);
 
-    const newJournals = journals.map(j =>
-      j.id === id ? { ...j, ...updates, updatedAt: Date.now() } : j
-    );
+    const newJournals = journals
+      .map(j => j.id === id ? { ...j, ...updates, updatedAt: Date.now() } : j)
+      .filter(j => (j.content && j.content.trim().length > 0) || !!j.imageUrl);
+
     await setDoc(journalDocRef, {
       entries: newJournals,
       updatedAt: Date.now()
     }, { merge: true });
-  }, [dateStr, groupId, journals]);
+  }, [dateStr, groupId, journals, deleteJournalEntry]);
 
   
   // 지난 미완료 할 일 오늘로 가져오기 (Forwarding)

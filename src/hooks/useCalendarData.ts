@@ -42,14 +42,16 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
           let list: EventItem[] = [];
 
           if (Array.isArray(data.eventList) && data.eventList.length > 0) {
-            list = data.eventList.map((e: any, idx: number) => ({
-              id: e.id || 'ev_' + idx,
-              content: e.content || '',
-              completed: !!e.completed,
-              label: e.label || undefined,
-            }));
+            list = data.eventList
+              .map((e: any, idx: number) => ({
+                id: e.id || 'ev_' + idx,
+                content: e.content || '',
+                completed: !!e.completed,
+                label: e.label || undefined,
+              }))
+              .filter((e: EventItem) => e.content && e.content.trim().length > 0);
           } else if (rawText) {
-            list = parseV3EventText(rawText);
+            list = parseV3EventText(rawText).filter((e: EventItem) => e.content && e.content.trim().length > 0);
           }
 
           currentMap[dStr] = {

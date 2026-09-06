@@ -118,7 +118,12 @@ export default function DayJournal({
   };
 
   const saveEditing = async (id: string) => {
-    if (!editContent.trim() || uploadingImage) return;
+    if (uploadingImage) return;
+    if (!editContent.trim() && !editImageUrl) {
+      await onDeleteJournal(id);
+      setEditingId(null);
+      return;
+    }
     if (onUpdateJournal) {
       await onUpdateJournal(id, {
         content: editContent.trim(),

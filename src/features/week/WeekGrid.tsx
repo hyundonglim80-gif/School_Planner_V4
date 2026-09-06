@@ -37,7 +37,13 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
         const summary = dataMap[day.dateStr] || {};
         const events = summary.eventList || [];
         const schedules = summary.schedules || {};
-        const periodKeys = Object.keys(schedules).map(Number).sort((a, b) => a - b);
+        const periodKeys = Object.keys(schedules)
+          .map(Number)
+          .filter((p) => {
+            const item = schedules[p];
+            return item && !!(item.subject?.trim() || item.content?.trim() || item.memo?.trim());
+          })
+          .sort((a, b) => a - b);
 
         const [, month, dateNum] = day.dateStr.split('-');
 
@@ -88,6 +94,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                   <div className="space-y-1">
                     {periodKeys.map((p) => {
                       const item = schedules[p];
+                      const periodText = item.subject?.trim() || item.content?.trim() || item.memo?.trim();
                       return (
                         <div
                           key={p}
@@ -105,7 +112,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                         >
                           <span className="font-bold text-[10px] text-primary shrink-0">{p}교시</span>
                           <span className="font-semibold text-slate-800 truncate text-[11px]">
-                            {item.subject || '수업'}
+                            {periodText}
                           </span>
                         </div>
                       );
@@ -119,12 +126,12 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
               </div>
               )}
 
-              {/* 오늘 할 일 섹션 */}
+              {/* 일정 섹션 */}
               {showEvents && (
               <div>
                 <div className="text-[11px] font-extrabold text-slate-400 mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-1">
-                    <span>📌</span> 할 일 & 일정
+                    <span>📌</span> 일정
                   </div>
                   <div className="flex items-center gap-1">
                     {events.length > 0 && (

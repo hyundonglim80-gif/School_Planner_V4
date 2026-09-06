@@ -78,7 +78,11 @@ export default function DayEvents({
   };
 
   const saveEditing = async (id: string) => {
-    if (!editText.trim()) return;
+    if (!editText.trim()) {
+      await onDeleteEvent(id);
+      setEditingId(null);
+      return;
+    }
     if (onUpdateEvent) {
       await onUpdateEvent(id, {
         content: editText.trim(),
@@ -170,7 +174,7 @@ export default function DayEvents({
               type="text"
               value={newText}
               onChange={(e) => setNewText(e.target.value)}
-              placeholder="[라벨] 할 일 입력..."
+              placeholder="[라벨] 일정 입력..."
               className="flex-1 px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder-slate-400 transition-all"
             />
             <button
@@ -383,7 +387,7 @@ export default function DayEvents({
         ) : (
           <div className="flex flex-col items-center justify-center py-10 text-center text-slate-400 text-xs">
             <span className="text-3xl mb-2">🎯</span>
-            <p>오늘 예정된 할 일이 없습니다.</p>
+            <p>오늘 예정된 일정이 없습니다.</p>
             <p className="mt-1 text-slate-400">위 입력창에서 등록하거나, 라벨 아이콘을 클릭해보세요.</p>
           </div>
         )}
