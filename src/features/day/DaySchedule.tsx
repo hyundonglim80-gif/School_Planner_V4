@@ -8,6 +8,7 @@ import TimetableTemplateModal from '../../components/TimetableTemplateModal';
 interface DayScheduleProps {
   schedules: Record<number, PeriodSchedule>;
   onSavePeriod: (period: number, data: PeriodSchedule) => Promise<void>;
+  onReorderPeriods: (source: number, target: number) => Promise<void>;
   dateStr?: string;
   maxPeriods?: number;
 }
@@ -25,32 +26,41 @@ const PERIOD_COLORS = [
 export default function DaySchedule({
   schedules,
   onSavePeriod,
+  onReorderPeriods,
   dateStr,
   maxPeriods = 6,
 }: DayScheduleProps) {
   const [editingPeriod, setEditingPeriod] = useState<number | null>(null);
   const [editSubject, setEditSubject] = useState('');
-  const [editContent, setEditContent] = useState('');
+  const [editMemo, setEditMemo] = useState('');
+  const [editSupplies, setEditSupplies] = useState('');
   const [saving, setSaving] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  
+  const [draggedPeriod, setDraggedPeriod] = useState<number | null>(null);
 
   const { getDayTemplate } = useTimetableTemplate();
-  const { mode } = useAppStore();
+  const { mode, openLinkerModal, openEvaluationModal } = useAppStore();
 
   const startEdit = (period: number) => {
-    if (mode === 'viewer') return; // 수업 모드에서는 편집창 방지
+    if (mode === 'viewer') return;
     const current = schedules[period] || { subject: '', content: '' };
     setEditSubject(current.subject || '');
-    setEditContent(current.content || '');
+    setEditMemo(current.memo || current.content || '');
+    setEditSupplies(current.supplies || '');
     setEditingPeriod(period);
   };
 
   const handleSave = async (period: number) => {
     try {
       setSaving(true);
+      const current = schedules[period] || { linkedItems: [] };
       await onSavePeriod(period, {
         subject: editSubject.trim(),
-        content: editContent.trim(),
+        content: editMemo.trim(),
+        memo: editMemo.trim(),
+        supplies: editSupplies.trim(),
+        linkedItems: current.linkedItems,
       });
       setEditingPeriod(null);
     } finally {
@@ -61,14 +71,14 @@ export default function DaySchedule({
   const handleCancel = () => {
     setEditingPeriod(null);
     setEditSubject('');
-    setEditContent('');
+    setEditMemo('');
+    setEditSupplies('');
   };
 
-  // 기본 시간표 불러와서 현재 일자에 일괄 적용
   const handleApplyTemplate = async () => {
     if (!dateStr) return;
     const dateObj = parseDateStr(dateStr);
-    const dayOfWeek = dateObj.getDay(); // 1: 월 ~ 5: 금
+    const dayOfWeek = dateObj.getDay();
 
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       alert('주말에는 적용할 기본 시간표가 없습니다.');
@@ -89,11 +99,38 @@ export default function DaySchedule({
       for (let p = 1; p <= maxPeriods; p++) {
         const sub = templateForToday[p];
         if (sub) {
-          const currentContent = schedules[p]?.content || '';
-          await onSavePeriod(p, { subject: sub, content: currentContent });
+          const current = schedules[p] || {};
+          await onSavePeriod(p, {
+            subject: sub,
+            content: current.content || '',
+            memo: current.memo || current.content || '',
+            supplies: current.supplies || '',
+            linkedItems: current.linkedItems,
+          });
         }
       }
     }
+  };
+
+  const handleDragStart = (e: React.DragEvent, period: number) => {
+    if (mode === 'viewer') return;
+    setDraggedPeriod(period);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (mode === 'viewer') return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetPeriod: number) => {
+    if (mode === 'viewer') return;
+    e.preventDefault();
+    if (draggedPeriod !== null && draggedPeriod !== targetPeriod) {
+      await onReorderPeriods(draggedPeriod, targetPeriod);
+    }
+    setDraggedPeriod(null);
   };
 
   const periods = Array.from({ length: maxPeriods }, (_, i) => i + 1);
@@ -104,6 +141,20 @@ export default function DaySchedule({
         <div className="flex items-center gap-2">
           <span className="text-xl">⏰</span>
           <h3 className="text-base font-extrabold text-slate-800">수업</h3>
+          <div className="flex items-center gap-1 ml-2">
+            <button
+              onClick={() => dateStr && openEvaluationModal(dateStr, 'schedule', 1)}
+              className="px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-md text-[10px] font-bold hover:bg-blue-100"
+            >
+              +조사표
+            </button>
+            <button
+              onClick={() => dateStr && openLinkerModal('schedule', dateStr)}
+              className="px-2 py-0.5 bg-yellow-50 text-yellow-700 border border-yellow-300 rounded-md text-[10px] font-bold hover:bg-yellow-100"
+            >
+              +링크
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -112,13 +163,12 @@ export default function DaySchedule({
             className="px-2.5 py-1 text-xs font-bold bg-blue-50 text-primary border border-blue-200/80 rounded-xl hover:bg-blue-100 transition-colors flex items-center gap-1"
             title="오늘 요일의 기본 시간표 과목들을 자동으로 채웁니다"
           >
-            <span>📋</span> 기본 시간표 불러오기
+            <span>📋</span> 기본 시간표
           </button>
           {mode === 'editor' && (
             <button
               onClick={() => setIsTemplateModalOpen(true)}
               className="px-2 py-1 text-xs font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
-              title="기본 주간 시간표 템플릿 설정"
             >
               ⚙️ 설정
             </button>
@@ -126,11 +176,12 @@ export default function DaySchedule({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         {periods.map((period) => {
           const item = schedules[period] || { subject: '', content: '' };
           const isEditing = editingPeriod === period;
           const colorClass = PERIOD_COLORS[(period - 1) % PERIOD_COLORS.length];
+          const linkCount = (item.linkedItems || []).length;
 
           if (isEditing) {
             return (
@@ -160,19 +211,28 @@ export default function DaySchedule({
                   </div>
                 </div>
 
-                <input
-                  type="text"
-                  value={editSubject}
-                  onChange={(e) => setEditSubject(e.target.value)}
-                  placeholder="과목명 (예: 국어, 수학)"
-                  className="w-full px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                  autoFocus
-                />
+                <div className="grid grid-cols-3 gap-2">
+                  <input
+                    type="text"
+                    value={editSubject}
+                    onChange={(e) => setEditSubject(e.target.value)}
+                    placeholder="과목명 (예: 국어)"
+                    className="col-span-1 px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                    autoFocus
+                  />
+                  <input
+                    type="text"
+                    value={editSupplies}
+                    onChange={(e) => setEditSupplies(e.target.value)}
+                    placeholder="비고 / 준비물"
+                    className="col-span-2 px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
 
                 <textarea
-                  value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
-                  placeholder="수업 내용 및 준비물 입력..."
+                  value={editMemo}
+                  onChange={(e) => setEditMemo(e.target.value)}
+                  placeholder="수업 내용 메모..."
                   rows={2}
                   className="w-full p-2.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary resize-none placeholder-slate-400 leading-relaxed"
                 />
@@ -183,41 +243,68 @@ export default function DaySchedule({
           return (
             <div
               key={period}
-              onClick={() => startEdit(period)}
-              className={`group p-3.5 rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[90px] ${
+              draggable={mode === 'editor'}
+              onDragStart={(e) => handleDragStart(e, period)}
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, period)}
+              className={`group p-3.5 rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[80px] ${
                 mode === 'editor'
-                  ? 'hover:border-primary/50 hover:bg-slate-50/50 cursor-pointer'
+                  ? 'hover:border-primary/50 hover:bg-slate-50/50 cursor-grab active:cursor-grabbing'
                   : 'bg-white shadow-2xs'
               }`}
             >
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold border ${colorClass}`}>
-                      {period}교시
-                    </span>
-                    <span className="font-bold text-sm text-slate-800">
-                      {item.subject || <span className="text-slate-300 font-normal">과목 미등록</span>}
-                    </span>
+              <div className="flex gap-3 h-full items-stretch">
+                {mode === 'editor' && (
+                  <div className="flex items-center justify-center text-slate-300 cursor-grab active:cursor-grabbing px-1 hover:text-slate-500">
+                    <span className="text-xl">≡</span>
+                  </div>
+                )}
+                <div className="flex-1 cursor-pointer" onClick={() => startEdit(period)}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold border ${colorClass}`}>
+                        {period}교시
+                      </span>
+                      <span className="font-bold text-sm text-slate-800">
+                        {item.subject || <span className="text-slate-300 font-normal">과목 미등록</span>}
+                      </span>
+                      {linkCount > 0 && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); dateStr && openLinkerModal('schedule', dateStr, undefined, period); }}
+                          className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 ml-1 hover:bg-yellow-200"
+                        >
+                          📑 {linkCount}
+                        </button>
+                      )}
+                    </div>
+                    {mode === 'editor' && (
+                      <span className="text-xs text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                        ✏️ 편집
+                      </span>
+                    )}
                   </div>
 
-                  {mode === 'editor' && (
-                    <span className="text-xs text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                      ✏️ 편집
-                    </span>
-                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="flex flex-col">
+                      <span className="text-slate-400 text-[10px] mb-0.5">📝 수업 메모</span>
+                      <p className="text-slate-600 whitespace-pre-wrap leading-relaxed">
+                        {item.memo || item.content || <span className="text-slate-300">없음</span>}
+                      </p>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-slate-400 text-[10px] mb-0.5">📌 비고 / 준비물</span>
+                      <p className="text-amber-600 font-medium whitespace-pre-wrap leading-relaxed">
+                        {item.supplies || <span className="text-slate-300 font-normal">없음</span>}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-
-                <p className="text-xs text-slate-600 whitespace-pre-wrap line-clamp-2 leading-relaxed pl-1">
-                  {item.content || <span className="text-slate-300">수업 계획이 없습니다.</span>}
-                </p>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* 템플릿 설정 모달 */}
       <TimetableTemplateModal
         isOpen={isTemplateModalOpen}
         onClose={() => setIsTemplateModalOpen(false)}

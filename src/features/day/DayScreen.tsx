@@ -22,6 +22,7 @@ export default function DayScreen() {
     savePeriod,
     addJournalEntry,
     deleteJournalEntry,
+    reorderPeriods,
     forwardIncompleteEvents,
   } = useDayData(dateStr, selectedGroupId);
 
@@ -40,7 +41,12 @@ export default function DayScreen() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* 좌측 영역: 시간표 & 일지 (7열) */}
           <div className="lg:col-span-7 flex flex-col gap-6">
-            <DaySchedule schedules={schedules} onSavePeriod={savePeriod} />
+            <DaySchedule 
+              schedules={schedules} 
+              onSavePeriod={savePeriod} 
+              onReorderPeriods={reorderPeriods}
+              dateStr={dateStr}
+            />
             <DayJournal
               journals={journals}
               onAddJournal={addJournalEntry}

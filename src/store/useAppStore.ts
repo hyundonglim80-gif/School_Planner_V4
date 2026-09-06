@@ -19,6 +19,24 @@ interface AppState {
   setShowClass: (show: boolean) => void;
   setCurrentDate: (date: Date) => void;
   setSelectedGroupId: (groupId: string | null) => void;
+  
+  // Linker Modal State
+  isLinkerModalOpen: boolean;
+  linkerSourceType: 'schedule' | 'journal' | 'manual';
+  linkerSourceDateStr: string;
+  linkerSourceId?: string;
+  linkerSourcePeriod?: number;
+  openLinkerModal: (sourceType: 'schedule' | 'journal' | 'manual', dateStr: string, id?: string, period?: number) => void;
+  closeLinkerModal: () => void;
+
+  // Evaluation Modal State
+  isEvaluationModalOpen: boolean;
+  evalDateStr: string;
+  evalSource: 'schedule' | 'journal' | 'event';
+  evalPeriod?: number;
+  evalSubject?: string;
+  openEvaluationModal: (dateStr: string, source: 'schedule' | 'journal' | 'event', period?: number, subject?: string) => void;
+  closeEvaluationModal: () => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -41,6 +59,30 @@ export const useAppStore = create<AppState>()(
       setShowClass: (showClass) => set({ showClass }),
       setCurrentDate: (date) => set({ currentDate: date.toISOString() }),
       setSelectedGroupId: (selectedGroupId) => set({ selectedGroupId }),
+
+      isLinkerModalOpen: false,
+      linkerSourceType: 'manual',
+      linkerSourceDateStr: '',
+      openLinkerModal: (sourceType, dateStr, id, period) => set({ 
+        isLinkerModalOpen: true, 
+        linkerSourceType: sourceType, 
+        linkerSourceDateStr: dateStr, 
+        linkerSourceId: id, 
+        linkerSourcePeriod: period 
+      }),
+      closeLinkerModal: () => set({ isLinkerModalOpen: false }),
+
+      isEvaluationModalOpen: false,
+      evalDateStr: '',
+      evalSource: 'event',
+      openEvaluationModal: (dateStr, source, period, subject) => set({
+        isEvaluationModalOpen: true,
+        evalDateStr: dateStr,
+        evalSource: source,
+        evalPeriod: period,
+        evalSubject: subject
+      }),
+      closeEvaluationModal: () => set({ isEvaluationModalOpen: false }),
     }),
     {
       name: 'sp4-app-storage',

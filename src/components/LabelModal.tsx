@@ -19,7 +19,7 @@ interface MemoLabel {
   color: string;
 }
 
-interface JournalLabel {
+export interface JournalLabel {
   id: string;
   name: string;
   color: string;
@@ -54,7 +54,7 @@ const DEFAULT_MEMO_LABELS: MemoLabel[] = [
   { id: 'memo_7', name: '개인', color: 'gray' },
 ];
 
-const DEFAULT_JOURNAL_LABELS: JournalLabel[] = [
+export const DEFAULT_JOURNAL_LABELS: JournalLabel[] = [
   { id: 'j_1', name: '학급활동', color: 'green' },
   { id: 'j_2', name: '학생상담', color: 'yellow' },
   { id: 'j_3', name: '업무전달', color: 'blue' },

@@ -35,6 +35,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     setMode,
     semesterFilter,
     setSemesterFilter,
+    isLinkerModalOpen,
+    linkerSourceType,
+    linkerSourceDateStr,
+    linkerSourceId,
+    linkerSourcePeriod,
+    closeLinkerModal,
+    isEvaluationModalOpen,
+    evalDateStr,
+    evalSource,
+    evalPeriod,
+    evalSubject,
+    closeEvaluationModal,
   } = useAppStore();
   const { groups } = useGroups();
   const { primaryDDay } = useDDay();
@@ -48,10 +60,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
   const [isForwardingModalOpen, setIsForwardingModalOpen] = useState(false);
-  const [isLinkerModalOpen, setIsLinkerModalOpen] = useState(false);
   const [isTimetableModalOpen, setIsTimetableModalOpen] = useState(false);
 
   // 더보기 드롭다운 상태
@@ -147,8 +157,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         setIsGroupModalOpen(false);
         setIsBackupModalOpen(false);
         setIsLabelModalOpen(false);
-        setIsLinkerModalOpen(false);
         setIsMoreMenuOpen(false);
+        if (isForwardingModalOpen) {
+          setIsForwardingModalOpen(false);
+        }
+        if (isLinkerModalOpen) {
+          closeLinkerModal();
+        }
         return;
       }
 
@@ -204,7 +219,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setMode, setShowWeekend]);
+  }, [setMode, setShowWeekend, isForwardingModalOpen, isLinkerModalOpen, closeLinkerModal]);
 
   const getFormattedDateRange = () => {
     const d = new Date(currentDate);
@@ -563,10 +578,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         onClose={() => setIsHelpModalOpen(false)}
       />
       <SettingsModal isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} />
-      <EvaluationModal isOpen={isEvaluationModalOpen} onClose={() => setIsEvaluationModalOpen(false)} dateStr={currentDate} />
+      
+      {/* Evaluation/Survey Modal */}
+      <EvaluationModal 
+        isOpen={isEvaluationModalOpen} 
+        onClose={closeEvaluationModal} 
+        dateStr={evalDateStr || currentDate} 
+        defaultSource={evalSource}
+        defaultPeriod={evalPeriod}
+        defaultSubject={evalSubject}
+      />
+      
       <RecurringModal isOpen={isRecurringModalOpen} onClose={() => setIsRecurringModalOpen(false)} />
       <ForwardingModal isOpen={isForwardingModalOpen} onClose={() => setIsForwardingModalOpen(false)} />
-      <LinkerModal isOpen={isLinkerModalOpen} onClose={() => setIsLinkerModalOpen(false)} sourceType="manual" sourceDateStr={currentDate} sourceId="manual" />
+      
+      {/* Linker Modal */}
+      <LinkerModal 
+        isOpen={isLinkerModalOpen} 
+        onClose={closeLinkerModal} 
+        sourceType={linkerSourceType || 'manual'} 
+        sourceDateStr={linkerSourceDateStr || currentDate} 
+        sourceId={linkerSourceId || 'manual'}
+        sourcePeriod={linkerSourcePeriod}
+      />
 
       <TimetableTemplateModal
         isOpen={isTimetableModalOpen}

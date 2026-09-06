@@ -11,7 +11,10 @@ export interface EventItem {
 
 export interface PeriodSchedule {
   subject: string;
-  content: string;
+  content: string; // V4 기존 (V3에서는 memo로 사용되기도 함)
+  memo?: string;   // V3 호환
+  supplies?: string;
+  linkedItems?: string[];
 }
 
 export interface JournalEntry {
@@ -19,6 +22,8 @@ export interface JournalEntry {
   content: string;
   createdAt: number;
   label?: string;
+  labelIds?: string[];
+  linkedItems?: string[];
 }
 
 /**
@@ -154,6 +159,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
             normalized[Number(p)] = {
               subject: val.subject || '',
               content: val.content || '',
+              memo: val.memo || '',
+              supplies: val.supplies || '',
+              linkedItems: val.linkedItems || [],
             };
           }
         }
@@ -176,6 +184,8 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           content: j.content || '',
           createdAt: j.createdAt || Date.now(),
           label: j.label || (j.labelIds && j.labelIds.length > 0 ? j.labelIds[0] : '일반'),
+          labelIds: j.labelIds || [],
+          linkedItems: j.linkedItems || [],
         }));
         setJournals(mapped);
       } else {
@@ -261,8 +271,44 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       [period]: {
         subject: data.subject,
         content: data.content,
+        memo: data.memo || '',
+        supplies: data.supplies || '',
+        linkedItems: data.linkedItems || [],
       }
     };
+    await setDoc(scheduleDocRef, {
+      periods: newSchedules,
+      updatedAt: Date.now()
+    }, { merge: true });
+  }, [dateStr, groupId, schedules]);
+
+  // 시간표 순서 일괄 재배치 (Drag & Drop 용)
+  const reorderPeriods = useCallback(async (sourcePeriod: number, targetPeriod: number, maxPeriods: number = 6) => {
+    const user = auth.currentUser;
+    if (!user || !dateStr || sourcePeriod === targetPeriod) return;
+
+    const scheduleDocRef = groupId
+      ? doc(db, 'groups', groupId, 'schedules', dateStr)
+      : doc(db, 'users', user.uid, 'schedules', dateStr);
+
+    const newSchedules = { ...schedules };
+    const sourceData = newSchedules[sourcePeriod] ? { ...newSchedules[sourcePeriod] } : null;
+
+    if (sourcePeriod < targetPeriod) {
+      for (let i = sourcePeriod; i < targetPeriod; i++) {
+        if (newSchedules[i + 1]) newSchedules[i] = { ...newSchedules[i + 1] };
+        else delete newSchedules[i];
+      }
+    } else {
+      for (let i = sourcePeriod; i > targetPeriod; i--) {
+        if (newSchedules[i - 1]) newSchedules[i] = { ...newSchedules[i - 1] };
+        else delete newSchedules[i];
+      }
+    }
+
+    if (sourceData) newSchedules[targetPeriod] = sourceData;
+    else delete newSchedules[targetPeriod];
+
     await setDoc(scheduleDocRef, {
       periods: newSchedules,
       updatedAt: Date.now()
@@ -399,6 +445,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     toggleEventItem,
     deleteEventItem,
     savePeriod,
+    reorderPeriods,
     addJournalEntry,
     deleteJournalEntry,
   };
