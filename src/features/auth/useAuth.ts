@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import { auth, googleProvider } from '../../lib/firebase';
@@ -17,6 +17,9 @@ export function useAuth() {
 
   const loginWithGoogle = async () => {
     try {
+      googleProvider.setCustomParameters({
+        prompt: 'select_account'
+      });
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error('Login failed:', error);
