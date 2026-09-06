@@ -132,6 +132,7 @@ export default function DayJournal({
     const user = auth.currentUser;
     if (!user) return alert('로그인이 필요합니다.');
 
+    setIsFormOpen(true);
     setUploadingFiles(true);
     try {
       const uploaded: Attachment[] = [];
@@ -244,6 +245,22 @@ export default function DayJournal({
             >
               +링크
             </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingFiles}
+              className="px-2 py-0.5 bg-slate-50 text-slate-600 border border-slate-200 rounded-md text-[10px] font-bold hover:bg-slate-100 transition-colors disabled:opacity-50"
+              title="기록에 파일 첨부"
+            >
+              +파일
+            </button>
+            <input
+              type="file"
+              multiple
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+            />
           </div>
         </div>
 
@@ -252,7 +269,7 @@ export default function DayJournal({
             onClick={() => setIsFormOpen(true)}
             className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
           >
-            + 일지 작성
+            +
           </button>
         )}
       </div>
@@ -295,47 +312,21 @@ export default function DayJournal({
 
               {/* 하단 첨부 영역 */}
               <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center">
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploadingFiles}
-                      className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-xs disabled:opacity-50"
-                    >
-                      📎 파일 첨부
-                    </button>
-                    <input
-                      type="file"
-                      multiple
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={openLinker}
-                      className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-xs"
-                    >
-                      🔗 링크 추가
-                    </button>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsFormOpen(false)}
-                      className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-xl transition-colors"
-                    >
-                      닫기
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={(!content.trim() && newAttachments.length === 0) || submitting || uploadingFiles}
-                      className="px-4 py-1.5 bg-primary hover:bg-blue-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-40"
-                    >
-                      저장하기
-                    </button>
-                  </div>
+                <div className="flex justify-end items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsFormOpen(false)}
+                    className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-xl transition-colors"
+                  >
+                    닫기
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={(!content.trim() && newAttachments.length === 0) || submitting || uploadingFiles}
+                    className="px-4 py-1.5 bg-primary hover:bg-blue-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-40"
+                  >
+                    저장하기
+                  </button>
                 </div>
 
                 {/* 첨부파일/링크 미리보기 */}
