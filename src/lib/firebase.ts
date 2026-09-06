@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 
@@ -12,10 +12,13 @@ const firebaseConfig = {
   appId: '1:906471951519:web:1d3e6952d9579b2a9b26aa'
 };
 
-export const app = initializeApp(firebaseConfig);
+// V3와의 IndexedDB(로컬 오프라인 캐시) 충돌을 방지하기 위해 App 이름을 'SchoolPlannerV4'로 명시적으로 지정
+export const app = initializeApp(firebaseConfig, 'SchoolPlannerV4');
 
 export const db = initializeFirestore(app, {
-  localCache: memoryLocalCache()
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
 });
 
 export const auth = getAuth(app);
