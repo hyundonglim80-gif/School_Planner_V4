@@ -1,5 +1,5 @@
-﻿import { initializeApp } from 'firebase/app';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { initializeApp } from 'firebase/app';
+import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 
@@ -15,9 +15,7 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 
 export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
-  })
+  localCache: memoryLocalCache()
 });
 
 export const auth = getAuth(app);
