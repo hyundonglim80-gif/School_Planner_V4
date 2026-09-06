@@ -32,6 +32,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
       return days.filter((d) => !d.isSunday && !d.isSaturday);
     }
     return days;
+  }, [days, showWeekend]);
   const { getLabelColor } = useLabels();
   const [detailModal, setDetailModal] = useState<{
     isOpen: boolean;
