@@ -56,3 +56,20 @@ export const uploadImage = async (file: File, userId: string, folderName = 'uplo
     throw error;
   }
 };
+
+/**
+ * 일반 파일(문서 등)을 압축 없이 원본 그대로 Firebase Storage에 업로드하고 다운로드 URL을 반환합니다.
+ */
+export const uploadFile = async (file: File, userId: string, folderName = 'uploads'): Promise<string> => {
+  try {
+    const filePath = `${folderName}/${userId}/${Date.now()}_${file.name}`;
+    const storageRef = ref(storage, filePath);
+    
+    await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(storageRef);
+    return downloadURL;
+  } catch (error) {
+    console.error('파일 업로드 오류:', error);
+    throw error;
+  }
+};

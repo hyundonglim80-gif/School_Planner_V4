@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import type { EventItem } from '../../hooks/useDayData';
+import React, { useState, useRef } from 'react';
+import type { EventItem, Attachment } from '../../hooks/useDayData';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
+import { uploadFile, uploadImage } from '../../utils/uploadHelper';
+import { auth } from '../../lib/firebase';
 
 interface DayEventsProps {
   events: EventItem[];
-  onAddEvent: (content: string) => Promise<void>;
+  onAddEvent: (content: string, options?: Partial<EventItem>) => Promise<void>;
   onToggleEvent: (id: string) => Promise<void>;
   onDeleteEvent: (id: string) => Promise<void>;
   onUpdateEvent?: (id: string, updates: Partial<EventItem>) => Promise<void>;
@@ -21,11 +23,16 @@ export default function DayEvents({
   onForwardIncomplete,
 }: DayEventsProps) {
   const [newText, setNewText] = useState('');
+  const [newLabels, setNewLabels] = useState<string[]>([]);
+  const [newAttachments, setNewAttachments] = useState<Attachment[]>([]);
+  const [newLinkedItems, setNewLinkedItems] = useState<any[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [forwarding, setForwarding] = useState(false);
   const { openLinkerModal, currentDate } = useAppStore();
   const { eventLabels, getLabelColor, getLabel } = useLabels();
-  const [showLabelDropdown, setShowLabelDropdown] = useState(false);
 
   // 수정(Edit) 상태
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -96,20 +103,74 @@ export default function DayEvents({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newText.trim() || submitting) return;
+    if (!newText.trim() && newAttachments.length === 0) return;
 
     try {
       setSubmitting(true);
-      await onAddEvent(newText.trim());
+      const labelStr = newLabels.length > 0 ? newLabels.join(',') : undefined;
+      await onAddEvent(newText.trim(), {
+        label: labelStr,
+        attachments: newAttachments,
+        linkedItems: newLinkedItems
+      });
       setNewText('');
+      setNewLabels([]);
+      setNewAttachments([]);
+      setNewLinkedItems([]);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleLabelSelect = (labelName: string) => {
-    setNewText((prev) => `[${labelName}] ${prev}`);
-    setShowLabelDropdown(false);
+  const handleLabelToggle = (labelName: string) => {
+    setNewLabels(prev => 
+      prev.includes(labelName) ? prev.filter(l => l !== labelName) : [...prev, labelName]
+    );
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const user = auth.currentUser;
+    if (!user) return alert('로그인이 필요합니다.');
+
+    setUploadingFiles(true);
+    try {
+      const uploaded: Attachment[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const isImage = file.type.startsWith('image/');
+        const url = isImage 
+          ? await uploadImage(file, user.uid)
+          : await uploadFile(file, user.uid);
+        
+        uploaded.push({
+          name: file.name,
+          url,
+          type: isImage ? 'image' : 'document'
+        });
+      }
+      setNewAttachments(prev => [...prev, ...uploaded]);
+    } catch (err: any) {
+      alert('파일 업로드 실패: ' + err.message);
+    } finally {
+      setUploadingFiles(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveAttachment = (idx: number) => {
+    setNewAttachments(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const openLinker = () => {
+    openLinkerModal('manual', formattedDate, undefined, undefined, (links) => {
+      setNewLinkedItems(prev => [...prev, ...links]);
+    });
+  };
+
+  const handleRemoveLink = (idx: number) => {
+    setNewLinkedItems(prev => prev.filter((_, i) => i !== idx));
   };
 
   return (
@@ -162,52 +223,112 @@ export default function DayEvents({
       )}
 
       {/* 새 할일 입력 폼 */}
-      <div className="relative mb-4">
-          <form onSubmit={handleSubmit} className="flex gap-2">
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4 flex flex-col gap-2">
+        {/* 라벨 선택 버튼 나열 */}
+        <div className="flex flex-wrap gap-1.5">
+          {eventLabels.map(l => {
+            const color = getLabelColor(l.name);
+            const isSelected = newLabels.includes(l.name);
+            return (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => handleLabelToggle(l.name)}
+                className={`px-2 py-1 text-xs font-bold rounded-lg transition-all border ${isSelected ? 'ring-2 ring-primary ring-offset-1 shadow-xs' : 'opacity-70 hover:opacity-100'}`}
+                style={{
+                  backgroundColor: color.bg,
+                  color: color.text,
+                  borderColor: color.border
+                }}
+              >
+                {l.name}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 텍스트 입력 및 추가 버튼 */}
+        <form onSubmit={handleSubmit} className="flex gap-2 relative">
+          <input
+            type="text"
+            value={newText}
+            onChange={(e) => setNewText(e.target.value)}
+            placeholder="일정 내용 입력..."
+            className="flex-1 px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder-slate-400 transition-all"
+          />
+          <button
+            type="submit"
+            disabled={(!newText.trim() && newAttachments.length === 0) || submitting || uploadingFiles}
+            className="px-4 py-2 bg-primary hover:bg-blue-600 disabled:opacity-40 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-sm transition-all"
+          >
+            추가
+          </button>
+        </form>
+
+        {/* 첨부파일/링크 버튼 및 미리보기 */}
+        <div className="flex flex-col gap-2 mt-1">
+          <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setShowLabelDropdown(!showLabelDropdown)}
-              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all flex items-center justify-center shrink-0"
-              title="라벨 선택"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingFiles}
+              className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-xs disabled:opacity-50"
             >
-              🏷️
+              📎 파일 첨부
             </button>
             <input
-              type="text"
-              value={newText}
-              onChange={(e) => setNewText(e.target.value)}
-              placeholder="[라벨] 일정 입력..."
-              className="flex-1 px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder-slate-400 transition-all"
+              type="file"
+              multiple
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
             />
             <button
-              type="submit"
-              disabled={!newText.trim() || submitting}
-              className="px-4 py-2 bg-primary hover:bg-blue-600 disabled:opacity-40 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-sm transition-all"
+              type="button"
+              onClick={openLinker}
+              className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-xs"
             >
-              추가
+              🔗 링크 추가
             </button>
-          </form>
+          </div>
 
-          {/* 라벨 드롭다운 메뉴 */}
-          {showLabelDropdown && (
-            <div className="absolute top-full left-0 mt-2 bg-white border border-slate-200 shadow-xl rounded-xl p-2 z-50 flex flex-wrap gap-1.5 w-[280px]">
-              {eventLabels.map(l => {
-                const color = getLabelColor(l.name);
-                return (
+          {/* 미리보기 (첨부파일) */}
+          {newAttachments.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {newAttachments.map((att, idx) => (
+                <div key={idx} className="relative group rounded-lg overflow-hidden border border-slate-200 bg-white">
+                  {att.type === 'image' ? (
+                    <img src={att.url} alt={att.name} className="h-16 w-16 object-cover" />
+                  ) : (
+                    <div className="h-16 w-16 flex items-center justify-center bg-slate-100 text-[10px] text-slate-500 p-1 text-center truncate" title={att.name}>
+                      문서
+                    </div>
+                  )}
                   <button
-                    key={l.id}
                     type="button"
-                    onClick={() => handleLabelSelect(l.name)}
-                    className="px-2 py-1 text-xs font-bold rounded-lg transition-all hover:opacity-80"
-                    style={{ backgroundColor: color.bg, color: color.text, border: '1px solid ' + color.border }}
+                    onClick={() => handleRemoveAttachment(idx)}
+                    className="absolute top-0.5 right-0.5 bg-black/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                   >
-                    {l.name}
+                    ✕
                   </button>
-                );
-              })}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 미리보기 (링크) */}
+          {newLinkedItems.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {newLinkedItems.map((link, idx) => (
+                <div key={idx} className="flex items-center gap-1 bg-white border border-slate-200 pl-2 pr-1 py-1 rounded-md shadow-2xs">
+                  <span className="text-[10px] font-bold text-slate-600 truncate max-w-[120px]">{link.text}</span>
+                  <button type="button" onClick={() => handleRemoveLink(idx)} className="text-slate-400 hover:text-red-500 p-0.5">✕</button>
+                </div>
+              ))}
             </div>
           )}
         </div>
+      </div>
 
       {/* 할 일 목록 */}
       <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[160px]">
@@ -341,17 +462,36 @@ export default function DayEvents({
                     />
                   )}
 
-                  {/* 3. 일정 내용 텍스트 */}
-                  <span
-                    onClick={() => info.isCompletable && onToggleEvent(event.id)}
-                    onDoubleClick={() => startEditing(event)}
-                    className={`text-sm break-words leading-relaxed flex-1 ${info.isCompletable ? 'cursor-pointer' : ''} ${
-                      event.completed && info.isCompletable ? 'line-through text-slate-400' : ''
-                    }`}
-                    title="더블클릭하여 수정"
-                  >
-                    {info.cleanContent}
-                  </span>
+                  {/* 3. 일정 내용 및 첨부파일 */}
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span
+                      onClick={() => info.isCompletable && onToggleEvent(event.id)}
+                      onDoubleClick={() => startEditing(event)}
+                      className={`text-sm break-words leading-relaxed ${info.isCompletable ? 'cursor-pointer' : ''} ${
+                        event.completed && info.isCompletable ? 'line-through text-slate-400' : ''
+                      }`}
+                      title="더블클릭하여 수정"
+                    >
+                      {info.cleanContent}
+                    </span>
+                    
+                    {/* 첨부파일 미리보기 (작게 표시) */}
+                    {event.attachments && event.attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {event.attachments.map((att, idx) => (
+                          att.type === 'image' ? (
+                            <a key={idx} href={att.url} target="_blank" rel="noreferrer" className="block w-8 h-8 rounded overflow-hidden border border-slate-200">
+                              <img src={att.url} alt={att.name} className="w-full h-full object-cover" />
+                            </a>
+                          ) : (
+                            <a key={idx} href={att.url} target="_blank" rel="noreferrer" className="block px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[9px] text-slate-500 truncate max-w-[80px]" title={att.name}>
+                              📎 {att.name}
+                            </a>
+                          )
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* 우측 링크, 수정, 삭제 버튼 */}

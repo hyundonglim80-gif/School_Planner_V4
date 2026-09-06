@@ -25,7 +25,14 @@ interface AppState {
   linkerSourceDateStr: string;
   linkerSourceId?: string;
   linkerSourcePeriod?: number;
-  openLinkerModal: (sourceType: 'schedule' | 'journal' | 'event' | 'manual', dateStr: string, id?: string, period?: number) => void;
+  linkerCallback?: (links: any[]) => void;
+  openLinkerModal: (
+    sourceType: 'schedule' | 'journal' | 'event' | 'manual', 
+    dateStr: string, 
+    id?: string, 
+    period?: number,
+    callback?: (links: any[]) => void
+  ) => void;
   closeLinkerModal: () => void;
 
   // Evaluation Modal State
@@ -62,14 +69,23 @@ export const useAppStore = create<AppState>()(
       isLinkerModalOpen: false,
       linkerSourceType: 'manual',
       linkerSourceDateStr: '',
-      openLinkerModal: (sourceType, dateStr, id, period) => set({ 
+      linkerSourceId: undefined,
+      linkerSourcePeriod: undefined,
+      linkerCallback: undefined,
+      openLinkerModal: (sourceType, dateStr, id, period, callback) => set({ 
         isLinkerModalOpen: true, 
         linkerSourceType: sourceType, 
         linkerSourceDateStr: dateStr, 
-        linkerSourceId: id, 
-        linkerSourcePeriod: period 
+        linkerSourceId: id,
+        linkerSourcePeriod: period,
+        linkerCallback: callback,
       }),
-      closeLinkerModal: () => set({ isLinkerModalOpen: false }),
+      closeLinkerModal: () => set({ 
+        isLinkerModalOpen: false, 
+        linkerSourceId: undefined, 
+        linkerSourcePeriod: undefined,
+        linkerCallback: undefined,
+      }),
 
       isEvaluationModalOpen: false,
       evalDateStr: '',

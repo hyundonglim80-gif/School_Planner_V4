@@ -455,26 +455,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </button>
             {scope !== 'memo' && (
               <>
-                <button
-                  onClick={() => setShowClass(!showClass)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border shadow-2xs ${
-                    showClass
-                      ? 'bg-blue-50 text-blue-700 border-blue-200'
-                      : 'bg-slate-100 text-slate-500 border-slate-200'
-                  }`}
-                >
-                  {showClass ? '수업 숨기기' : '수업 보기'}
-                </button>
-                <button
-                  onClick={() => setShowEvents(!showEvents)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border shadow-2xs ${
-                    showEvents
-                      ? 'bg-blue-50 text-blue-700 border-blue-200'
-                      : 'bg-slate-100 text-slate-500 border-slate-200'
-                  }`}
-                >
-                  {showEvents ? '일정 숨기기' : '일정 보기'}
-                </button>
+                {/* 수업 숨기기/보이기, 일정 숨기기/보이기 버튼 삭제됨 */}
               </>
             )}
             

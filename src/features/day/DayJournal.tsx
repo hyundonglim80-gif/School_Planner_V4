@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { JournalEntry } from '../../hooks/useDayData';
 import { renderFormattedText } from '../../lib/textUtils';
 import { useAppStore } from '../../store/useAppStore';
 import { DEFAULT_JOURNAL_LABELS, type JournalLabel } from '../../components/LabelModal';
 import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
-import { uploadImage } from '../../utils/uploadHelper';
+import { uploadImage, uploadFile } from '../../utils/uploadHelper';
+import type { Attachment } from '../../hooks/useDayData';
 
 interface DayJournalProps {
   journals: JournalEntry[];
-  onAddJournal: (content: string, label: string, labelIds?: string[], imageUrl?: string) => Promise<void>;
+  onAddJournal: (content: string, label: string, labelIds?: string[], imageUrl?: string, options?: Partial<JournalEntry>) => Promise<void>;
   onDeleteJournal: (id: string) => Promise<void>;
   onUpdateJournal?: (id: string, updates: Partial<JournalEntry>) => Promise<void>;
 }
@@ -21,12 +22,16 @@ export default function DayJournal({
   onUpdateJournal,
 }: DayJournalProps) {
   const [content, setContent] = useState('');
-  const [selectedLabel, setSelectedLabel] = useState('학급활동');
+  const [newLabels, setNewLabels] = useState<string[]>(['학급활동']);
+  const [newAttachments, setNewAttachments] = useState<Attachment[]>([]);
+  const [newLinkedItems, setNewLinkedItems] = useState<any[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [imageUrl, setImageUrl] = useState('');
-  const [uploadingImage, setUploadingImage] = useState(false);
   const { openLinkerModal, currentDate } = useAppStore();
+  const formattedDate = new Date(currentDate).toISOString().split('T')[0];
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
@@ -97,17 +102,73 @@ export default function DayJournal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() || submitting || uploadingImage) return;
+    if (!content.trim() && newAttachments.length === 0) return;
 
     try {
       setSubmitting(true);
-      await onAddJournal(content.trim(), selectedLabel, [], imageUrl);
+      const mainLabel = newLabels.length > 0 ? newLabels[0] : '일반';
+      await onAddJournal(content.trim(), mainLabel, newLabels, undefined, {
+        attachments: newAttachments,
+        linkedItems: newLinkedItems
+      });
       setContent('');
-      setImageUrl('');
+      setNewAttachments([]);
+      setNewLinkedItems([]);
       setIsFormOpen(false);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleLabelToggle = (labelName: string) => {
+    setNewLabels(prev => 
+      prev.includes(labelName) ? prev.filter(l => l !== labelName) : [...prev, labelName]
+    );
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const user = auth.currentUser;
+    if (!user) return alert('로그인이 필요합니다.');
+
+    setUploadingFiles(true);
+    try {
+      const uploaded: Attachment[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const isImage = file.type.startsWith('image/');
+        const url = isImage 
+          ? await uploadImage(file, user.uid)
+          : await uploadFile(file, user.uid);
+        
+        uploaded.push({
+          name: file.name,
+          url,
+          type: isImage ? 'image' : 'document'
+        });
+      }
+      setNewAttachments(prev => [...prev, ...uploaded]);
+    } catch (err: any) {
+      alert('파일 업로드 실패: ' + err.message);
+    } finally {
+      setUploadingFiles(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveAttachment = (idx: number) => {
+    setNewAttachments(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const openLinker = () => {
+    openLinkerModal('manual', formattedDate, undefined, undefined, (links) => {
+      setNewLinkedItems(prev => [...prev, ...links]);
+    });
+  };
+
+  const handleRemoveLink = (idx: number) => {
+    setNewLinkedItems(prev => prev.filter((_, i) => i !== idx));
   };
 
   const startEditing = (entry: JournalEntry) => {
@@ -118,7 +179,7 @@ export default function DayJournal({
   };
 
   const saveEditing = async (id: string) => {
-    if (uploadingImage) return;
+    if (uploadingFiles) return;
     if (!editContent.trim() && !editImageUrl) {
       await onDeleteJournal(id);
       setEditingId(null);
@@ -134,7 +195,7 @@ export default function DayJournal({
     setEditingId(null);
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEditMode: boolean = false) => {
+  const handleEditImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -145,22 +206,17 @@ export default function DayJournal({
     }
 
     try {
-      setUploadingImage(true);
+      setUploadingFiles(true);
       const url = await uploadImage(file, user.uid);
-      if (isEditMode) {
-        setEditImageUrl(url);
-      } else {
-        setImageUrl(url);
-      }
+      setEditImageUrl(url);
     } catch (error) {
       alert('이미지 업로드에 실패했습니다.');
     } finally {
-      setUploadingImage(false);
+      setUploadingFiles(false);
     }
   };
 
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const formattedDate = new Date(currentDate).toISOString().split('T')[0];
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
@@ -204,25 +260,30 @@ export default function DayJournal({
       {!isCollapsed && (
         <>
           {isFormOpen && (
-            <form onSubmit={handleSubmit} className="mb-4 p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col gap-3">
+            <form onSubmit={handleSubmit} className="mb-4 p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col gap-3">
+              {/* 분류 선택 (다중 선택 UI) */}
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-xs font-semibold text-slate-500 mr-1">분류:</span>
-                {journalLabels.map((lbl) => (
-                  <button
-                    key={lbl.id}
-                    type="button"
-                    onClick={() => setSelectedLabel(lbl.name)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                      selectedLabel === lbl.name
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    {lbl.name}
-                  </button>
-                ))}
+                {journalLabels.map((lbl) => {
+                  const isSelected = newLabels.includes(lbl.name);
+                  return (
+                    <button
+                      key={lbl.id}
+                      type="button"
+                      onClick={() => handleLabelToggle(lbl.name)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                        isSelected
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {lbl.name}
+                    </button>
+                  );
+                })}
               </div>
 
+              {/* 기록 내용 입력란 */}
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
@@ -232,35 +293,84 @@ export default function DayJournal({
                 autoFocus
               />
 
-              {imageUrl && (
-                <div className="relative inline-block mt-2">
-                  <img src={imageUrl} alt="첨부 이미지" className="h-24 w-auto rounded-lg border border-slate-200 object-cover" />
-                  <button type="button" onClick={() => setImageUrl('')} className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 text-xs">✕</button>
+              {/* 하단 첨부 영역 */}
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingFiles}
+                      className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-xs disabled:opacity-50"
+                    >
+                      📎 파일 첨부
+                    </button>
+                    <input
+                      type="file"
+                      multiple
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={openLinker}
+                      className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-xs"
+                    >
+                      🔗 링크 추가
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsFormOpen(false)}
+                      className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-xl transition-colors"
+                    >
+                      닫기
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={(!content.trim() && newAttachments.length === 0) || submitting || uploadingFiles}
+                      className="px-4 py-1.5 bg-primary hover:bg-blue-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-40"
+                    >
+                      저장하기
+                    </button>
+                  </div>
                 </div>
-              )}
 
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200/50 hover:bg-slate-200 text-slate-600 rounded-xl text-[11px] font-bold transition-colors cursor-pointer">
-                  <span>📷</span>
-                  <span>{uploadingImage ? '업로드 중...' : '이미지 첨부'}</span>
-                  <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, false)} className="hidden" disabled={uploadingImage} />
-                </label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsFormOpen(false)}
-                    className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-xl transition-colors"
-                  >
-                    닫기
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={!content.trim() || submitting || uploadingImage}
-                    className="px-4 py-1.5 bg-primary hover:bg-blue-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-40"
-                  >
-                    {submitting ? '등록 중...' : '등록'}
-                  </button>
-                </div>
+                {/* 첨부파일/링크 미리보기 */}
+                {newAttachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {newAttachments.map((att, idx) => (
+                      <div key={idx} className="relative group rounded-lg overflow-hidden border border-slate-200 bg-white">
+                        {att.type === 'image' ? (
+                          <img src={att.url} alt={att.name} className="h-16 w-16 object-cover" />
+                        ) : (
+                          <div className="h-16 w-16 flex items-center justify-center bg-slate-100 text-[10px] text-slate-500 p-1 text-center truncate" title={att.name}>
+                            문서
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAttachment(idx)}
+                          className="absolute top-0.5 right-0.5 bg-black/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {newLinkedItems.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {newLinkedItems.map((link, idx) => (
+                      <div key={idx} className="flex items-center gap-1 bg-white border border-slate-200 pl-2 pr-1 py-1 rounded-md shadow-2xs">
+                        <span className="text-[10px] font-bold text-slate-600 truncate max-w-[120px]">{link.text}</span>
+                        <button type="button" onClick={() => handleRemoveLink(idx)} className="text-slate-400 hover:text-red-500 p-0.5">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </form>
           )}
@@ -310,8 +420,8 @@ export default function DayJournal({
                       <div className="flex justify-between items-center">
                         <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200/50 hover:bg-slate-200 text-slate-600 rounded-xl text-[11px] font-bold transition-colors cursor-pointer">
                           <span>📷</span>
-                          <span>{uploadingImage ? '업로드 중...' : '이미지 변경'}</span>
-                          <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, true)} className="hidden" disabled={uploadingImage} />
+                          <span>{uploadingFiles ? '업로드 중...' : '이미지 변경'}</span>
+                          <input type="file" accept="image/*" onChange={handleEditImageUpload} className="hidden" disabled={uploadingFiles} />
                         </label>
                         <div className="flex gap-2">
                           <button
@@ -324,7 +434,7 @@ export default function DayJournal({
                           <button
                             type="button"
                             onClick={() => saveEditing(entry.id)}
-                            disabled={uploadingImage}
+                            disabled={uploadingFiles}
                             className="px-4 py-1.5 bg-primary hover:bg-blue-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
                           >
                             저장
@@ -398,8 +508,23 @@ export default function DayJournal({
                         {entry.content}
                       </p>
                       {entry.imageUrl && (
-                        <div className="mt-2 rounded-lg overflow-hidden border border-slate-200/60 bg-slate-50 inline-block">
+                        <div className="mt-2 rounded-lg overflow-hidden border border-slate-200/60 bg-slate-50 inline-block max-w-fit">
                           <img src={entry.imageUrl} alt="첨부 이미지" className="max-w-full h-auto object-cover max-h-48" loading="lazy" />
+                        </div>
+                      )}
+                      {entry.attachments && entry.attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {entry.attachments.map((att, idx) => (
+                            att.type === 'image' ? (
+                              <a key={idx} href={att.url} target="_blank" rel="noreferrer" className="block w-16 h-16 rounded-lg overflow-hidden border border-slate-200">
+                                <img src={att.url} alt={att.name} className="w-full h-full object-cover" loading="lazy" />
+                              </a>
+                            ) : (
+                              <a key={idx} href={att.url} target="_blank" rel="noreferrer" className="block px-2 py-1 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-600 truncate max-w-[150px]" title={att.name}>
+                                📎 {att.name}
+                              </a>
+                            )
+                          ))}
                         </div>
                       )}
                     </div>

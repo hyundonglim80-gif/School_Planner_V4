@@ -125,6 +125,18 @@ export default function LinkerModal({ isOpen, onClose, sourceType, sourceDateStr
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
+    const { linkerCallback } = useAppStore.getState();
+    const newLinks = selectedItems.map(id => {
+      const item = items.find(i => i.id === id);
+      return item ? { id: item.id, type: item.type, dateStr: item.dateStr, text: item.text.slice(0, 50) } : null;
+    }).filter(Boolean);
+
+    if (linkerCallback) {
+      linkerCallback(newLinks);
+      onClose();
+      return;
+    }
+
     try {
       const colPath = selectedGroupId && selectedGroupId !== 'personal'
         ? `groups/${selectedGroupId}/events`
@@ -137,11 +149,7 @@ export default function LinkerModal({ isOpen, onClose, sourceType, sourceDateStr
       const links = data.links || {};
       const sourceKey = `${sourceType}_${sourceId}`;
       const existingLinks = links[sourceKey] || [];
-      const newLinks = selectedItems.map(id => {
-        const item = items.find(i => i.id === id);
-        return item ? { id: item.id, type: item.type, dateStr: item.dateStr, text: item.text.slice(0, 50) } : null;
-      }).filter(Boolean);
-
+      
       links[sourceKey] = [...existingLinks, ...newLinks];
       await setDoc(doc(db, colPath, sourceDateStr), { ...data, links, updatedAt: Date.now() }, { merge: true });
 

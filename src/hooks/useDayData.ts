@@ -2,6 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 
+export interface Attachment {
+  name: string;
+  url: string;
+  type: string; // 'image', 'document', etc.
+}
+
 export interface EventItem {
   id: string;
   content: string;
@@ -10,6 +16,7 @@ export interface EventItem {
   labelIds?: string[];
   linkedItems?: any[];
   imageUrl?: string;
+  attachments?: Attachment[];
 }
 
 export interface PeriodSchedule {
@@ -19,6 +26,7 @@ export interface PeriodSchedule {
   supplies?: string;
   linkedItems?: string[];
   imageUrl?: string;
+  attachments?: Attachment[];
 }
 
 export interface JournalEntry {
@@ -29,6 +37,7 @@ export interface JournalEntry {
   labelIds?: string[];
   linkedItems?: string[];
   imageUrl?: string;
+  attachments?: Attachment[];
 }
 
 /**
@@ -251,7 +260,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     }, { merge: true });
   }, [dateStr, groupId]);
 
-  const addEventItem = useCallback(async (content: string) => {
+  const addEventItem = useCallback(async (content: string, options?: Partial<EventItem>) => {
     if (!content.trim()) return;
     const parsedList = parseV3EventText(content.trim());
     const parsed = parsedList.length > 0 ? parsedList[0] : null;
@@ -260,6 +269,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       content: parsed ? parsed.content : content.trim(),
       completed: parsed ? parsed.completed : false,
       label: parsed && parsed.label ? parsed.label : undefined,
+      ...options
     };
     const newList = [...eventList, newItem].filter(item => item.content && item.content.trim().length > 0);
     await saveEventItems(newList);
@@ -348,9 +358,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   }, [dateStr, groupId, schedules]);
 
   // 일지 추가/삭제
-  const addJournalEntry = useCallback(async (content: string, label: string = '일반', labelIds: string[] = [], imageUrl?: string) => {
+  const addJournalEntry = useCallback(async (content: string, label: string = '일반', labelIds: string[] = [], imageUrl?: string, options?: Partial<JournalEntry>) => {
     const user = auth.currentUser;
-    if (!user || !dateStr || !content.trim()) return;
+    if (!user || !dateStr || (!content.trim() && !imageUrl && (!options?.attachments || options.attachments.length === 0))) return;
 
     const journalDocRef = groupId
       ? doc(db, 'groups', groupId, 'journals', dateStr)
@@ -364,6 +374,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       labelIds,
       linkedItems: [],
       imageUrl: imageUrl || '',
+      ...options
     };
     const newJournals = [newEntry, ...journals];
     await setDoc(journalDocRef, {
