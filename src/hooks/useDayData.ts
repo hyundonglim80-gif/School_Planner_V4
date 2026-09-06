@@ -7,6 +7,8 @@ export interface EventItem {
   content: string;
   completed?: boolean;
   label?: string;
+  labelIds?: string[];
+  linkedItems?: any[];
 }
 
 export interface PeriodSchedule {
@@ -123,12 +125,23 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         setEventText(rawText);
 
         if (Array.isArray(data.eventList) && data.eventList.length > 0) {
-          const mapped: EventItem[] = data.eventList.map((e: any, idx: number) => ({
-            id: e.id || 'ev_' + idx,
-            content: e.content || '',
-            completed: !!e.completed,
-            label: e.label || undefined,
-          }));
+          const mapped: EventItem[] = data.eventList.map((e: any, idx: number) => {
+            let label = e.label || (e.labels && e.labels[0]);
+            let content = e.content || '';
+            const match = content.match(/^\[(.*?)\]\s*(.*)$/);
+            if (match) {
+              if (!label) label = match[1].trim();
+              content = match[2].trim();
+            }
+            return {
+              id: e.id || 'ev_' + idx,
+              content: content,
+              completed: !!e.completed,
+              label: label || undefined,
+              labelIds: e.labelIds,
+              linkedItems: e.linkedItems || [],
+            };
+          });
           setEventList(mapped);
         } else if (rawText) {
           setEventList(parseV3EventText(rawText));
@@ -222,6 +235,8 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       authorId: user.uid,
       authorName: user.displayName || '',
       label: item.label || '',
+      labelIds: item.labelIds || [],
+      linkedItems: item.linkedItems || [],
     }));
 
     await setDoc(eventDocRef, {

@@ -21,14 +21,21 @@ export default function DayEvents({
   const [newText, setNewText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [forwarding, setForwarding] = useState(false);
-  const { mode } = useAppStore();
+  const { mode, openLinkerModal, currentDate } = useAppStore();
   const { eventLabels, getLabelColor, getLabel } = useLabels();
   const [showLabelDropdown, setShowLabelDropdown] = useState(false);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const completedCount = events.filter(e => e.completed).length;
-  const progressPercent = events.length > 0 ? Math.round((completedCount / events.length) * 100) : 0;
+  const formattedDate = new Date(currentDate).toISOString().split('T')[0];
+
+  // 완료 속성 라벨을 가진 항목들 판별
+  const completableEvents = events.filter((e) => {
+    const lDef = eventLabels.find((l) => l.name === e.label || (e.labelIds && e.labelIds.includes(l.id)));
+    return !!(lDef && (lDef.forward || (lDef as any).isForward));
+  });
+  const completedCount = completableEvents.filter((e) => e.completed).length;
+  const progressPercent = completableEvents.length > 0 ? Math.round((completedCount / completableEvents.length) * 100) : 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,19 +73,29 @@ export default function DayEvents({
           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
             {events.length}
           </span>
-          {events.length > 0 && (
+          {completableEvents.length > 0 && (
             <span className="text-xs font-bold text-primary ml-1">
-              ({completedCount}/{events.length} 완료)
+              ({completedCount}/{completableEvents.length} 완료)
             </span>
           )}
+          <div className="flex items-center gap-1 ml-1">
+            <button
+              type="button"
+              onClick={() => openLinkerModal('event', formattedDate)}
+              className="px-2 py-0.5 bg-yellow-50 text-yellow-700 border border-yellow-300 rounded-md text-[10px] font-bold hover:bg-yellow-100 transition-colors"
+              title="일정에 링크 연결"
+            >
+              +링크
+            </button>
+          </div>
         </div>
       </div>
 
       {!isCollapsed && (
         <>
 
-      {/* 진행 바 */}
-      {events.length > 0 && (
+      {/* 진행 바 (완료 속성 라벨 일정이 있을 때만 표시) */}
+      {completableEvents.length > 0 && (
         <div className="w-full h-1.5 bg-slate-100 rounded-full mb-4 overflow-hidden">
           <div
             className="h-full bg-primary transition-all duration-300 rounded-full"
@@ -141,56 +158,89 @@ export default function DayEvents({
       <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[160px]">
         {events.length > 0 ? (
           events.map((event) => {
-            const hasLabel = !!event.label;
-            const labelColor = hasLabel ? getLabelColor(event.label!) : null;
-            const labelDef = hasLabel ? getLabel(event.label!) : null;
-            const isCompletable = labelDef ? !!labelDef.forward : true;
+            const labelDef = eventLabels.find(l => l.name === event.label || (event.labelIds && event.labelIds.includes(l.id)));
+            const displayLabel = labelDef ? labelDef.name : event.label;
+            const labelColor = labelDef ? getLabelColor(labelDef.name) : (displayLabel ? getLabelColor(displayLabel) : null);
+            // 💡 완료 속성 라벨이 아니면 체크박스 삭제!
+            const isCompletable = !!(labelDef && (labelDef.forward || (labelDef as any).isForward));
 
             return (
               <div
                 key={event.id}
                 className={`group flex items-center justify-between p-3 rounded-xl border transition-all ${
-                  event.completed
+                  event.completed && isCompletable
                     ? 'bg-slate-50 border-slate-100 text-slate-400'
                     : 'bg-white border-slate-200/60 hover:border-slate-300 text-slate-800'
                 }`}
               >
-                <label className={`flex items-center gap-3 flex-1 min-w-0 ${isCompletable ? 'cursor-pointer' : ''}`}>
+                <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                  {/* 1. 라벨 배지 (왼쪽에 가장 먼저 표시!) */}
+                  {displayLabel && labelColor && (
+                    <span
+                      className="text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0 whitespace-nowrap shadow-2xs"
+                      style={{
+                        backgroundColor: (event.completed && isCompletable) ? '#f1f5f9' : labelColor.bg,
+                        color: (event.completed && isCompletable) ? '#94a3b8' : labelColor.text,
+                        border: '1px solid ' + ((event.completed && isCompletable) ? '#e2e8f0' : labelColor.border)
+                      }}
+                    >
+                      {displayLabel}
+                    </span>
+                  )}
+
+                  {/* 2. 체크박스 (완료 속성 라벨일 때만 표시, 그 외에는 완전 삭제!) */}
                   {isCompletable && (
                     <input
                       type="checkbox"
                       checked={!!event.completed}
                       onChange={() => onToggleEvent(event.id)}
                       className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 cursor-pointer accent-primary shrink-0"
+                      title="완료 체크"
                     />
                   )}
-                  
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    {hasLabel && labelColor && (
-                      <span
-                        className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap"
-                        style={{
-                          backgroundColor: event.completed ? '#f1f5f9' : labelColor.bg,
-                          color: event.completed ? '#94a3b8' : labelColor.text,
-                          border: '1px solid ' + (event.completed ? '#e2e8f0' : labelColor.border)
-                        }}
-                      >
-                        {event.label}
-                      </span>
-                    )}
-                    <span className={`text-sm break-words leading-relaxed ${event.completed ? 'line-through' : ''}`}>
-                      {event.content}
-                    </span>
-                  </div>
-                </label>
 
-                <button
-                  onClick={() => onDeleteEvent(event.id)}
-                  className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 p-1 rounded-md hover:bg-slate-100 text-xs transition-all shrink-0 ml-2"
-                  title="삭제"
-                >
-                  ✕
-                </button>
+                  {/* 3. 일정 내용 텍스트 */}
+                  <span
+                    onClick={() => isCompletable && onToggleEvent(event.id)}
+                    className={`text-sm break-words leading-relaxed flex-1 ${isCompletable ? 'cursor-pointer' : ''} ${
+                      event.completed && isCompletable ? 'line-through text-slate-400' : ''
+                    }`}
+                  >
+                    {event.content}
+                  </span>
+                </div>
+
+                {/* 우측 링크 및 삭제 버튼 */}
+                <div className="flex items-center gap-1 shrink-0 ml-2">
+                  {event.linkedItems && event.linkedItems.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => openLinkerModal('event', formattedDate, event.id)}
+                      className="px-1.5 py-0.5 bg-yellow-50 text-yellow-800 border border-yellow-300 rounded text-[10px] font-bold"
+                      title="연결된 링크 보기"
+                    >
+                      📑 {event.linkedItems.length}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => openLinkerModal('event', formattedDate, event.id)}
+                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-600 p-1 rounded hover:bg-slate-100 text-xs transition-all"
+                    title="링크 추가/수정"
+                  >
+                    🔗
+                  </button>
+                  {mode === 'editor' && (
+                    <button
+                      type="button"
+                      onClick={() => onDeleteEvent(event.id)}
+                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 text-xs transition-all"
+                      title="삭제"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })

@@ -166,23 +166,14 @@ export default function DaySchedule({
           </div>
         </div>
 
-        {!isCollapsed && (
+        {!isCollapsed && mode === 'editor' && (
           <div className="flex items-center gap-1.5">
             <button
-              onClick={handleApplyTemplate}
-              className="px-2.5 py-1 text-xs font-bold bg-blue-50 text-primary border border-blue-200/80 rounded-xl hover:bg-blue-100 transition-colors flex items-center gap-1"
-              title="오늘 요일의 기본 시간표 과목들을 자동으로 채웁니다"
+              onClick={() => setIsTemplateModalOpen(true)}
+              className="px-2 py-1 text-xs font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
             >
-              <span>📋</span> 기본 시간표
+              ⚙️ 설정
             </button>
-            {mode === 'editor' && (
-              <button
-                onClick={() => setIsTemplateModalOpen(true)}
-                className="px-2 py-1 text-xs font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
-              >
-                ⚙️ 설정
-              </button>
-            )}
           </div>
         )}
       </div>

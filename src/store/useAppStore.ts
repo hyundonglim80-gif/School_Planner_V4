@@ -22,11 +22,11 @@ interface AppState {
   
   // Linker Modal State
   isLinkerModalOpen: boolean;
-  linkerSourceType: 'schedule' | 'journal' | 'manual';
+  linkerSourceType: 'schedule' | 'journal' | 'event' | 'manual';
   linkerSourceDateStr: string;
   linkerSourceId?: string;
   linkerSourcePeriod?: number;
-  openLinkerModal: (sourceType: 'schedule' | 'journal' | 'manual', dateStr: string, id?: string, period?: number) => void;
+  openLinkerModal: (sourceType: 'schedule' | 'journal' | 'event' | 'manual', dateStr: string, id?: string, period?: number) => void;
   closeLinkerModal: () => void;
 
   // Evaluation Modal State

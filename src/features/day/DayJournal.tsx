@@ -120,6 +120,16 @@ export default function DayJournal({
           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
             {journals.length}
           </span>
+          <div className="flex items-center gap-1 ml-1">
+            <button
+              type="button"
+              onClick={() => openLinkerModal('journal', formattedDate)}
+              className="px-2 py-0.5 bg-yellow-50 text-yellow-700 border border-yellow-300 rounded-md text-[10px] font-bold hover:bg-yellow-100 transition-colors"
+              title="기록에 링크 연결"
+            >
+              +링크
+            </button>
+          </div>
         </div>
 
         {!isCollapsed && mode === 'editor' && !isFormOpen && (
