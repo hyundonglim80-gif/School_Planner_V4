@@ -37,22 +37,42 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
             <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5">
               <span>⌨️</span> 키보드 단축키
             </h4>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
                 <span className="text-slate-600">통합 검색 열기</span>
                 <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">/</kbd>
+              </div>
+              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
+                <span className="text-slate-600">보기 모드 전환</span>
+                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Ctrl + ↑</kbd>
+              </div>
+              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
+                <span className="text-slate-600">작성 / 저장 모드</span>
+                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Ctrl + ↓</kbd>
+              </div>
+              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
+                <span className="text-slate-600">주말 보기 / 숨기기</span>
+                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Shift + ↑/↓</kbd>
+              </div>
+              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
+                <span className="text-slate-600">이전 / 다음 날짜</span>
+                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Ctrl + ← / →</kbd>
+              </div>
+              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
+                <span className="text-slate-600">오늘 날짜로 이동</span>
+                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Ctrl + Space</kbd>
               </div>
               <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
                 <span className="text-slate-600">메모 즉시 저장</span>
                 <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Ctrl + Enter</kbd>
               </div>
               <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
-                <span className="text-slate-600">패널 / 모달 닫기</span>
-                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">ESC</kbd>
-              </div>
-              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
                 <span className="text-slate-600">할 일 빠른 등록</span>
                 <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Enter</kbd>
+              </div>
+              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between sm:col-span-2">
+                <span className="text-slate-600">패널 / 모달 닫기</span>
+                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">ESC</kbd>
               </div>
             </div>
           </div>

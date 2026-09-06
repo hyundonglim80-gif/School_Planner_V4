@@ -92,33 +92,120 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 검색 단축키 (/) 및 모드/주말 단축키
+  // 상단 2행 날짜 네비게이션 함수들
+  const handlePrevDate = () => {
+    const { currentDate, scope, showWeekend, setCurrentDate } = useAppStore.getState();
+    const d = new Date(currentDate);
+    if (scope === 'day') {
+      d.setDate(d.getDate() - 1);
+      if (!showWeekend) {
+        if (d.getDay() === 0) d.setDate(d.getDate() - 2);
+        else if (d.getDay() === 6) d.setDate(d.getDate() - 1);
+      }
+    } else if (scope === 'week') {
+      d.setDate(d.getDate() - 7);
+    } else if (scope === 'month') {
+      d.setMonth(d.getMonth() - 1);
+    } else if (scope === 'year') {
+      d.setFullYear(d.getFullYear() - 1);
+    }
+    setCurrentDate(d);
+  };
+
+  const handleNextDate = () => {
+    const { currentDate, scope, showWeekend, setCurrentDate } = useAppStore.getState();
+    const d = new Date(currentDate);
+    if (scope === 'day') {
+      d.setDate(d.getDate() + 1);
+      if (!showWeekend) {
+        if (d.getDay() === 6) d.setDate(d.getDate() + 2);
+        else if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+      }
+    } else if (scope === 'week') {
+      d.setDate(d.getDate() + 7);
+    } else if (scope === 'month') {
+      d.setMonth(d.getMonth() + 1);
+    } else if (scope === 'year') {
+      d.setFullYear(d.getFullYear() + 1);
+    }
+    setCurrentDate(d);
+  };
+
+  const handleTodayClick = () => {
+    useAppStore.getState().setCurrentDate(new Date());
+  };
+
+  // 키보드 단축키 핸들러 (ESC, /, Ctrl+화살표, Ctrl+Space, Shift+화살표 등)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        (e.key === '/' || e.key === '`') &&
-        !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)
-      ) {
+      const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+
+      // ESC: 열려있는 모든 모달 및 메뉴 닫기
+      if (e.key === 'Escape') {
+        setIsHelpModalOpen(false);
+        setIsSearchModalOpen(false);
+        setIsGroupModalOpen(false);
+        setIsBackupModalOpen(false);
+        setIsLabelModalOpen(false);
+        setIsLinkerModalOpen(false);
+        setIsMoreMenuOpen(false);
+        return;
+      }
+
+      // 통합 검색: / 또는 ` (입력창 포커스 아닐 때)
+      if ((e.key === '/' || e.key === '`') && !isInput) {
         e.preventDefault();
         setIsSearchModalOpen(true);
+        return;
       }
+
+      // 보기 모드: Ctrl + ↑
       if (e.ctrlKey && e.key === 'ArrowUp') {
         e.preventDefault();
         setMode('viewer');
-      } else if (e.ctrlKey && e.key === 'ArrowDown') {
+        return;
+      }
+
+      // 작성/저장 모드: Ctrl + ↓
+      if (e.ctrlKey && e.key === 'ArrowDown') {
         e.preventDefault();
         setMode('editor');
-      } else if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        return;
+      }
+
+      // 주말 보기/숨기기 토글: Shift + ↑ 또는 Shift + ↓
+      if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault();
         const currentShow = useAppStore.getState().showWeekend;
         setShowWeekend(!currentShow);
+        return;
+      }
+
+      // 이전 날짜: Ctrl + ←
+      if (e.ctrlKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePrevDate();
+        return;
+      }
+
+      // 다음 날짜: Ctrl + →
+      if (e.ctrlKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleNextDate();
+        return;
+      }
+
+      // 오늘 날짜로 이동: Ctrl + Space
+      if (e.ctrlKey && (e.key === ' ' || e.code === 'Space')) {
+        e.preventDefault();
+        handleTodayClick();
+        return;
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setMode, setShowWeekend]);
 
-    // 상단 2행 날짜 네비게이션 함수들
   const getFormattedDateRange = () => {
     const d = new Date(currentDate);
     const y = d.getFullYear();
@@ -148,46 +235,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       return `${academicYear}학년도`;
     }
     return '전체 메모';
-  };
-
-  const handlePrevDate = () => {
-    const d = new Date(currentDate);
-    if (scope === 'day') {
-      d.setDate(d.getDate() - 1);
-      if (!showWeekend) {
-        if (d.getDay() === 0) d.setDate(d.getDate() - 2);
-        else if (d.getDay() === 6) d.setDate(d.getDate() - 1);
-      }
-    } else if (scope === 'week') {
-      d.setDate(d.getDate() - 7);
-    } else if (scope === 'month') {
-      d.setMonth(d.getMonth() - 1);
-    } else if (scope === 'year') {
-      d.setFullYear(d.getFullYear() - 1);
-    }
-    setCurrentDate(d);
-  };
-
-  const handleNextDate = () => {
-    const d = new Date(currentDate);
-    if (scope === 'day') {
-      d.setDate(d.getDate() + 1);
-      if (!showWeekend) {
-        if (d.getDay() === 6) d.setDate(d.getDate() + 2);
-        else if (d.getDay() === 0) d.setDate(d.getDate() + 1);
-      }
-    } else if (scope === 'week') {
-      d.setDate(d.getDate() + 7);
-    } else if (scope === 'month') {
-      d.setMonth(d.getMonth() + 1);
-    } else if (scope === 'year') {
-      d.setFullYear(d.getFullYear() + 1);
-    }
-    setCurrentDate(d);
-  };
-
-  const handleTodayClick = () => {
-    setCurrentDate(new Date());
   };
 
   const scopes = [
@@ -448,7 +495,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 flex-none shadow-2xs">
             <button
               onClick={() => setMode('viewer')}
-              className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all flex items-center gap-1 ${
+              className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
                 mode === 'viewer'
                   ? 'bg-emerald-600 text-white shadow-xs'
                   : 'text-slate-500 hover:text-slate-800'
@@ -458,15 +505,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <span>보기</span>
             </button>
             <button
-              onClick={() => setMode('editor')}
-              className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all flex items-center gap-1 ${
+              onClick={() => setMode(mode === 'editor' ? 'viewer' : 'editor')}
+              className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
                 mode === 'editor'
-                  ? 'bg-white text-primary shadow-xs'
+                  ? 'bg-emerald-600 text-white shadow-xs'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
-              title="작성 모드 (단축키: Ctrl + ↓): 일정, 시간표, 일지 작성 및 편집"
+              title={
+                mode === 'editor'
+                  ? '저장 (보기 모드로 전환): 수정 완료 후 보기 모드로 보호'
+                  : '작성 모드 (단축키: Ctrl + ↓): 일정, 시간표, 일지 작성 및 편집'
+              }
             >
-              <span>작성</span>
+              <span>{mode === 'editor' ? '저장' : '작성'}</span>
             </button>
           </div>
         </div>
