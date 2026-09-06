@@ -93,6 +93,11 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
 
     setLoading(true);
 
+    // 네트워크 지연/학교 방화벽 차단 등으로 인한 무한 로딩 방지 타임아웃 (3초)
+    const fallbackTimeout = setTimeout(() => {
+      setLoading(false);
+    }, 3000);
+
     const eventDocRef = groupId
       ? doc(db, 'groups', groupId, 'events', dateStr)
       : doc(db, 'users', user.uid, 'events', dateStr);
@@ -183,6 +188,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     });
 
     return () => {
+      clearTimeout(fallbackTimeout);
       unsubEvent();
       unsubSchedule();
       unsubJournal();
