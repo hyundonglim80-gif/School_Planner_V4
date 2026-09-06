@@ -32,9 +32,8 @@ export const useAppStore = create<AppState>()(
       currentDate: new Date().toISOString(),
       selectedGroupId: null,
       setScope: (scope) => {
-        const showWeekend = scope === 'year' || scope === 'month';
         const showClass = scope !== 'year' && scope !== 'month';
-        set({ scope, showWeekend, showClass });
+        set({ scope, showClass });
       },
       setMode: (mode) => set({ mode }),
       setSemesterFilter: (filter) => set({ semesterFilter: filter }),

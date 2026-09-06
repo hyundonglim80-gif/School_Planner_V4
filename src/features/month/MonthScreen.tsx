@@ -51,11 +51,12 @@ export default function MonthScreen() {
         </div>
       ) : (
         <MonthGrid
-        isEditorMode={mode === "editor"}
-        onQuickAdd={(date) => setQuickAddDate(date)}
+          isEditorMode={mode === "editor"}
+          onQuickAdd={(date) => setQuickAddDate(date)}
           days={calendarDays}
           dataMap={dataMap}
           onSelectDate={handleSelectDate}
+          showWeekend={showWeekend}
         />
       )}
           {quickAddDate && <QuickAddModal isOpen={true} onClose={() => setQuickAddDate(null)} dateStr={quickAddDate} />}

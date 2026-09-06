@@ -24,6 +24,12 @@ const ALL_WEEKDAYS = [
 
 export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, isEditorMode, showWeekend = true }: MonthGridProps) {
   const currentWeekdays = showWeekend ? ALL_WEEKDAYS : ALL_WEEKDAYS.slice(1, 6);
+  const displayDays = React.useMemo(() => {
+    if (!showWeekend) {
+      return days.filter((d) => !d.isSunday && !d.isSaturday);
+    }
+    return days;
+  }, [days, showWeekend]);
   const { getLabelColor } = useLabels();
   
   return (
@@ -37,7 +43,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, isE
       </div>
 
       <div className={"grid " + (showWeekend ? "grid-cols-7" : "grid-cols-5") + " divide-x divide-y divide-slate-100"}>
-        {days.map((dayObj) => {
+        {displayDays.map((dayObj) => {
           const summary = dataMap[dayObj.dateStr] || {};
           const events = summary.eventList || [];
           const schedules = summary.schedules || {};

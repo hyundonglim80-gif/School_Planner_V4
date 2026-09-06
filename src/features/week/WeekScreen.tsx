@@ -50,6 +50,13 @@ export default function WeekScreen() {
     setScope('day');
   };
 
+  const displayWeekDays = useMemo(() => {
+    if (!showWeekend) {
+      return weekDays.filter(d => !d.isWeekend);
+    }
+    return weekDays;
+  }, [weekDays, showWeekend]);
+
   return (
     <div className="animate-fade-in pb-12">{loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -58,9 +65,9 @@ export default function WeekScreen() {
         </div>
       ) : (
         <WeekGrid
-        isEditorMode={mode === "editor"}
-        onQuickAdd={(date) => setQuickAddDate(date)}
-          days={weekDays}
+          isEditorMode={mode === "editor"}
+          onQuickAdd={(date) => setQuickAddDate(date)}
+          days={displayWeekDays}
           dataMap={dataMap}
           onSelectDate={handleSelectDate}
         />

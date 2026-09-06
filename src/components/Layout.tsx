@@ -92,7 +92,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 검색 단축키 (/)
+  // 검색 단축키 (/) 및 모드/주말 단축키
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
@@ -108,11 +108,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       } else if (e.ctrlKey && e.key === 'ArrowDown') {
         e.preventDefault();
         setMode('editor');
+      } else if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault();
+        const currentShow = useAppStore.getState().showWeekend;
+        setShowWeekend(!currentShow);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [setMode, setShowWeekend]);
 
     // 상단 2행 날짜 네비게이션 함수들
   const getFormattedDateRange = () => {
