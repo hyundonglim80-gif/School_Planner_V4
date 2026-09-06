@@ -65,6 +65,9 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
           };
         }
         setDataMap({ ...currentMap });
+      }, (error) => {
+        console.error('Calendar Event Snapshot Error:', error);
+        setLoading(false);
       });
 
       const unsubSchedule = onSnapshot(scheduleDocRef, (snap) => {
@@ -96,6 +99,9 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
           };
         }
         setDataMap({ ...currentMap });
+      }, (error) => {
+        console.error('Calendar Schedule Snapshot Error:', error);
+        setLoading(false);
       });
 
       unsubs.push(unsubEvent, unsubSchedule);

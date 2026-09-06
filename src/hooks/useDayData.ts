@@ -129,6 +129,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         setEventText('');
         setEventList([]);
       }
+    }, (error) => {
+      console.error('DayScreen Event Snapshot Error:', error);
+      setLoading(false);
     });
 
     // 2. 시간표 동기화 (V3 periods 구조 호환)
@@ -153,6 +156,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       } else {
         setSchedules({});
       }
+    }, (error) => {
+      console.error('DayScreen Schedule Snapshot Error:', error);
+      setLoading(false);
     });
 
     // 3. 일지 동기화 (V3 entries 구조 호환)
@@ -170,6 +176,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       } else {
         setJournals([]);
       }
+      setLoading(false);
+    }, (error) => {
+      console.error('DayScreen Journal Snapshot Error:', error);
       setLoading(false);
     });
 
