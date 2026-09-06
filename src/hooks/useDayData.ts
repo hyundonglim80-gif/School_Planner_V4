@@ -9,6 +9,7 @@ export interface EventItem {
   label?: string;
   labelIds?: string[];
   linkedItems?: any[];
+  imageUrl?: string;
 }
 
 export interface PeriodSchedule {
@@ -17,6 +18,7 @@ export interface PeriodSchedule {
   memo?: string;   // V3 호환
   supplies?: string;
   linkedItems?: string[];
+  imageUrl?: string;
 }
 
 export interface JournalEntry {

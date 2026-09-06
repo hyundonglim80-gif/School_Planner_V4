@@ -39,26 +39,28 @@ export default function DayEvents({
 
   // 라벨 정보 및 클린 텍스트 추출 헬퍼
   const getEventLabelInfo = (event: EventItem) => {
-    let name = event.label;
-    if (!name && event.labelIds && event.labelIds.length > 0) {
-      const found = eventLabels.find(l => event.labelIds!.includes(l.id));
-      if (found) name = found.name;
-    }
-    if (!name) {
+    let names: string[] = [];
+    if (event.label) {
+      names = event.label.split(',').map(l => l.trim()).filter(Boolean);
+    } else if (event.labelIds && event.labelIds.length > 0) {
+      const found = eventLabels.filter(l => event.labelIds!.includes(l.id));
+      names = found.map(f => f.name);
+    } else {
       const match = event.content.match(/^\[(.*?)\]\s*(.*)$/);
       if (match) {
-        name = match[1].trim();
+        names = [match[1].trim()];
       }
     }
-    const labelDef = name ? eventLabels.find(l => l.name === name) : null;
-    const labelColor = labelDef ? getLabelColor(labelDef.name) : (name ? getLabelColor(name) : null);
-    const isCompletable = !!(labelDef && (labelDef.forward || (labelDef as any).isForward));
+    
+    const labelDefs = names.map(name => eventLabels.find(l => l.name === name));
+    const isCompletable = labelDefs.some(def => def && (def.forward || (def as any).isForward));
     
     let cleanContent = event.content;
-    if (name && cleanContent.startsWith(`[${name}]`)) {
-      cleanContent = cleanContent.replace(new RegExp(`^\\[${name}\\]\\s*`), '');
+    if (names.length === 1 && cleanContent.startsWith(`[${names[0]}]`)) {
+      cleanContent = cleanContent.replace(new RegExp(`^\\[${names[0]}\\]\\s*`), '');
     }
-    return { name, labelDef, labelColor, isCompletable, cleanContent };
+    
+    return { names, labelDefs, isCompletable, cleanContent };
   };
 
   // 완료 속성 라벨을 가진 항목들 판별
@@ -73,7 +75,7 @@ export default function DayEvents({
     const info = getEventLabelInfo(event);
     setEditingId(event.id);
     setEditText(info.cleanContent);
-    setEditLabel(info.name || undefined);
+    setEditLabel(info.names.length > 0 ? info.names.join(',') : undefined);
     setEditLabelDropdown(false);
   };
 
@@ -307,17 +309,25 @@ export default function DayEvents({
               >
                 <div className="flex items-center gap-2.5 flex-1 min-w-0">
                   {/* 1. 라벨 배지 (왼쪽에 가장 먼저 표시!) */}
-                  {info.name && info.labelColor && (
-                    <span
-                      className="text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0 whitespace-nowrap shadow-2xs"
-                      style={{
-                        backgroundColor: (event.completed && info.isCompletable) ? '#f1f5f9' : info.labelColor.bg,
-                        color: (event.completed && info.isCompletable) ? '#94a3b8' : info.labelColor.text,
-                        border: '1px solid ' + ((event.completed && info.isCompletable) ? '#e2e8f0' : info.labelColor.border)
-                      }}
-                    >
-                      {info.name}
-                    </span>
+                  {info.names.length > 0 && (
+                    <div className="flex gap-1 shrink-0">
+                      {info.names.map(name => {
+                        const color = getLabelColor(name);
+                        return (
+                          <span
+                            key={name}
+                            className="text-[11px] font-bold px-2 py-0.5 rounded-md whitespace-nowrap shadow-2xs"
+                            style={{
+                              backgroundColor: (event.completed && info.isCompletable) ? '#f1f5f9' : color.bg,
+                              color: (event.completed && info.isCompletable) ? '#94a3b8' : color.text,
+                              border: '1px solid ' + ((event.completed && info.isCompletable) ? '#e2e8f0' : color.border)
+                            }}
+                          >
+                            {name}
+                          </span>
+                        );
+                      })}
+                    </div>
                   )}
 
                   {/* 2. 체크박스 (완료 속성 라벨일 때만 표시, 그 외에는 완전 삭제!) */}
