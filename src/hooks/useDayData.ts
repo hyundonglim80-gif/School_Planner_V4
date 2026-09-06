@@ -26,6 +26,7 @@ export interface JournalEntry {
   label?: string;
   labelIds?: string[];
   linkedItems?: string[];
+  imageUrl?: string;
 }
 
 /**
@@ -199,6 +200,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           label: j.label || (j.labelIds && j.labelIds.length > 0 ? j.labelIds[0] : '일반'),
           labelIds: j.labelIds || [],
           linkedItems: j.linkedItems || [],
+          imageUrl: j.imageUrl || '',
         }));
         setJournals(mapped);
       } else {
@@ -338,7 +340,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   }, [dateStr, groupId, schedules]);
 
   // 일지 추가/삭제
-  const addJournalEntry = useCallback(async (content: string, label: string = '일반') => {
+  const addJournalEntry = useCallback(async (content: string, label: string = '일반', labelIds: string[] = [], imageUrl?: string) => {
     const user = auth.currentUser;
     if (!user || !dateStr || !content.trim()) return;
 
@@ -346,13 +348,14 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       ? doc(db, 'groups', groupId, 'journals', dateStr)
       : doc(db, 'users', user.uid, 'journals', dateStr);
 
-    const newEntry = {
+    const newEntry: JournalEntry = {
       id: 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5),
       content: content.trim(),
       createdAt: Date.now(),
       label,
-      authorId: user.uid,
-      authorName: user.displayName || '',
+      labelIds,
+      linkedItems: [],
+      imageUrl: imageUrl || '',
     };
     const newJournals = [newEntry, ...journals];
     await setDoc(journalDocRef, {
@@ -376,7 +379,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     }, { merge: true });
   }, [dateStr, groupId, journals]);
 
-  const updateJournalEntry = useCallback(async (id: string, updates: Partial<JournalEntry>) => {
+  const updateJournalEntry = useCallback(async (id: string, updates: { content?: string; label?: string; labelIds?: string[]; imageUrl?: string }) => {
     const user = auth.currentUser;
     if (!user || !dateStr) return;
 

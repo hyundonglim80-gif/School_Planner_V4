@@ -40,10 +40,9 @@ export default function DaySchedule({
   const [draggedPeriod, setDraggedPeriod] = useState<number | null>(null);
 
   const { getDayTemplate } = useTimetableTemplate();
-  const { mode, openLinkerModal, openEvaluationModal } = useAppStore();
+  const { openLinkerModal, openEvaluationModal } = useAppStore();
 
   const startEdit = (period: number) => {
-    if (mode === 'viewer') return;
     const current = schedules[period] || { subject: '', content: '' };
     setEditSubject(current.subject || '');
     setEditMemo(current.memo || current.content || '');
@@ -113,19 +112,16 @@ export default function DaySchedule({
   };
 
   const handleDragStart = (e: React.DragEvent, period: number) => {
-    if (mode === 'viewer') return;
     setDraggedPeriod(period);
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e: React.DragEvent) => {
-    if (mode === 'viewer') return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
   };
 
   const handleDrop = async (e: React.DragEvent, targetPeriod: number) => {
-    if (mode === 'viewer') return;
     e.preventDefault();
     if (draggedPeriod !== null && draggedPeriod !== targetPeriod) {
       await onReorderPeriods(draggedPeriod, targetPeriod);
@@ -166,7 +162,7 @@ export default function DaySchedule({
           </div>
         </div>
 
-        {!isCollapsed && mode === 'editor' && (
+        {!isCollapsed && (
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => setIsTemplateModalOpen(true)}
@@ -246,23 +242,17 @@ export default function DaySchedule({
           return (
             <div
               key={period}
-              draggable={mode === 'editor'}
+              draggable
               onDragStart={(e) => handleDragStart(e, period)}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, period)}
-              className={`group p-3.5 rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[80px] ${
-                mode === 'editor'
-                  ? 'hover:border-primary/50 hover:bg-slate-50/50 cursor-grab active:cursor-grabbing'
-                  : 'bg-white shadow-2xs'
-              }`}
+              className={`group p-3.5 rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[80px] hover:border-primary/50 hover:bg-slate-50/50 cursor-grab active:cursor-grabbing`}
             >
               <div className="flex gap-3 h-full items-stretch">
-                {mode === 'editor' && (
-                  <div className="flex items-center justify-center text-slate-300 cursor-grab active:cursor-grabbing px-1 hover:text-slate-500">
-                    <span className="text-xl">≡</span>
-                  </div>
-                )}
-                <div className="flex-1 cursor-pointer" onClick={() => startEdit(period)}>
+                <div className="flex items-center justify-center text-slate-300 cursor-grab active:cursor-grabbing px-1 hover:text-slate-500">
+                  <span className="text-xl">≡</span>
+                </div>
+                <div className="flex-1 flex flex-col">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold border ${colorClass}`}>
@@ -280,11 +270,24 @@ export default function DaySchedule({
                         </button>
                       )}
                     </div>
-                    {mode === 'editor' && (
-                      <span className="text-xs text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                        ✏️ 편집
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); dateStr && openLinkerModal('schedule', dateStr, undefined, period); }}
+                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-600 p-1 rounded hover:bg-slate-100 text-xs transition-all"
+                        title="링크 추가/수정"
+                      >
+                        🔗
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); startEdit(period); }}
+                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-600 p-1 rounded hover:bg-slate-100 text-xs transition-all"
+                        title="수업 수정"
+                      >
+                        ✏️
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">

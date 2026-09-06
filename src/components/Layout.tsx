@@ -31,8 +31,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     setShowWeekend,
     showClass,
     setShowClass,
-    mode,
-    setMode,
+    showEvents,
+    setShowEvents,
     semesterFilter,
     setSemesterFilter,
     isLinkerModalOpen,
@@ -174,20 +174,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // 보기 모드: Ctrl + ↑
-      if (e.ctrlKey && e.key === 'ArrowUp') {
-        e.preventDefault();
-        setMode('viewer');
-        return;
-      }
-
-      // 작성/저장 모드: Ctrl + ↓
-      if (e.ctrlKey && e.key === 'ArrowDown') {
-        e.preventDefault();
-        setMode('editor');
-        return;
-      }
-
       // 주말 보기/숨기기 토글: Shift + ↑ 또는 Shift + ↓
       if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault();
@@ -219,7 +205,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setMode, setShowWeekend, isForwardingModalOpen, isLinkerModalOpen, closeLinkerModal]);
+  }, [setShowWeekend, isForwardingModalOpen, isLinkerModalOpen, closeLinkerModal]);
 
   const getFormattedDateRange = () => {
     const d = new Date(currentDate);
@@ -467,6 +453,30 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             >
               {showWeekend ? '주말 숨기기' : '주말 보기'}
             </button>
+            {scope !== 'memo' && (
+              <>
+                <button
+                  onClick={() => setShowClass(!showClass)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border shadow-2xs ${
+                    showClass
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : 'bg-slate-100 text-slate-500 border-slate-200'
+                  }`}
+                >
+                  {showClass ? '수업 숨기기' : '수업 보기'}
+                </button>
+                <button
+                  onClick={() => setShowEvents(!showEvents)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border shadow-2xs ${
+                    showEvents
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : 'bg-slate-100 text-slate-500 border-slate-200'
+                  }`}
+                >
+                  {showEvents ? '일정 숨기기' : '일정 보기'}
+                </button>
+              </>
+            )}
             
           </div>
 
@@ -504,36 +514,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               title="다음 날짜 (단축키: Ctrl + →)"
             >
               ▶
-            </button>
-          </div>
-
-          {/* 우측 보기 / 작성 모드 전환 */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 flex-none shadow-2xs">
-            <button
-              onClick={() => setMode('viewer')}
-              className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
-                mode === 'viewer'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="보기 모드 (단축키: Ctrl + ↑): 전자칠판/프로젝터 수업용 (수정 도구 잠금 및 학생 상담/민감 기록 보호)"
-            >
-              <span>보기</span>
-            </button>
-            <button
-              onClick={() => setMode(mode === 'editor' ? 'viewer' : 'editor')}
-              className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
-                mode === 'editor'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title={
-                mode === 'editor'
-                  ? '저장 (보기 모드로 전환): 수정 완료 후 보기 모드로 보호'
-                  : '작성 모드 (단축키: Ctrl + ↓): 일정, 시간표, 일지 작성 및 편집'
-              }
-            >
-              <span>{mode === 'editor' ? '저장' : '작성'}</span>
             </button>
           </div>
         </div>

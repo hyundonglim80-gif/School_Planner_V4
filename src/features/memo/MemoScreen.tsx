@@ -8,7 +8,7 @@ import MemoDrawer from './MemoDrawer';
 import QuickLinks from './QuickLinks';
 
 export default function MemoScreen() {
-  const { selectedGroupId, mode } = useAppStore();
+  const { selectedGroupId } = useAppStore();
   const { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete } = useMemos(selectedGroupId);
   const [currentFilter, setCurrentFilter] = useState('전체');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -54,15 +54,13 @@ export default function MemoScreen() {
           </p>
         </div>
 
-        {mode === 'editor' && (
-          <button
-            onClick={handleOpenCreate}
-            className="bg-primary hover:bg-blue-600 active:scale-98 text-white px-5 py-2.5 rounded-xl font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-sm"
-          >
-            <span className="text-base leading-none font-extrabold">+</span>
-            <span>새 메모</span>
-          </button>
-        )}
+        <button
+          onClick={handleOpenCreate}
+          className="bg-primary hover:bg-blue-600 active:scale-98 text-white px-5 py-2.5 rounded-xl font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-sm"
+        >
+          <span className="text-base leading-none font-extrabold">+</span>
+          <span>새 메모</span>
+        </button>
       </div>
 
       {/* 라벨 필터 바 */}
@@ -98,14 +96,12 @@ export default function MemoScreen() {
           <p className="text-slate-400 text-xs mt-1.5">
             우측 상단의 '+ 새 메모' 버튼을 눌러 첫 메모를 작성해 보세요.
           </p>
-          {mode === 'editor' && (
-            <button
-              onClick={handleOpenCreate}
-              className="mt-5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors inline-block"
-            >
-              지금 작성하기
-            </button>
-          )}
+          <button
+            onClick={handleOpenCreate}
+            className="mt-5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors inline-block"
+          >
+            지금 작성하기
+          </button>
         </div>
       )}
 

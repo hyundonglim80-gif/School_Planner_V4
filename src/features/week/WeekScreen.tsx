@@ -7,7 +7,7 @@ import QuickAddModal from '../../components/QuickAddModal';
 import { useState } from 'react';
 
 export default function WeekScreen() {
-  const { currentDate, setCurrentDate, setScope, selectedGroupId, mode, showWeekend } = useAppStore();
+  const { currentDate, setCurrentDate, setScope, selectedGroupId, showWeekend } = useAppStore();
   const [quickAddDate, setQuickAddDate] = useState<string | null>(null);
 
   const curDateObj = useMemo(() => new Date(currentDate), [currentDate]);
@@ -65,7 +65,6 @@ export default function WeekScreen() {
         </div>
       ) : (
         <WeekGrid
-          isEditorMode={mode === "editor"}
           onQuickAdd={(date) => setQuickAddDate(date)}
           days={displayWeekDays}
           dataMap={dataMap}

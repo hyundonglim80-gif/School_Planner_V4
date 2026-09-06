@@ -1,6 +1,9 @@
 import React from 'react';
 import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
+import { useAppStore } from '../../store/useAppStore';
+import DetailEditModal from '../../components/DetailEditModal';
+import { useState } from 'react';
 
 interface WeekDayItem {
   dateStr: string;
@@ -14,13 +17,21 @@ interface WeekGridProps {
   dataMap: Record<string, DaySummary>;
   onSelectDate: (dateStr: string) => void;
   onQuickAdd: (dateStr: string) => void;
-  isEditorMode: boolean;
 }
 
-export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, isEditorMode }: WeekGridProps) {
+export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: WeekGridProps) {
   const { getLabelColor, getLabel } = useLabels();
+  const { showClass, showEvents } = useAppStore();
+  const [detailModal, setDetailModal] = useState<{
+    isOpen: boolean;
+    type: 'schedule' | 'event';
+    dateStr: string;
+    itemId: string | number;
+    initialData: any;
+  } | null>(null);
 
   return (
+    <>
     <div className={"grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 " + (days.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-7") + " gap-3"}>
       {days.map((day) => {
         const summary = dataMap[day.dateStr] || {};
@@ -67,6 +78,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, isEd
               </div>
 
               {/* 시간표 섹션 */}
+              {showClass && (
               <div className="mb-4">
                 <div className="text-[11px] font-extrabold text-slate-400 mb-2 flex items-center gap-1">
                   <span>⏰</span> 시간표
@@ -79,7 +91,17 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, isEd
                       return (
                         <div
                           key={p}
-                          className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-50 border border-slate-100 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDetailModal({
+                              isOpen: true,
+                              type: 'schedule',
+                              dateStr: day.dateStr,
+                              itemId: p,
+                              initialData: item
+                            });
+                          }}
+                          className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-50 border border-slate-100 text-xs hover:bg-slate-100 cursor-pointer transition-colors"
                         >
                           <span className="font-bold text-[10px] text-primary shrink-0">{p}교시</span>
                           <span className="font-semibold text-slate-800 truncate text-[11px]">
@@ -95,8 +117,10 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, isEd
                   </div>
                 )}
               </div>
+              )}
 
               {/* 오늘 할 일 섹션 */}
+              {showEvents && (
               <div>
                 <div className="text-[11px] font-extrabold text-slate-400 mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-1">
@@ -108,15 +132,13 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, isEd
                         {events.length}
                       </span>
                     )}
-                    {isEditorMode && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onQuickAdd(day.dateStr); }}
-                        className="ml-1 w-5 h-5 rounded hover:bg-slate-200 text-slate-400 hover:text-primary flex items-center justify-center transition-colors text-xs font-bold leading-none"
-                        title="새 일정 추가"
-                      >
-                        +
-                      </button>
-                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onQuickAdd(day.dateStr); }}
+                      className="ml-1 w-5 h-5 rounded hover:bg-slate-200 text-slate-400 hover:text-primary flex items-center justify-center transition-colors text-xs font-bold leading-none"
+                      title="새 일정 추가"
+                    >
+                      +
+                    </button>
                   </div>
                 </div>
 
@@ -131,7 +153,17 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, isEd
                       return (
                         <div
                           key={ev.id}
-                          className={`px-2 py-1.5 rounded-lg text-xs leading-tight transition-all border flex items-center gap-1.5 ${
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDetailModal({
+                              isOpen: true,
+                              type: 'event',
+                              dateStr: day.dateStr,
+                              itemId: ev.id,
+                              initialData: ev
+                            });
+                          }}
+                          className={`px-2 py-1.5 rounded-lg text-xs leading-tight transition-all border flex items-center gap-1.5 hover:shadow-sm cursor-pointer ${
                             ev.completed
                               ? 'bg-slate-50 border-slate-100 text-slate-400 line-through'
                               : 'bg-blue-50/60 border-blue-100 text-slate-800 font-medium'
@@ -160,6 +192,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, isEd
                   </div>
                 )}
               </div>
+              )}
             </div>
 
             {/* 하단 푸터 영역 */}
@@ -170,5 +203,16 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, isEd
         );
       })}
     </div>
+    {detailModal && (
+      <DetailEditModal
+        isOpen={detailModal.isOpen}
+        onClose={() => setDetailModal(null)}
+        type={detailModal.type}
+        dateStr={detailModal.dateStr}
+        itemId={detailModal.itemId}
+        initialData={detailModal.initialData}
+      />
+    )}
+    </>
   );
 }

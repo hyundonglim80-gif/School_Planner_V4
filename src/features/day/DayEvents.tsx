@@ -23,7 +23,7 @@ export default function DayEvents({
   const [newText, setNewText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [forwarding, setForwarding] = useState(false);
-  const { mode, openLinkerModal, currentDate } = useAppStore();
+  const { openLinkerModal, currentDate } = useAppStore();
   const { eventLabels, getLabelColor, getLabel } = useLabels();
   const [showLabelDropdown, setShowLabelDropdown] = useState(false);
 
@@ -156,8 +156,7 @@ export default function DayEvents({
       )}
 
       {/* 새 할일 입력 폼 */}
-      {mode === 'editor' && (
-        <div className="relative mb-4">
+      <div className="relative mb-4">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <button
               type="button"
@@ -203,7 +202,6 @@ export default function DayEvents({
             </div>
           )}
         </div>
-      )}
 
       {/* 할 일 목록 */}
       <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[160px]">
@@ -332,11 +330,11 @@ export default function DayEvents({
                   {/* 3. 일정 내용 텍스트 */}
                   <span
                     onClick={() => info.isCompletable && onToggleEvent(event.id)}
-                    onDoubleClick={() => mode === 'editor' && startEditing(event)}
+                    onDoubleClick={() => startEditing(event)}
                     className={`text-sm break-words leading-relaxed flex-1 ${info.isCompletable ? 'cursor-pointer' : ''} ${
                       event.completed && info.isCompletable ? 'line-through text-slate-400' : ''
                     }`}
-                    title={mode === 'editor' ? '더블클릭하여 수정' : undefined}
+                    title="더블클릭하여 수정"
                   >
                     {info.cleanContent}
                   </span>
@@ -362,26 +360,22 @@ export default function DayEvents({
                   >
                     🔗
                   </button>
-                  {mode === 'editor' && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => startEditing(event)}
-                        className="text-slate-400 hover:text-blue-600 p-1 rounded hover:bg-slate-100 text-xs transition-all"
-                        title="일정 수정"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDeleteEvent(event.id)}
-                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 text-xs transition-all"
-                        title="삭제"
-                      >
-                        ✕
-                      </button>
-                    </>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => startEditing(event)}
+                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-600 p-1 rounded hover:bg-slate-100 text-xs transition-all"
+                    title="일정 수정"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteEvent(event.id)}
+                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 text-xs transition-all"
+                    title="삭제"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
             );

@@ -2,13 +2,15 @@ import React from 'react';
 import type { CalendarDay } from '../../lib/dateUtils';
 import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
+import { useAppStore } from '../../store/useAppStore';
+import DetailEditModal from '../../components/DetailEditModal';
+import { useState } from 'react';
 
 interface MonthGridProps {
   days: CalendarDay[];
   dataMap: Record<string, DaySummary>;
   onSelectDate: (dateStr: string) => void;
   onQuickAdd: (dateStr: string) => void;
-  isEditorMode: boolean;
   showWeekend?: boolean;
 }
 
@@ -22,17 +24,25 @@ const ALL_WEEKDAYS = [
   { name: '토', color: 'text-blue-500' },
 ];
 
-export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, isEditorMode, showWeekend = true }: MonthGridProps) {
+export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, showWeekend = true }: MonthGridProps) {
   const currentWeekdays = showWeekend ? ALL_WEEKDAYS : ALL_WEEKDAYS.slice(1, 6);
+  const { showClass, showEvents } = useAppStore();
   const displayDays = React.useMemo(() => {
     if (!showWeekend) {
       return days.filter((d) => !d.isSunday && !d.isSaturday);
     }
     return days;
-  }, [days, showWeekend]);
   const { getLabelColor } = useLabels();
+  const [detailModal, setDetailModal] = useState<{
+    isOpen: boolean;
+    type: 'schedule' | 'event';
+    dateStr: string;
+    itemId: string | number;
+    initialData: any;
+  } | null>(null);
   
   return (
+    <>
     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
       <div className={"grid " + (showWeekend ? "grid-cols-7" : "grid-cols-5") + " border-b border-slate-200 bg-slate-50/70 text-center py-2.5"}>
         {currentWeekdays.map((w) => (
@@ -84,7 +94,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, isE
                   </div>
 
                   <div className="flex items-center gap-1">
-                    {scheduleCount > 0 && (
+                    {showClass && scheduleCount > 0 && (
                       <span className="text-[10px] text-slate-400 font-medium hidden sm:inline" title={`${scheduleCount}개 수업`}>
                         📚 {scheduleCount}
                       </span>
@@ -92,7 +102,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, isE
                     {/* V3 처럼 항상 호버 시 보이게 함 */}
                     <button
                       onClick={(e) => { e.stopPropagation(); onQuickAdd(dayObj.dateStr); }}
-                      className={`w-5 h-5 rounded hover:bg-slate-200 text-slate-400 hover:text-primary flex items-center justify-center transition-colors text-xs font-bold leading-none ${isEditorMode ? '' : 'opacity-0 group-hover:opacity-100'}`}
+                      className="w-5 h-5 rounded hover:bg-slate-200 text-slate-400 hover:text-primary flex items-center justify-center transition-colors text-xs font-bold leading-none opacity-0 group-hover:opacity-100"
                       title="새 일정 추가"
                     >
                       +
@@ -100,6 +110,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, isE
                   </div>
                 </div>
 
+                {showEvents && (
                 <div className="space-y-1">
                   {events.slice(0, 3).map((ev) => {
                     const hasLabel = !!ev.label;
@@ -108,7 +119,17 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, isE
                     return (
                       <div
                         key={ev.id}
-                        className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate leading-tight flex items-center gap-1 ${
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDetailModal({
+                            isOpen: true,
+                            type: 'event',
+                            dateStr: dayObj.dateStr,
+                            itemId: ev.id,
+                            initialData: ev
+                          });
+                        }}
+                        className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate leading-tight flex items-center gap-1 hover:shadow-sm cursor-pointer ${
                           ev.completed
                             ? 'bg-slate-100 text-slate-400 line-through'
                             : 'bg-blue-50 text-blue-800 border border-blue-100'
@@ -138,6 +159,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, isE
                     </div>
                   )}
                 </div>
+                )}
               </div>
 
               <div className="text-[10px] text-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity text-right">
@@ -148,5 +170,16 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, isE
         })}
       </div>
     </div>
+    {detailModal && (
+      <DetailEditModal
+        isOpen={detailModal.isOpen}
+        onClose={() => setDetailModal(null)}
+        type={detailModal.type}
+        dateStr={detailModal.dateStr}
+        itemId={detailModal.itemId}
+        initialData={detailModal.initialData}
+      />
+    )}
+    </>
   );
 }

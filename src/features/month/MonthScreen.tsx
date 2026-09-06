@@ -7,7 +7,7 @@ import QuickAddModal from '../../components/QuickAddModal';
 import { useState } from 'react';
 
 export default function MonthScreen() {
-  const { currentDate, setCurrentDate, setScope, selectedGroupId, mode, showWeekend } = useAppStore();
+  const { currentDate, setCurrentDate, setScope, selectedGroupId, showWeekend } = useAppStore();
   const [quickAddDate, setQuickAddDate] = useState<string | null>(null);
 
   const curDateObj = useMemo(() => new Date(currentDate), [currentDate]);
@@ -51,7 +51,6 @@ export default function MonthScreen() {
         </div>
       ) : (
         <MonthGrid
-          isEditorMode={mode === "editor"}
           onQuickAdd={(date) => setQuickAddDate(date)}
           days={calendarDays}
           dataMap={dataMap}

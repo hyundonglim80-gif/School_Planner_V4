@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Memo } from '../../hooks/useMemos';
 import { renderFormattedText } from '../../lib/textUtils';
-import { useAppStore } from '../../store/useAppStore';
+import { renderFormattedText } from '../../lib/textUtils';
 
 interface MemoCardProps {
   memo: Memo;
@@ -11,7 +11,6 @@ interface MemoCardProps {
 }
 
 export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: MemoCardProps) {
-  const { mode } = useAppStore();
   const isCompleted = !!memo.completed;
   const isSensitive = memo.labels?.some(l => ['학생상담', '상담', '비공개', '개인'].includes(l));
 
@@ -27,8 +26,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
               type="checkbox"
               checked={isCompleted}
               onChange={() => onToggleComplete?.(memo)}
-              disabled={mode === "viewer"}
-              className={`w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 accent-primary ${mode === "viewer" ? "cursor-default opacity-70" : "cursor-pointer"}`}
+              className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 accent-primary cursor-pointer"
             />
             <span className="text-[11px] text-slate-400">
               {new Date(memo.createdAt).toLocaleDateString('ko-KR', {
@@ -40,7 +38,6 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
             </span>
           </div>
 
-          {mode === "editor" && (
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             {onEdit && (
               <button
@@ -65,7 +62,6 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
               </button>
             )}
           </div>
-          )}
         </div>
 
         {/* 첨부 이미지 (있을 경우) */}
@@ -76,18 +72,11 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
         )}
 
         {/* 본문 내용 */}
-        {isSensitive && mode === 'viewer' ? (
-          <div className="flex items-center gap-2 p-3 bg-amber-50/90 border border-amber-200/80 rounded-xl text-amber-800 text-xs my-2">
-            <span>🔒</span>
-            <span className="font-bold">수업 모드 보호 중 (학생 상담/비공개 메모)</span>
-          </div>
-        ) : (
           <p className={`text-sm whitespace-pre-wrap leading-relaxed ${
             isCompleted ? 'line-through text-slate-400' : 'text-slate-800'
           }`}>
             {renderFormattedText(memo.content || memo.text || "")}
           </p>
-        )}
       </div>
 
       {/* 하단 태그 라벨 */}
