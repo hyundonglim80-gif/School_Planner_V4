@@ -19,9 +19,11 @@ export default function DayScreen() {
     addEventItem,
     toggleEventItem,
     deleteEventItem,
+    updateEventItem,
     savePeriod,
     addJournalEntry,
     deleteJournalEntry,
+    updateJournalEntry,
     reorderPeriods,
     forwardIncompleteEvents,
   } = useDayData(dateStr, selectedGroupId);
@@ -46,12 +48,14 @@ export default function DayScreen() {
               onAddEvent={addEventItem}
               onToggleEvent={toggleEventItem}
               onDeleteEvent={deleteEventItem}
+              onUpdateEvent={updateEventItem}
               onForwardIncomplete={forwardIncompleteEvents}
             />
             <DayJournal
               journals={journals}
               onAddJournal={addJournalEntry}
               onDeleteJournal={deleteJournalEntry}
+              onUpdateJournal={updateJournalEntry}
             />
           </div>
 

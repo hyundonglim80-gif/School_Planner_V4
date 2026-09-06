@@ -8,6 +8,7 @@ interface DayEventsProps {
   onAddEvent: (content: string) => Promise<void>;
   onToggleEvent: (id: string) => Promise<void>;
   onDeleteEvent: (id: string) => Promise<void>;
+  onUpdateEvent?: (id: string, updates: Partial<EventItem>) => Promise<void>;
   onForwardIncomplete?: () => Promise<number>;
 }
 
@@ -16,6 +17,7 @@ export default function DayEvents({
   onAddEvent,
   onToggleEvent,
   onDeleteEvent,
+  onUpdateEvent,
   onForwardIncomplete,
 }: DayEventsProps) {
   const [newText, setNewText] = useState('');
@@ -25,17 +27,66 @@ export default function DayEvents({
   const { eventLabels, getLabelColor, getLabel } = useLabels();
   const [showLabelDropdown, setShowLabelDropdown] = useState(false);
 
+  // 수정(Edit) 상태
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [editLabel, setEditLabel] = useState<string | undefined>(undefined);
+  const [editLabelDropdown, setEditLabelDropdown] = useState(false);
+
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const formattedDate = new Date(currentDate).toISOString().split('T')[0];
 
+  // 라벨 정보 및 클린 텍스트 추출 헬퍼
+  const getEventLabelInfo = (event: EventItem) => {
+    let name = event.label;
+    if (!name && event.labelIds && event.labelIds.length > 0) {
+      const found = eventLabels.find(l => event.labelIds!.includes(l.id));
+      if (found) name = found.name;
+    }
+    if (!name) {
+      const match = event.content.match(/^\[(.*?)\]\s*(.*)$/);
+      if (match) {
+        name = match[1].trim();
+      }
+    }
+    const labelDef = name ? eventLabels.find(l => l.name === name) : null;
+    const labelColor = labelDef ? getLabelColor(labelDef.name) : (name ? getLabelColor(name) : null);
+    const isCompletable = !!(labelDef && (labelDef.forward || (labelDef as any).isForward));
+    
+    let cleanContent = event.content;
+    if (name && cleanContent.startsWith(`[${name}]`)) {
+      cleanContent = cleanContent.replace(new RegExp(`^\\[${name}\\]\\s*`), '');
+    }
+    return { name, labelDef, labelColor, isCompletable, cleanContent };
+  };
+
   // 완료 속성 라벨을 가진 항목들 판별
   const completableEvents = events.filter((e) => {
-    const lDef = eventLabels.find((l) => l.name === e.label || (e.labelIds && e.labelIds.includes(l.id)));
-    return !!(lDef && (lDef.forward || (lDef as any).isForward));
+    const info = getEventLabelInfo(e);
+    return info.isCompletable;
   });
   const completedCount = completableEvents.filter((e) => e.completed).length;
   const progressPercent = completableEvents.length > 0 ? Math.round((completedCount / completableEvents.length) * 100) : 0;
+
+  const startEditing = (event: EventItem) => {
+    const info = getEventLabelInfo(event);
+    setEditingId(event.id);
+    setEditText(info.cleanContent);
+    setEditLabel(info.name || undefined);
+    setEditLabelDropdown(false);
+  };
+
+  const saveEditing = async (id: string) => {
+    if (!editText.trim()) return;
+    if (onUpdateEvent) {
+      await onUpdateEvent(id, {
+        content: editText.trim(),
+        label: editLabel || undefined,
+      });
+    }
+    setEditingId(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,38 +209,117 @@ export default function DayEvents({
       <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[160px]">
         {events.length > 0 ? (
           events.map((event) => {
-            const labelDef = eventLabels.find(l => l.name === event.label || (event.labelIds && event.labelIds.includes(l.id)));
-            const displayLabel = labelDef ? labelDef.name : event.label;
-            const labelColor = labelDef ? getLabelColor(labelDef.name) : (displayLabel ? getLabelColor(displayLabel) : null);
-            // 💡 완료 속성 라벨이 아니면 체크박스 삭제!
-            const isCompletable = !!(labelDef && (labelDef.forward || (labelDef as any).isForward));
+            const isEditing = editingId === event.id;
+            const info = getEventLabelInfo(event);
+
+            if (isEditing) {
+              const editColor = editLabel ? getLabelColor(editLabel) : null;
+              return (
+                <div
+                  key={event.id}
+                  className="p-2.5 rounded-xl border border-primary/50 bg-blue-50/30 flex flex-col gap-2 shadow-xs transition-all"
+                >
+                  <div className="flex items-center gap-2">
+                    {/* 편집 시 라벨 선택 드롭다운 토글 버튼 */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setEditLabelDropdown(!editLabelDropdown)}
+                        className="px-2 py-1 text-xs font-bold rounded-md shadow-2xs flex items-center gap-1 border"
+                        style={
+                          editColor
+                            ? { backgroundColor: editColor.bg, color: editColor.text, borderColor: editColor.border }
+                            : { backgroundColor: '#f1f5f9', color: '#64748b', borderColor: '#cbd5e1' }
+                        }
+                      >
+                        <span>{editLabel || '라벨 선택'}</span>
+                        <span className="text-[10px]">▼</span>
+                      </button>
+
+                      {editLabelDropdown && (
+                        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 shadow-xl rounded-xl p-2 z-50 flex flex-wrap gap-1.5 w-[240px]">
+                          <button
+                            type="button"
+                            onClick={() => { setEditLabel(undefined); setEditLabelDropdown(false); }}
+                            className="px-2 py-1 text-xs rounded border border-slate-200 text-slate-500 hover:bg-slate-100"
+                          >
+                            라벨 없음
+                          </button>
+                          {eventLabels.map((l) => {
+                            const c = getLabelColor(l.name);
+                            return (
+                              <button
+                                key={l.id}
+                                type="button"
+                                onClick={() => { setEditLabel(l.name); setEditLabelDropdown(false); }}
+                                className="px-2 py-1 text-xs font-bold rounded hover:opacity-80"
+                                style={{ backgroundColor: c.bg, color: c.text, border: '1px solid ' + c.border }}
+                              >
+                                {l.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <input
+                      type="text"
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') saveEditing(event.id);
+                        if (e.key === 'Escape') setEditingId(null);
+                      }}
+                      className="flex-1 px-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                      autoFocus
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => saveEditing(event.id)}
+                      className="px-2.5 py-1.5 bg-primary text-white text-xs font-bold rounded-lg hover:bg-blue-600 transition-colors shrink-0"
+                    >
+                      저장
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(null)}
+                      className="px-2 py-1.5 bg-slate-100 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-200 transition-colors shrink-0"
+                    >
+                      취소
+                    </button>
+                  </div>
+                </div>
+              );
+            }
 
             return (
               <div
                 key={event.id}
                 className={`group flex items-center justify-between p-3 rounded-xl border transition-all ${
-                  event.completed && isCompletable
+                  event.completed && info.isCompletable
                     ? 'bg-slate-50 border-slate-100 text-slate-400'
                     : 'bg-white border-slate-200/60 hover:border-slate-300 text-slate-800'
                 }`}
               >
                 <div className="flex items-center gap-2.5 flex-1 min-w-0">
                   {/* 1. 라벨 배지 (왼쪽에 가장 먼저 표시!) */}
-                  {displayLabel && labelColor && (
+                  {info.name && info.labelColor && (
                     <span
                       className="text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0 whitespace-nowrap shadow-2xs"
                       style={{
-                        backgroundColor: (event.completed && isCompletable) ? '#f1f5f9' : labelColor.bg,
-                        color: (event.completed && isCompletable) ? '#94a3b8' : labelColor.text,
-                        border: '1px solid ' + ((event.completed && isCompletable) ? '#e2e8f0' : labelColor.border)
+                        backgroundColor: (event.completed && info.isCompletable) ? '#f1f5f9' : info.labelColor.bg,
+                        color: (event.completed && info.isCompletable) ? '#94a3b8' : info.labelColor.text,
+                        border: '1px solid ' + ((event.completed && info.isCompletable) ? '#e2e8f0' : info.labelColor.border)
                       }}
                     >
-                      {displayLabel}
+                      {info.name}
                     </span>
                   )}
 
                   {/* 2. 체크박스 (완료 속성 라벨일 때만 표시, 그 외에는 완전 삭제!) */}
-                  {isCompletable && (
+                  {info.isCompletable && (
                     <input
                       type="checkbox"
                       checked={!!event.completed}
@@ -201,16 +331,18 @@ export default function DayEvents({
 
                   {/* 3. 일정 내용 텍스트 */}
                   <span
-                    onClick={() => isCompletable && onToggleEvent(event.id)}
-                    className={`text-sm break-words leading-relaxed flex-1 ${isCompletable ? 'cursor-pointer' : ''} ${
-                      event.completed && isCompletable ? 'line-through text-slate-400' : ''
+                    onClick={() => info.isCompletable && onToggleEvent(event.id)}
+                    onDoubleClick={() => mode === 'editor' && startEditing(event)}
+                    className={`text-sm break-words leading-relaxed flex-1 ${info.isCompletable ? 'cursor-pointer' : ''} ${
+                      event.completed && info.isCompletable ? 'line-through text-slate-400' : ''
                     }`}
+                    title={mode === 'editor' ? '더블클릭하여 수정' : undefined}
                   >
-                    {event.content}
+                    {info.cleanContent}
                   </span>
                 </div>
 
-                {/* 우측 링크 및 삭제 버튼 */}
+                {/* 우측 링크, 수정, 삭제 버튼 */}
                 <div className="flex items-center gap-1 shrink-0 ml-2">
                   {event.linkedItems && event.linkedItems.length > 0 && (
                     <button
@@ -231,14 +363,24 @@ export default function DayEvents({
                     🔗
                   </button>
                   {mode === 'editor' && (
-                    <button
-                      type="button"
-                      onClick={() => onDeleteEvent(event.id)}
-                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 text-xs transition-all"
-                      title="삭제"
-                    >
-                      ✕
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => startEditing(event)}
+                        className="text-slate-400 hover:text-blue-600 p-1 rounded hover:bg-slate-100 text-xs transition-all"
+                        title="일정 수정"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteEvent(event.id)}
+                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 text-xs transition-all"
+                        title="삭제"
+                      >
+                        ✕
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

@@ -272,6 +272,13 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     await saveEventItems(newList);
   }, [eventList, saveEventItems]);
 
+  const updateEventItem = useCallback(async (id: string, updates: Partial<EventItem>) => {
+    const newList = eventList.map(item =>
+      item.id === id ? { ...item, ...updates } : item
+    );
+    await saveEventItems(newList);
+  }, [eventList, saveEventItems]);
+
   // 시간표 특정 교시 저장
   const savePeriod = useCallback(async (period: number, data: PeriodSchedule) => {
     const user = auth.currentUser;
@@ -369,6 +376,23 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     }, { merge: true });
   }, [dateStr, groupId, journals]);
 
+  const updateJournalEntry = useCallback(async (id: string, updates: Partial<JournalEntry>) => {
+    const user = auth.currentUser;
+    if (!user || !dateStr) return;
+
+    const journalDocRef = groupId
+      ? doc(db, 'groups', groupId, 'journals', dateStr)
+      : doc(db, 'users', user.uid, 'journals', dateStr);
+
+    const newJournals = journals.map(j =>
+      j.id === id ? { ...j, ...updates, updatedAt: Date.now() } : j
+    );
+    await setDoc(journalDocRef, {
+      entries: newJournals,
+      updatedAt: Date.now()
+    }, { merge: true });
+  }, [dateStr, groupId, journals]);
+
   
   // 지난 미완료 할 일 오늘로 가져오기 (Forwarding)
   const forwardIncompleteEvents = useCallback(async () => {
@@ -459,9 +483,11 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     addEventItem,
     toggleEventItem,
     deleteEventItem,
+    updateEventItem,
     savePeriod,
     reorderPeriods,
     addJournalEntry,
     deleteJournalEntry,
+    updateJournalEntry,
   };
 }
