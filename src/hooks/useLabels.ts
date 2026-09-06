@@ -47,14 +47,14 @@ export function useLabels() {
     const unsub = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const rawEvents = data.eventLabels || DEFAULT_EVENT_LABELS;
+        const rawEvents = data.eventLabels || data.labels || DEFAULT_EVENT_LABELS;
         setEventLabels(rawEvents.map((l: any, i: number) => ({
           id: l.id || `ev_${i}_${l.name || ''}`,
           name: l.name || '',
           color: l.color || 'blue',
           calendar: l.calendar !== false,
           skip: !!l.skip,
-          forward: !!l.forward,
+          forward: !!(l.forward || l.isForward),
           period: !!l.period,
           recur: !!l.recur,
         })));

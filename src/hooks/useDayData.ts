@@ -416,9 +416,12 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const settingsSnap = await getDoc(settingsRef);
     let forwardLabels = ['할일', '업무']; // 기본 forward 라벨명
     
-    if (settingsSnap.exists() && settingsSnap.data().eventLabels) {
-      const labels = settingsSnap.data().eventLabels;
-      forwardLabels = labels.filter((l: any) => l.forward).map((l: any) => l.name);
+    if (settingsSnap.exists()) {
+      const data = settingsSnap.data();
+      const labels = data.eventLabels || data.labels;
+      if (labels) {
+        forwardLabels = labels.filter((l: any) => l.forward || l.isForward).map((l: any) => l.name);
+      }
     }
 
     const incompleteItems: EventItem[] = [];
