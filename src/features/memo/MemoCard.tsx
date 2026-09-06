@@ -1,7 +1,6 @@
 import React from 'react';
 import type { Memo } from '../../hooks/useMemos';
 import { renderFormattedText } from '../../lib/textUtils';
-import { renderFormattedText } from '../../lib/textUtils';
 
 interface MemoCardProps {
   memo: Memo;

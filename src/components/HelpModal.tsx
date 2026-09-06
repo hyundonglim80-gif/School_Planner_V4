@@ -43,14 +43,6 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
                 <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">/</kbd>
               </div>
               <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
-                <span className="text-slate-600">보기 모드 전환</span>
-                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Ctrl + ↑</kbd>
-              </div>
-              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
-                <span className="text-slate-600">작성 / 저장 모드</span>
-                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Ctrl + ↓</kbd>
-              </div>
-              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
                 <span className="text-slate-600">주말 보기 / 숨기기</span>
                 <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Shift + ↑/↓</kbd>
               </div>
