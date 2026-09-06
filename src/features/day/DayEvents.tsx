@@ -25,6 +25,8 @@ export default function DayEvents({
   const { eventLabels, getLabelColor, getLabel } = useLabels();
   const [showLabelDropdown, setShowLabelDropdown] = useState(false);
 
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
   const completedCount = events.filter(e => e.completed).length;
   const progressPercent = events.length > 0 ? Math.round((completedCount / events.length) * 100) : 0;
 
@@ -47,10 +49,18 @@ export default function DayEvents({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 flex flex-col h-full">
+    <div className={`bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 flex flex-col ${isCollapsed ? '' : 'h-full'}`}>
       {/* 타이틀 및 진행도 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isCollapsed ? '' : 'mb-4'}`}>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="text-slate-400 hover:text-slate-700 text-xs px-1 py-0.5 rounded hover:bg-slate-100 transition-colors"
+            title={isCollapsed ? '일정 펼치기' : '일정 접기'}
+          >
+            {isCollapsed ? '▶' : '▼'}
+          </button>
           <span className="text-xl">📌</span>
           <h3 className="text-base font-extrabold text-slate-800">일정</h3>
           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
@@ -63,6 +73,9 @@ export default function DayEvents({
           )}
         </div>
       </div>
+
+      {!isCollapsed && (
+        <>
 
       {/* 진행 바 */}
       {events.length > 0 && (
@@ -189,6 +202,8 @@ export default function DayEvents({
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }

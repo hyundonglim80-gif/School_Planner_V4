@@ -133,12 +133,21 @@ export default function DaySchedule({
     setDraggedPeriod(null);
   };
 
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const periods = Array.from({ length: maxPeriods }, (_, i) => i + 1);
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isCollapsed ? '' : 'mb-4'}`}>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="text-slate-400 hover:text-slate-700 text-xs px-1 py-0.5 rounded hover:bg-slate-100 transition-colors"
+            title={isCollapsed ? '수업 펼치기' : '수업 접기'}
+          >
+            {isCollapsed ? '▶' : '▼'}
+          </button>
           <span className="text-xl">⏰</span>
           <h3 className="text-base font-extrabold text-slate-800">수업</h3>
           <div className="flex items-center gap-1 ml-2">
@@ -157,26 +166,29 @@ export default function DaySchedule({
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={handleApplyTemplate}
-            className="px-2.5 py-1 text-xs font-bold bg-blue-50 text-primary border border-blue-200/80 rounded-xl hover:bg-blue-100 transition-colors flex items-center gap-1"
-            title="오늘 요일의 기본 시간표 과목들을 자동으로 채웁니다"
-          >
-            <span>📋</span> 기본 시간표
-          </button>
-          {mode === 'editor' && (
+        {!isCollapsed && (
+          <div className="flex items-center gap-1.5">
             <button
-              onClick={() => setIsTemplateModalOpen(true)}
-              className="px-2 py-1 text-xs font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
+              onClick={handleApplyTemplate}
+              className="px-2.5 py-1 text-xs font-bold bg-blue-50 text-primary border border-blue-200/80 rounded-xl hover:bg-blue-100 transition-colors flex items-center gap-1"
+              title="오늘 요일의 기본 시간표 과목들을 자동으로 채웁니다"
             >
-              ⚙️ 설정
+              <span>📋</span> 기본 시간표
             </button>
-          )}
-        </div>
+            {mode === 'editor' && (
+              <button
+                onClick={() => setIsTemplateModalOpen(true)}
+                className="px-2 py-1 text-xs font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
+              >
+                ⚙️ 설정
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-3">
+      {!isCollapsed && (
+        <div className="grid grid-cols-1 gap-3">
         {periods.map((period) => {
           const item = schedules[period] || { subject: '', content: '' };
           const isEditing = editingPeriod === period;
@@ -304,6 +316,7 @@ export default function DaySchedule({
           );
         })}
       </div>
+      )}
 
       <TimetableTemplateModal
         isOpen={isTemplateModalOpen}

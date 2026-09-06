@@ -39,13 +39,14 @@ export default function DayScreen() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* 좌측 영역: 시간표 & 일지 (7열) */}
-          <div className="lg:col-span-7 flex flex-col gap-6">
-            <DaySchedule 
-              schedules={schedules} 
-              onSavePeriod={savePeriod} 
-              onReorderPeriods={reorderPeriods}
-              dateStr={dateStr}
+          {/* 좌측 영역: 오늘 할 일(일정) & 기록 (5열) */}
+          <div className="lg:col-span-5 flex flex-col gap-6">
+            <DayEvents
+              events={eventList}
+              onAddEvent={addEventItem}
+              onToggleEvent={toggleEventItem}
+              onDeleteEvent={deleteEventItem}
+              onForwardIncomplete={forwardIncompleteEvents}
             />
             <DayJournal
               journals={journals}
@@ -54,14 +55,13 @@ export default function DayScreen() {
             />
           </div>
 
-          {/* 우측 영역: 오늘 할 일 및 일정 (5열) */}
-          <div className="lg:col-span-5">
-            <DayEvents
-              events={eventList}
-              onAddEvent={addEventItem}
-              onToggleEvent={toggleEventItem}
-              onDeleteEvent={deleteEventItem}
-              onForwardIncomplete={forwardIncompleteEvents}
+          {/* 우측 영역: 수업 및 시간표 (7열) */}
+          <div className="lg:col-span-7">
+            <DaySchedule 
+              schedules={schedules} 
+              onSavePeriod={savePeriod} 
+              onReorderPeriods={reorderPeriods}
+              dateStr={dateStr}
             />
           </div>
         </div>

@@ -100,12 +100,21 @@ export default function DayJournal({
     }
   };
 
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const formattedDate = new Date(currentDate).toISOString().split('T')[0];
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
-      <div className="flex items-center justify-between mb-4">
+      <div className={`flex items-center justify-between ${isCollapsed ? '' : 'mb-4'}`}>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="text-slate-400 hover:text-slate-700 text-xs px-1 py-0.5 rounded hover:bg-slate-100 transition-colors"
+            title={isCollapsed ? '기록 펼치기' : '기록 접기'}
+          >
+            {isCollapsed ? '▶' : '▼'}
+          </button>
           <span className="text-xl">📋</span>
           <h3 className="text-base font-extrabold text-slate-800">기록</h3>
           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
@@ -113,7 +122,7 @@ export default function DayJournal({
           </span>
         </div>
 
-        {mode === 'editor' && !isFormOpen && (
+        {!isCollapsed && mode === 'editor' && !isFormOpen && (
           <button
             onClick={() => setIsFormOpen(true)}
             className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
@@ -122,6 +131,9 @@ export default function DayJournal({
           </button>
         )}
       </div>
+
+      {!isCollapsed && (
+        <>
 
       {isFormOpen && (
         <form onSubmit={handleSubmit} className="mb-4 p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col gap-3">
@@ -235,6 +247,8 @@ export default function DayJournal({
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }
