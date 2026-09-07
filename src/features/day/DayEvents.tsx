@@ -4,7 +4,6 @@ import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
 import { uploadFile, uploadImage } from '../../utils/uploadHelper';
 import { auth } from '../../lib/firebase';
-import { fetchTaskLists, fetchTasks } from '../../lib/googleTasks';
 
 interface DayEventsProps {
   events: EventItem[];
@@ -35,7 +34,6 @@ export default function DayEvents({
 
   const [submitting, setSubmitting] = useState(false);
   const [forwarding, setForwarding] = useState(false);
-  const [syncingTasks, setSyncingTasks] = useState(false);
   const { openLinkerModal, openLinkViewerModal, currentDate, isMultiSelectMode, selectedEventIds, toggleEventSelection, googleAccessToken } = useAppStore();
   const { eventLabels, getLabelColor, getLabel } = useLabels();
 
@@ -314,29 +312,6 @@ export default function DayEvents({
               ({completedCount}/{completableEvents.length} 완료)
             </span>
           )}
-          <div className="flex items-center gap-1 ml-1">
-            <button
-              type="button"
-              onClick={handleSyncGoogleTasks}
-              disabled={syncingTasks}
-              className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors ${
-                googleAccessToken
-                  ? 'bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100'
-                  : 'bg-slate-50 text-slate-500 border border-slate-300 hover:bg-slate-100'
-              }`}
-              title="Google Tasks 동기화"
-            >
-              {syncingTasks ? '동기화 중...' : 'Tasks 연동'}
-            </button>
-            <button
-              type="button"
-              onClick={() => openLinkerModal('event', formattedDate)}
-              className="px-2 py-0.5 bg-yellow-50 text-yellow-700 border border-yellow-300 rounded-md text-[10px] font-bold hover:bg-yellow-100 transition-colors"
-              title="일정에 링크 연결"
-            >
-              +링크
-            </button>
-          </div>
         </div>
 
         {!isCollapsed && !isFormOpen && (

@@ -147,18 +147,7 @@ export default function DaySchedule({
           <span className="text-xl">⏰</span>
           <h3 className="text-base font-extrabold text-slate-800">수업</h3>
           <div className="flex items-center gap-1 ml-2">
-            <button
-              onClick={() => dateStr && openEvaluationModal(dateStr, 'schedule', 1)}
-              className="px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-md text-[10px] font-bold hover:bg-blue-100"
-            >
-              +조사표
-            </button>
-            <button
-              onClick={() => dateStr && openLinkerModal('schedule', dateStr)}
-              className="px-2 py-0.5 bg-yellow-50 text-yellow-700 border border-yellow-300 rounded-md text-[10px] font-bold hover:bg-yellow-100"
-            >
-              +링크
-            </button>
+            {/* V3 이식: 헤더 버튼 제거 */}
           </div>
         </div>
 
@@ -278,6 +267,14 @@ export default function DaySchedule({
                         title="링크 추가"
                       >
                         🔗
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); dateStr && openEvaluationModal(dateStr, 'schedule', period); }}
+                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-emerald-600 p-1 rounded hover:bg-slate-100 text-xs transition-all"
+                        title="조사표 관리"
+                      >
+                        📊
                       </button>
                       <button
                         type="button"

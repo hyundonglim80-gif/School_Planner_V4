@@ -40,32 +40,17 @@ export default function MemoScreen() {
 
   return (
     <div className="animate-fade-in pb-12">
-      {/* 상단 헤더 및 액션 바 */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-black text-slate-800 tracking-tight">메모 보관함</h2>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-primary border border-blue-100">
-              총 {memos.length}개 {completedCount > 0 && `(완료 ${completedCount})`}
-            </span>
-          </div>
-          <p className="text-xs text-slate-400 mt-1">
-            학교 업무, 수업 아이디어, 학생 상담 메모를 편리하게 관리하세요.
-          </p>
-        </div>
-
+      {/* 라벨 필터 바 */}
+      <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
+        <MemoFilter currentFilter={currentFilter} onFilterChange={setCurrentFilter} />
         <button
           onClick={handleOpenCreate}
-          className="bg-primary hover:bg-blue-600 active:scale-98 text-white px-5 py-2.5 rounded-xl font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-sm"
+          className="bg-primary hover:bg-blue-600 active:scale-98 text-white px-4 py-2 rounded-xl font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-xs"
         >
-          <span className="text-base leading-none font-extrabold">+</span>
+          <span className="text-sm leading-none font-extrabold">+</span>
           <span>새 메모</span>
         </button>
       </div>
-
-      {/* 라벨 필터 바 */}
-      <QuickLinks />
-      <MemoFilter currentFilter={currentFilter} onFilterChange={setCurrentFilter} />
 
       {/* 메모 목록 영역 */}
       {loading ? (

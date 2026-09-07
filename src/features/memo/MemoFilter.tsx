@@ -25,7 +25,7 @@ export default function MemoFilter({ currentFilter, onFilterChange }: MemoFilter
   }, []);
 
   return (
-    <div className="flex flex-wrap gap-2 mb-6">
+    <div className="flex flex-wrap gap-2">
       <button 
         onClick={() => onFilterChange('전체')} 
         className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${

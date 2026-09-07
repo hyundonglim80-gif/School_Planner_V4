@@ -33,6 +33,9 @@ export default function DayJournal({
 
   const [submitting, setSubmitting] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  
+  const itemFileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
   const { openLinkerModal, openLinkViewerModal, currentDate } = useAppStore();
   const formattedDate = new Date(currentDate).toISOString().split('T')[0];
 
@@ -166,18 +169,36 @@ export default function DayJournal({
           : await uploadFile(file, user.uid);
         
         uploaded.push({
+          id: `file_${Date.now()}_${i}`,
           name: file.name,
           url,
-          type: isImage ? 'image' : 'document'
+          type: isImage ? 'image' : 'file',
+          size: file.size
         });
       }
-      setNewAttachments(prev => [...prev, ...uploaded]);
+      
+      if (uploadTargetId) {
+        const targetEntry = journals.find(j => j.id === uploadTargetId);
+        if (targetEntry && onUpdateJournal) {
+          await onUpdateJournal(uploadTargetId, {
+            attachments: [...(targetEntry.attachments || []), ...uploaded]
+          });
+        }
+        setUploadTargetId(null);
+      } else {
+        setNewAttachments(prev => [...prev, ...uploaded]);
+      }
     } catch (err: any) {
       alert('파일 업로드 실패: ' + err.message);
     } finally {
       setUploadingFiles(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleItemFileChange = async (e: React.ChangeEvent<HTMLInputElement>, journalId: string) => {
+    setUploadTargetId(journalId);
+    await handleFileChange(e);
   };
 
   const handleRemoveAttachment = (idx: number) => {
@@ -258,32 +279,6 @@ export default function DayJournal({
           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
             {journals.length}
           </span>
-          <div className="flex items-center gap-1 ml-1">
-            <button
-              type="button"
-              onClick={() => openLinkerModal('journal', formattedDate)}
-              className="px-2 py-0.5 bg-yellow-50 text-yellow-700 border border-yellow-300 rounded-md text-[10px] font-bold hover:bg-yellow-100 transition-colors"
-              title="기록에 링크 추가"
-            >
-              +링크
-            </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingFiles}
-              className="px-2 py-0.5 bg-slate-50 text-slate-600 border border-slate-200 rounded-md text-[10px] font-bold hover:bg-slate-100 transition-colors disabled:opacity-50"
-              title="기록에 파일 첨부"
-            >
-              +파일
-            </button>
-            <input
-              type="file"
-              multiple
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              className="hidden"
-            />
-          </div>
         </div>
 
         {!isCollapsed && !isFormOpen && (
@@ -493,9 +488,25 @@ export default function DayJournal({
                             📑 {linkCount}
                           </button>
                         )}
+                        {entry.attachments && entry.attachments.length > 0 && (
+                          <span className="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0.5 rounded font-bold border border-slate-200 ml-1">
+                            📁 {entry.attachments.length}
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUploadTargetId(entry.id);
+                            itemFileInputRef.current?.click();
+                          }}
+                          className="text-slate-400 hover:text-emerald-600 p-1 rounded-md text-xs font-bold"
+                          title="파일 첨부"
+                        >
+                          📎
+                        </button>
                         <button
                           type="button"
                           onClick={() => startEditing(entry)}
@@ -564,7 +575,14 @@ export default function DayJournal({
         )}
       </div>
         </>
-      )}
+      {/* 개별 항목용 파일 업로드 인풋 */}
+      <input
+        type="file"
+        multiple
+        className="hidden"
+        ref={itemFileInputRef}
+        onChange={handleFileChange}
+      />
     </div>
   );
 }

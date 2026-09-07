@@ -284,12 +284,31 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   {primaryDDay.title} <strong className="text-rose-600 font-extrabold">{primaryDDay.text}</strong>
                 </span>
               ) : (
-                <span>D-Day</span>
               )}
+            </button>
+
+            {/* 구글 캘린더 연동 버튼 */}
+            <button
+              onClick={() => { alert('구글 캘린더 연동 기능이 준비 중입니다.'); }}
+              className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
+              title="구글 캘린더 연동"
+            >
+              <span>📅</span>
+              <span className="hidden sm:inline">구글 캘린더 연동</span>
+            </button>
+
+            {/* 휴지통 버튼 */}
+            <button
+              onClick={() => setTrashModalOpen(true)}
+              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
+              title="휴지통"
+            >
+              <span>🗑️</span>
+              <span className="hidden sm:inline">휴지통</span>
             </button>
           </div>
 
-          {/* 우측: 검색, 휴지통, 스코프 탭, 그룹 선택, 더보기, 프로필 (V3 방식) */}
+          {/* 우측: 검색, 스코프 탭, 그룹 선택, 더보기, 프로필 (V3 방식) */}
           <div className="flex items-center gap-2.5 flex-wrap justify-end">
             {/* 통합 검색 버튼 */}
             <button
@@ -302,16 +321,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <kbd className="hidden md:inline px-1 py-0.2 bg-white rounded text-[10px] text-slate-400 font-mono shadow-2xs">
                 /
               </kbd>
-            </button>
-
-            {/* 휴지통 버튼 */}
-            <button
-              onClick={() => setTrashModalOpen(true)}
-              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
-              title="휴지통"
-            >
-              <span>🗑️</span>
-              <span className="hidden sm:inline">휴지통</span>
             </button>
 
             {/* 스코프 탭 버튼 그룹 */}
@@ -332,21 +341,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* 그룹 선택 셀렉트 */}
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
-              <span className="text-xs">📂</span>
-              <select
-                value={selectedGroupId || ''}
-                onChange={(e) => setSelectedGroupId(e.target.value ? e.target.value : null)}
-                className="bg-transparent text-xs font-bold text-slate-700 focus:outline-none cursor-pointer pr-1"
-              >
-                <option value="">🔒 개인 공간</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    👥 {g.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {groups.length > 0 && (
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
+                <span className="text-xs">📂</span>
+                <select
+                  value={selectedGroupId || ''}
+                  onChange={(e) => setSelectedGroupId(e.target.value ? e.target.value : null)}
+                  className="bg-transparent text-xs font-bold text-slate-700 focus:outline-none cursor-pointer pr-1"
+                >
+                  <option value="">🔒 개인 공간</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      👥 {g.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* 🔥 V3와 동일한 더보기 (⋮) 드롭다운 메뉴 */}
             <div className="relative" ref={moreMenuRef}>
