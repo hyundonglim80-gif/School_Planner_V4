@@ -126,7 +126,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                         onClick={(e) => {
                           e.stopPropagation();
                           if (isMultiSelectMode) {
-                            toggleEventSelection(ev.id);
+                            toggleEventSelection(ev.id, dayObj.dateStr);
                           } else {
                             setDetailModal({
                               isOpen: true,

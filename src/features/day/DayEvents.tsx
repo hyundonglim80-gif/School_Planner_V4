@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
 import { uploadFile, uploadImage } from '../../utils/uploadHelper';
 import { auth } from '../../lib/firebase';
+import { fetchTaskLists, fetchTasks } from '../../lib/googleTasks';
 
 interface DayEventsProps {
   events: EventItem[];
@@ -178,9 +179,90 @@ export default function DayEvents({
     }
     setSyncingTasks(true);
     try {
-      // TODO: 실제 Google Tasks 동기화 로직 구현 (가져와서 onAddEvent 호출 등)
-      alert('Google Tasks 동기화가 아직 구현 중입니다. (토큰 연동 완료)');
+      const lists = await fetchTaskLists(googleAccessToken);
+      if (!lists || lists.length === 0) {
+        alert('연동 가능한 Google Tasks 목록이 없습니다.');
+        return;
+      }
+
+      // 1. 전체 태스크 목록 수집
+      const allTasks: any[] = [];
+      for (const list of lists) {
+        try {
+          const tasks = await fetchTasks(googleAccessToken, list.id);
+          if (Array.isArray(tasks)) {
+            allTasks.push(...tasks);
+          }
+        } catch (err) {
+          console.warn(`태스크 리스트(${list.title}) 조회 실패:`, err);
+        }
+      }
+
+      if (allTasks.length === 0) {
+        alert('Google Tasks에 등록된 할 일이 없습니다.');
+        return;
+      }
+
+      // 2. 기존 등록된 일정 내용 추출 (중복 방지용 Set)
+      const existingTitleSet = new Set<string>();
+      events.forEach((ev) => {
+        const info = getEventLabelInfo(ev);
+        if (info.cleanContent) existingTitleSet.add(info.cleanContent.trim().toLowerCase());
+        if (ev.content) existingTitleSet.add(ev.content.trim().toLowerCase());
+      });
+
+      let addedCount = 0;
+      let skippedCount = 0;
+
+      // 3. 필터링 및 중복 검사 후 앱 이벤트로 추가
+      for (const task of allTasks) {
+        if (!task.title || !task.title.trim()) continue;
+        if (task.deleted || task.hidden) continue;
+
+        // 마감일(due)이 설정된 경우 현재 날짜(formattedDate)와 일치해야 함
+        if (task.due) {
+          const taskDueDate = task.due.split('T')[0];
+          if (taskDueDate !== formattedDate) {
+            continue;
+          }
+        }
+
+        const cleanTitle = task.title.trim();
+        if (existingTitleSet.has(cleanTitle.toLowerCase())) {
+          skippedCount++;
+          continue;
+        }
+
+        // 중복 방지 세트에 등록
+        existingTitleSet.add(cleanTitle.toLowerCase());
+
+        const isCompleted = task.status === 'completed';
+        
+        // 라벨 결정: 제목에 이미 [라벨] 형식이 있으면 그대로, 없으면 '업무' 라벨 적용
+        let labelName: string | undefined = '업무';
+        let contentToAdd = cleanTitle;
+        const match = cleanTitle.match(/^\[(.*?)\]\s*(.*)$/);
+        if (match) {
+          labelName = match[1].trim();
+          contentToAdd = match[2].trim();
+        }
+
+        await onAddEvent(contentToAdd, {
+          completed: isCompleted,
+          label: labelName,
+        });
+        addedCount++;
+      }
+
+      if (addedCount > 0) {
+        alert(`Google Tasks에서 ${addedCount}개의 할 일을 가져왔습니다.${skippedCount > 0 ? ` (${skippedCount}개 중복 제외)` : ''}`);
+      } else if (skippedCount > 0) {
+        alert(`가져올 수 있는 할 일 ${skippedCount}개가 모두 이미 등록되어 있습니다.`);
+      } else {
+        alert('오늘 날짜에 해당하는 새로운 Google Tasks 할 일이 없습니다.');
+      }
     } catch (e: any) {
+      console.error(e);
       alert('Google Tasks 동기화 실패: ' + e.message);
     } finally {
       setSyncingTasks(false);
@@ -408,7 +490,7 @@ export default function DayEvents({
                 key={event.id}
                 onClick={() => {
                   if (isMultiSelectMode) {
-                    toggleEventSelection(event.id);
+                    toggleEventSelection(event.id, formattedDate);
                   }
                 }}
                 className={`group flex items-center justify-between p-3 rounded-xl border transition-all ${

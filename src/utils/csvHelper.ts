@@ -1,4 +1,4 @@
-import { Student } from '../hooks/useRoster';
+import type { Student } from '../hooks/useRoster';
 
 /**
  * 학생 명단을 CSV 파일로 다운로드합니다.

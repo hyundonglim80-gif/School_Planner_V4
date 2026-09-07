@@ -178,7 +178,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                           onClick={(e) => {
                             e.stopPropagation();
                             if (isMultiSelectMode) {
-                              toggleEventSelection(ev.id);
+                              toggleEventSelection(ev.id, day.dateStr);
                             } else {
                               setDetailModal({
                                 isOpen: true,

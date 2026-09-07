@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
+import { formatV3EventText } from '../hooks/useDayData';
 
 type Scope = 'day' | 'week' | 'month' | 'year' | 'memo';
 
@@ -24,10 +27,13 @@ interface AppState {
   // Multi Event Selection State
   isMultiSelectMode: boolean;
   selectedEventIds: string[];
+  selectedEventDateMap: Record<string, string>;
   setMultiSelectMode: (isMulti: boolean) => void;
-  toggleEventSelection: (eventId: string) => void;
+  toggleEventSelection: (eventId: string, dateStr?: string) => void;
   clearEventSelection: () => void;
-  selectAllEvents: (eventIds: string[]) => void;
+  selectAllEvents: (eventIds: string[], dateMap?: Record<string, string>) => void;
+  bulkUpdateSelectedEvents: (updates: { completed?: boolean; label?: string }) => Promise<void>;
+  bulkDeleteSelectedEvents: () => Promise<void>;
   
   // Google API Token (For Tasks etc)
   googleAccessToken: string | null;
@@ -84,20 +90,117 @@ export const useAppStore = create<AppState>()(
 
       isMultiSelectMode: false,
       selectedEventIds: [],
+      selectedEventDateMap: {},
       googleAccessToken: null,
       setGoogleAccessToken: (token) => set({ googleAccessToken: token }),
       setMultiSelectMode: (isMulti) => set({ 
         isMultiSelectMode: isMulti, 
-        selectedEventIds: isMulti ? get().selectedEventIds : [] 
+        selectedEventIds: isMulti ? get().selectedEventIds : [],
+        selectedEventDateMap: isMulti ? get().selectedEventDateMap : {}
       }),
-      toggleEventSelection: (eventId) => set((state) => {
-        const selected = state.selectedEventIds.includes(eventId)
+      toggleEventSelection: (eventId, dateStr) => set((state) => {
+        const isSelected = state.selectedEventIds.includes(eventId);
+        const newSelected = isSelected
           ? state.selectedEventIds.filter(id => id !== eventId)
           : [...state.selectedEventIds, eventId];
-        return { selectedEventIds: selected };
+
+        const newDateMap = { ...state.selectedEventDateMap };
+        if (isSelected) {
+          delete newDateMap[eventId];
+        } else if (dateStr) {
+          newDateMap[eventId] = dateStr;
+        }
+
+        return { selectedEventIds: newSelected, selectedEventDateMap: newDateMap };
       }),
-      clearEventSelection: () => set({ selectedEventIds: [], isMultiSelectMode: false }),
-      selectAllEvents: (eventIds) => set({ selectedEventIds: eventIds }),
+      clearEventSelection: () => set({ selectedEventIds: [], selectedEventDateMap: {}, isMultiSelectMode: false }),
+      selectAllEvents: (eventIds, dateMap = {}) => set({ 
+        selectedEventIds: eventIds, 
+        selectedEventDateMap: dateMap 
+      }),
+      bulkUpdateSelectedEvents: async (updates) => {
+        const { selectedEventIds, selectedEventDateMap, selectedGroupId, currentDate } = get();
+        if (selectedEventIds.length === 0) return;
+        const user = auth.currentUser;
+        if (!user) return;
+
+        const defaultDate = new Date(currentDate).toISOString().split('T')[0];
+        const groupedByDate: Record<string, string[]> = {};
+        for (const id of selectedEventIds) {
+          const d = selectedEventDateMap[id] || defaultDate;
+          if (!groupedByDate[d]) groupedByDate[d] = [];
+          groupedByDate[d].push(id);
+        }
+
+        const promises = Object.entries(groupedByDate).map(async ([dStr, ids]) => {
+          const eventDocRef = selectedGroupId
+            ? doc(db, 'groups', selectedGroupId, 'events', dStr)
+            : doc(db, 'users', user.uid, 'events', dStr);
+
+          const snap = await getDoc(eventDocRef);
+          if (!snap.exists()) return;
+          const data = snap.data();
+          const currentList: any[] = data.eventList || [];
+
+          const updatedList = currentList.map((item) => {
+            if (ids.includes(item.id)) {
+              return {
+                ...item,
+                ...(updates.completed !== undefined ? { completed: updates.completed } : {}),
+                ...(updates.label !== undefined ? { label: updates.label } : {}),
+              };
+            }
+            return item;
+          });
+
+          const serializedText = formatV3EventText(updatedList);
+          await setDoc(eventDocRef, {
+            eventList: updatedList,
+            eventText: serializedText,
+            updatedAt: Date.now(),
+          }, { merge: true });
+        });
+
+        await Promise.all(promises);
+        get().clearEventSelection();
+      },
+      bulkDeleteSelectedEvents: async () => {
+        const { selectedEventIds, selectedEventDateMap, selectedGroupId, currentDate } = get();
+        if (selectedEventIds.length === 0) return;
+        const user = auth.currentUser;
+        if (!user) return;
+
+        const defaultDate = new Date(currentDate).toISOString().split('T')[0];
+        const groupedByDate: Record<string, string[]> = {};
+        for (const id of selectedEventIds) {
+          const d = selectedEventDateMap[id] || defaultDate;
+          if (!groupedByDate[d]) groupedByDate[d] = [];
+          groupedByDate[d].push(id);
+        }
+
+        const promises = Object.entries(groupedByDate).map(async ([dStr, ids]) => {
+          const eventDocRef = selectedGroupId
+            ? doc(db, 'groups', selectedGroupId, 'events', dStr)
+            : doc(db, 'users', user.uid, 'events', dStr);
+
+          const snap = await getDoc(eventDocRef);
+          if (!snap.exists()) return;
+          const data = snap.data();
+          const currentList: any[] = data.eventList || [];
+
+          const updatedList = currentList.filter((item) => !ids.includes(item.id));
+          const serializedText = formatV3EventText(updatedList);
+
+          await setDoc(eventDocRef, {
+            eventList: updatedList,
+            eventText: serializedText,
+            updatedAt: Date.now(),
+          }, { merge: true });
+        });
+
+        await Promise.all(promises);
+        get().clearEventSelection();
+      },
 
       isLinkerModalOpen: false,
       linkerSourceType: 'manual',
