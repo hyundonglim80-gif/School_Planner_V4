@@ -12,4 +12,7 @@
   html {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   }
+  html, body {
+    overscroll-behavior-y: none; /* 모바일에서 당겨서 새로고침 방지 */
+  }
 }

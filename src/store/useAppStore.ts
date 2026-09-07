@@ -24,6 +24,8 @@ interface AppState {
   setCurrentDate: (date: Date) => void;
   setSelectedGroupId: (groupId: string | null) => void;
   setGovApiKey: (key: string) => void;
+  navigatePrevDate: () => void;
+  navigateNextDate: () => void;
   
   // Multi Event Selection State
   isMultiSelectMode: boolean;
@@ -116,6 +118,44 @@ export const useAppStore = create<AppState>()(
       setCurrentDate: (date) => set({ currentDate: date.toISOString() }),
       setSelectedGroupId: (selectedGroupId) => set({ selectedGroupId }),
       setGovApiKey: (govApiKey) => set({ govApiKey }),
+
+      navigatePrevDate: () => {
+        const state = get();
+        const d = new Date(state.currentDate);
+        if (state.scope === 'day') {
+          d.setDate(d.getDate() - 1);
+          if (!state.showWeekend) {
+            if (d.getDay() === 0) d.setDate(d.getDate() - 2);
+            else if (d.getDay() === 6) d.setDate(d.getDate() - 1);
+          }
+        } else if (state.scope === 'week') {
+          d.setDate(d.getDate() - 7);
+        } else if (state.scope === 'month') {
+          d.setMonth(d.getMonth() - 1);
+        } else if (state.scope === 'year') {
+          d.setFullYear(d.getFullYear() - 1);
+        }
+        set({ currentDate: d.toISOString() });
+      },
+      navigateNextDate: () => {
+        const state = get();
+        const d = new Date(state.currentDate);
+        if (state.scope === 'day') {
+          d.setDate(d.getDate() + 1);
+          if (!state.showWeekend) {
+            if (d.getDay() === 6) d.setDate(d.getDate() + 2);
+            else if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+          }
+        } else if (state.scope === 'week') {
+          d.setDate(d.getDate() + 7);
+        } else if (state.scope === 'month') {
+          d.setMonth(d.getMonth() + 1);
+        } else if (state.scope === 'year') {
+          d.setFullYear(d.getFullYear() + 1);
+        }
+        set({ currentDate: d.toISOString() });
+      },
+
 
       isMultiSelectMode: false,
       selectedEventIds: [],

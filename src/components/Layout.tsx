@@ -21,12 +21,15 @@ import LinkViewerModal from './LinkViewerModal';
 import MultiEventActionBar from './MultiEventActionBar';
 import TrashModal from './TrashModal';
 import MiniCalendarPicker from './MiniCalendarPicker';
+import { useGlobalGestures } from '../hooks/useGlobalGestures';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user } = useAuth();
   const {
     scope,
     setScope,
+    navigatePrevDate,
+    navigateNextDate,
     selectedGroupId,
     setSelectedGroupId,
     currentDate,
@@ -70,6 +73,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   } = useAppStore();
   const { groups } = useGroups();
   const { primaryDDay } = useDDay();
+
+  useGlobalGestures();
 
   // 모달 상태 관리
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
@@ -122,43 +127,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, []);
 
   // 상단 2행 날짜 네비게이션 함수들
-  const handlePrevDate = () => {
-    const { currentDate, scope, showWeekend, setCurrentDate } = useAppStore.getState();
-    const d = new Date(currentDate);
-    if (scope === 'day') {
-      d.setDate(d.getDate() - 1);
-      if (!showWeekend) {
-        if (d.getDay() === 0) d.setDate(d.getDate() - 2);
-        else if (d.getDay() === 6) d.setDate(d.getDate() - 1);
-      }
-    } else if (scope === 'week') {
-      d.setDate(d.getDate() - 7);
-    } else if (scope === 'month') {
-      d.setMonth(d.getMonth() - 1);
-    } else if (scope === 'year') {
-      d.setFullYear(d.getFullYear() - 1);
-    }
-    setCurrentDate(d);
-  };
-
-  const handleNextDate = () => {
-    const { currentDate, scope, showWeekend, setCurrentDate } = useAppStore.getState();
-    const d = new Date(currentDate);
-    if (scope === 'day') {
-      d.setDate(d.getDate() + 1);
-      if (!showWeekend) {
-        if (d.getDay() === 6) d.setDate(d.getDate() + 2);
-        else if (d.getDay() === 0) d.setDate(d.getDate() + 1);
-      }
-    } else if (scope === 'week') {
-      d.setDate(d.getDate() + 7);
-    } else if (scope === 'month') {
-      d.setMonth(d.getMonth() + 1);
-    } else if (scope === 'year') {
-      d.setFullYear(d.getFullYear() + 1);
-    }
-    setCurrentDate(d);
-  };
+  const handlePrevDate = () => navigatePrevDate();
+  const handleNextDate = () => navigateNextDate();
 
   const handleTodayClick = () => {
     useAppStore.getState().setCurrentDate(new Date());
