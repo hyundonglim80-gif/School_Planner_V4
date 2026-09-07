@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { addReverseLink } from '../utils/linkUtils';
 import { moveToTrash } from '../utils/trashHelper';
 
 export interface Attachment {
@@ -270,8 +271,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     if (!content.trim()) return;
     const parsedList = parseV3EventText(content.trim());
     const parsed = parsedList.length > 0 ? parsedList[0] : null;
+    const newId = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5);
     const newItem: EventItem = {
-      id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5),
+      id: newId,
       content: parsed ? parsed.content : content.trim(),
       completed: parsed ? parsed.completed : false,
       label: parsed && parsed.label ? parsed.label : undefined,
@@ -279,7 +281,21 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     };
     const newList = [...eventList, newItem].filter(item => item.content && item.content.trim().length > 0);
     await saveEventItems(newList);
-  }, [eventList, saveEventItems]);
+
+    if (newItem.linkedItems && newItem.linkedItems.length > 0) {
+      const sourceMeta = {
+        targetType: 'event',
+        targetId: newId,
+        targetDate: dateStr || '',
+        targetPeriod: undefined,
+        title: `[${dateStr || '메모'}] 일정`,
+        targetFId: groupId || 'personal',
+      };
+      for (const link of newItem.linkedItems) {
+        await addReverseLink(link, sourceMeta as any, groupId || 'personal');
+      }
+    }
+  }, [eventList, saveEventItems, dateStr, groupId]);
 
   const toggleEventItem = useCallback(async (id: string) => {
     const newList = eventList.map(item =>
@@ -436,13 +452,14 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       ? doc(db, 'groups', groupId, 'journals', dateStr)
       : doc(db, 'users', user.uid, 'journals', dateStr);
 
+    const newId = 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5);
     const newEntry: JournalEntry = {
-      id: 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5),
+      id: newId,
       content: content.trim(),
       createdAt: Date.now(),
       label,
       labelIds,
-      linkedItems: [],
+      linkedItems: options?.linkedItems || [],
       imageUrl: imageUrl || '',
       ...options
     };
@@ -452,6 +469,20 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       entries: newJournals,
       updatedAt: Date.now()
     }, { merge: true });
+
+    if (newEntry.linkedItems && newEntry.linkedItems.length > 0) {
+      const sourceMeta = {
+        targetType: 'journal',
+        targetId: newId,
+        targetDate: dateStr || '',
+        targetPeriod: undefined,
+        title: `[${dateStr || '메모'}] 기록`,
+        targetFId: groupId || 'personal',
+      };
+      for (const link of newEntry.linkedItems) {
+        await addReverseLink(link, sourceMeta as any, groupId || 'personal');
+      }
+    }
   }, [dateStr, groupId, journals]);
 
   // 일정 순서 변경 (Drag & Drop)

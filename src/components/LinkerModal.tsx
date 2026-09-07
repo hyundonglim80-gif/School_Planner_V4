@@ -4,6 +4,7 @@ import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { parseV3EventText } from '../hooks/useDayData';
 import { useLabels } from '../hooks/useLabels';
+import { addReverseLink } from '../utils/linkUtils';
 
 interface LinkerModalProps {
   isOpen: boolean;
@@ -351,78 +352,7 @@ export default function LinkerModal({
     setCurrentPage(1);
   };
 
-  // 도착지 항목에 역방향 링크 주입 (V3 addReverseLink 이식)
-  const addReverseLink = async (targetLink: SelectedLinkItem, sourceMeta: SelectedLinkItem) => {
-    const tFId = targetLink.targetFId || activeFId;
-    const colPath = (col: string) =>
-      tFId === 'personal' || !tFId ? `users/${auth.currentUser?.uid}/${col}` : `groups/${tFId}/${col}`;
 
-    try {
-      if (targetLink.targetType === 'event') {
-        const ref = doc(db, colPath('events'), targetLink.targetDate);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const data = snap.data();
-          let list = data.eventList;
-          if (!list || list.length === 0) {
-            if (data.eventText) list = parseV3EventText(data.eventText);
-          }
-          if (list) {
-            const item = list.find((e: any) => String(e.id) === String(targetLink.targetId));
-            if (item) {
-              item.linkedItems = item.linkedItems || [];
-              if (!item.linkedItems.some((l: any) => String(l.targetId || l.id) === String(sourceMeta.targetId))) {
-                item.linkedItems.push(sourceMeta);
-                await setDoc(ref, { eventList: list }, { merge: true });
-              }
-            }
-          }
-        }
-      } else if (targetLink.targetType === 'journal') {
-        const ref = doc(db, colPath('journals'), targetLink.targetDate);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const list = snap.data().entries || [];
-          const item = list.find((j: any) => String(j.id) === String(targetLink.targetId));
-          if (item) {
-            item.linkedItems = item.linkedItems || [];
-            if (!item.linkedItems.some((l: any) => String(l.targetId || l.id) === String(sourceMeta.targetId))) {
-              item.linkedItems.push(sourceMeta);
-              await setDoc(ref, { entries: list }, { merge: true });
-            }
-          }
-        }
-      } else if (targetLink.targetType === 'schedule') {
-        const ref = doc(db, colPath('schedules'), targetLink.targetDate);
-        const snap = await getDoc(ref);
-        const periods = snap.exists() ? (snap.data().periods || {}) : {};
-        const pKey = targetLink.targetPeriod
-          ? String(targetLink.targetPeriod)
-          : String(targetLink.targetId).replace(/.*_/, '');
-        if (!periods[pKey]) {
-          periods[pKey] = { subject: '', content: '', memo: '', supplies: '', linkedItems: [] };
-        }
-        const item = periods[pKey];
-        item.linkedItems = item.linkedItems || [];
-        if (!item.linkedItems.some((l: any) => String(l.targetId || l.id) === String(sourceMeta.targetId))) {
-          item.linkedItems.push(sourceMeta);
-          await setDoc(ref, { periods }, { merge: true });
-        }
-      } else if (targetLink.targetType === 'memo') {
-        const ref = doc(db, colPath('tasks'), targetLink.targetId);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const linkedItems = snap.data().linkedItems || [];
-          if (!linkedItems.some((l: any) => String(l.targetId || l.id) === String(sourceMeta.targetId))) {
-            linkedItems.push(sourceMeta);
-            await setDoc(ref, { linkedItems }, { merge: true });
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('addReverseLink error:', err);
-    }
-  };
 
   // 최종 링크 저장 (V3 saveLinks 이식)
   const handleSaveLinks = async () => {
@@ -529,8 +459,8 @@ export default function LinkerModal({
         targetFId: sFId,
       };
 
-      for (const link of selectedLinks) {
-        await addReverseLink(link, sourceMeta);
+      for (const targetLink of selectedLinks) {
+        await addReverseLink(targetLink, sourceMeta, activeFId);
       }
 
       alert('✅ 데이터가 성공적으로 연결되었습니다.');
