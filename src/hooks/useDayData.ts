@@ -160,10 +160,18 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
               labelIds: e.labelIds,
               linkedItems: e.linkedItems || [],
             };
-          }).filter((e: EventItem) => e.content && e.content.trim().length > 0);
+          }).filter((e: EventItem) => 
+            (e.content && e.content.trim().length > 0) || 
+            e.label || 
+            (e.labelIds && e.labelIds.length > 0) ||
+            (e.attachments && e.attachments.length > 0) ||
+            (e.linkedItems && e.linkedItems.length > 0)
+          );
           setEventList(mapped);
         } else if (rawText) {
-          setEventList(parseV3EventText(rawText).filter((e: EventItem) => e.content && e.content.trim().length > 0));
+          setEventList(parseV3EventText(rawText).filter((e: EventItem) => 
+            (e.content && e.content.trim().length > 0) || e.label
+          ));
         } else {
           setEventList([]);
         }
@@ -219,7 +227,14 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           labelIds: j.labelIds || [],
           linkedItems: j.linkedItems || [],
           imageUrl: j.imageUrl || '',
-        })).filter((j: JournalEntry) => (j.content && j.content.trim().length > 0) || !!j.imageUrl);
+        })).filter((j: JournalEntry) => 
+          (j.content && j.content.trim().length > 0) || 
+          !!j.imageUrl ||
+          j.label ||
+          (j.labelIds && j.labelIds.length > 0) ||
+          (j.attachments && j.attachments.length > 0) ||
+          (j.linkedItems && j.linkedItems.length > 0)
+        );
         setJournals(mapped);
       } else {
         setJournals([]);
@@ -247,8 +262,14 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       ? doc(db, 'groups', groupId, 'events', dateStr)
       : doc(db, 'users', user.uid, 'events', dateStr);
 
-    const validList = newList.filter(item => item.content && item.content.trim().length > 0);
-    const serializedText = formatV3EventText(validList);
+    const validList = newList.filter((item) => 
+      (item.content && item.content.trim().length > 0) || 
+      item.label || 
+      (item.labelIds && item.labelIds.length > 0) ||
+      (item.attachments && item.attachments.length > 0) ||
+      (item.linkedItems && item.linkedItems.length > 0)
+    );
+    const textToSave = formatV3EventText(validList);
     const v3EventList = validList.map(item => ({
       id: item.id,
       content: item.content,
@@ -261,7 +282,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     }));
 
     await setDoc(eventDocRef, {
-      eventText: serializedText,
+      eventText: textToSave,
       eventList: v3EventList,
       updatedAt: Date.now()
     }, { merge: true });
@@ -277,10 +298,19 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       content: parsed ? parsed.content : content.trim(),
       completed: parsed ? parsed.completed : false,
       label: parsed && parsed.label ? parsed.label : undefined,
-      ...options
+      labelIds: options?.labelIds || (parsed && parsed.label ? [] : undefined),
+      linkedItems: options?.linkedItems || [],
+      attachments: options?.attachments || [],
     };
-    const newList = [...eventList, newItem].filter(item => item.content && item.content.trim().length > 0);
-    await saveEventItems(newList);
+    
+    const validList = [...eventList, newItem].filter((item) => 
+      (item.content && item.content.trim().length > 0) || 
+      item.label || 
+      (item.labelIds && item.labelIds.length > 0) ||
+      (item.attachments && item.attachments.length > 0) ||
+      (item.linkedItems && item.linkedItems.length > 0)
+    );
+    await saveEventItems(validList);
 
     if (newItem.linkedItems && newItem.linkedItems.length > 0) {
       const sourceMeta = {
@@ -375,15 +405,25 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   }, [eventList, saveEventItems, dateStr, groupId]);
 
   const updateEventItem = useCallback(async (id: string, updates: Partial<EventItem>) => {
-    if (updates.content !== undefined && !updates.content.trim()) {
+    const newList = eventList
+      .map(item => item.id === id ? { ...item, ...updates } : item)
+      .filter((item) => 
+        (item.content && item.content.trim().length > 0) || 
+        item.label || 
+        (item.labelIds && item.labelIds.length > 0) ||
+        (item.attachments && item.attachments.length > 0) ||
+        (item.linkedItems && item.linkedItems.length > 0)
+      );
+    
+    // 원래 있던 항목이 새로운 업데이트로 인해 완전히 빈 값이 되어 필터링으로 사라지면 휴지통으로 이동(삭제) 처리
+    const itemStillExists = newList.some(item => item.id === id);
+    if (!itemStillExists) {
       await deleteEventItem(id);
       return;
     }
-    const newList = eventList
-      .map(item => item.id === id ? { ...item, ...updates } : item)
-      .filter(item => item.content && item.content.trim().length > 0);
+
     await saveEventItems(newList);
-  }, [eventList, saveEventItems]);
+  }, [eventList, saveEventItems, deleteEventItem]);
 
   // 시간표 특정 교시 저장
   const savePeriod = useCallback(async (period: number, data: PeriodSchedule) => {
@@ -552,7 +592,12 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const newContent = updates.content !== undefined ? updates.content.trim() : (target?.content || '');
     const newImage = updates.imageUrl !== undefined ? updates.imageUrl : (target?.imageUrl || '');
 
-    if (!newContent && !newImage) {
+    const hasLabel = updates.label !== undefined ? !!updates.label : !!target?.label;
+    const hasLabelIds = updates.labelIds !== undefined ? updates.labelIds.length > 0 : !!(target?.labelIds && target.labelIds.length > 0);
+    const hasAttachments = !!(target?.attachments && target.attachments.length > 0);
+    const hasLinks = !!(target?.linkedItems && target.linkedItems.length > 0);
+
+    if (!newContent && !newImage && !hasLabel && !hasLabelIds && !hasAttachments && !hasLinks) {
       await deleteJournalEntry(id);
       return;
     }
@@ -563,7 +608,20 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
 
     const newJournals = journals
       .map(j => j.id === id ? { ...j, ...updates, updatedAt: Date.now() } : j)
-      .filter(j => (j.content && j.content.trim().length > 0) || !!j.imageUrl);
+      .filter((j) => 
+        (j.content && j.content.trim().length > 0) || 
+        !!j.imageUrl ||
+        j.label ||
+        (j.labelIds && j.labelIds.length > 0) ||
+        (j.attachments && j.attachments.length > 0) ||
+        (j.linkedItems && j.linkedItems.length > 0)
+      );
+
+    const itemStillExists = newJournals.some(j => j.id === id);
+    if (!itemStillExists) {
+      await deleteJournalEntry(id);
+      return;
+    }
 
     await setDoc(journalDocRef, {
       entries: newJournals,
