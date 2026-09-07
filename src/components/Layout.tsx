@@ -297,17 +297,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-bg-body text-slate-900">
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm px-4 py-3 border-b border-border shadow-xs flex flex-col gap-2.5">
         <div className="flex items-center gap-2 max-w-7xl mx-auto w-full">
-          {/* 스크롤 가능한 상단 메뉴 영역 */}
-          <div className="flex items-center justify-between flex-1 overflow-x-auto scrollbar-hide gap-4 pr-2">
+          {/* 상단 메뉴 영역 (스크롤 없이 버튼 크기 축소로 한 줄 유지) */}
+          <div className="flex items-center justify-between flex-1 gap-1 sm:gap-4 pr-1 sm:pr-2 min-w-0">
             
             {/* 좌측: 로고 및 기능 버튼들 */}
-            <div className="flex items-center gap-2 shrink-0">
-              <h1 className="text-xl font-extrabold text-primary tracking-tight pr-1">SP4</h1>
+            <div className="flex items-center gap-1 sm:gap-2 shrink">
+              <h1 className="text-lg sm:text-xl font-extrabold text-primary tracking-tight pr-0 sm:pr-1 shrink-0">SP4</h1>
 
               {/* D-Day 뱃지 버튼 */}
               <button
                 onClick={() => setIsDDayModalOpen(true)}
-                className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
+                className="px-1.5 py-1 sm:px-2.5 sm:py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 shadow-2xs shrink-0"
                 title="학사 D-Day 관리"
               >
                 <span>⏳</span>
@@ -324,7 +324,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {/* 구글 캘린더 연동 버튼 */}
               <button
                 onClick={() => { alert('구글 캘린더 연동 기능이 준비 중입니다.'); }}
-                className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
+                className="px-1.5 py-1 sm:px-2.5 sm:py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 shadow-2xs shrink-0"
                 title="구글 캘린더 연동"
               >
                 <span>📅</span>
@@ -334,7 +334,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {/* 휴지통 버튼 */}
               <button
                 onClick={() => setTrashModalOpen(true)}
-                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
+                className="px-1.5 py-1 sm:px-2.5 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 shadow-2xs shrink-0"
                 title="휴지통"
               >
                 <span>🗑️</span>
@@ -343,11 +343,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* 우측: 검색, 스코프 탭, 그룹 선택 */}
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1 sm:gap-2 shrink">
               {/* 통합 검색 버튼 */}
             <button
               onClick={() => setIsSearchModalOpen(true)}
-              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+              className="px-1.5 py-1 sm:px-2.5 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 shrink-0"
               title="통합 검색 (단축키: /)"
             >
               <span>🔍</span>
@@ -358,12 +358,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </button>
 
             {/* 스코프 탭 버튼 그룹 */}
-            <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+            <div className="flex bg-slate-100 p-0.5 sm:p-1 rounded-lg sm:rounded-xl gap-0 sm:gap-1 shrink-0">
               {scopes.map((s) => (
                 <button
                   key={s.id}
                   onClick={() => setScope(s.id)}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  className={`px-1.5 py-1 sm:px-3 sm:py-1.5 text-[10px] sm:text-xs font-bold rounded-md sm:rounded-lg transition-all ${
                     scope === s.id
                       ? 'bg-white text-primary shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
@@ -376,12 +376,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* 그룹 선택 셀렉트 */}
             {groups.length > 0 && (
-              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
-                <span className="text-xs">📂</span>
+              <div className="flex items-center gap-0.5 sm:gap-1.5 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl px-1.5 py-1 sm:px-2.5 shrink-0 min-w-0">
+                <span className="text-[10px] sm:text-xs shrink-0">📂</span>
                 <select
                   value={selectedGroupId || ''}
                   onChange={(e) => setSelectedGroupId(e.target.value ? e.target.value : null)}
-                  className="bg-transparent text-xs font-bold text-slate-700 focus:outline-none cursor-pointer pr-1"
+                  className="bg-transparent text-[10px] sm:text-xs font-bold text-slate-700 focus:outline-none cursor-pointer pr-1 w-16 sm:w-auto"
                 >
                   <option value="">🔒 개인 공간</option>
                   {groups.map((g) => (
