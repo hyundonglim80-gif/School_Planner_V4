@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { doc, getDoc, setDoc, getDocs, collection } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
+import { parseV3EventText } from '../hooks/useDayData';
 import { useLabels } from '../hooks/useLabels';
 
 interface LinkerModalProps {
@@ -209,20 +210,26 @@ export default function LinkerModal({
         try {
           const evSnap = await getDoc(doc(db, getColPath('events', colFId), dStr));
           if (evSnap.exists()) {
-            const list = evSnap.data().eventList || [];
-            list.forEach((e: any, idx: number) => {
-              const content = e.content || e.text || '';
-              if (content.trim()) {
-                events.push({
-                  id: e.id || `ev_${dStr}_${idx}`,
-                  type: 'event',
-                  title: content,
-                  date: dStr,
-                  fId: colFId,
-                  labelIds: e.labelIds || [],
-                });
-              }
-            });
+            const data = evSnap.data();
+            let list = data.eventList;
+            if (!list || list.length === 0) {
+              if (data.eventText) list = parseV3EventText(data.eventText);
+            }
+            if (list) {
+              list.forEach((e: any, idx: number) => {
+                const content = e.content || e.text || '';
+                if (content.trim()) {
+                  events.push({
+                    id: e.id || `ev_${dStr}_${idx}`,
+                    type: 'event',
+                    title: content,
+                    date: dStr,
+                    fId: colFId,
+                    labelIds: e.labelIds || [],
+                  });
+                }
+              });
+            }
           }
         } catch {}
 
@@ -355,13 +362,19 @@ export default function LinkerModal({
         const ref = doc(db, colPath('events'), targetLink.targetDate);
         const snap = await getDoc(ref);
         if (snap.exists()) {
-          const list = snap.data().eventList || [];
-          const item = list.find((e: any) => String(e.id) === String(targetLink.targetId));
-          if (item) {
-            item.linkedItems = item.linkedItems || [];
-            if (!item.linkedItems.some((l: any) => String(l.targetId || l.id) === String(sourceMeta.targetId))) {
-              item.linkedItems.push(sourceMeta);
-              await setDoc(ref, { eventList: list }, { merge: true });
+          const data = snap.data();
+          let list = data.eventList;
+          if (!list || list.length === 0) {
+            if (data.eventText) list = parseV3EventText(data.eventText);
+          }
+          if (list) {
+            const item = list.find((e: any) => String(e.id) === String(targetLink.targetId));
+            if (item) {
+              item.linkedItems = item.linkedItems || [];
+              if (!item.linkedItems.some((l: any) => String(l.targetId || l.id) === String(sourceMeta.targetId))) {
+                item.linkedItems.push(sourceMeta);
+                await setDoc(ref, { eventList: list }, { merge: true });
+              }
             }
           }
         }
