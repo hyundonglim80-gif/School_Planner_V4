@@ -396,13 +396,13 @@ export default function LinkViewerModal({
     const sFId = sourceFId || selectedGroupId || 'personal';
 
     const actualSourceId =
-      (sType === 'schedule' || sType === 'schedule_header') && (!sourceId || sourceId === 'null' || sourceId === 'undefined')
+      (sType === 'schedule' || sType === 'schedule_header')
         ? `class_${sDate}_${sPeriod}`
-        : sourceId || `class_${sDate}_${sPeriod}`;
+        : sourceId;
 
     const actualTargetId =
-      link.targetType === 'schedule' && (!link.targetId || link.targetId === 'null' || link.targetId === 'undefined')
-        ? `class_${link.targetDate}_${link.targetPeriod}`
+      link.targetType === 'schedule'
+        ? `class_${link.targetDate}_${link.targetPeriod || link.targetId.replace(/.*_/, '')}`
         : link.targetId;
 
     try {
