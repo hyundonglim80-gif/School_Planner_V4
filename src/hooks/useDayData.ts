@@ -376,9 +376,38 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       imageUrl: imageUrl || '',
       ...options
     };
-    const newJournals = [newEntry, ...journals];
+    // 🚨 최하단에 추가
+    const newJournals = [...journals, newEntry];
     await setDoc(journalDocRef, {
       entries: newJournals,
+      updatedAt: Date.now()
+    }, { merge: true });
+  }, [dateStr, groupId, journals]);
+
+  // 일정 순서 변경 (Drag & Drop)
+  const reorderEvents = useCallback(async (sourceIndex: number, targetIndex: number) => {
+    if (sourceIndex === targetIndex || sourceIndex < 0 || targetIndex < 0 || sourceIndex >= eventList.length || targetIndex >= eventList.length) return;
+    const newList = [...eventList];
+    const [moved] = newList.splice(sourceIndex, 1);
+    newList.splice(targetIndex, 0, moved);
+    await saveEventItems(newList);
+  }, [eventList, saveEventItems]);
+
+  // 기록 순서 변경 (Drag & Drop)
+  const reorderJournals = useCallback(async (sourceIndex: number, targetIndex: number) => {
+    if (sourceIndex === targetIndex || sourceIndex < 0 || targetIndex < 0 || sourceIndex >= journals.length || targetIndex >= journals.length) return;
+    const user = auth.currentUser;
+    if (!user || !dateStr) return;
+
+    const journalDocRef = groupId
+      ? doc(db, 'groups', groupId, 'journals', dateStr)
+      : doc(db, 'users', user.uid, 'journals', dateStr);
+
+    const newList = [...journals];
+    const [moved] = newList.splice(sourceIndex, 1);
+    newList.splice(targetIndex, 0, moved);
+    await setDoc(journalDocRef, {
+      entries: newList,
       updatedAt: Date.now()
     }, { merge: true });
   }, [dateStr, groupId, journals]);
@@ -519,10 +548,12 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     toggleEventItem,
     deleteEventItem,
     updateEventItem,
+    reorderEvents,
     savePeriod,
     reorderPeriods,
     addJournalEntry,
     deleteJournalEntry,
     updateJournalEntry,
+    reorderJournals,
   };
 }

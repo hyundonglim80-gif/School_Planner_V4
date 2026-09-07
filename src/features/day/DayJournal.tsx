@@ -13,6 +13,7 @@ interface DayJournalProps {
   onAddJournal: (content: string, label: string, labelIds?: string[], imageUrl?: string, options?: Partial<JournalEntry>) => Promise<void>;
   onDeleteJournal: (id: string) => Promise<void>;
   onUpdateJournal?: (id: string, updates: Partial<JournalEntry>) => Promise<void>;
+  onReorderJournals?: (sourceIndex: number, targetIndex: number) => Promise<void>;
 }
 
 export default function DayJournal({
@@ -20,12 +21,14 @@ export default function DayJournal({
   onAddJournal,
   onDeleteJournal,
   onUpdateJournal,
+  onReorderJournals,
 }: DayJournalProps) {
   const [content, setContent] = useState('');
   const [newLabels, setNewLabels] = useState<string[]>(['학급활동']);
   const [newAttachments, setNewAttachments] = useState<Attachment[]>([]);
   const [newLinkedItems, setNewLinkedItems] = useState<any[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [submitting, setSubmitting] = useState(false);
@@ -118,6 +121,25 @@ export default function DayJournal({
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedIndex !== null && draggedIndex !== targetIndex && onReorderJournals) {
+      await onReorderJournals(draggedIndex, targetIndex);
+    }
+    setDraggedIndex(null);
   };
 
   const handleLabelToggle = (labelName: string) => {
@@ -368,7 +390,7 @@ export default function DayJournal({
 
           <div className="space-y-2.5">
             {journals.length > 0 ? (
-              journals.map((entry) => {
+              journals.map((entry, idx) => {
                 const isEditing = editingId === entry.id;
                 const linkCount = (entry.linkedItems || []).length;
 
@@ -439,10 +461,23 @@ export default function DayJournal({
                 return (
                   <div
                     key={entry.id}
-                    className="group p-3.5 rounded-xl border border-slate-200/60 hover:border-slate-300 bg-white transition-all flex flex-col gap-2"
+                    draggable={!editingId}
+                    onDragStart={(e) => handleDragStart(e, idx)}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, idx)}
+                    className={`group p-3.5 rounded-xl border border-slate-200/60 hover:border-slate-300 bg-white transition-all flex flex-col gap-2 ${
+                      draggedIndex === idx ? 'opacity-40' : ''
+                    }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
+                        {/* 세줄 드래그 핸들 (≡) */}
+                        <span
+                          className="text-slate-400 hover:text-slate-700 cursor-grab active:cursor-grabbing text-sm font-bold select-none px-0.5"
+                          title="드래그하여 기록 순서 변경"
+                        >
+                          ≡
+                        </span>
                         <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${getLabelColorClass(entry)}`}>
                           {getLabelName(entry)}
                         </span>
