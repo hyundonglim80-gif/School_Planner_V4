@@ -9,16 +9,72 @@ interface MemoCardProps {
   onDelete?: (firestoreId: string) => void;
 }
 
+interface NormalizedAttachment {
+  name: string;
+  url: string;
+  type?: string;
+  size?: number;
+}
+
+const normalizeAttachment = (att: any): NormalizedAttachment | null => {
+  if (!att) return null;
+  if (typeof att === 'string') {
+    const url = att.trim();
+    if (!url) return null;
+    const name = url.split('/').pop()?.split('?')[0] || '첨부 파일';
+    return { name, url, type: '' };
+  }
+  const url = att.url || att.downloadUrl || att.fileUrl || '';
+  if (!url || typeof url !== 'string') return null;
+  const name = att.name || url.split('/').pop()?.split('?')[0] || '첨부 파일';
+  return {
+    name,
+    url,
+    type: typeof att.type === 'string' ? att.type : '',
+    size: typeof att.size === 'number' ? att.size : undefined,
+  };
+};
+
+const isImageFile = (att: NormalizedAttachment): boolean => {
+  if (att.type && typeof att.type === 'string' && att.type.startsWith('image/')) {
+    return true;
+  }
+  if (att.url && typeof att.url === 'string' && att.url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)) {
+    return true;
+  }
+  if (att.name && typeof att.name === 'string' && att.name.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+    return true;
+  }
+  return false;
+};
+
 export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: MemoCardProps) {
   const isCompleted = !!memo.completed;
-  const isSensitive = memo.labels?.some(l => ['학생상담', '상담', '비공개', '개인'].includes(l));
+
+  // 첨부파일 안전 정규화 (배열 내의 불완전한 객체나 문자열 등 방어)
+  const normalizedAttachments = React.useMemo<NormalizedAttachment[]>(() => {
+    if (!memo.attachments || !Array.isArray(memo.attachments)) return [];
+    return memo.attachments
+      .map(normalizeAttachment)
+      .filter((a): a is NormalizedAttachment => a !== null);
+  }, [memo.attachments]);
+
+  const imageAttachments = React.useMemo(() => {
+    return normalizedAttachments.filter(isImageFile);
+  }, [normalizedAttachments]);
+
+  const fileAttachments = React.useMemo(() => {
+    return normalizedAttachments.filter((a) => !isImageFile(a));
+  }, [normalizedAttachments]);
 
   return (
-    <div className={`bg-white rounded-2xl p-4 transition-all duration-200 border flex flex-col group shadow-sm hover:shadow-md hover:border-slate-300 ${
-      isCompleted ? 'bg-slate-50 border-slate-200 opacity-70' : 'border-slate-200/80'
-    }`}>
+    <div
+      className={`bg-white rounded-2xl p-4 transition-all duration-200 border flex flex-col group shadow-sm hover:shadow-md hover:border-slate-300 ${
+        isCompleted ? 'bg-slate-50 border-slate-200 opacity-70' : 'border-slate-200/80'
+      }`}
+    >
       <div>
-        {/* 상단 체크 및 라벨 영역 */}
+        {/* 상단 체크 및 날짜 & 삭제/수정 버튼 영역 */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
             <input
@@ -32,7 +88,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
                 month: 'short',
                 day: 'numeric',
                 hour: '2-digit',
-                minute: '2-digit'
+                minute: '2-digit',
               })}
             </span>
           </div>
@@ -67,13 +123,14 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
         </div>
 
         {/* 첨부 파일 및 이미지 영역 */}
-        {memo.attachments && memo.attachments.length > 0 ? (
+        {normalizedAttachments.length > 0 ? (
           <div className="mb-3 space-y-2">
             {/* 1. 이미지 첨부파일들 */}
-            {memo.attachments.filter(
-              (a) => a.type?.startsWith('image/') || a.url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)
-            ).map((imgAtt, idx) => (
-              <div key={`${imgAtt.url}-${idx}`} className="rounded-xl overflow-hidden border border-slate-100 bg-slate-50">
+            {imageAttachments.map((imgAtt, idx) => (
+              <div
+                key={`${imgAtt.url}-${idx}`}
+                className="rounded-xl overflow-hidden border border-slate-100 bg-slate-50"
+              >
                 <a href={imgAtt.url} target="_blank" rel="noopener noreferrer">
                   <img
                     src={imgAtt.url}
@@ -85,14 +142,13 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
             ))}
 
             {/* 2. 일반 첨부파일들 (문서, PDF 등) */}
-            {memo.attachments.filter(
-              (a) => !a.type?.startsWith('image/') && !a.url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)
-            ).map((fileAtt, idx) => {
+            {fileAttachments.map((fileAtt, idx) => {
               let icon = '📎';
-              if (fileAtt.name.match(/\.(pdf)$/i)) icon = '📕';
-              else if (fileAtt.name.match(/\.(doc|docx|hwp|hwpx|txt)$/i)) icon = '📄';
-              else if (fileAtt.name.match(/\.(xls|xlsx|csv)$/i)) icon = '📊';
-              else if (fileAtt.name.match(/\.(zip|7z|rar)$/i)) icon = '📦';
+              const name = fileAtt.name || '';
+              if (name.match(/\.(pdf)$/i)) icon = '📕';
+              else if (name.match(/\.(doc|docx|hwp|hwpx|txt)$/i)) icon = '📄';
+              else if (name.match(/\.(xls|xlsx|csv)$/i)) icon = '📊';
+              else if (name.match(/\.(zip|7z|rar)$/i)) icon = '📦';
 
               return (
                 <a
@@ -104,8 +160,11 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
                   className="flex items-center gap-2 p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-xl transition-all group/file text-xs"
                 >
                   <span className="text-base shrink-0">{icon}</span>
-                  <span className="font-semibold text-slate-700 group-hover/file:text-primary truncate flex-1" title={fileAtt.name}>
-                    {fileAtt.name}
+                  <span
+                    className="font-semibold text-slate-700 group-hover/file:text-primary truncate flex-1"
+                    title={name}
+                  >
+                    {name}
                   </span>
                   <span className="text-[10px] text-slate-400 shrink-0 font-medium group-hover/file:text-primary">
                     다운로드 ⬇
@@ -117,17 +176,23 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
         ) : memo.imageUrl ? (
           <div className="mb-3 rounded-xl overflow-hidden border border-slate-100 bg-slate-50">
             <a href={memo.imageUrl} target="_blank" rel="noopener noreferrer">
-              <img src={memo.imageUrl} alt="메모 첨부 이미지" className="w-full max-h-48 object-cover hover:scale-102 transition-transform duration-200" />
+              <img
+                src={memo.imageUrl}
+                alt="메모 첨부 이미지"
+                className="w-full max-h-48 object-cover hover:scale-102 transition-transform duration-200"
+              />
             </a>
           </div>
         ) : null}
 
         {/* 본문 내용 */}
-          <p className={`text-sm whitespace-pre-wrap leading-relaxed ${
+        <p
+          className={`text-sm whitespace-pre-wrap leading-relaxed ${
             isCompleted ? 'line-through text-slate-400' : 'text-slate-800'
-          }`}>
-            {renderFormattedText(memo.content || memo.text || "")}
-          </p>
+          }`}
+        >
+          {renderFormattedText(memo.content || memo.text || '')}
+        </p>
       </div>
 
       {/* 하단 태그 라벨 */}

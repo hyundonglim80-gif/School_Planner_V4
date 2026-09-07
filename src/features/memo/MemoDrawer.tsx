@@ -70,10 +70,33 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
       setContent(editingMemo.content || editingMemo.text || '');
       setSelectedLabels(editingMemo.labels || []);
 
-      // 기존 첨부파일 또는 imageUrl 초기화
+      // 기존 첨부파일 또는 imageUrl 안전 초기화
       let initialAttachments: MemoAttachment[] = [];
-      if (editingMemo.attachments && editingMemo.attachments.length > 0) {
-        initialAttachments = [...editingMemo.attachments];
+      if (editingMemo.attachments && Array.isArray(editingMemo.attachments)) {
+        const parsedList: MemoAttachment[] = [];
+        for (const item of editingMemo.attachments) {
+          if (!item) continue;
+          const raw = item as any;
+          if (typeof raw === 'string') {
+            const url = raw.trim();
+            if (url) {
+              const name = url.split('/').pop()?.split('?')[0] || '첨부 파일';
+              parsedList.push({ name, url, type: '' });
+            }
+          } else {
+            const url = raw.url || raw.downloadUrl || raw.fileUrl || '';
+            if (url && typeof url === 'string') {
+              const name = raw.name || url.split('/').pop()?.split('?')[0] || '첨부 파일';
+              parsedList.push({
+                name,
+                url,
+                type: typeof raw.type === 'string' ? raw.type : undefined,
+                size: typeof raw.size === 'number' ? raw.size : undefined,
+              });
+            }
+          }
+        }
+        initialAttachments = parsedList;
       } else if (editingMemo.imageUrl) {
         initialAttachments = [
           {
@@ -177,13 +200,17 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
   };
 
   const getFileIcon = (att: MemoAttachment) => {
-    if (att.type?.startsWith('image/') || att.url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)) {
+    const url = att?.url || '';
+    const name = att?.name || '';
+    const type = att?.type || '';
+
+    if (type.startsWith('image/') || (typeof url === 'string' && url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i))) {
       return '🖼️';
     }
-    if (att.type?.includes('pdf') || att.name.endsWith('.pdf')) return '📕';
-    if (att.name.match(/\.(doc|docx|hwp|hwpx|txt)$/i)) return '📄';
-    if (att.name.match(/\.(xls|xlsx|csv)$/i)) return '📊';
-    if (att.name.match(/\.(zip|7z|tar|gz|rar)$/i)) return '📦';
+    if (type.includes('pdf') || (typeof name === 'string' && name.endsWith('.pdf'))) return '📕';
+    if (typeof name === 'string' && name.match(/\.(doc|docx|hwp|hwpx|txt)$/i)) return '📄';
+    if (typeof name === 'string' && name.match(/\.(xls|xlsx|csv)$/i)) return '📊';
+    if (typeof name === 'string' && name.match(/\.(zip|7z|tar|gz|rar)$/i)) return '📦';
     return '📎';
   };
 
@@ -196,7 +223,9 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
 
       // 첫 번째 이미지를 imageUrl로 함께 지정하여 구버전과의 호환성 보장
       const firstImage = attachments.find(
-        (a) => a.type?.startsWith('image/') || a.url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)
+        (a) =>
+          (a?.type && typeof a.type === 'string' && a.type.startsWith('image/')) ||
+          (a?.url && typeof a.url === 'string' && a.url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i))
       )?.url;
 
       await onSave({
@@ -377,9 +406,11 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
             {attachments.length > 0 && (
               <div className="space-y-2 pt-1">
                 {attachments.map((att, idx) => {
+                  const url = att?.url || '';
+                  const type = att?.type || '';
                   const isImage =
-                    att.type?.startsWith('image/') ||
-                    att.url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i);
+                    (typeof type === 'string' && type.startsWith('image/')) ||
+                    (typeof url === 'string' && url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i));
 
                   return (
                     <div
