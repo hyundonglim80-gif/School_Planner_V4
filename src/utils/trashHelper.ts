@@ -27,7 +27,11 @@ export async function moveToTrash(item: Omit<TrashItem, 'deletedAt'>) {
     deletedAt: Date.now(),
   };
 
-  await setDoc(trashRef, trashData);
+  // Firestore throws an error if any field (even nested) is undefined.
+  // Using JSON parse/stringify is a quick way to deep-remove undefined fields.
+  const sanitizedData = JSON.parse(JSON.stringify(trashData)) as TrashItem;
+
+  await setDoc(trashRef, sanitizedData);
 }
 
 /**
