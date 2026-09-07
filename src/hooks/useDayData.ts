@@ -4,9 +4,11 @@ import { db, auth } from '../lib/firebase';
 import { moveToTrash } from '../utils/trashHelper';
 
 export interface Attachment {
+  id?: string;
   name: string;
   url: string;
   type: string; // 'image', 'document', etc.
+  size?: number;
 }
 
 export interface EventItem {

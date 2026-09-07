@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, getDocs, orderBy, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { completeRestoreFromTrash, deleteFromTrash, TrashItem } from '../utils/trashHelper';
+import { completeRestoreFromTrash, deleteFromTrash, type TrashItem } from '../utils/trashHelper';
 
 interface TrashModalProps {
   isOpen: boolean;

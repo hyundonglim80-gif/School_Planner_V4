@@ -575,6 +575,7 @@ export default function DayJournal({
         )}
       </div>
         </>
+      )}
       {/* 개별 항목용 파일 업로드 인풋 */}
       <input
         type="file"

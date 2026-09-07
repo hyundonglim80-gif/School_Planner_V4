@@ -303,8 +303,7 @@ export default function LinkerModal({ isOpen, onClose, sourceType, sourceDateStr
                       style={isSelected ? {
                         backgroundColor: color.bg,
                         color: color.text,
-                        borderColor: color.border,
-                        ringColor: color.border
+                        borderColor: color.border
                       } : {
                         backgroundColor: '#f8fafc',
                         color: '#64748b',

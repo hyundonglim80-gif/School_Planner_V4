@@ -284,6 +284,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   {primaryDDay.title} <strong className="text-rose-600 font-extrabold">{primaryDDay.text}</strong>
                 </span>
               ) : (
+                <span>D-Day</span>
               )}
             </button>
 
