@@ -522,82 +522,78 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
-        {/* 🔥 상단 2행: 좌측(옵션 버튼), 중앙(가운데 정렬: ◀ 날짜(클릭 시 오늘) ▶), 우측(보기/작성) */}
-        <div className="flex items-center justify-between border-t border-dashed border-slate-200 pt-2.5 mt-0.5 max-w-7xl mx-auto w-full gap-2 flex-nowrap overflow-x-auto">
-          {/* 좌측 옵션 버튼 (주말 숨기기, 수업 숨기기) */}
-          <div className="flex items-center gap-1.5 flex-none">
-            {scope === 'year' && (
-              <div className="flex bg-slate-100 p-0.5 rounded-xl gap-0.5">
-                <button
-                  onClick={() => setSemesterFilter('all')}
-                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${semesterFilter === 'all' ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
-                >
-                  전체
-                </button>
-                <button
-                  onClick={() => setSemesterFilter(1)}
-                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${semesterFilter === 1 ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
-                >
-                  1학기
-                </button>
-                <button
-                  onClick={() => setSemesterFilter(2)}
-                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${semesterFilter === 2 ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
-                >
-                  2학기
-                </button>
-              </div>
-            )}
-            <button
-              onClick={() => setShowWeekend(!showWeekend)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border shadow-2xs ${
-                showWeekend
-                  ? 'bg-blue-50 text-blue-700 border-blue-200'
-                  : 'bg-slate-100 text-slate-500 border-slate-200'
-              }`}
-              title="단축키: Shift + ↑/↓"
-            >
-              {showWeekend ? '주말 숨기기' : '주말 보기'}
-            </button>
-            {scope !== 'memo' && (
-              <>
-                {/* 수업 숨기기/보이기, 일정 숨기기/보이기 버튼 삭제됨 */}
-              </>
-            )}
-            
-          </div>
-
-          {/* 중앙 날짜 네비게이션 (가운데 정렬, 왼쪽 이전, 오른쪽 다음, 날짜 클릭 시 오늘) */}
-          <div className="flex items-center justify-center gap-2 sm:gap-4 flex-1 min-w-[200px]">
-            <button
-              onClick={handlePrevDate}
-              className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs sm:text-sm transition-all shadow-2xs cursor-pointer"
-              title="이전 날짜 (단축키: Ctrl + ←)"
-            >
-              ◀
-            </button>
-            <div className="flex items-center">
-              <span
-                onClick={handleTodayClick}
-                className="text-sm sm:text-base font-extrabold text-slate-800 hover:text-primary transition-colors cursor-pointer select-none text-center whitespace-nowrap px-1"
-                title="오늘 날짜로 돌아가기 (단축키: Ctrl + Space)"
+        {/* 🔥 상단 2행: 좌측(옵션 버튼), 중앙(가운데 정렬: ◀ 날짜(클릭 시 오늘) ▶) - 메모 뷰에서는 표시하지 않음 */}
+        {scope !== 'memo' && (
+          <div className="flex items-center justify-between border-t border-dashed border-slate-200 pt-2.5 mt-0.5 max-w-7xl mx-auto w-full gap-2 flex-nowrap overflow-x-auto">
+            {/* 좌측 옵션 버튼 (주말 숨기기, 학기 필터) */}
+            <div className="flex items-center gap-1.5 flex-none">
+              {scope === 'year' && (
+                <div className="flex bg-slate-100 p-0.5 rounded-xl gap-0.5">
+                  <button
+                    onClick={() => setSemesterFilter('all')}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${semesterFilter === 'all' ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    전체
+                  </button>
+                  <button
+                    onClick={() => setSemesterFilter(1)}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${semesterFilter === 1 ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    1학기
+                  </button>
+                  <button
+                    onClick={() => setSemesterFilter(2)}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${semesterFilter === 2 ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    2학기
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() => setShowWeekend(!showWeekend)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border shadow-2xs ${
+                  showWeekend
+                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                    : 'bg-slate-100 text-slate-500 border-slate-200'
+                }`}
+                title="단축키: Shift + ↑/↓"
               >
-                {getFormattedDateRange()}
-              </span>
-              <MiniCalendarPicker
-                currentDate={currentDate}
-                onSelectDate={(newDate) => setCurrentDate(newDate)}
-              />
+                {showWeekend ? '주말 숨기기' : '주말 보기'}
+              </button>
             </div>
-            <button
-              onClick={handleNextDate}
-              className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs sm:text-sm transition-all shadow-2xs cursor-pointer"
-              title="다음 날짜 (단축키: Ctrl + →)"
-            >
-              ▶
-            </button>
+
+            {/* 중앙 날짜 네비게이션 (가운데 정렬, 왼쪽 이전, 오른쪽 다음, 날짜 클릭 시 오늘) */}
+            <div className="flex items-center justify-center gap-2 sm:gap-4 flex-1 min-w-[200px]">
+              <button
+                onClick={handlePrevDate}
+                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs sm:text-sm transition-all shadow-2xs cursor-pointer"
+                title="이전 날짜 (단축키: Ctrl + ←)"
+              >
+                ◀
+              </button>
+              <div className="flex items-center">
+                <span
+                  onClick={handleTodayClick}
+                  className="text-sm sm:text-base font-extrabold text-slate-800 hover:text-primary transition-colors cursor-pointer select-none text-center whitespace-nowrap px-1"
+                  title="오늘 날짜로 돌아가기 (단축키: Ctrl + Space)"
+                >
+                  {getFormattedDateRange()}
+                </span>
+                <MiniCalendarPicker
+                  currentDate={currentDate}
+                  onSelectDate={(newDate) => setCurrentDate(newDate)}
+                />
+              </div>
+              <button
+                onClick={handleNextDate}
+                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs sm:text-sm transition-all shadow-2xs cursor-pointer"
+                title="다음 날짜 (단축키: Ctrl + →)"
+              >
+                ▶
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </header>
 
       <main className="p-3 sm:p-5 max-w-7xl mx-auto">

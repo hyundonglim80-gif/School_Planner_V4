@@ -143,6 +143,7 @@ export default function MemoScreen() {
                   type="button"
                   onClick={() => setHideCompleted(!hideCompleted)}
                   className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-extrabold text-sm transition-colors cursor-pointer select-none"
+                  title={hideCompleted ? '완료 메모 펼치기' : '완료 메모 접기'}
                 >
                   <span className="text-xs">{hideCompleted ? '▶' : '▼'}</span>
                   <span>체크한 완료 메모</span>
@@ -150,23 +151,6 @@ export default function MemoScreen() {
                     {completedMemos.length}
                   </span>
                 </button>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setHideCompleted(!hideCompleted)}
-                    className="text-xs text-slate-500 hover:text-slate-800 font-semibold px-2 py-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
-                  >
-                    {hideCompleted ? '펼쳐보기' : '완료 메모 숨기기'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDeleteCompleted}
-                    className="text-xs text-rose-600 hover:text-rose-800 font-bold px-2 py-1 rounded hover:bg-rose-50 transition-colors cursor-pointer"
-                  >
-                    일괄 삭제
-                  </button>
-                </div>
               </div>
 
               {/* 완료 메모 목록 (숨김 토글 상태 반영) */}
