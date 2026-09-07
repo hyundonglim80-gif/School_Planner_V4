@@ -14,8 +14,8 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
   const isSensitive = memo.labels?.some(l => ['학생상담', '상담', '비공개', '개인'].includes(l));
 
   return (
-    <div className={`bg-white rounded-2xl p-4 transition-all duration-200 border flex flex-col justify-between group shadow-sm hover:shadow-md ${
-      isCompleted ? 'bg-slate-50 border-slate-200 opacity-70' : 'border-slate-100 hover:border-slate-300'
+    <div className={`bg-white rounded-2xl p-4 transition-all duration-200 border flex flex-col group shadow-sm hover:shadow-md hover:border-slate-300 ${
+      isCompleted ? 'bg-slate-50 border-slate-200 opacity-70' : 'border-slate-200/80'
     }`}>
       <div>
         {/* 상단 체크 및 라벨 영역 */}

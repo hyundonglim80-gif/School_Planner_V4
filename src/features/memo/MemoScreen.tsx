@@ -59,15 +59,16 @@ export default function MemoScreen() {
           <p className="text-xs text-slate-400 font-medium">메모를 불러오는 중입니다...</p>
         </div>
       ) : filteredMemos.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-4 [column-fill:_balance]">
           {filteredMemos.map(memo => (
-            <MemoCard
-              key={memo.firestoreId}
-              memo={memo}
-              onEdit={handleOpenEdit}
-              onToggleComplete={toggleComplete}
-              onDelete={deleteMemo}
-            />
+            <div key={memo.firestoreId} className="break-inside-avoid mb-4 inline-block w-full">
+              <MemoCard
+                memo={memo}
+                onEdit={handleOpenEdit}
+                onToggleComplete={toggleComplete}
+                onDelete={deleteMemo}
+              />
+            </div>
           ))}
         </div>
       ) : (
