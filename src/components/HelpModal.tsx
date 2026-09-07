@@ -40,11 +40,19 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
                 <span className="text-slate-600">통합 검색 열기</span>
-                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">/</kbd>
+                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">/ 또는 `</kbd>
+              </div>
+              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
+                <span className="text-slate-600">화면(탭) 직접 전환</span>
+                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Shift + 1 ~ 5</kbd>
+              </div>
+              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
+                <span className="text-slate-600">화면(탭) 순환 이동</span>
+                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Shift + ← / →</kbd>
               </div>
               <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
                 <span className="text-slate-600">주말 보기 / 숨기기</span>
-                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Shift + ↑/↓</kbd>
+                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Shift + ↑ / ↓</kbd>
               </div>
               <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
                 <span className="text-slate-600">이전 / 다음 날짜</span>

@@ -158,7 +158,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     useAppStore.getState().setCurrentDate(new Date());
   };
 
-  // 키보드 단축키 핸들러 (ESC, /, Ctrl+화살표, Ctrl+Space, Shift+화살표 등)
+  // 키보드 단축키 핸들러 (ESC, /, Ctrl+화살표, Ctrl+Space, Shift+화살표, Shift+1~5 등)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
@@ -170,53 +170,97 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         setIsGroupModalOpen(false);
         setIsBackupModalOpen(false);
         setIsLabelModalOpen(false);
+        setIsDDayModalOpen(false);
+        setIsRosterModalOpen(false);
+        setIsSettingsModalOpen(false);
+        setIsRecurringModalOpen(false);
+        setIsTimetableModalOpen(false);
         setIsMoreMenuOpen(false);
         if (isForwardingModalOpen) {
           setIsForwardingModalOpen(false);
         }
-        if (isLinkerModalOpen) {
-          closeLinkerModal();
-        }
-        if (isLinkViewerModalOpen) {
-          closeLinkViewerModal();
-        }
-        if (isTrashModalOpen) {
-          setTrashModalOpen(false);
-        }
+        closeLinkerModal();
+        closeLinkViewerModal();
+        closeEvaluationModal();
+        setTrashModalOpen(false);
         return;
       }
 
-      // 통합 검색: / 또는 ` (입력창 포커스 아닐 때)
-      if ((e.key === '/' || e.key === '`') && !isInput) {
+      // 통합 검색: / 또는 ` 또는 ~ (입력창 포커스 아닐 때)
+      if ((e.key === '/' || e.key === '`' || e.key === '~') && !isInput) {
         e.preventDefault();
         setIsSearchModalOpen(true);
         return;
       }
 
+      // 화면(탭) 전환: Shift + 1 ~ 5 (하루, 주간, 월간, 년간, 메모)
+      if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !isInput) {
+        if (e.code === 'Digit1' || e.key === '1' || e.key === '!') {
+          e.preventDefault();
+          setScope('day');
+          return;
+        }
+        if (e.code === 'Digit2' || e.key === '2' || e.key === '@') {
+          e.preventDefault();
+          setScope('week');
+          return;
+        }
+        if (e.code === 'Digit3' || e.key === '3' || e.key === '#') {
+          e.preventDefault();
+          setScope('month');
+          return;
+        }
+        if (e.code === 'Digit4' || e.key === '4' || e.key === '$') {
+          e.preventDefault();
+          setScope('year');
+          return;
+        }
+        if (e.code === 'Digit5' || e.key === '5' || e.key === '%') {
+          e.preventDefault();
+          setScope('memo');
+          return;
+        }
+      }
+
+      // 탭 순환 이동: Shift + ← / → (입력창 포커스 아닐 때)
+      if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !isInput && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+        const scopeOrder: Array<'day' | 'week' | 'month' | 'year' | 'memo'> = ['day', 'week', 'month', 'year', 'memo'];
+        const currentScope = useAppStore.getState().scope;
+        const currentIndex = scopeOrder.indexOf(currentScope);
+        if (currentIndex !== -1) {
+          const nextIndex = e.key === 'ArrowRight'
+            ? (currentIndex + 1) % scopeOrder.length
+            : (currentIndex - 1 + scopeOrder.length) % scopeOrder.length;
+          setScope(scopeOrder[nextIndex]);
+        }
+        return;
+      }
+
       // 주말 보기/숨기기 토글: Shift + ↑ 또는 Shift + ↓
-      if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault();
         const currentShow = useAppStore.getState().showWeekend;
         setShowWeekend(!currentShow);
         return;
       }
 
-      // 이전 날짜: Ctrl + ←
-      if (e.ctrlKey && e.key === 'ArrowLeft') {
+      // 이전 날짜: Ctrl + ← (또는 Cmd + ←)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowLeft') {
         e.preventDefault();
         handlePrevDate();
         return;
       }
 
-      // 다음 날짜: Ctrl + →
-      if (e.ctrlKey && e.key === 'ArrowRight') {
+      // 다음 날짜: Ctrl + → (또는 Cmd + →)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowRight') {
         e.preventDefault();
         handleNextDate();
         return;
       }
 
-      // 오늘 날짜로 이동: Ctrl + Space
-      if (e.ctrlKey && (e.key === ' ' || e.code === 'Space')) {
+      // 오늘 날짜로 이동: Ctrl + Space (또는 Cmd + Space)
+      if ((e.ctrlKey || e.metaKey) && (e.key === ' ' || e.code === 'Space')) {
         e.preventDefault();
         handleTodayClick();
         return;
@@ -224,7 +268,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setShowWeekend, isForwardingModalOpen, isLinkerModalOpen, closeLinkerModal]);
+  }, [
+    setShowWeekend,
+    setScope,
+    isForwardingModalOpen,
+    closeLinkerModal,
+    closeLinkViewerModal,
+    closeEvaluationModal,
+    setTrashModalOpen
+  ]);
 
   const getFormattedDateRange = () => {
     const d = new Date(currentDate);
