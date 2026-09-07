@@ -5,6 +5,7 @@ import { useLabels } from '../../hooks/useLabels';
 import { uploadFile, uploadImage } from '../../utils/uploadHelper';
 import { auth } from '../../lib/firebase';
 import { showToast } from '../../utils/toast';
+import { formatDateStr } from '../../lib/dateUtils';
 
 interface DayEventsProps {
   events: EventItem[];
@@ -47,7 +48,7 @@ export default function DayEvents({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
-  const formattedDate = new Date(currentDate).toISOString().split('T')[0];
+  const formattedDate = formatDateStr(new Date(currentDate));
 
   // 라벨 정보 및 클린 텍스트 추출 헬퍼
   const getEventLabelInfo = (event: EventItem) => {

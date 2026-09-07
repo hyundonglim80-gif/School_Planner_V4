@@ -8,6 +8,7 @@ import { db, auth } from '../../lib/firebase';
 import { uploadImage, uploadFile } from '../../utils/uploadHelper';
 import type { Attachment } from '../../hooks/useDayData';
 import { showToast } from '../../utils/toast';
+import { formatDateStr } from '../../lib/dateUtils';
 
 interface DayJournalProps {
   journals: JournalEntry[];
@@ -38,7 +39,7 @@ export default function DayJournal({
   const itemFileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
   const { openLinkerModal, openLinkViewerModal, currentDate } = useAppStore();
-  const formattedDate = new Date(currentDate).toISOString().split('T')[0];
+  const formattedDate = formatDateStr(new Date(currentDate));
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
