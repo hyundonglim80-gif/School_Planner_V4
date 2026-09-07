@@ -90,6 +90,13 @@ export default function LinkerModal({
   const [scheduleDate, setScheduleDate] = useState(sourceDateStr || formatDateStr(new Date()));
   const [schedulePeriod, setSchedulePeriod] = useState<number>(1);
 
+  useEffect(() => {
+    if (isOpen) {
+      setScheduleDate(sourceDateStr || formatDateStr(new Date()));
+      if (sourcePeriod) setSchedulePeriod(Number(sourcePeriod));
+    }
+  }, [isOpen, sourceDateStr, sourcePeriod]);
+
   const activeFId = sourceFId || selectedGroupId || 'personal';
 
   const getColPath = useCallback(
