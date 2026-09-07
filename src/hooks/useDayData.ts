@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { moveToTrash } from '../utils/trashHelper';
 
 export interface Attachment {
   name: string;
@@ -283,14 +284,24 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   }, [eventList, saveEventItems]);
 
   const deleteEventItem = useCallback(async (id: string) => {
+    const itemToDelete = eventList.find(item => item.id === id);
+    if (itemToDelete) {
+      await moveToTrash({
+        id: itemToDelete.id,
+        type: 'event',
+        originalDateStr: dateStr,
+        fId: groupId || 'personal',
+        content: itemToDelete.content,
+        data: itemToDelete
+      });
+    }
     const newList = eventList.filter(item => item.id !== id);
     await saveEventItems(newList);
-  }, [eventList, saveEventItems]);
+  }, [eventList, saveEventItems, dateStr, groupId]);
 
   const updateEventItem = useCallback(async (id: string, updates: Partial<EventItem>) => {
     if (updates.content !== undefined && !updates.content.trim()) {
-      const newList = eventList.filter(item => item.id !== id);
-      await saveEventItems(newList);
+      await deleteEventItem(id);
       return;
     }
     const newList = eventList
@@ -419,6 +430,18 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const journalDocRef = groupId
       ? doc(db, 'groups', groupId, 'journals', dateStr)
       : doc(db, 'users', user.uid, 'journals', dateStr);
+
+    const itemToDelete = journals.find(j => j.id === id);
+    if (itemToDelete) {
+      await moveToTrash({
+        id: itemToDelete.id,
+        type: 'journal',
+        originalDateStr: dateStr,
+        fId: groupId || 'personal',
+        content: itemToDelete.content,
+        data: itemToDelete
+      });
+    }
 
     const newJournals = journals.filter(j => j.id !== id);
     await setDoc(journalDocRef, {

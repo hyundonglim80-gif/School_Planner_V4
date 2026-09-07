@@ -33,7 +33,7 @@ export default function DayJournal({
 
   const [submitting, setSubmitting] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const { openLinkerModal, currentDate } = useAppStore();
+  const { openLinkerModal, openLinkViewerModal, currentDate } = useAppStore();
   const formattedDate = new Date(currentDate).toISOString().split('T')[0];
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -263,7 +263,7 @@ export default function DayJournal({
               type="button"
               onClick={() => openLinkerModal('journal', formattedDate)}
               className="px-2 py-0.5 bg-yellow-50 text-yellow-700 border border-yellow-300 rounded-md text-[10px] font-bold hover:bg-yellow-100 transition-colors"
-              title="기록에 링크 연결"
+              title="기록에 링크 추가"
             >
               +링크
             </button>
@@ -487,7 +487,7 @@ export default function DayJournal({
                         
                         {linkCount > 0 && (
                           <button 
-                            onClick={() => openLinkerModal('journal', formattedDate, entry.id)}
+                            onClick={() => openLinkViewerModal('journal', formattedDate, entry.id)}
                             className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 ml-1 hover:bg-yellow-200"
                           >
                             📑 {linkCount}

@@ -17,7 +17,9 @@ import EvaluationModal from './EvaluationModal';
 import RecurringModal from './RecurringModal';
 import ForwardingModal from './ForwardingModal';
 import LinkerModal from './LinkerModal';
+import LinkViewerModal from './LinkViewerModal';
 import MultiEventActionBar from './MultiEventActionBar';
+import TrashModal from './TrashModal';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user } = useAuth();
@@ -50,6 +52,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     closeEvaluationModal,
     isMultiSelectMode,
     setMultiSelectMode,
+    isTrashModalOpen,
+    setTrashModalOpen,
+    isLinkViewerModalOpen,
+    linkViewerSourceType,
+    linkViewerSourceDateStr,
+    linkViewerSourceId,
+    closeLinkViewerModal,
   } = useAppStore();
   const { groups } = useGroups();
   const { primaryDDay } = useDDay();
@@ -167,6 +176,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         if (isLinkerModalOpen) {
           closeLinkerModal();
         }
+        if (isLinkViewerModalOpen) {
+          closeLinkViewerModal();
+        }
+        if (isTrashModalOpen) {
+          setTrashModalOpen(false);
+        }
         return;
       }
 
@@ -274,7 +289,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </button>
           </div>
 
-          {/* 우측: 검색, 스코프 탭, 그룹 선택, 더보기, 프로필 (V3 방식) */}
+          {/* 우측: 검색, 휴지통, 스코프 탭, 그룹 선택, 더보기, 프로필 (V3 방식) */}
           <div className="flex items-center gap-2.5 flex-wrap justify-end">
             {/* 통합 검색 버튼 */}
             <button
@@ -287,6 +302,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <kbd className="hidden md:inline px-1 py-0.2 bg-white rounded text-[10px] text-slate-400 font-mono shadow-2xs">
                 /
               </kbd>
+            </button>
+
+            {/* 휴지통 버튼 */}
+            <button
+              onClick={() => setTrashModalOpen(true)}
+              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+              title="휴지통"
+            >
+              <span>🗑️</span>
+              <span className="hidden sm:inline">휴지통</span>
             </button>
 
             {/* 스코프 탭 버튼 그룹 */}
@@ -576,6 +601,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         sourceId={linkerSourceId || 'manual'}
         sourcePeriod={linkerSourcePeriod}
       />
+
+      <LinkViewerModal
+        isOpen={isLinkViewerModalOpen}
+        onClose={closeLinkViewerModal}
+        sourceType={linkViewerSourceType}
+        sourceDateStr={linkViewerSourceDateStr || currentDate}
+        sourceId={linkViewerSourceId}
+      />
+
+      <TrashModal isOpen={isTrashModalOpen} onClose={() => setTrashModalOpen(false)} />
 
       <TimetableTemplateModal
         isOpen={isTimetableModalOpen}

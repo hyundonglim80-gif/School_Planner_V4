@@ -55,6 +55,14 @@ interface AppState {
   ) => void;
   closeLinkerModal: () => void;
 
+  // Link Viewer Modal State
+  isLinkViewerModalOpen: boolean;
+  linkViewerSourceType: 'schedule' | 'journal' | 'event';
+  linkViewerSourceDateStr: string;
+  linkViewerSourceId: string;
+  openLinkViewerModal: (sourceType: 'schedule' | 'journal' | 'event', dateStr: string, id: string) => void;
+  closeLinkViewerModal: () => void;
+
   // Evaluation Modal State
   isEvaluationModalOpen: boolean;
   evalDateStr: string;
@@ -63,6 +71,10 @@ interface AppState {
   evalSubject?: string;
   openEvaluationModal: (dateStr: string, source: 'schedule' | 'journal' | 'event', period?: number, subject?: string) => void;
   closeEvaluationModal: () => void;
+
+  // Trash Modal State
+  isTrashModalOpen: boolean;
+  setTrashModalOpen: (isOpen: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -218,9 +230,25 @@ export const useAppStore = create<AppState>()(
       }),
       closeLinkerModal: () => set({ 
         isLinkerModalOpen: false, 
-        linkerSourceId: undefined, 
+        linkerSourceId: undefined,
         linkerSourcePeriod: undefined,
-        linkerCallback: undefined,
+        linkerCallback: undefined
+      }),
+
+      isLinkViewerModalOpen: false,
+      linkViewerSourceType: 'event',
+      linkViewerSourceDateStr: '',
+      linkViewerSourceId: '',
+      openLinkViewerModal: (sourceType, dateStr, id) => set({
+        isLinkViewerModalOpen: true,
+        linkViewerSourceType: sourceType,
+        linkViewerSourceDateStr: dateStr,
+        linkViewerSourceId: id
+      }),
+      closeLinkViewerModal: () => set({
+        isLinkViewerModalOpen: false,
+        linkViewerSourceDateStr: '',
+        linkViewerSourceId: ''
       }),
 
       isEvaluationModalOpen: false,
@@ -234,6 +262,9 @@ export const useAppStore = create<AppState>()(
         evalSubject: subject
       }),
       closeEvaluationModal: () => set({ isEvaluationModalOpen: false }),
+
+      isTrashModalOpen: false,
+      setTrashModalOpen: (isOpen: boolean) => set({ isTrashModalOpen: isOpen }),
     }),
     {
       name: 'sp4-app-storage',

@@ -36,7 +36,7 @@ export default function DayEvents({
   const [submitting, setSubmitting] = useState(false);
   const [forwarding, setForwarding] = useState(false);
   const [syncingTasks, setSyncingTasks] = useState(false);
-  const { openLinkerModal, currentDate, isMultiSelectMode, selectedEventIds, toggleEventSelection, googleAccessToken } = useAppStore();
+  const { openLinkerModal, openLinkViewerModal, currentDate, isMultiSelectMode, selectedEventIds, toggleEventSelection, googleAccessToken } = useAppStore();
   const { eventLabels, getLabelColor, getLabel } = useLabels();
 
   // 수정(Edit) 상태
@@ -620,13 +620,12 @@ export default function DayEvents({
                   </div>
                 </div>
 
-                {/* 우측 링크, 수정, 삭제 버튼 */}
                 <div className="flex items-center gap-1 shrink-0 ml-2">
                   {event.linkedItems && event.linkedItems.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => openLinkerModal('event', formattedDate, event.id)}
-                      className="px-1.5 py-0.5 bg-yellow-50 text-yellow-800 border border-yellow-300 rounded text-[10px] font-bold"
+                      onClick={() => openLinkViewerModal('event', formattedDate, event.id)}
+                      className="px-1.5 py-0.5 bg-yellow-50 text-yellow-800 border border-yellow-300 rounded text-[10px] font-bold shadow-2xs hover:bg-yellow-100 transition-colors"
                       title="연결된 링크 보기"
                     >
                       📑 {event.linkedItems.length}

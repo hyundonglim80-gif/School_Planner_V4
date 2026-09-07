@@ -40,7 +40,7 @@ export default function DaySchedule({
   const [draggedPeriod, setDraggedPeriod] = useState<number | null>(null);
 
   const { getDayTemplate } = useTimetableTemplate();
-  const { openLinkerModal, openEvaluationModal } = useAppStore();
+  const { openLinkerModal, openLinkViewerModal, openEvaluationModal } = useAppStore();
 
   const startEdit = (period: number) => {
     const current = schedules[period] || { subject: '', content: '' };
@@ -263,7 +263,7 @@ export default function DaySchedule({
                       </span>
                       {linkCount > 0 && (
                         <button 
-                          onClick={(e) => { e.stopPropagation(); dateStr && openLinkerModal('schedule', dateStr, undefined, period); }}
+                          onClick={(e) => { e.stopPropagation(); dateStr && openLinkViewerModal('schedule', dateStr, String(period)); }}
                           className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 ml-1 hover:bg-yellow-200"
                         >
                           📑 {linkCount}
@@ -275,7 +275,7 @@ export default function DaySchedule({
                         type="button"
                         onClick={(e) => { e.stopPropagation(); dateStr && openLinkerModal('schedule', dateStr, undefined, period); }}
                         className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-600 p-1 rounded hover:bg-slate-100 text-xs transition-all"
-                        title="링크 추가/수정"
+                        title="링크 추가"
                       >
                         🔗
                       </button>
