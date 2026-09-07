@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { signInWithPopup, signOut, onAuthStateChanged, GoogleAuthProvider } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import { auth, googleProvider } from '../../lib/firebase';
+import { useAppStore } from '../../store/useAppStore';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -20,7 +21,11 @@ export function useAuth() {
       googleProvider.setCustomParameters({
         prompt: 'select_account'
       });
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        useAppStore.getState().setGoogleAccessToken(credential.accessToken);
+      }
     } catch (error) {
       console.error('Login failed:', error);
     }
@@ -29,6 +34,7 @@ export function useAuth() {
   const logout = async () => {
     try {
       await signOut(auth);
+      useAppStore.getState().setGoogleAccessToken(null);
     } catch (error) {
       console.error('Logout failed:', error);
     }

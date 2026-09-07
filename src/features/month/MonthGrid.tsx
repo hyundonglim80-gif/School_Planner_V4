@@ -3,6 +3,7 @@ import type { CalendarDay } from '../../lib/dateUtils';
 import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
+import { useGovHolidays } from '../../hooks/useGovHolidays';
 import DetailEditModal from '../../components/DetailEditModal';
 import { useState } from 'react';
 
@@ -26,7 +27,7 @@ const ALL_WEEKDAYS = [
 
 export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, showWeekend = true }: MonthGridProps) {
   const currentWeekdays = showWeekend ? ALL_WEEKDAYS : ALL_WEEKDAYS.slice(1, 6);
-  const { showClass, showEvents } = useAppStore();
+  const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection } = useAppStore();
   const displayDays = React.useMemo(() => {
     if (!showWeekend) {
       return days.filter((d) => !d.isSunday && !d.isSaturday);
@@ -34,6 +35,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
     return days;
   }, [days, showWeekend]);
   const { getLabelColor } = useLabels();
+  const { holidays } = useGovHolidays();
   const [detailModal, setDetailModal] = useState<{
     isOpen: boolean;
     type: 'schedule' | 'event';
@@ -60,7 +62,8 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
           const schedules = summary.schedules || {};
           const scheduleCount = Object.keys(schedules).length;
 
-          const isHoliday = !!dayObj.holidayName || dayObj.isSunday;
+          const holidayName = dayObj.holidayName || holidays[dayObj.dateStr];
+          const isHoliday = !!holidayName || dayObj.isSunday;
 
           return (
             <div
@@ -87,9 +90,9 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                       {dayObj.day}
                     </span>
 
-                    {dayObj.holidayName && (
+                    {holidayName && (
                       <span className="text-[10px] font-bold text-red-600 truncate max-w-[65px]">
-                        {dayObj.holidayName}
+                        {holidayName}
                       </span>
                     )}
                   </div>
@@ -122,22 +125,36 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                         key={ev.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setDetailModal({
-                            isOpen: true,
-                            type: 'event',
-                            dateStr: dayObj.dateStr,
-                            itemId: ev.id,
-                            initialData: ev
-                          });
+                          if (isMultiSelectMode) {
+                            toggleEventSelection(ev.id);
+                          } else {
+                            setDetailModal({
+                              isOpen: true,
+                              type: 'event',
+                              dateStr: dayObj.dateStr,
+                              itemId: ev.id,
+                              initialData: ev
+                            });
+                          }
                         }}
                         className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate leading-tight flex items-center gap-1 hover:shadow-sm cursor-pointer ${
-                          ev.completed
+                          selectedEventIds.includes(ev.id)
+                            ? 'bg-primary/10 border border-primary text-primary'
+                            : ev.completed
                             ? 'bg-slate-100 text-slate-400 line-through'
                             : 'bg-blue-50 text-blue-800 border border-blue-100'
                         }`}
                         title={ev.content}
                       >
-                        {hasLabel && labelColor && (
+                        {isMultiSelectMode && (
+                          <input
+                            type="checkbox"
+                            checked={selectedEventIds.includes(ev.id)}
+                            readOnly
+                            className="mr-0.5 pointer-events-none"
+                          />
+                        )}
+                        {hasLabel && labelColor && !isMultiSelectMode && (
                           <span
                             className="text-[9px] font-bold px-1 py-0.5 rounded shrink-0"
                             style={{

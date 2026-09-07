@@ -11,6 +11,7 @@ interface AppState {
   showEvents: boolean;
   currentDate: string; // ISO String format
   selectedGroupId: string | null; // null: 개인, string: 특정 공유 그룹 ID
+  govApiKey: string; // 공공데이터 API 키
   setScope: (scope: Scope) => void;
   setSemesterFilter: (filter: 'all' | 1 | 2) => void;
   setShowWeekend: (show: boolean) => void;
@@ -18,6 +19,19 @@ interface AppState {
   setShowEvents: (show: boolean) => void;
   setCurrentDate: (date: Date) => void;
   setSelectedGroupId: (groupId: string | null) => void;
+  setGovApiKey: (key: string) => void;
+  
+  // Multi Event Selection State
+  isMultiSelectMode: boolean;
+  selectedEventIds: string[];
+  setMultiSelectMode: (isMulti: boolean) => void;
+  toggleEventSelection: (eventId: string) => void;
+  clearEventSelection: () => void;
+  selectAllEvents: (eventIds: string[]) => void;
+  
+  // Google API Token (For Tasks etc)
+  googleAccessToken: string | null;
+  setGoogleAccessToken: (token: string | null) => void;
   
   // Linker Modal State
   isLinkerModalOpen: boolean;
@@ -47,7 +61,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       scope: 'day',
       semesterFilter: 'all',
       showWeekend: true,
@@ -55,6 +69,7 @@ export const useAppStore = create<AppState>()(
       showEvents: true,
       currentDate: new Date().toISOString(),
       selectedGroupId: null,
+      govApiKey: '',
       setScope: (scope) => {
         const showClass = scope !== 'year' && scope !== 'month';
         set({ scope, showClass });
@@ -65,6 +80,24 @@ export const useAppStore = create<AppState>()(
       setShowEvents: (showEvents) => set({ showEvents }),
       setCurrentDate: (date) => set({ currentDate: date.toISOString() }),
       setSelectedGroupId: (selectedGroupId) => set({ selectedGroupId }),
+      setGovApiKey: (govApiKey) => set({ govApiKey }),
+
+      isMultiSelectMode: false,
+      selectedEventIds: [],
+      googleAccessToken: null,
+      setGoogleAccessToken: (token) => set({ googleAccessToken: token }),
+      setMultiSelectMode: (isMulti) => set({ 
+        isMultiSelectMode: isMulti, 
+        selectedEventIds: isMulti ? get().selectedEventIds : [] 
+      }),
+      toggleEventSelection: (eventId) => set((state) => {
+        const selected = state.selectedEventIds.includes(eventId)
+          ? state.selectedEventIds.filter(id => id !== eventId)
+          : [...state.selectedEventIds, eventId];
+        return { selectedEventIds: selected };
+      }),
+      clearEventSelection: () => set({ selectedEventIds: [], isMultiSelectMode: false }),
+      selectAllEvents: (eventIds) => set({ selectedEventIds: eventIds }),
 
       isLinkerModalOpen: false,
       linkerSourceType: 'manual',
@@ -108,6 +141,7 @@ export const useAppStore = create<AppState>()(
         showClass: state.showClass,
         showEvents: state.showEvents,
         selectedGroupId: state.selectedGroupId,
+        govApiKey: state.govApiKey,
       }),
     }
   )

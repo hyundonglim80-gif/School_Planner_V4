@@ -31,7 +31,8 @@ export default function DayEvents({
 
   const [submitting, setSubmitting] = useState(false);
   const [forwarding, setForwarding] = useState(false);
-  const { openLinkerModal, currentDate } = useAppStore();
+  const [syncingTasks, setSyncingTasks] = useState(false);
+  const { openLinkerModal, currentDate, isMultiSelectMode, selectedEventIds, toggleEventSelection, googleAccessToken } = useAppStore();
   const { eventLabels, getLabelColor, getLabel } = useLabels();
 
   // 수정(Edit) 상태
@@ -170,8 +171,20 @@ export default function DayEvents({
     });
   };
 
-  const handleRemoveLink = (idx: number) => {
-    setNewLinkedItems(prev => prev.filter((_, i) => i !== idx));
+  const handleSyncGoogleTasks = async () => {
+    if (!googleAccessToken) {
+      alert('Google Tasks 연동을 위해 로그아웃 후 다시 구글 계정으로 로그인해주세요.');
+      return;
+    }
+    setSyncingTasks(true);
+    try {
+      // TODO: 실제 Google Tasks 동기화 로직 구현 (가져와서 onAddEvent 호출 등)
+      alert('Google Tasks 동기화가 아직 구현 중입니다. (토큰 연동 완료)');
+    } catch (e: any) {
+      alert('Google Tasks 동기화 실패: ' + e.message);
+    } finally {
+      setSyncingTasks(false);
+    }
   };
 
   return (
@@ -198,6 +211,19 @@ export default function DayEvents({
             </span>
           )}
           <div className="flex items-center gap-1 ml-1">
+            <button
+              type="button"
+              onClick={handleSyncGoogleTasks}
+              disabled={syncingTasks}
+              className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors ${
+                googleAccessToken
+                  ? 'bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100'
+                  : 'bg-slate-50 text-slate-500 border border-slate-300 hover:bg-slate-100'
+              }`}
+              title="Google Tasks 동기화"
+            >
+              {syncingTasks ? '동기화 중...' : 'Tasks 연동'}
+            </button>
             <button
               type="button"
               onClick={() => openLinkerModal('event', formattedDate)}
@@ -380,13 +406,32 @@ export default function DayEvents({
             return (
               <div
                 key={event.id}
+                onClick={() => {
+                  if (isMultiSelectMode) {
+                    toggleEventSelection(event.id);
+                  }
+                }}
                 className={`group flex items-center justify-between p-3 rounded-xl border transition-all ${
-                  event.completed && info.isCompletable
+                  isMultiSelectMode ? 'cursor-pointer hover:bg-slate-50' : ''
+                } ${
+                  selectedEventIds.includes(event.id)
+                    ? 'border-primary ring-1 ring-primary bg-primary/5'
+                    : event.completed && info.isCompletable
                     ? 'bg-slate-50 border-slate-100 text-slate-400'
                     : 'bg-white border-slate-200/60 hover:border-slate-300 text-slate-800'
                 }`}
               >
-                <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                <div className="flex items-center gap-2.5 flex-1 min-w-0 pointer-events-auto">
+                  {/* 다중 선택 체크박스 */}
+                  {isMultiSelectMode && (
+                    <input
+                      type="checkbox"
+                      checked={selectedEventIds.includes(event.id)}
+                      readOnly
+                      className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 pointer-events-none"
+                    />
+                  )}
+
                   {/* 1. 라벨 배지 (왼쪽에 가장 먼저 표시!) */}
                   {info.names.length > 0 && (
                     <div className="flex gap-1 shrink-0">
@@ -409,8 +454,8 @@ export default function DayEvents({
                     </div>
                   )}
 
-                  {/* 2. 체크박스 (완료 속성 라벨일 때만 표시, 그 외에는 완전 삭제!) */}
-                  {info.isCompletable && (
+                  {/* 2. 체크박스 (완료 속성 라벨일 때만 표시, 다중 선택 모드 아닐 때) */}
+                  {info.isCompletable && !isMultiSelectMode && (
                     <input
                       type="checkbox"
                       checked={!!event.completed}
@@ -423,12 +468,15 @@ export default function DayEvents({
                   {/* 3. 일정 내용 및 첨부파일 */}
                   <div className="flex flex-col flex-1 min-w-0">
                     <span
-                      onClick={() => info.isCompletable && onToggleEvent(event.id)}
-                      onDoubleClick={() => startEditing(event)}
-                      className={`text-sm break-words leading-relaxed ${info.isCompletable ? 'cursor-pointer' : ''} ${
+                      onClick={(e) => {
+                        if (isMultiSelectMode) return; // 상위 onClick에서 처리
+                        if (info.isCompletable) onToggleEvent(event.id);
+                      }}
+                      onDoubleClick={() => !isMultiSelectMode && startEditing(event)}
+                      className={`text-sm break-words leading-relaxed ${info.isCompletable && !isMultiSelectMode ? 'cursor-pointer' : ''} ${
                         event.completed && info.isCompletable ? 'line-through text-slate-400' : ''
                       }`}
-                      title="더블클릭하여 수정"
+                      title={isMultiSelectMode ? '' : '더블클릭하여 수정'}
                     >
                       {info.cleanContent}
                     </span>

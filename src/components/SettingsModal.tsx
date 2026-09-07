@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { useAppStore } from '../store/useAppStore';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [loading, setLoading] = useState(true);
+  const { govApiKey, setGovApiKey } = useAppStore();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -121,6 +123,21 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           >
             + 새로운 시간/활동 추가
           </button>
+        </div>
+
+        {/* 공공데이터 API 키 설정 영역 */}
+        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50">
+          <label className="block text-xs font-bold text-slate-700 mb-1">
+            공공데이터포털 API Key (특일정보)
+          </label>
+          <input
+            type="text"
+            value={govApiKey}
+            onChange={(e) => setGovApiKey(e.target.value)}
+            placeholder="인코딩된 API Key를 입력하세요"
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-primary"
+          />
+          <p className="text-[10px] text-slate-400 mt-1">공휴일을 달력에 표시하기 위해 필요합니다. (자동 저장)</p>
         </div>
 
         {/* 푸터 */}

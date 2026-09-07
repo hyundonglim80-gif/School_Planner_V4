@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useRoster, type ClassRoster, type Student } from '../hooks/useRoster';
+import { downloadCSV, parseCSV } from '../utils/csvHelper';
 
 interface RosterModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   const [configInputId, setConfigInputId] = useState('');
   const [loadingSheet, setLoadingSheet] = useState(false);
   const [saving, setSaving] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -223,6 +225,42 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       }
     } finally {
       setLoadingSheet(false);
+    }
+  };
+
+  const handleDownloadCSV = () => {
+    if (students.length === 0) {
+      alert('다운로드할 명단이 없습니다.');
+      return;
+    }
+    const filename = `${currentClass.year}년_${currentClass.grade}학년_${currentClass.classNum}반_명렬표.csv`;
+    downloadCSV(students, filename);
+  };
+
+  const handleUploadCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const parsedStudents = await parseCSV(file);
+      if (parsedStudents.length === 0) {
+        alert('CSV 파일에서 학생 정보를 찾지 못했습니다.');
+        return;
+      }
+      
+      if (confirm(`CSV 파일에서 총 ${parsedStudents.length}명의 학생을 찾았습니다.\n현재 앱의 명단을 이 데이터로 덮어쓰시겠습니까?`)) {
+        const updated = [...currentClasses];
+        updated[currentIndex] = {
+          ...updated[currentIndex],
+          students: parsedStudents,
+        };
+        setCurrentClasses(updated);
+        alert('✅ 성공적으로 반영되었습니다.\n하단 \'클라우드 저장\' 버튼을 눌러 완전히 적용해주세요.');
+      }
+    } catch (err: any) {
+      alert('CSV 불러오기 오류: ' + err.message);
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -482,8 +520,33 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                 title="연결된 구글 시트의 [조사표_학년-반] 탭에서 명단과 조사표를 가져옵니다"
               >
                 <span>📊</span>
-                {loadingSheet ? '시트 읽는 중...' : '구글 시트에서 불러오기'}
+                {loadingSheet ? '시트 읽는 중...' : '시트 동기화'}
               </button>
+
+              {/* CSV 입출력 버튼 */}
+              <div className="flex items-center gap-1 bg-slate-100 rounded-lg px-1.5 py-1">
+                <input
+                  type="file"
+                  accept=".csv"
+                  ref={fileInputRef}
+                  onChange={handleUploadCSV}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-2 py-0.5 bg-white text-slate-700 border border-slate-300 rounded text-xs font-bold hover:bg-slate-50 transition-colors shadow-2xs"
+                  title="CSV 업로드"
+                >
+                  ↑ CSV
+                </button>
+                <button
+                  onClick={handleDownloadCSV}
+                  className="px-2 py-0.5 bg-white text-slate-700 border border-slate-300 rounded text-xs font-bold hover:bg-slate-50 transition-colors shadow-2xs"
+                  title="CSV 다운로드"
+                >
+                  ↓ CSV
+                </button>
+              </div>
 
               {/* N명 추가 */}
               <div className="flex items-center gap-1">

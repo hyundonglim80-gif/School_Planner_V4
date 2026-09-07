@@ -1,5 +1,6 @@
 import React from 'react';
-import { formatDisplayDate, addDays, formatDateStr, isToday } from '../../lib/dateUtils';
+import { formatDisplayDate, addDays, formatDateStr, isToday, getHolidayName } from '../../lib/dateUtils';
+import { useGovHolidays } from '../../hooks/useGovHolidays';
 
 interface DayHeaderProps {
   dateStr: string;
@@ -9,6 +10,8 @@ interface DayHeaderProps {
 export default function DayHeader({ dateStr, onDateChange }: DayHeaderProps) {
   const display = formatDisplayDate(dateStr);
   const todayActive = isToday(dateStr);
+  const { holidays } = useGovHolidays();
+  const holidayName = holidays[dateStr] || getHolidayName(dateStr);
 
   const handlePrevDay = () => onDateChange(addDays(dateStr, -1));
   const handleNextDay = () => onDateChange(addDays(dateStr, 1));
@@ -49,7 +52,12 @@ export default function DayHeader({ dateStr, onDateChange }: DayHeaderProps) {
           <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
             {display.fullString}
           </h2>
-          {display.isSunday && (
+          {holidayName && (
+            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-600 border border-red-100">
+              {holidayName}
+            </span>
+          )}
+          {display.isSunday && !holidayName && (
             <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-600 border border-red-100">
               일요일
             </span>

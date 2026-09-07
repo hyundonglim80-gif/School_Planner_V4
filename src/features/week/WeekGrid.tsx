@@ -2,6 +2,7 @@ import React from 'react';
 import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
+import { useGovHolidays } from '../../hooks/useGovHolidays';
 import DetailEditModal from '../../components/DetailEditModal';
 import { useState } from 'react';
 
@@ -21,7 +22,8 @@ interface WeekGridProps {
 
 export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: WeekGridProps) {
   const { getLabelColor, getLabel } = useLabels();
-  const { showClass, showEvents } = useAppStore();
+  const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection } = useAppStore();
+  const { holidays } = useGovHolidays();
   const [detailModal, setDetailModal] = useState<{
     isOpen: boolean;
     type: 'schedule' | 'event';
@@ -46,6 +48,12 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
           .sort((a, b) => a - b);
 
         const [, month, dateNum] = day.dateStr.split('-');
+        
+        // 날짜 유틸의 고정 휴일 정보가 day 안에는 없으므로(getMonthCalendarDays와 달리)
+        // lib/dateUtils의 getHolidayName을 가져와도 되고, 그냥 holidays 캐시만 바라봐도 됨.
+        // 여기선 달력 데이터와 일관성을 위해 useGovHolidays 의 데이터를 우선 사용.
+        const holidayName = holidays[day.dateStr];
+        const isHoliday = !!holidayName || day.dayName === '일';
 
         return (
           <div
@@ -63,19 +71,26 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                     className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs ${
                       day.isToday
                         ? 'bg-primary text-white shadow-xs'
-                        : day.isWeekend
+                        : isHoliday
                         ? 'bg-rose-50 text-rose-600'
+                        : day.isWeekend // 토요일 등
+                        ? 'bg-blue-50 text-blue-600'
                         : 'bg-slate-100 text-slate-700'
                     }`}
                   >
                     {day.dayName}
-                </span>
+                  </span>
                 
-                <span className="hidden">
-                  </span>
-                  <span className="text-xs font-bold text-slate-700">
-                    {Number(month)}.{Number(dateNum)}
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-slate-700">
+                      {Number(month)}.{Number(dateNum)}
+                    </span>
+                    {holidayName && (
+                      <span className="text-[10px] font-bold text-red-600 truncate max-w-[65px]">
+                        {holidayName}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <span className="text-[10px] text-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity">
@@ -162,21 +177,35 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                           key={ev.id}
                           onClick={(e) => {
                             e.stopPropagation();
-                            setDetailModal({
-                              isOpen: true,
-                              type: 'event',
-                              dateStr: day.dateStr,
-                              itemId: ev.id,
-                              initialData: ev
-                            });
+                            if (isMultiSelectMode) {
+                              toggleEventSelection(ev.id);
+                            } else {
+                              setDetailModal({
+                                isOpen: true,
+                                type: 'event',
+                                dateStr: day.dateStr,
+                                itemId: ev.id,
+                                initialData: ev
+                              });
+                            }
                           }}
                           className={`px-2 py-1.5 rounded-lg text-xs leading-tight transition-all border flex items-center gap-1.5 hover:shadow-sm cursor-pointer ${
-                            ev.completed
+                            selectedEventIds.includes(ev.id)
+                              ? 'bg-primary/10 border-primary text-primary'
+                              : ev.completed
                               ? 'bg-slate-50 border-slate-100 text-slate-400 line-through'
                               : 'bg-blue-50/60 border-blue-100 text-slate-800 font-medium'
                           }`}
                         >
-                          {hasLabel && labelColor && (
+                          {isMultiSelectMode && (
+                            <input
+                              type="checkbox"
+                              checked={selectedEventIds.includes(ev.id)}
+                              readOnly
+                              className="pointer-events-none"
+                            />
+                          )}
+                          {hasLabel && labelColor && !isMultiSelectMode && (
                             <span
                               className="text-[9px] font-bold px-1 py-0.5 rounded shrink-0 whitespace-nowrap"
                               style={{

@@ -17,6 +17,7 @@ import EvaluationModal from './EvaluationModal';
 import RecurringModal from './RecurringModal';
 import ForwardingModal from './ForwardingModal';
 import LinkerModal from './LinkerModal';
+import MultiEventActionBar from './MultiEventActionBar';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user } = useAuth();
@@ -47,6 +48,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     evalPeriod,
     evalSubject,
     closeEvaluationModal,
+    isMultiSelectMode,
+    setMultiSelectMode,
   } = useAppStore();
   const { groups } = useGroups();
   const { primaryDDay } = useDDay();
@@ -335,6 +338,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <button
                     onClick={() => {
                       setIsMoreMenuOpen(false);
+                      setMultiSelectMode(!isMultiSelectMode);
+                    }}
+                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-b border-dashed border-slate-100"
+                  >
+                    <span>☑️</span> 다중 선택 모드 {isMultiSelectMode ? '종료' : '켜기'}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
                       setIsLabelModalOpen(true);
                     }}
                     className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
@@ -568,6 +581,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         isOpen={isTimetableModalOpen}
         onClose={() => setIsTimetableModalOpen(false)}
       />
+
+      {/* 다중 선택 액션 바 */}
+      <MultiEventActionBar />
     </div>
   );
 }
