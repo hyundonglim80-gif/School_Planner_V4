@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
 import { uploadFile, uploadImage } from '../../utils/uploadHelper';
 import { auth } from '../../lib/firebase';
+import { showToast } from '../../utils/toast';
 
 interface DayEventsProps {
   events: EventItem[];
@@ -529,7 +530,10 @@ export default function DayEvents({
                   </button>
                   <button
                     type="button"
-                    onClick={() => onDeleteEvent(event.id)}
+                    onClick={async () => {
+                      await onDeleteEvent(event.id);
+                      showToast('일정이 삭제되었습니다. (상단 휴지통에서 복구 가능)');
+                    }}
                     className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 text-xs transition-all"
                     title="삭제"
                   >

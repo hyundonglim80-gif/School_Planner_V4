@@ -7,6 +7,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { uploadImage, uploadFile } from '../../utils/uploadHelper';
 import type { Attachment } from '../../hooks/useDayData';
+import { showToast } from '../../utils/toast';
 
 interface DayJournalProps {
   journals: JournalEntry[];
@@ -523,12 +524,12 @@ export default function DayJournal({
                           🔗
                         </button>
                         <button
-                          onClick={() => {
-                            if (window.confirm('이 일지를 삭제하시겠습니까?')) {
-                              onDeleteJournal(entry.id);
-                            }
+                          type="button"
+                          onClick={async () => {
+                            await onDeleteJournal(entry.id);
+                            showToast('기록이 삭제되었습니다. (상단 휴지통에서 복구 가능)');
                           }}
-                          className="text-slate-400 hover:text-red-500 p-1 rounded-md text-xs"
+                          className="text-slate-400 hover:text-red-500 p-1 rounded-md text-xs transition-colors"
                           title="삭제"
                         >
                           ✕
