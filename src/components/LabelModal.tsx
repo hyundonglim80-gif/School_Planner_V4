@@ -64,10 +64,17 @@ export const DEFAULT_JOURNAL_LABELS: JournalLabel[] = [
 interface LabelModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: 'event' | 'journal' | 'memo';
 }
 
-export default function LabelModal({ isOpen, onClose }: LabelModalProps) {
-  const [activeTab, setActiveTab] = useState<'event' | 'journal' | 'memo'>('event');
+export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: LabelModalProps) {
+  const [activeTab, setActiveTab] = useState<'event' | 'journal' | 'memo'>(initialTab);
+
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
 
   // 일정 라벨 상태
   const [eventLabels, setEventLabels] = useState<EventLabel[]>([]);

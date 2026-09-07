@@ -3,6 +3,13 @@ import { collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc } from 'fireb
 import { db, auth } from '../lib/firebase';
 import { moveToTrash } from '../utils/trashHelper';
 
+export interface MemoAttachment {
+  name: string;
+  url: string;
+  type?: string;
+  size?: number;
+}
+
 export interface Memo {
   firestoreId: string;
   text?: string;
@@ -12,7 +19,7 @@ export interface Memo {
   order?: number;
   labels?: string[];
   imageUrl?: string;
-  attachments?: any[];
+  attachments?: MemoAttachment[];
   authorId?: string;
   authorName?: string;
   groupId?: string;
@@ -51,6 +58,7 @@ export function useMemos(groupId: string | null = null) {
           createdAt: created,
           completed: !!data.completed,
           labels: data.labels || [],
+          attachments: data.attachments || [],
         } as Memo);
       });
 
@@ -66,7 +74,7 @@ export function useMemos(groupId: string | null = null) {
     return () => unsubscribe();
   }, [groupId, auth.currentUser?.uid]);
 
-  const addMemo = async (data: { content: string; labels?: string[]; imageUrl?: string }) => {
+  const addMemo = async (data: { content: string; labels?: string[]; imageUrl?: string; attachments?: MemoAttachment[] }) => {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
 
@@ -83,6 +91,7 @@ export function useMemos(groupId: string | null = null) {
       createdAt: now,
       labels: data.labels || [],
       imageUrl: data.imageUrl || '',
+      attachments: data.attachments || [],
       authorId: user.uid,
       authorName: user.displayName || '선생님',
       sharedGroupIds: groupId ? [groupId] : []
@@ -91,7 +100,7 @@ export function useMemos(groupId: string | null = null) {
     return await addDoc(collectionRef, newMemoData);
   };
 
-  const updateMemo = async (firestoreId: string, data: { content?: string; labels?: string[]; completed?: boolean; imageUrl?: string }) => {
+  const updateMemo = async (firestoreId: string, data: { content?: string; labels?: string[]; completed?: boolean; imageUrl?: string; attachments?: MemoAttachment[] }) => {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
 
@@ -107,6 +116,7 @@ export function useMemos(groupId: string | null = null) {
     if (data.labels !== undefined) updateData.labels = data.labels;
     if (data.completed !== undefined) updateData.completed = data.completed;
     if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
+    if (data.attachments !== undefined) updateData.attachments = data.attachments;
 
     return await updateDoc(docRef, updateData);
   };

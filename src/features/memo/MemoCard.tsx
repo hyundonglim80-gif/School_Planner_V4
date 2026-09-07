@@ -66,12 +66,61 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
           </div>
         </div>
 
-        {/* 첨부 이미지 (있을 경우) */}
-        {memo.imageUrl && (
-          <div className="mb-3 rounded-xl overflow-hidden border border-slate-100">
-            <img src={memo.imageUrl} alt="메모 첨부 이미지" className="w-full h-36 object-cover hover:scale-105 transition-transform" />
+        {/* 첨부 파일 및 이미지 영역 */}
+        {memo.attachments && memo.attachments.length > 0 ? (
+          <div className="mb-3 space-y-2">
+            {/* 1. 이미지 첨부파일들 */}
+            {memo.attachments.filter(
+              (a) => a.type?.startsWith('image/') || a.url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)
+            ).map((imgAtt, idx) => (
+              <div key={`${imgAtt.url}-${idx}`} className="rounded-xl overflow-hidden border border-slate-100 bg-slate-50">
+                <a href={imgAtt.url} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={imgAtt.url}
+                    alt={imgAtt.name || '첨부 이미지'}
+                    className="w-full max-h-48 object-cover hover:scale-102 transition-transform duration-200"
+                  />
+                </a>
+              </div>
+            ))}
+
+            {/* 2. 일반 첨부파일들 (문서, PDF 등) */}
+            {memo.attachments.filter(
+              (a) => !a.type?.startsWith('image/') && !a.url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)
+            ).map((fileAtt, idx) => {
+              let icon = '📎';
+              if (fileAtt.name.match(/\.(pdf)$/i)) icon = '📕';
+              else if (fileAtt.name.match(/\.(doc|docx|hwp|hwpx|txt)$/i)) icon = '📄';
+              else if (fileAtt.name.match(/\.(xls|xlsx|csv)$/i)) icon = '📊';
+              else if (fileAtt.name.match(/\.(zip|7z|rar)$/i)) icon = '📦';
+
+              return (
+                <a
+                  key={`${fileAtt.url}-${idx}`}
+                  href={fileAtt.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download
+                  className="flex items-center gap-2 p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-xl transition-all group/file text-xs"
+                >
+                  <span className="text-base shrink-0">{icon}</span>
+                  <span className="font-semibold text-slate-700 group-hover/file:text-primary truncate flex-1" title={fileAtt.name}>
+                    {fileAtt.name}
+                  </span>
+                  <span className="text-[10px] text-slate-400 shrink-0 font-medium group-hover/file:text-primary">
+                    다운로드 ⬇
+                  </span>
+                </a>
+              );
+            })}
           </div>
-        )}
+        ) : memo.imageUrl ? (
+          <div className="mb-3 rounded-xl overflow-hidden border border-slate-100 bg-slate-50">
+            <a href={memo.imageUrl} target="_blank" rel="noopener noreferrer">
+              <img src={memo.imageUrl} alt="메모 첨부 이미지" className="w-full max-h-48 object-cover hover:scale-102 transition-transform duration-200" />
+            </a>
+          </div>
+        ) : null}
 
         {/* 본문 내용 */}
           <p className={`text-sm whitespace-pre-wrap leading-relaxed ${

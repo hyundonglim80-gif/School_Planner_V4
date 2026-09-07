@@ -60,6 +60,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     linkViewerSourceDateStr,
     linkViewerSourceId,
     closeLinkViewerModal,
+    isLabelModalOpen,
+    labelModalTab,
+    openLabelModal,
+    closeLabelModal,
   } = useAppStore();
   const { groups } = useGroups();
   const { primaryDDay } = useDDay();
@@ -69,7 +73,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isDDayModalOpen, setIsDDayModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isRosterModalOpen, setIsRosterModalOpen] = useState(false);
-  const [isLabelModalOpen, setIsLabelModalOpen] = useState(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -169,7 +172,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         setIsSearchModalOpen(false);
         setIsGroupModalOpen(false);
         setIsBackupModalOpen(false);
-        setIsLabelModalOpen(false);
+        closeLabelModal();
         setIsDDayModalOpen(false);
         setIsRosterModalOpen(false);
         setIsSettingsModalOpen(false);
@@ -438,7 +441,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <button
                     onClick={() => {
                       setIsMoreMenuOpen(false);
-                      setIsLabelModalOpen(true);
+                      openLabelModal('event');
                     }}
                     className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
                   >
@@ -624,7 +627,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       <LabelModal
         isOpen={isLabelModalOpen}
-        onClose={() => setIsLabelModalOpen(false)}
+        onClose={closeLabelModal}
+        initialTab={labelModalTab}
       />
 
       <BackupModal

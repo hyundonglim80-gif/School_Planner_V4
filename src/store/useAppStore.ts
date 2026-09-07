@@ -76,6 +76,12 @@ interface AppState {
   // Trash Modal State
   isTrashModalOpen: boolean;
   setTrashModalOpen: (isOpen: boolean) => void;
+
+  // Label Modal State
+  isLabelModalOpen: boolean;
+  labelModalTab: 'event' | 'journal' | 'memo';
+  openLabelModal: (tab?: 'event' | 'journal' | 'memo') => void;
+  closeLabelModal: () => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -283,6 +289,11 @@ export const useAppStore = create<AppState>()(
 
       isTrashModalOpen: false,
       setTrashModalOpen: (isOpen: boolean) => set({ isTrashModalOpen: isOpen }),
+
+      isLabelModalOpen: false,
+      labelModalTab: 'event',
+      openLabelModal: (tab = 'event') => set({ isLabelModalOpen: true, labelModalTab: tab }),
+      closeLabelModal: () => set({ isLabelModalOpen: false }),
     }),
     {
       name: 'sp4-app-storage',

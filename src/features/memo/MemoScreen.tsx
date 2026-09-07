@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMemos } from '../../hooks/useMemos';
-import type { Memo } from '../../hooks/useMemos';
+import type { Memo, MemoAttachment } from '../../hooks/useMemos';
 import { useAppStore } from '../../store/useAppStore';
 import MemoCard from './MemoCard';
 import MemoFilter from './MemoFilter';
@@ -32,7 +32,12 @@ export default function MemoScreen() {
     setIsDrawerOpen(true);
   };
 
-  const handleSaveMemo = async (data: { content: string; labels: string[]; imageUrl?: string }) => {
+  const handleSaveMemo = async (data: {
+    content: string;
+    labels: string[];
+    imageUrl?: string;
+    attachments?: MemoAttachment[];
+  }) => {
     if (editingMemo) {
       await updateMemo(editingMemo.firestoreId, data);
     } else {
