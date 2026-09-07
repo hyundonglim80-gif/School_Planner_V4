@@ -43,7 +43,6 @@ export default function DayEvents({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [editLabel, setEditLabel] = useState<string | undefined>(undefined);
-  const [editLabelDropdown, setEditLabelDropdown] = useState(false);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -89,7 +88,6 @@ export default function DayEvents({
     setEditingId(event.id);
     setEditText(info.cleanContent);
     setEditLabel(info.names.length > 0 ? info.names.join(',') : undefined);
-    setEditLabelDropdown(false);
   };
 
   const saveEditing = async (id: string) => {
@@ -105,6 +103,18 @@ export default function DayEvents({
       });
     }
     setEditingId(null);
+  };
+
+  const handleEditLabelToggle = (labelName: string) => {
+    setEditLabel(prev => {
+      const currentLabels = prev ? prev.split(',').filter(Boolean) : [];
+      if (currentLabels.includes(labelName)) {
+        const next = currentLabels.filter(l => l !== labelName);
+        return next.length > 0 ? next.join(',') : undefined;
+      } else {
+        return [...currentLabels, labelName].join(',');
+      }
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -308,56 +318,32 @@ export default function DayEvents({
             const info = getEventLabelInfo(event);
 
             if (isEditing) {
-              const editColor = editLabel ? getLabelColor(editLabel) : null;
+              const currentEditLabels = editLabel ? editLabel.split(',').filter(Boolean) : [];
               return (
                 <div
                   key={event.id}
-                  className="p-2.5 rounded-xl border border-primary/50 bg-blue-50/30 flex flex-col gap-2 shadow-xs transition-all"
+                  className="p-3.5 rounded-xl border border-primary/50 bg-blue-50/30 flex flex-col gap-3 shadow-xs transition-all"
                 >
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-semibold text-slate-500 mr-1">라벨:</span>
+                    {eventLabels.map((l) => {
+                      const isSelected = currentEditLabels.includes(l.name);
+                      const c = getLabelColor(l.name);
+                      return (
+                        <button
+                          key={l.id}
+                          type="button"
+                          onClick={() => handleEditLabelToggle(l.name)}
+                          className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all border ${isSelected ? 'ring-2 ring-primary ring-offset-1 shadow-xs' : 'opacity-70 hover:opacity-100 bg-white text-slate-600 border-slate-200'}`}
+                          style={isSelected ? { backgroundColor: c.bg, color: c.text, borderColor: c.border } : {}}
+                        >
+                          {l.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+
                   <div className="flex items-center gap-2">
-                    {/* 편집 시 라벨 선택 드롭다운 토글 버튼 */}
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setEditLabelDropdown(!editLabelDropdown)}
-                        className="px-2 py-1 text-xs font-bold rounded-md shadow-2xs flex items-center gap-1 border"
-                        style={
-                          editColor
-                            ? { backgroundColor: editColor.bg, color: editColor.text, borderColor: editColor.border }
-                            : { backgroundColor: '#f1f5f9', color: '#64748b', borderColor: '#cbd5e1' }
-                        }
-                      >
-                        <span>{editLabel || '라벨 선택'}</span>
-                        <span className="text-[10px]">▼</span>
-                      </button>
-
-                      {editLabelDropdown && (
-                        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 shadow-xl rounded-xl p-2 z-50 flex flex-wrap gap-1.5 w-[240px]">
-                          <button
-                            type="button"
-                            onClick={() => { setEditLabel(undefined); setEditLabelDropdown(false); }}
-                            className="px-2 py-1 text-xs rounded border border-slate-200 text-slate-500 hover:bg-slate-100"
-                          >
-                            라벨 없음
-                          </button>
-                          {eventLabels.map((l) => {
-                            const c = getLabelColor(l.name);
-                            return (
-                              <button
-                                key={l.id}
-                                type="button"
-                                onClick={() => { setEditLabel(l.name); setEditLabelDropdown(false); }}
-                                className="px-2 py-1 text-xs font-bold rounded hover:opacity-80"
-                                style={{ backgroundColor: c.bg, color: c.text, border: '1px solid ' + c.border }}
-                              >
-                                {l.name}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
                     <input
                       type="text"
                       value={editText}
