@@ -485,20 +485,26 @@ export default function DayEvents({
                         ))}
                       </div>
                     )}
+                    {/* 연결된 링크 표시 (기록과 동일한 방식) */}
+                    {event.linkedItems && event.linkedItems.length > 0 && (
+                      <div className="flex gap-1.5 mt-2 flex-wrap">
+                        {event.linkedItems.map((link: any, idx: number) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); openLinkViewerModal('event', formattedDate, event.id); }}
+                            className="px-1.5 py-0.5 bg-yellow-50 text-yellow-800 border border-yellow-300 rounded text-[10px] font-bold shadow-2xs hover:bg-yellow-100 transition-colors flex items-center gap-1"
+                          >
+                            <span className="text-yellow-600">📑</span>
+                            <span className="truncate max-w-[120px]">{link.title || '연결된 항목'}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0 ml-2">
-                  {event.linkedItems && event.linkedItems.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => openLinkViewerModal('event', formattedDate, event.id)}
-                      className="px-1.5 py-0.5 bg-yellow-50 text-yellow-800 border border-yellow-300 rounded text-[10px] font-bold shadow-2xs hover:bg-yellow-100 transition-colors"
-                      title="연결된 링크 보기"
-                    >
-                      📑 {event.linkedItems.length}
-                    </button>
-                  )}
                   <button
                     type="button"
                     onClick={() => openLinkerModal('event', formattedDate, event.id)}

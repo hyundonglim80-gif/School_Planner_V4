@@ -50,13 +50,18 @@ export const addReverseLink = async (targetLink: SelectedLinkItem, sourceMeta: S
       const pKey = targetLink.targetPeriod
         ? String(targetLink.targetPeriod)
         : String(targetLink.targetId).replace(/.*_/, '');
-      if (!periods[pKey]) {
-        periods[pKey] = { subject: '', content: '', memo: '', supplies: '', linkedItems: [] };
+      
+      let item = periods[pKey];
+      if (!item) {
+        item = { subject: '', content: '', memo: '', supplies: '', linkedItems: [] };
+      } else if (typeof item === 'string') {
+        item = { subject: item, content: '', memo: '', supplies: '', linkedItems: [] };
       }
-      const item = periods[pKey];
+      
       item.linkedItems = item.linkedItems || [];
       if (!item.linkedItems.some((l: any) => String(l.targetId || l.id) === String(sourceMeta.targetId))) {
         item.linkedItems.push(sourceMeta);
+        periods[pKey] = item;
         await setDoc(ref, { periods }, { merge: true });
       }
     } else if (targetLink.targetType === 'memo') {

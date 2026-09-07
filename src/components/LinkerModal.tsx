@@ -403,9 +403,18 @@ export default function LinkerModal({
         const ref = doc(db, colPath('schedules'), sDateStr);
         const snap = await getDoc(ref);
         const periods = (snap.exists() ? snap.data().periods : {}) || {};
-        periods[sp] = periods[sp] || { subject: '', memo: '', supplies: '', linkedItems: [] };
-        periods[sp].linkedItems = periods[sp].linkedItems || [];
-        updateTargetArray(periods[sp].linkedItems);
+        
+        let item = periods[sp];
+        if (!item) {
+          item = { subject: '', memo: '', supplies: '', linkedItems: [] };
+        } else if (typeof item === 'string') {
+          item = { subject: item, memo: '', supplies: '', linkedItems: [] };
+        }
+        
+        item.linkedItems = item.linkedItems || [];
+        updateTargetArray(item.linkedItems);
+        periods[sp] = item;
+        
         await setDoc(ref, { periods, updatedAt: Date.now() }, { merge: true });
       } else if (sourceType === 'event') {
         const ref = doc(db, colPath('events'), sDateStr);
