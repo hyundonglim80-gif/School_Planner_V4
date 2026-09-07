@@ -20,6 +20,7 @@ import LinkerModal from './LinkerModal';
 import LinkViewerModal from './LinkViewerModal';
 import MultiEventActionBar from './MultiEventActionBar';
 import TrashModal from './TrashModal';
+import MiniCalendarPicker from './MiniCalendarPicker';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user } = useAuth();
@@ -528,16 +529,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               >
                 {getFormattedDateRange()}
               </span>
-              <label className="cursor-pointer ml-1 text-slate-400 hover:text-primary relative overflow-hidden flex items-center justify-center w-6 h-6 text-sm" title="날짜 이동">
-                📅
-                <input 
-                  type="date" 
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                  onChange={(e) => {
-                    if(e.target.value) setCurrentDate(new Date(e.target.value));
-                  }}
-                />
-              </label>
+              <MiniCalendarPicker
+                currentDate={currentDate}
+                onSelectDate={(newDate) => setCurrentDate(newDate)}
+              />
             </div>
             <button
               onClick={handleNextDate}
