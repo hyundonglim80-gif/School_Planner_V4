@@ -288,14 +288,18 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   const deleteEventItem = useCallback(async (id: string) => {
     const itemToDelete = eventList.find(item => item.id === id);
     if (itemToDelete) {
-      await moveToTrash({
-        id: itemToDelete.id,
-        type: 'event',
-        originalDateStr: dateStr,
-        fId: groupId || 'personal',
-        content: itemToDelete.content,
-        data: itemToDelete
-      });
+      try {
+        await moveToTrash({
+          id: itemToDelete.id,
+          type: 'event',
+          originalDateStr: dateStr,
+          fId: groupId || 'personal',
+          content: itemToDelete.content,
+          data: itemToDelete
+        });
+      } catch (err) {
+        console.error('Failed to move to trash:', err);
+      }
     }
     const newList = eventList.filter(item => item.id !== id);
     await saveEventItems(newList);
@@ -435,14 +439,18 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
 
     const itemToDelete = journals.find(j => j.id === id);
     if (itemToDelete) {
-      await moveToTrash({
-        id: itemToDelete.id,
-        type: 'journal',
-        originalDateStr: dateStr,
-        fId: groupId || 'personal',
-        content: itemToDelete.content,
-        data: itemToDelete
-      });
+      try {
+        await moveToTrash({
+          id: itemToDelete.id,
+          type: 'journal',
+          originalDateStr: dateStr,
+          fId: groupId || 'personal',
+          content: itemToDelete.content,
+          data: itemToDelete
+        });
+      } catch (err) {
+        console.error('Failed to move to trash:', err);
+      }
     }
 
     const newJournals = journals.filter(j => j.id !== id);
