@@ -147,7 +147,14 @@ export default function DaySchedule({
           <span className="text-xl">⏰</span>
           <h3 className="text-base font-extrabold text-slate-800">수업</h3>
           <div className="flex items-center gap-1 ml-2">
-            {/* V3 이식: 헤더 버튼 제거 */}
+            <button
+              type="button"
+              onClick={() => dateStr && openLinkerModal('schedule_header', dateStr)}
+              className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-300 rounded text-xs font-bold hover:bg-amber-100 transition-colors cursor-pointer"
+              title="해당 일자 교시와 데이터를 연결합니다."
+            >
+              + 링크
+            </button>
           </div>
         </div>
 
@@ -252,8 +259,9 @@ export default function DaySchedule({
                       </span>
                       {linkCount > 0 && (
                         <button 
-                          onClick={(e) => { e.stopPropagation(); dateStr && openLinkViewerModal('schedule', dateStr, String(period)); }}
-                          className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 ml-1 hover:bg-yellow-200"
+                          onClick={(e) => { e.stopPropagation(); dateStr && openLinkViewerModal('schedule', dateStr, String(period), period); }}
+                          className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 ml-1 hover:bg-yellow-200 cursor-pointer"
+                          title="연결된 항목 보기 및 수정"
                         >
                           📑 {linkCount}
                         </button>

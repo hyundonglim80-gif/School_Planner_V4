@@ -27,7 +27,7 @@ export interface PeriodSchedule {
   content: string; // V4 기존 (V3에서는 memo로 사용되기도 함)
   memo?: string;   // V3 호환
   supplies?: string;
-  linkedItems?: string[];
+  linkedItems?: any[];
   imageUrl?: string;
   attachments?: Attachment[];
 }
@@ -38,7 +38,7 @@ export interface JournalEntry {
   createdAt: number;
   label?: string;
   labelIds?: string[];
-  linkedItems?: string[];
+  linkedItems?: any[];
   imageUrl?: string;
   attachments?: Attachment[];
 }

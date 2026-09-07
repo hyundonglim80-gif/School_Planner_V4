@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Memo } from '../../hooks/useMemos';
 import { renderFormattedText } from '../../lib/textUtils';
+import { useAppStore } from '../../store/useAppStore';
 
 interface MemoCardProps {
   memo: Memo;
@@ -49,7 +50,11 @@ const isImageFile = (att: NormalizedAttachment): boolean => {
 };
 
 export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: MemoCardProps) {
+  const { openLinkerModal, openLinkViewerModal } = useAppStore();
   const isCompleted = !!memo.completed;
+  const linkCount = (memo.linkedItems || []).length;
+  const memoDate = new Date(memo.createdAt);
+  const memoDateStr = `${memoDate.getFullYear()}-${String(memoDate.getMonth() + 1).padStart(2, '0')}-${String(memoDate.getDate()).padStart(2, '0')}`;
 
   // 첨부파일 안전 정규화 (배열 내의 불완전한 객체나 문자열 등 방어)
   const normalizedAttachments = React.useMemo<NormalizedAttachment[]>(() => {
@@ -91,9 +96,33 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
                 minute: '2-digit',
               })}
             </span>
+            {linkCount > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openLinkViewerModal('memo', memoDateStr, memo.firestoreId, undefined, memo.groupId || 'personal');
+                }}
+                className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 transition-colors cursor-pointer"
+                title="연결된 내용 보기 및 수정"
+              >
+                📑 {linkCount}
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openLinkerModal('memo', memoDateStr, memo.firestoreId, undefined, undefined, memo.groupId || 'personal');
+              }}
+              className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+              title="새 링크 연결"
+            >
+              🔗
+            </button>
             {onEdit && (
               <button
                 type="button"

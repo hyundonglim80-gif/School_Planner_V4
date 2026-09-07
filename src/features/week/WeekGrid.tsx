@@ -22,7 +22,7 @@ interface WeekGridProps {
 
 export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: WeekGridProps) {
   const { getLabelColor, getLabel } = useLabels();
-  const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection } = useAppStore();
+  const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal } = useAppStore();
   const { holidays } = useGovHolidays();
   const [detailModal, setDetailModal] = useState<{
     isOpen: boolean;
@@ -126,9 +126,22 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                           className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-50 border border-slate-100 text-xs hover:bg-slate-100 cursor-pointer transition-colors"
                         >
                           <span className="font-bold text-[10px] text-primary shrink-0">{p}교시</span>
-                          <span className="font-semibold text-slate-800 truncate text-[11px]">
+                          <span className="font-semibold text-slate-800 truncate text-[11px] flex-1">
                             {periodText}
                           </span>
+                          {(item.linkedItems || []).length > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openLinkViewerModal('schedule', day.dateStr, String(p), p);
+                              }}
+                              className="bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.2 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
+                              title="연결된 항목 보기 및 수정"
+                            >
+                              📑 {(item.linkedItems || []).length}
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -218,6 +231,19 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                             </span>
                           )}
                           <span className="break-words flex-1">{ev.content}</span>
+                          {(ev.linkedItems || []).length > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openLinkViewerModal('event', day.dateStr, ev.id);
+                              }}
+                              className="bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.2 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
+                              title="연결된 내용 보기 및 수정"
+                            >
+                              📑 {(ev.linkedItems || []).length}
+                            </button>
+                          )}
                         </div>
                       );
                     })}

@@ -24,7 +24,7 @@ export default function DetailEditModal({
   itemId,
   initialData,
 }: DetailEditModalProps) {
-  const { selectedGroupId, openLinkerModal, openEvaluationModal } = useAppStore();
+  const { selectedGroupId, openLinkerModal, openLinkViewerModal, openEvaluationModal } = useAppStore();
   const { updateEventItem, deleteEventItem, savePeriod } = useDayData(isOpen ? dateStr : '', selectedGroupId);
   const { eventLabels } = useLabels();
 
@@ -158,27 +158,47 @@ export default function DetailEditModal({
                   <button
                     type="button"
                     onClick={() => { openEvaluationModal(dateStr, 'schedule', Number(itemId), subject); onClose(); }}
-                    className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+                    className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     📊 조사표 추가
                   </button>
                   <button
                     type="button"
                     onClick={() => { openLinkerModal('schedule', dateStr, undefined, Number(itemId)); onClose(); }}
-                    className="px-3 py-1.5 bg-yellow-50 text-yellow-600 hover:bg-yellow-100 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+                    className="px-3 py-1.5 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     🔗 링크 추가
                   </button>
+                  {initialData?.linkedItems && initialData.linkedItems.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => { openLinkViewerModal('schedule', dateStr, String(itemId), Number(itemId)); onClose(); }}
+                      className="px-3 py-1.5 bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      📑 연결된 링크 ({initialData.linkedItems.length})
+                    </button>
+                  )}
                 </>
               )}
               {type === 'event' && (
-                <button
-                  type="button"
-                  onClick={() => { openLinkerModal('event', dateStr, String(itemId)); onClose(); }}
-                  className="px-3 py-1.5 bg-yellow-50 text-yellow-600 hover:bg-yellow-100 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
-                >
-                  🔗 링크 추가
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => { openLinkerModal('event', dateStr, String(itemId)); onClose(); }}
+                    className="px-3 py-1.5 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    🔗 링크 추가
+                  </button>
+                  {initialData?.linkedItems && initialData.linkedItems.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => { openLinkViewerModal('event', dateStr, String(itemId)); onClose(); }}
+                      className="px-3 py-1.5 bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      📑 연결된 링크 ({initialData.linkedItems.length})
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}

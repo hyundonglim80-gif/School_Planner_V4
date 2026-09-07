@@ -42,26 +42,36 @@ interface AppState {
   
   // Linker Modal State
   isLinkerModalOpen: boolean;
-  linkerSourceType: 'schedule' | 'journal' | 'event' | 'manual';
+  linkerSourceType: 'schedule' | 'schedule_header' | 'journal' | 'event' | 'memo' | 'manual';
   linkerSourceDateStr: string;
   linkerSourceId?: string;
-  linkerSourcePeriod?: number;
+  linkerSourcePeriod?: number | string;
+  linkerSourceFId?: string;
   linkerCallback?: (links: any[]) => void;
   openLinkerModal: (
-    sourceType: 'schedule' | 'journal' | 'event' | 'manual', 
+    sourceType: 'schedule' | 'schedule_header' | 'journal' | 'event' | 'memo' | 'manual', 
     dateStr: string, 
     id?: string, 
-    period?: number,
-    callback?: (links: any[]) => void
+    period?: number | string,
+    callback?: (links: any[]) => void,
+    fId?: string
   ) => void;
   closeLinkerModal: () => void;
 
   // Link Viewer Modal State
   isLinkViewerModalOpen: boolean;
-  linkViewerSourceType: 'schedule' | 'journal' | 'event';
+  linkViewerSourceType: 'schedule' | 'journal' | 'event' | 'memo';
   linkViewerSourceDateStr: string;
   linkViewerSourceId: string;
-  openLinkViewerModal: (sourceType: 'schedule' | 'journal' | 'event', dateStr: string, id: string) => void;
+  linkViewerSourcePeriod?: number | string;
+  linkViewerSourceFId?: string;
+  openLinkViewerModal: (
+    sourceType: 'schedule' | 'journal' | 'event' | 'memo', 
+    dateStr: string, 
+    id?: string, 
+    period?: number | string,
+    fId?: string
+  ) => void;
   closeLinkViewerModal: () => void;
 
   // Evaluation Modal State
@@ -243,19 +253,22 @@ export const useAppStore = create<AppState>()(
       linkerSourceDateStr: '',
       linkerSourceId: undefined,
       linkerSourcePeriod: undefined,
+      linkerSourceFId: undefined,
       linkerCallback: undefined,
-      openLinkerModal: (sourceType, dateStr, id, period, callback) => set({ 
+      openLinkerModal: (sourceType, dateStr, id, period, callback, fId) => set({ 
         isLinkerModalOpen: true, 
         linkerSourceType: sourceType, 
         linkerSourceDateStr: dateStr, 
         linkerSourceId: id,
         linkerSourcePeriod: period,
         linkerCallback: callback,
+        linkerSourceFId: fId,
       }),
       closeLinkerModal: () => set({ 
         isLinkerModalOpen: false, 
         linkerSourceId: undefined,
         linkerSourcePeriod: undefined,
+        linkerSourceFId: undefined,
         linkerCallback: undefined
       }),
 
@@ -263,16 +276,22 @@ export const useAppStore = create<AppState>()(
       linkViewerSourceType: 'event',
       linkViewerSourceDateStr: '',
       linkViewerSourceId: '',
-      openLinkViewerModal: (sourceType, dateStr, id) => set({
+      linkViewerSourcePeriod: undefined,
+      linkViewerSourceFId: undefined,
+      openLinkViewerModal: (sourceType, dateStr, id = '', period, fId) => set({
         isLinkViewerModalOpen: true,
         linkViewerSourceType: sourceType,
         linkViewerSourceDateStr: dateStr,
-        linkViewerSourceId: id
+        linkViewerSourceId: id,
+        linkViewerSourcePeriod: period,
+        linkViewerSourceFId: fId,
       }),
       closeLinkViewerModal: () => set({
         isLinkViewerModalOpen: false,
         linkViewerSourceDateStr: '',
-        linkViewerSourceId: ''
+        linkViewerSourceId: '',
+        linkViewerSourcePeriod: undefined,
+        linkViewerSourceFId: undefined,
       }),
 
       isEvaluationModalOpen: false,

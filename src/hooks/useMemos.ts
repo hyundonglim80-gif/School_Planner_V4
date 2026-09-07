@@ -24,6 +24,7 @@ export interface Memo {
   authorName?: string;
   groupId?: string;
   isShared?: boolean;
+  linkedItems?: any[];
 }
 
 export function useMemos(groupId: string | null = null) {
@@ -59,6 +60,7 @@ export function useMemos(groupId: string | null = null) {
           completed: !!data.completed,
           labels: data.labels || [],
           attachments: data.attachments || [],
+          linkedItems: data.linkedItems || [],
         } as Memo);
       });
 

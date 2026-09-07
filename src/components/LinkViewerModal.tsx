@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
@@ -9,234 +9,571 @@ interface LinkViewerModalProps {
   sourceType: string;
   sourceDateStr: string;
   sourceId: string;
+  sourcePeriod?: number | string;
+  sourceFId?: string;
 }
 
-export default function LinkViewerModal({ isOpen, onClose, sourceType, sourceDateStr, sourceId }: LinkViewerModalProps) {
-  const { selectedGroupId } = useAppStore();
-  const [links, setLinks] = useState<any[]>([]);
+export interface NormalizedLink {
+  targetType: 'schedule' | 'event' | 'journal' | 'memo';
+  targetId: string;
+  targetDate: string;
+  targetPeriod?: string | number;
+  title: string;
+  targetFId: string;
+  liveText?: string;
+  loadingText?: boolean;
+}
+
+export default function LinkViewerModal({
+  isOpen,
+  onClose,
+  sourceType,
+  sourceDateStr,
+  sourceId,
+  sourcePeriod,
+  sourceFId,
+}: LinkViewerModalProps) {
+  const { selectedGroupId, setCurrentDate, setScope } = useAppStore();
+  const [links, setLinks] = useState<NormalizedLink[]>([]);
   const [loading, setLoading] = useState(false);
-  const [editModeId, setEditModeId] = useState<string | null>(null);
+  const [editModeTargetId, setEditModeTargetId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const getColPath = useCallback((col: string, fId?: string) => {
+    const uid = auth.currentUser?.uid;
+    const targetFId = fId || selectedGroupId || 'personal';
+    return targetFId === 'personal' || !targetFId
+      ? `users/${uid}/${col}`
+      : `groups/${targetFId}/${col}`;
+  }, [selectedGroupId]);
+
+  // 실시간 아이템 텍스트 조회 (V3 fetchItemText 이식)
+  const fetchItemText = useCallback(async (
+    type: string,
+    dateStr: string,
+    id: string,
+    period: string | number | undefined,
+    fId: string
+  ): Promise<string> => {
+    try {
+      if (type === 'event') {
+        const snap = await getDoc(doc(db, getColPath('events', fId), dateStr));
+        if (snap.exists()) {
+          const list = snap.data().eventList || [];
+          const item = list.find((e: any) => String(e.id) === String(id));
+          return item?.content || item?.text || '';
+        }
+      } else if (type === 'journal') {
+        const snap = await getDoc(doc(db, getColPath('journals', fId), dateStr));
+        if (snap.exists()) {
+          const entries = snap.data().entries || [];
+          const item = entries.find((e: any) => String(e.id) === String(id));
+          return item?.content || '';
+        }
+      } else if (type === 'schedule') {
+        const snap = await getDoc(doc(db, getColPath('schedules', fId), dateStr));
+        if (snap.exists()) {
+          const periods = snap.data().periods || {};
+          const p = period ? String(period) : String(id).replace(/.*_/, '');
+          const item = periods[p];
+          if (item) {
+            const subjectStr = item.subject ? `[${item.subject}] ` : '';
+            return `${subjectStr}${item.memo || item.content || ''}`.trim();
+          }
+        }
+      } else if (type === 'memo') {
+        const snap = await getDoc(doc(db, getColPath('tasks', fId), id));
+        if (snap.exists()) {
+          return snap.data().content || snap.data().text || '';
+        }
+      }
+    } catch (err) {
+      console.warn('fetchItemText failed:', err);
+    }
+    return '';
+  }, [getColPath]);
+
+  // 링크 목록 조회 (V3 호환 구조 추출)
+  const fetchLinks = useCallback(async () => {
+    setLoading(true);
+    const uid = auth.currentUser?.uid;
+    if (!uid) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const activeFId = sourceFId || selectedGroupId || 'personal';
+      let foundRawLinks: any[] = [];
+
+      if (sourceType === 'event') {
+        const snap = await getDoc(doc(db, getColPath('events', activeFId), sourceDateStr));
+        if (snap.exists()) {
+          const ev = (snap.data().eventList || []).find((e: any) => String(e.id) === String(sourceId));
+          if (ev?.linkedItems) foundRawLinks = [...ev.linkedItems];
+          if (snap.data().links?.[`event_${sourceId}`]) {
+            foundRawLinks = [...foundRawLinks, ...snap.data().links[`event_${sourceId}`]];
+          }
+        }
+      } else if (sourceType === 'journal') {
+        const snap = await getDoc(doc(db, getColPath('journals', activeFId), sourceDateStr));
+        if (snap.exists()) {
+          const j = (snap.data().entries || []).find((e: any) => String(e.id) === String(sourceId));
+          if (j?.linkedItems) foundRawLinks = [...j.linkedItems];
+          if (snap.data().links?.[`journal_${sourceId}`]) {
+            foundRawLinks = [...foundRawLinks, ...snap.data().links[`journal_${sourceId}`]];
+          }
+        }
+      } else if (sourceType === 'schedule' || sourceType === 'schedule_header') {
+        const snap = await getDoc(doc(db, getColPath('schedules', activeFId), sourceDateStr));
+        if (snap.exists()) {
+          const pKey = sourcePeriod ? String(sourcePeriod) : String(sourceId);
+          const p = (snap.data().periods || {})[pKey];
+          if (p?.linkedItems) foundRawLinks = [...p.linkedItems];
+          if (snap.data().links?.[`schedule_${pKey}`]) {
+            foundRawLinks = [...foundRawLinks, ...snap.data().links[`schedule_${pKey}`]];
+          }
+        }
+      } else if (sourceType === 'memo') {
+        const snap = await getDoc(doc(db, getColPath('tasks', activeFId), sourceId));
+        if (snap.exists()) {
+          if (snap.data().linkedItems) foundRawLinks = [...snap.data().linkedItems];
+        }
+      }
+
+      // V3 및 V4 구버전 호환 정규화
+      const normalizedMap = new Map<string, NormalizedLink>();
+
+      foundRawLinks.forEach((raw) => {
+        const targetType = (raw.targetType || raw.type || 'event') as NormalizedLink['targetType'];
+        const targetId = String(raw.targetId || raw.id || '');
+        const targetDate = String(raw.targetDate || raw.dateStr || '');
+        const targetPeriod = raw.targetPeriod !== undefined ? raw.targetPeriod : (raw.period !== undefined ? raw.period : undefined);
+        const title = raw.title || raw.text || '';
+        const targetFId = raw.targetFId || raw.fId || activeFId;
+
+        const uniqueKey = targetId || `${targetType}_${targetDate}_${targetPeriod || ''}_${title}`;
+
+        if (!normalizedMap.has(uniqueKey) && targetId) {
+          normalizedMap.set(uniqueKey, {
+            targetType,
+            targetId,
+            targetDate,
+            targetPeriod,
+            title,
+            targetFId,
+            liveText: raw.text || raw.title || '',
+            loadingText: true,
+          });
+        }
+      });
+
+      const initialLinks = Array.from(normalizedMap.values());
+      setLinks(initialLinks);
+      setLoading(false);
+
+      // 비동기로 실시간 본문 로드
+      const updatedLinks = await Promise.all(
+        initialLinks.map(async (item) => {
+          const text = await fetchItemText(
+            item.targetType,
+            item.targetDate,
+            item.targetId,
+            item.targetPeriod,
+            item.targetFId
+          );
+          return {
+            ...item,
+            liveText: text || item.title || '(내용 없음)',
+            loadingText: false,
+          };
+        })
+      );
+      setLinks(updatedLinks);
+    } catch (e) {
+      console.error('fetchLinks failed:', e);
+      setLoading(false);
+    }
+  }, [sourceType, sourceDateStr, sourceId, sourcePeriod, sourceFId, selectedGroupId, getColPath, fetchItemText]);
 
   useEffect(() => {
     if (isOpen) {
       fetchLinks();
     } else {
       setLinks([]);
-      setEditModeId(null);
+      setEditModeTargetId(null);
+      setEditText('');
     }
-  }, [isOpen, sourceType, sourceDateStr, sourceId]);
+  }, [isOpen, fetchLinks]);
 
-  const fetchLinks = async () => {
-    setLoading(true);
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-
-    try {
-      const colPath = selectedGroupId && selectedGroupId !== 'personal'
-        ? `groups/${selectedGroupId}/${sourceType === 'journal' ? 'journals' : sourceType === 'schedule' ? 'schedules' : 'events'}`
-        : `users/${uid}/${sourceType === 'journal' ? 'journals' : sourceType === 'schedule' ? 'schedules' : 'events'}`;
-
-      const snap = await getDoc(doc(db, colPath, sourceDateStr));
-      let foundLinks: any[] = [];
-      
-      if (snap.exists()) {
-        const data = snap.data();
-        
-        // Check V3 style array structure (e.linkedItems)
-        if (sourceType === 'event' && data.eventList) {
-          const ev = data.eventList.find((e: any) => e.id === sourceId);
-          if (ev && ev.linkedItems) foundLinks = [...ev.linkedItems];
-        } else if (sourceType === 'journal' && data.entries) {
-          const j = data.entries.find((e: any) => e.id === sourceId);
-          if (j && j.linkedItems) foundLinks = [...j.linkedItems];
-        } else if (sourceType === 'schedule' && data.periods) {
-          const p = data.periods[sourceId];
-          if (p && p.linkedItems) foundLinks = [...p.linkedItems];
-        }
-        
-        // Also check V4 style data.links map
-        if (data.links && data.links[`${sourceType}_${sourceId}`]) {
-          foundLinks = [...foundLinks, ...data.links[`${sourceType}_${sourceId}`]];
-        }
-      }
-      
-      // Remove duplicates by id
-      const uniqueLinks = Array.from(new Map(foundLinks.map(item => [item.id, item])).values());
-      setLinks(uniqueLinks);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUnlink = async (linkId: string) => {
-    if (!window.confirm('이 연결을 해제하시겠습니까?')) return;
-    
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-
-    try {
-      const colPath = selectedGroupId && selectedGroupId !== 'personal'
-        ? `groups/${selectedGroupId}/${sourceType === 'journal' ? 'journals' : sourceType === 'schedule' ? 'schedules' : 'events'}`
-        : `users/${uid}/${sourceType === 'journal' ? 'journals' : sourceType === 'schedule' ? 'schedules' : 'events'}`;
-
-      const snap = await getDoc(doc(db, colPath, sourceDateStr));
-      if (!snap.exists()) return;
-      
-      const data = snap.data();
-      let updated = false;
-
-      // Update V3 style array
-      if (sourceType === 'event' && data.eventList) {
-        data.eventList = data.eventList.map((e: any) => {
-          if (e.id === sourceId && e.linkedItems) {
-            updated = true;
-            return { ...e, linkedItems: e.linkedItems.filter((l: any) => l.id !== linkId) };
-          }
-          return e;
-        });
-      } else if (sourceType === 'journal' && data.entries) {
-        data.entries = data.entries.map((e: any) => {
-          if (e.id === sourceId && e.linkedItems) {
-            updated = true;
-            return { ...e, linkedItems: e.linkedItems.filter((l: any) => l.id !== linkId) };
-          }
-          return e;
-        });
-      } else if (sourceType === 'schedule' && data.periods && data.periods[sourceId]) {
-        if (data.periods[sourceId].linkedItems) {
-          data.periods[sourceId].linkedItems = data.periods[sourceId].linkedItems.filter((l: any) => l.id !== linkId);
-          updated = true;
-        }
-      }
-
-      // Update V4 style links map
-      if (data.links && data.links[`${sourceType}_${sourceId}`]) {
-        data.links[`${sourceType}_${sourceId}`] = data.links[`${sourceType}_${sourceId}`].filter((l: any) => l.id !== linkId);
-        updated = true;
-      }
-
-      if (updated) {
-        await setDoc(doc(db, colPath, sourceDateStr), data, { merge: true });
-        setLinks(prev => prev.filter(l => l.id !== linkId));
-      }
-    } catch (e) {
-      console.error(e);
-      alert('연결 해제 실패');
-    }
-  };
-
-  const handleSaveEdit = async (link: any) => {
-    if (!editText.trim()) return;
-    
-    // Attempt to update the target document where the link originally resides
-    const uid = auth.currentUser?.uid;
-    if (!uid || !link.dateStr || !link.type) return;
-
-    try {
-      const colPath = selectedGroupId && selectedGroupId !== 'personal'
-        ? `groups/${selectedGroupId}/${link.type === 'journal' ? 'journals' : link.type === 'schedule' ? 'schedules' : 'events'}`
-        : `users/${uid}/${link.type === 'journal' ? 'journals' : link.type === 'schedule' ? 'schedules' : 'events'}`;
-
-      const snap = await getDoc(doc(db, colPath, link.dateStr));
-      if (!snap.exists()) return;
-
-      const data = snap.data();
-      let updated = false;
-
-      if (link.type === 'event' && data.eventList) {
-        data.eventList = data.eventList.map((e: any) => {
-          if (e.id === link.id) {
-            updated = true;
-            return { ...e, content: editText.trim() };
-          }
-          return e;
-        });
-      } else if (link.type === 'journal' && data.entries) {
-        data.entries = data.entries.map((e: any) => {
-          if (e.id === link.id) {
-            updated = true;
-            return { ...e, content: editText.trim() };
-          }
-          return e;
-        });
-      }
-      
-      if (updated) {
-        await setDoc(doc(db, colPath, link.dateStr), data, { merge: true });
-        // Also update local view
-        setLinks(prev => prev.map(l => l.id === link.id ? { ...l, text: editText.trim() } : l));
-        setEditModeId(null);
-        alert('수정되었습니다.');
+  // 해당 화면으로 이동 (V3 navigateAndClose 이식)
+  const handleNavigate = (link: NormalizedLink) => {
+    onClose();
+    if (link.targetType === 'memo') {
+      setScope('memo');
+    } else if (link.targetDate) {
+      const parts = link.targetDate.split('-');
+      if (parts.length === 3) {
+        setCurrentDate(new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)));
       } else {
-        alert('원본 항목을 찾을 수 없습니다.');
+        setCurrentDate(new Date(link.targetDate));
+      }
+      setScope('day');
+    } else {
+      alert('이동할 수 없는 항목입니다.');
+    }
+  };
+
+  // 실시간 본문 수정 저장 (V3 updateItemText 이식)
+  const handleSaveEdit = async (link: NormalizedLink) => {
+    const newVal = editText.trim();
+    if (!newVal) {
+      alert('내용을 입력해주세요.');
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      const colPath = getColPath(
+        link.targetType === 'event'
+          ? 'events'
+          : link.targetType === 'journal'
+          ? 'journals'
+          : link.targetType === 'schedule'
+          ? 'schedules'
+          : 'tasks',
+        link.targetFId
+      );
+
+      if (link.targetType === 'event') {
+        const ref = doc(db, colPath, link.targetDate);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const list = snap.data().eventList || [];
+          const item = list.find((e: any) => String(e.id) === String(link.targetId));
+          if (item) {
+            item.content = newVal;
+            await setDoc(ref, { eventList: list, updatedAt: Date.now() }, { merge: true });
+          }
+        }
+      } else if (link.targetType === 'journal') {
+        const ref = doc(db, colPath, link.targetDate);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const list = snap.data().entries || [];
+          const item = list.find((e: any) => String(e.id) === String(link.targetId));
+          if (item) {
+            item.content = newVal;
+            await setDoc(ref, { entries: list, updatedAt: Date.now() }, { merge: true });
+          }
+        }
+      } else if (link.targetType === 'schedule') {
+        const ref = doc(db, colPath, link.targetDate);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const periods = snap.data().periods || {};
+          const pKey = link.targetPeriod
+            ? String(link.targetPeriod)
+            : String(link.targetId).replace(/.*_/, '');
+          if (periods[pKey]) {
+            let newMemo = newVal;
+            let newSubj = periods[pKey].subject || '';
+            const match = newMemo.match(/^\[(.*?)\]\s*(.*)$/);
+            if (match) {
+              newSubj = match[1].trim();
+              newMemo = match[2].trim();
+            }
+            periods[pKey].subject = newSubj;
+            periods[pKey].memo = newMemo;
+            periods[pKey].content = newMemo;
+            await setDoc(ref, { periods, updatedAt: Date.now() }, { merge: true });
+          }
+        }
+      } else if (link.targetType === 'memo') {
+        const ref = doc(db, colPath, link.targetId);
+        await setDoc(ref, { text: newVal, content: newVal, updatedAt: Date.now() }, { merge: true });
       }
 
-    } catch (e) {
+      setLinks((prev) =>
+        prev.map((l) => (l.targetId === link.targetId ? { ...l, liveText: newVal } : l))
+      );
+      setEditModeTargetId(null);
+      setEditText('');
+      alert('✅ 수정된 내용이 저장되었습니다.');
+    } catch (e: any) {
       console.error(e);
-      alert('수정 실패');
+      alert('저장에 실패했습니다: ' + e.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // 단방향 링크 데이터 삭제 도우미 (V3 _removeLinkFromSide 이식)
+  const removeLinkFromSide = async (
+    type: string,
+    dateStr: string,
+    id: string,
+    period: string | number | undefined,
+    fId: string,
+    targetIdToRemove: string
+  ) => {
+    const colPath = getColPath(
+      type === 'event'
+        ? 'events'
+        : type === 'journal'
+        ? 'journals'
+        : type === 'schedule' || type === 'schedule_header'
+        ? 'schedules'
+        : 'tasks',
+      fId
+    );
+
+    try {
+      if (type === 'event') {
+        const ref = doc(db, colPath, dateStr);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const list = snap.data().eventList || [];
+          const item = list.find((e: any) => String(e.id) === String(id));
+          if (item && item.linkedItems) {
+            item.linkedItems = item.linkedItems.filter(
+              (l: any) => String(l.targetId || l.id) !== String(targetIdToRemove)
+            );
+            await setDoc(ref, { eventList: list, updatedAt: Date.now() }, { merge: true });
+          }
+        }
+      } else if (type === 'journal') {
+        const ref = doc(db, colPath, dateStr);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const list = snap.data().entries || [];
+          const item = list.find((e: any) => String(e.id) === String(id));
+          if (item && item.linkedItems) {
+            item.linkedItems = item.linkedItems.filter(
+              (l: any) => String(l.targetId || l.id) !== String(targetIdToRemove)
+            );
+            await setDoc(ref, { entries: list, updatedAt: Date.now() }, { merge: true });
+          }
+        }
+      } else if (type === 'schedule' || type === 'schedule_header') {
+        const ref = doc(db, colPath, dateStr);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const periods = snap.data().periods || {};
+          const pKey = period ? String(period) : String(id).replace(/.*_/, '');
+          const item = periods[pKey];
+          if (item && item.linkedItems) {
+            item.linkedItems = item.linkedItems.filter(
+              (l: any) => String(l.targetId || l.id) !== String(targetIdToRemove)
+            );
+            await setDoc(ref, { periods, updatedAt: Date.now() }, { merge: true });
+          }
+        }
+      } else if (type === 'memo') {
+        const ref = doc(db, colPath, id);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const linkedItems = snap.data().linkedItems || [];
+          const filtered = linkedItems.filter(
+            (l: any) => String(l.targetId || l.id) !== String(targetIdToRemove)
+          );
+          await setDoc(ref, { linkedItems: filtered, updatedAt: Date.now() }, { merge: true });
+        }
+      }
+    } catch (err) {
+      console.error('removeLinkFromSide error:', err);
+    }
+  };
+
+  // 양방향 링크 삭제 (V3 deleteLinkConnection 이식)
+  const handleDeleteConnection = async (link: NormalizedLink) => {
+    if (!window.confirm('이 연결을 해제하시겠습니까? (양쪽 모두에서 연결이 끊어집니다)')) return;
+
+    const sType = sourceType;
+    const sDate = sourceDateStr;
+    const sPeriod = sourcePeriod || (sType === 'schedule' ? sourceId : '');
+    const sFId = sourceFId || selectedGroupId || 'personal';
+
+    const actualSourceId =
+      (sType === 'schedule' || sType === 'schedule_header') && (!sourceId || sourceId === 'null' || sourceId === 'undefined')
+        ? `class_${sDate}_${sPeriod}`
+        : sourceId || `class_${sDate}_${sPeriod}`;
+
+    const actualTargetId =
+      link.targetType === 'schedule' && (!link.targetId || link.targetId === 'null' || link.targetId === 'undefined')
+        ? `class_${link.targetDate}_${link.targetPeriod}`
+        : link.targetId;
+
+    try {
+      // 1. 출발지에서 타겟 제거
+      await removeLinkFromSide(sType, sDate, actualSourceId, sPeriod, sFId, actualTargetId);
+      // 2. 도착지에서 출발지 제거
+      await removeLinkFromSide(link.targetType, link.targetDate, actualTargetId, link.targetPeriod, link.targetFId, actualSourceId);
+
+      setLinks((prev) => prev.filter((l) => l.targetId !== link.targetId));
+      alert('✅ 연결이 정상적으로 해제되었습니다.');
+    } catch (e: any) {
+      console.error(e);
+      alert('연결 해제 중 오류가 발생했습니다.');
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col border border-slate-200" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50 rounded-t-2xl">
-          <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
-            <span>📑</span> 연결된 링크 모음
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col border border-slate-200 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 모달 헤더 */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+          <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
+            <span>📑</span> 연결된 데이터 확인 (수정/이동 가능)
           </h3>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors">✕</button>
+          <button
+            onClick={onClose}
+            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+          >
+            ✕
+          </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 bg-slate-50/50">
+        {/* 본문 링크 목록 */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 bg-slate-50/50 space-y-3">
           {loading ? (
-            <div className="text-center py-10 text-slate-400 text-xs font-bold">불러오는 중...</div>
+            <div className="text-center py-12 text-slate-400 flex flex-col items-center gap-2">
+              <div className="w-6 h-6 border-2 border-slate-300 border-t-primary rounded-full animate-spin" />
+              <p className="text-xs font-bold text-blue-600">실시간 데이터를 불러오는 중입니다...⏳</p>
+            </div>
           ) : links.length === 0 ? (
-            <div className="text-center py-10 text-slate-400 text-xs">연결된 링크가 없습니다.</div>
+            <div className="text-center py-12 text-slate-400 flex flex-col items-center gap-2">
+              <span className="text-3xl opacity-50">📂</span>
+              <p className="text-xs font-medium">연결된 항목의 데이터를 찾을 수 없습니다.</p>
+            </div>
           ) : (
-            <div className="space-y-3">
-              {links.map((link, idx) => (
-                <div key={idx} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm hover:border-slate-300 transition-colors">
-                  
-                  {editModeId === link.id ? (
-                    <div className="flex flex-col gap-2">
+            links.map((link) => {
+              const icon =
+                link.targetType === 'event'
+                  ? '📌'
+                  : link.targetType === 'journal'
+                  ? '📔'
+                  : link.targetType === 'memo'
+                  ? '📝'
+                  : '🏫';
+
+              const typeLabel =
+                link.targetType === 'event'
+                  ? '일정'
+                  : link.targetType === 'journal'
+                  ? '기록'
+                  : link.targetType === 'memo'
+                  ? '메모'
+                  : '수업';
+
+              let displayTitle = `[${link.targetDate || '날짜없음'}] ${typeLabel}`;
+              if (link.targetType === 'schedule' && link.targetPeriod) {
+                displayTitle += ` (${link.targetPeriod}교시)`;
+              }
+
+              const isEditing = editModeTargetId === link.targetId;
+
+              return (
+                <div
+                  key={link.targetId}
+                  className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm hover:border-slate-300 transition-colors"
+                >
+                  <div className="flex justify-between items-center gap-2 mb-2 pb-2 border-b border-slate-100">
+                    <span className="font-bold text-blue-700 text-xs flex items-center gap-1">
+                      <span>{icon}</span> {displayTitle}
+                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteConnection(link)}
+                        className="px-2 py-1 text-[11px] font-bold bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                        title="이 연결을 삭제합니다"
+                      >
+                        🗑️ 삭제
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleNavigate(link)}
+                        className="px-2.5 py-1 text-[11px] font-bold bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-300 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                        title="해당 페이지로 이동"
+                      >
+                        📌 이동
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isEditing) {
+                            setEditModeTargetId(null);
+                          } else {
+                            setEditModeTargetId(link.targetId);
+                            setEditText(link.liveText || '');
+                          }
+                        }}
+                        className="px-2.5 py-1 text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer"
+                      >
+                        ✏️ 수정
+                      </button>
+                    </div>
+                  </div>
+
+                  {isEditing ? (
+                    <div className="flex flex-col gap-2 mt-2">
                       <textarea
                         value={editText}
-                        onChange={e => setEditText(e.target.value)}
-                        className="w-full text-sm p-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 min-h-[60px]"
+                        onChange={(e) => setEditText(e.target.value)}
+                        className="w-full text-xs p-2.5 border border-indigo-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[70px] leading-relaxed"
                         autoFocus
                       />
-                      <div className="flex justify-end gap-1.5 mt-1">
-                        <button onClick={() => setEditModeId(null)} className="px-2.5 py-1 text-xs bg-slate-100 text-slate-600 rounded font-bold hover:bg-slate-200">취소</button>
-                        <button onClick={() => handleSaveEdit(link)} className="px-2.5 py-1 text-xs bg-blue-50 text-blue-600 rounded font-bold hover:bg-blue-100">저장</button>
+                      <div className="flex justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setEditModeTargetId(null)}
+                          className="px-3 py-1.5 text-xs bg-slate-100 text-slate-600 rounded-lg font-bold hover:bg-slate-200 transition-colors"
+                        >
+                          취소
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingEdit}
+                          onClick={() => handleSaveEdit(link)}
+                          className="px-3.5 py-1.5 text-xs bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                        >
+                          {savingEdit ? '저장 중...' : '수정 내용 반영'}
+                        </button>
                       </div>
                     </div>
                   ) : (
-                    <>
-                      <div className="flex justify-between items-start gap-2 mb-1.5">
-                        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold">
-                          <span className="px-1.5 py-0.5 rounded bg-slate-100">
-                            {link.type === 'event' ? '📌 일정' : link.type === 'journal' ? '📝 기록' : link.type === 'memo' ? '💡 메모' : '🏫 수업'}
-                          </span>
-                          <span>{link.dateStr}</span>
-                        </div>
-                        <div className="flex gap-1 shrink-0">
-                          <button onClick={() => { setEditModeId(link.id); setEditText(link.text); }} className="text-[10px] text-slate-400 hover:text-blue-600 p-1 bg-slate-50 hover:bg-slate-100 rounded">✏️ 수정</button>
-                          <button onClick={() => handleUnlink(link.id)} className="text-[10px] text-slate-400 hover:text-red-500 p-1 bg-slate-50 hover:bg-slate-100 rounded">🔗 해제</button>
-                        </div>
-                      </div>
-                      <p className="text-sm font-medium text-slate-800 leading-snug whitespace-pre-wrap">{link.text}</p>
-                    </>
+                    <div className="p-2.5 bg-slate-50/70 border border-slate-100 rounded-lg text-xs font-medium text-slate-800 whitespace-pre-wrap break-words leading-relaxed min-h-[36px]">
+                      {link.loadingText ? (
+                        <span className="text-slate-400">데이터를 불러오는 중...</span>
+                      ) : (
+                        link.liveText || <span className="text-slate-400">(내용 없음)</span>
+                      )}
+                    </div>
                   )}
-                  
                 </div>
-              ))}
-            </div>
+              );
+            })
           )}
+        </div>
+
+        {/* 모달 하단 닫기 */}
+        <div className="px-6 py-3.5 bg-white border-t border-slate-100 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+          >
+            닫기
+          </button>
         </div>
       </div>
     </div>

@@ -166,7 +166,12 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                             {ev.label}
                           </span>
                         )}
-                        <span className="truncate">{ev.content}</span>
+                        <span className="truncate flex-1">{ev.content}</span>
+                        {ev.linkedItems && ev.linkedItems.length > 0 && (
+                          <span className="text-[9px] text-yellow-800 font-bold shrink-0" title={`연결된 링크 ${ev.linkedItems.length}개`}>
+                            📑
+                          </span>
+                        )}
                       </div>
                     );
                   })}

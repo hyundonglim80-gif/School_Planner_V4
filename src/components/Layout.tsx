@@ -44,6 +44,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     linkerSourceDateStr,
     linkerSourceId,
     linkerSourcePeriod,
+    linkerSourceFId,
     closeLinkerModal,
     isEvaluationModalOpen,
     evalDateStr,
@@ -59,6 +60,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     linkViewerSourceType,
     linkViewerSourceDateStr,
     linkViewerSourceId,
+    linkViewerSourcePeriod,
+    linkViewerSourceFId,
     closeLinkViewerModal,
     isLabelModalOpen,
     labelModalTab,
@@ -657,8 +660,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         onClose={closeLinkerModal} 
         sourceType={linkerSourceType || 'manual'} 
         sourceDateStr={linkerSourceDateStr || currentDate} 
-        sourceId={linkerSourceId || 'manual'}
+        sourceId={linkerSourceId}
         sourcePeriod={linkerSourcePeriod}
+        sourceFId={linkerSourceFId}
       />
 
       <LinkViewerModal
@@ -667,6 +671,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         sourceType={linkViewerSourceType}
         sourceDateStr={linkViewerSourceDateStr || currentDate}
         sourceId={linkViewerSourceId}
+        sourcePeriod={linkViewerSourcePeriod}
+        sourceFId={linkViewerSourceFId}
       />
 
       <TrashModal isOpen={isTrashModalOpen} onClose={() => setTrashModalOpen(false)} />
