@@ -395,19 +395,18 @@ export default function LinkerModal({
       } else if (targetLink.targetType === 'schedule') {
         const ref = doc(db, colPath('schedules'), targetLink.targetDate);
         const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const periods = snap.data().periods || {};
-          const pKey = targetLink.targetPeriod
-            ? String(targetLink.targetPeriod)
-            : String(targetLink.targetId).replace(/.*_/, '');
-          const item = periods[pKey];
-          if (item) {
-            item.linkedItems = item.linkedItems || [];
-            if (!item.linkedItems.some((l: any) => String(l.targetId || l.id) === String(sourceMeta.targetId))) {
-              item.linkedItems.push(sourceMeta);
-              await setDoc(ref, { periods }, { merge: true });
-            }
-          }
+        const periods = snap.exists() ? (snap.data().periods || {}) : {};
+        const pKey = targetLink.targetPeriod
+          ? String(targetLink.targetPeriod)
+          : String(targetLink.targetId).replace(/.*_/, '');
+        if (!periods[pKey]) {
+          periods[pKey] = { subject: '', content: '', memo: '', supplies: '', linkedItems: [] };
+        }
+        const item = periods[pKey];
+        item.linkedItems = item.linkedItems || [];
+        if (!item.linkedItems.some((l: any) => String(l.targetId || l.id) === String(sourceMeta.targetId))) {
+          item.linkedItems.push(sourceMeta);
+          await setDoc(ref, { periods }, { merge: true });
         }
       } else if (targetLink.targetType === 'memo') {
         const ref = doc(db, colPath('tasks'), targetLink.targetId);
