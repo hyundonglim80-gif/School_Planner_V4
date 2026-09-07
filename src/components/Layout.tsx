@@ -326,51 +326,55 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-bg-body text-slate-900">
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm px-4 py-3 border-b border-border shadow-xs flex flex-col gap-2.5">
-        <div className="flex items-center justify-between flex-wrap gap-3 max-w-7xl mx-auto w-full">
-          {/* 좌측: 로고 및 D-Day 설정 (V3 방식) */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-xl font-extrabold text-primary tracking-tight">SP4</h1>
+        <div className="flex items-center gap-2 max-w-7xl mx-auto w-full">
+          {/* 스크롤 가능한 상단 메뉴 영역 */}
+          <div className="flex items-center justify-between flex-1 overflow-x-auto scrollbar-hide gap-4 pr-2">
+            
+            {/* 좌측: 로고 및 기능 버튼들 */}
+            <div className="flex items-center gap-2 shrink-0">
+              <h1 className="text-xl font-extrabold text-primary tracking-tight pr-1">SP4</h1>
 
-            {/* D-Day 뱃지 버튼 */}
-            <button
-              onClick={() => setIsDDayModalOpen(true)}
-              className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
-              title="학사 D-Day 관리"
-            >
-              <span>⏳</span>
-              {primaryDDay ? (
-                <span>
-                  {primaryDDay.title} <strong className="text-rose-600 font-extrabold">{primaryDDay.text}</strong>
-                </span>
-              ) : (
-                <span>D-Day</span>
-              )}
-            </button>
+              {/* D-Day 뱃지 버튼 */}
+              <button
+                onClick={() => setIsDDayModalOpen(true)}
+                className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
+                title="학사 D-Day 관리"
+              >
+                <span>⏳</span>
+                {primaryDDay ? (
+                  <span>
+                    <span className="hidden sm:inline">{primaryDDay.title} </span>
+                    <strong className="text-rose-600 font-extrabold">{primaryDDay.text}</strong>
+                  </span>
+                ) : (
+                  <span className="hidden sm:inline">D-Day</span>
+                )}
+              </button>
 
-            {/* 구글 캘린더 연동 버튼 */}
-            <button
-              onClick={() => { alert('구글 캘린더 연동 기능이 준비 중입니다.'); }}
-              className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
-              title="구글 캘린더 연동"
-            >
-              <span>📅</span>
-              <span className="hidden sm:inline">구글 캘린더 연동</span>
-            </button>
+              {/* 구글 캘린더 연동 버튼 */}
+              <button
+                onClick={() => { alert('구글 캘린더 연동 기능이 준비 중입니다.'); }}
+                className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
+                title="구글 캘린더 연동"
+              >
+                <span>📅</span>
+                <span className="hidden sm:inline">캘린더</span>
+              </button>
 
-            {/* 휴지통 버튼 */}
-            <button
-              onClick={() => setTrashModalOpen(true)}
-              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
-              title="휴지통"
-            >
-              <span>🗑️</span>
-              <span className="hidden sm:inline">휴지통</span>
-            </button>
-          </div>
+              {/* 휴지통 버튼 */}
+              <button
+                onClick={() => setTrashModalOpen(true)}
+                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
+                title="휴지통"
+              >
+                <span>🗑️</span>
+                <span className="hidden sm:inline">휴지통</span>
+              </button>
+            </div>
 
-          {/* 우측: 검색, 스코프 탭, 그룹 선택, 더보기, 프로필 (V3 방식) */}
-          <div className="flex items-center gap-2.5 flex-wrap justify-end">
-            {/* 통합 검색 버튼 */}
+            {/* 우측: 검색, 스코프 탭, 그룹 선택 */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* 통합 검색 버튼 */}
             <button
               onClick={() => setIsSearchModalOpen(true)}
               className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
@@ -419,6 +423,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             )}
 
+            </div>
+          </div>
+
+          {/* 우측 고정 영역 (더보기, 프로필) - 스크롤 밖으로 분리하여 드롭다운이 잘리지 않게 함 */}
+          <div className="flex items-center gap-2 shrink-0 pl-1 border-l border-slate-200">
             {/* 🔥 V3와 동일한 더보기 (⋮) 드롭다운 메뉴 */}
             <div className="relative" ref={moreMenuRef}>
               <button
@@ -512,13 +521,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* 사용자 프로필 및 로그아웃 */}
-            <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+            <div className="flex items-center gap-1.5">
               <span className="text-xs font-medium text-slate-500 hidden md:inline">
                 {user?.displayName || '선생님'}
               </span>
               <button
                 onClick={logout}
-                className="px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-xl font-bold text-xs transition-colors"
+                className="px-2 py-1 sm:px-3 sm:py-1.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-xl font-bold text-[10px] sm:text-xs transition-colors shrink-0"
               >
                 로그아웃
               </button>
