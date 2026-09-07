@@ -404,12 +404,18 @@ export default function LinkerModal({
         const ref = doc(db, colPath('events'), sDateStr);
         const snap = await getDoc(ref);
         if (snap.exists()) {
-          const list = snap.data().eventList || [];
-          const item = list.find((e: any) => String(e.id) === String(sourceId));
-          if (item) {
-            item.linkedItems = item.linkedItems || [];
-            updateTargetArray(item.linkedItems);
-            await setDoc(ref, { eventList: list, updatedAt: Date.now() }, { merge: true });
+          const data = snap.data();
+          let list = data.eventList;
+          if (!list || list.length === 0) {
+            if (data.eventText) list = parseV3EventText(data.eventText);
+          }
+          if (list) {
+            const item = list.find((e: any) => String(e.id) === String(sourceId));
+            if (item) {
+              item.linkedItems = item.linkedItems || [];
+              updateTargetArray(item.linkedItems);
+              await setDoc(ref, { eventList: list, updatedAt: Date.now() }, { merge: true });
+            }
           }
         }
       } else if (sourceType === 'journal') {
