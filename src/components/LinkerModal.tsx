@@ -476,7 +476,7 @@ export default function LinkerModal({
         targetPeriod:
           sourceType === 'schedule_header' || sourceType === 'schedule'
             ? selectedSourcePeriod || sourcePeriod || 1
-            : undefined,
+            : '',
         title: `[${sDateStr || '메모'}] ${sourceTitleLabel}`,
         targetFId: sFId,
       };

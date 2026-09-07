@@ -24,7 +24,7 @@ export const addReverseLink = async (targetLink: SelectedLinkItem, sourceMeta: S
             item.linkedItems = item.linkedItems || [];
             if (!item.linkedItems.some((l: any) => String(l.targetId || l.id) === String(sourceMeta.targetId))) {
               item.linkedItems.push(sourceMeta);
-              await setDoc(ref, { eventList: list }, { merge: true });
+              await setDoc(ref, { eventList: list, updatedAt: Date.now() }, { merge: true });
             }
           }
         }
@@ -39,7 +39,7 @@ export const addReverseLink = async (targetLink: SelectedLinkItem, sourceMeta: S
           item.linkedItems = item.linkedItems || [];
           if (!item.linkedItems.some((l: any) => String(l.targetId || l.id) === String(sourceMeta.targetId))) {
             item.linkedItems.push(sourceMeta);
-            await setDoc(ref, { entries: list }, { merge: true });
+            await setDoc(ref, { entries: list, updatedAt: Date.now() }, { merge: true });
           }
         }
       }
@@ -62,7 +62,7 @@ export const addReverseLink = async (targetLink: SelectedLinkItem, sourceMeta: S
       if (!item.linkedItems.some((l: any) => String(l.targetId || l.id) === String(sourceMeta.targetId))) {
         item.linkedItems.push(sourceMeta);
         periods[pKey] = item;
-        await setDoc(ref, { periods }, { merge: true });
+        await setDoc(ref, { periods, updatedAt: Date.now() }, { merge: true });
       }
     } else if (targetLink.targetType === 'memo') {
       const ref = doc(db, colPath('tasks'), targetLink.targetId);
@@ -71,7 +71,7 @@ export const addReverseLink = async (targetLink: SelectedLinkItem, sourceMeta: S
         const linkedItems = snap.data().linkedItems || [];
         if (!linkedItems.some((l: any) => String(l.targetId || l.id) === String(sourceMeta.targetId))) {
           linkedItems.push(sourceMeta);
-          await setDoc(ref, { linkedItems }, { merge: true });
+          await setDoc(ref, { linkedItems, updatedAt: Date.now() }, { merge: true });
         }
       }
     }
