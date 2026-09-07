@@ -37,11 +37,12 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
             </span>
           </div>
 
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-1">
             {onEdit && (
               <button
+                type="button"
                 onClick={() => onEdit(memo)}
-                className="p-1 text-slate-400 hover:text-blue-600 rounded-md hover:bg-slate-100 text-xs font-semibold transition-colors"
+                className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg text-xs font-semibold transition-all cursor-pointer"
                 title="수정"
               >
                 ✏️
@@ -49,15 +50,17 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
             )}
             {onDelete && (
               <button
-                onClick={() => {
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
                   if (window.confirm('이 메모를 삭제하시겠습니까?')) {
                     onDelete(memo.firestoreId);
                   }
                 }}
-                className="p-1 text-slate-400 hover:text-red-600 rounded-md hover:bg-slate-100 text-xs font-semibold transition-colors"
-                title="삭제"
+                className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                title="메모 삭제"
               >
-                🗑️
+                ✕
               </button>
             )}
           </div>

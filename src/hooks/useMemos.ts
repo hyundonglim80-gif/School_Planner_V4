@@ -141,5 +141,35 @@ export function useMemos(groupId: string | null = null) {
     return await updateMemo(memo.firestoreId, { completed: !memo.completed });
   };
 
-  return { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete };
+  const deleteCompletedMemos = async (memosToDelete?: Memo[]) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error('로그인이 필요합니다.');
+
+    const targets = memosToDelete || memos.filter(m => m.completed);
+    if (targets.length === 0) return;
+
+    await Promise.all(
+      targets.map(async (targetMemo) => {
+        try {
+          await moveToTrash({
+            id: targetMemo.firestoreId,
+            type: 'memo',
+            fId: groupId || 'personal',
+            content: targetMemo.content || targetMemo.text || '',
+            data: targetMemo,
+          });
+        } catch (e) {
+          console.error('Failed to move memo to trash:', e);
+        }
+
+        const docRef = groupId 
+          ? doc(db, 'groups', groupId, 'tasks', targetMemo.firestoreId) 
+          : doc(db, 'users', user.uid, 'tasks', targetMemo.firestoreId);
+
+        return deleteDoc(docRef);
+      })
+    );
+  };
+
+  return { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, deleteCompletedMemos };
 }
