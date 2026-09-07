@@ -74,10 +74,13 @@ export default function DayJournal({
     if (entry.labelIds && entry.labelIds.length > 0) {
       const found = journalLabels.find(l => l.id === entry.labelIds![0]);
       if (found) return found.name;
+      // ID가 있지만 라벨 목록에서 찾지 못한 경우 (삭제된 라벨 등) ID 노출 방지
+      return '일반';
     }
     if (entry.label && entry.label.startsWith('j_')) {
       const found = journalLabels.find(l => l.id === entry.label);
       if (found) return found.name;
+      return '일반';
     }
     return entry.label || '일반';
   };
