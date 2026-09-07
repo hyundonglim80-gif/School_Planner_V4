@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { moveToTrash } from '../utils/trashHelper';
 
 export interface Memo {
   firestoreId: string;
@@ -113,6 +114,21 @@ export function useMemos(groupId: string | null = null) {
   const deleteMemo = async (firestoreId: string) => {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
+
+    const targetMemo = memos.find(m => m.firestoreId === firestoreId);
+    if (targetMemo) {
+      try {
+        await moveToTrash({
+          id: targetMemo.firestoreId,
+          type: 'memo',
+          fId: groupId || 'personal',
+          content: targetMemo.content || targetMemo.text || '',
+          data: targetMemo,
+        });
+      } catch (e) {
+        console.error('Failed to move memo to trash:', e);
+      }
+    }
 
     const docRef = groupId 
       ? doc(db, 'groups', groupId, 'tasks', firestoreId) 

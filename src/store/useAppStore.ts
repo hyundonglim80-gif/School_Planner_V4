@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { formatV3EventText } from '../hooks/useDayData';
+import { moveToTrash } from '../utils/trashHelper';
 
 type Scope = 'day' | 'week' | 'month' | 'year' | 'memo';
 
@@ -200,7 +201,24 @@ export const useAppStore = create<AppState>()(
           const data = snap.data();
           const currentList: any[] = data.eventList || [];
 
-          const updatedList = currentList.filter((item) => !ids.includes(item.id));
+          // Move deleted items to trash
+          const toDelete = currentList.filter((item) => ids.map(String).includes(String(item.id)));
+          for (const item of toDelete) {
+            try {
+              await moveToTrash({
+                id: String(item.id),
+                type: 'event',
+                originalDateStr: dStr,
+                fId: selectedGroupId || 'personal',
+                content: item.content,
+                data: item,
+              });
+            } catch (e) {
+              console.error('Failed to move bulk event to trash:', e);
+            }
+          }
+
+          const updatedList = currentList.filter((item) => !ids.map(String).includes(String(item.id)));
           const serializedText = formatV3EventText(updatedList);
 
           await setDoc(eventDocRef, {

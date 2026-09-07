@@ -114,7 +114,7 @@ export default function DetailEditModal({
     if (window.confirm('이 일정을 삭제하시겠습니까?')) {
       try {
         setSaving(true);
-        await deleteEventItem(String(itemId));
+        await deleteEventItem(String(itemId), initialData);
         onClose();
       } finally {
         setSaving(false);

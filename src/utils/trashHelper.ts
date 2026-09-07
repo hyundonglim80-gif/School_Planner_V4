@@ -16,9 +16,14 @@ export interface TrashItem {
  */
 export async function moveToTrash(item: Omit<TrashItem, 'deletedAt'>) {
   const user = auth.currentUser;
-  if (!user) return;
+  if (!user) {
+    console.warn('moveToTrash: No authenticated user.');
+    return;
+  }
 
-  const trashId = `${Date.now()}_${item.id}`;
+  // Ensure safe document ID by removing slashes and invalid characters
+  const safeItemId = String(item.id || Date.now()).replace(/[\/\s\.]/g, '_');
+  const trashId = `${Date.now()}_${safeItemId}`;
   const trashRef = doc(db, 'users', user.uid, 'trash', trashId);
 
   const trashData: TrashItem = {

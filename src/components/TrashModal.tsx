@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, getDocs, orderBy, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { completeRestoreFromTrash, deleteFromTrash, type TrashItem } from '../utils/trashHelper';
+import { formatV3EventText } from '../hooks/useDayData';
 
 interface TrashModalProps {
   isOpen: boolean;
@@ -45,26 +46,35 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
     
     try {
       const { type, originalDateStr, fId, data } = item;
-      if (!originalDateStr) throw new Error('원래 날짜 정보가 없어 복원할 수 없습니다.');
+      if (type !== 'memo' && !originalDateStr) throw new Error('원래 날짜 정보가 없어 복원할 수 없습니다.');
       
       const isGroup = fId && fId !== 'personal';
-      const col = type === 'event' ? 'events' : type === 'journal' ? 'journals' : type === 'schedule' ? 'schedules' : 'memos';
-      
-      const targetRef = isGroup 
-        ? doc(db, 'groups', fId, col, originalDateStr)
-        : doc(db, 'users', user.uid, col, originalDateStr);
+
+      if (type === 'memo') {
+        const targetRef = isGroup
+          ? doc(db, 'groups', fId, 'tasks', data.firestoreId || item.id)
+          : doc(db, 'users', user.uid, 'tasks', data.firestoreId || item.id);
+        const { firestoreId, ...memoData } = data;
+        await setDoc(targetRef, memoData, { merge: true });
+      } else {
+        const col = type === 'event' ? 'events' : type === 'journal' ? 'journals' : 'schedules';
+        const targetRef = isGroup 
+          ? doc(db, 'groups', fId, col, originalDateStr!)
+          : doc(db, 'users', user.uid, col, originalDateStr!);
+          
+        const snap = await getDoc(targetRef);
+        const currentData = snap.exists() ? snap.data() : {};
         
-      const snap = await getDoc(targetRef);
-      const currentData = snap.exists() ? snap.data() : {};
-      
-      if (type === 'event') {
-        const list = currentData.eventList || [];
-        list.push(data);
-        await setDoc(targetRef, { eventList: list, updatedAt: Date.now() }, { merge: true });
-      } else if (type === 'journal') {
-        const entries = currentData.entries || [];
-        entries.push(data);
-        await setDoc(targetRef, { entries, updatedAt: Date.now() }, { merge: true });
+        if (type === 'event') {
+          const list = currentData.eventList || [];
+          list.push(data);
+          const serializedText = formatV3EventText(list);
+          await setDoc(targetRef, { eventList: list, eventText: serializedText, updatedAt: Date.now() }, { merge: true });
+        } else if (type === 'journal') {
+          const entries = currentData.entries || [];
+          entries.push(data);
+          await setDoc(targetRef, { entries, updatedAt: Date.now() }, { merge: true });
+        }
       }
       
       await completeRestoreFromTrash(item.id);

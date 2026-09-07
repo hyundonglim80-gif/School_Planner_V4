@@ -71,9 +71,12 @@ export function parseV3EventText(rawText: string): EventItem[] {
       content = labelMatch[2].trim();
     }
 
+    // Generate stable hash-based ID instead of Date.now() to prevent ID churn across re-renders
+    const contentStr = content || t;
+    const contentHash = Math.abs(contentStr.split('').reduce((acc, char) => ((acc << 5) - acc) + char.charCodeAt(0), 0)).toString(36);
     list.push({
-      id: 'ev_' + idx + '_' + Date.now(),
-      content: content || t,
+      id: 'ev_t_' + idx + '_' + contentHash,
+      content: contentStr,
       completed,
       label: label || undefined,
     });
@@ -285,12 +288,60 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     await saveEventItems(newList);
   }, [eventList, saveEventItems]);
 
-  const deleteEventItem = useCallback(async (id: string) => {
-    const itemToDelete = eventList.find(item => item.id === id);
+  const deleteEventItem = useCallback(async (id: string, fallbackItem?: Partial<EventItem>) => {
+    const user = auth.currentUser;
+    if (!user || !dateStr) return;
+
+    const eventDocRef = groupId
+      ? doc(db, 'groups', groupId, 'events', dateStr)
+      : doc(db, 'users', user.uid, 'events', dateStr);
+
+    let currentList = [...eventList];
+
+    // 만약 현재 state의 eventList가 비어있다면 Firestore에서 최신 목록 가져오기 (DetailEditModal 등 대비)
+    if (currentList.length === 0) {
+      try {
+        const snap = await getDoc(eventDocRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          if (Array.isArray(data.eventList) && data.eventList.length > 0) {
+            currentList = data.eventList.map((e: any, idx: number) => ({
+              id: String(e.id || 'ev_' + idx),
+              content: e.content || '',
+              completed: !!e.completed,
+              label: e.label || undefined,
+              labelIds: e.labelIds,
+              linkedItems: e.linkedItems || [],
+            }));
+          } else if (data.eventText) {
+            currentList = parseV3EventText(data.eventText);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch remote event list for deletion:', e);
+      }
+    }
+
+    // 1. 문자열로 엄격/비엄격 변환 매칭하여 대상 항목 찾기
+    let itemToDelete = currentList.find(item => String(item.id) === String(id));
+
+    // 2. 만약 못 찾았을 경우 fallbackItem 활용
+    if (!itemToDelete && fallbackItem && fallbackItem.content) {
+      itemToDelete = {
+        id: String(id),
+        content: fallbackItem.content,
+        completed: !!fallbackItem.completed,
+        label: fallbackItem.label,
+        labelIds: fallbackItem.labelIds,
+        linkedItems: fallbackItem.linkedItems,
+      };
+    }
+
+    // 3. 휴지통으로 이동
     if (itemToDelete) {
       try {
         await moveToTrash({
-          id: itemToDelete.id,
+          id: String(itemToDelete.id),
           type: 'event',
           originalDateStr: dateStr,
           fId: groupId || 'personal',
@@ -301,7 +352,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         console.error('Failed to move to trash:', err);
       }
     }
-    const newList = eventList.filter(item => item.id !== id);
+
+    // 4. 원래 목록에서 해당 id 제외 후 저장
+    const newList = currentList.filter(item => String(item.id) !== String(id));
     await saveEventItems(newList);
   }, [eventList, saveEventItems, dateStr, groupId]);
 
