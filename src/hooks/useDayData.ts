@@ -451,7 +451,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   }, [dateStr, groupId, schedules]);
 
   // 시간표 순서 일괄 재배치 (Drag & Drop 용)
-  const reorderPeriods = useCallback(async (sourcePeriod: number, targetPeriod: number, maxPeriods: number = 6) => {
+  
     const reorderPeriods = useCallback(async (sourcePeriod: number, targetPeriod: number, maxPeriods: number = 6) => {
     const user = auth.currentUser;
     if (!user || !dateStr || sourcePeriod === targetPeriod) return;
