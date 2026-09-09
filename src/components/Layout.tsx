@@ -141,8 +141,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
 
+      // 1. 브라우저 기본 '다른 이름으로 저장' (Ctrl+S / Cmd+S) 잠금
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        // V4의 항목 저장은 각 입력창의 onKeyDown 이벤트에서 자체 처리되므로, 
+        // 전역(Layout)에서는 브라우저 저장 팝업이 뜨는 것만 완벽히 차단합니다.
+        return;
+      }
+
+      // 2. 브라우저 기본 '찾기' (Ctrl+F / Cmd+F) 잠금 및 V4 검색창 실행
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setIsSearchModalOpen(true);
+        return;
+      }
+
       // ESC: 열려있는 모든 모달 및 메뉴 닫기
       if (e.key === 'Escape') {
+        setIsHelpModalOpen(false);
         setIsHelpModalOpen(false);
         setIsSearchModalOpen(false);
         setIsGroupModalOpen(false);
