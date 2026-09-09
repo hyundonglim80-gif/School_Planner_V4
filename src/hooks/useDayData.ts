@@ -452,31 +452,34 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
 
   // 시간표 순서 일괄 재배치 (Drag & Drop 용)
   const reorderPeriods = useCallback(async (sourcePeriod: number, targetPeriod: number, maxPeriods: number = 6) => {
+    const reorderPeriods = useCallback(async (sourcePeriod: number, targetPeriod: number, maxPeriods: number = 6) => {
     const user = auth.currentUser;
     if (!user || !dateStr || sourcePeriod === targetPeriod) return;
-
     const scheduleDocRef = groupId
       ? doc(db, 'groups', groupId, 'schedules', dateStr)
       : doc(db, 'users', user.uid, 'schedules', dateStr);
-
     const newSchedules = { ...schedules };
     const sourceData = newSchedules[sourcePeriod] ? { ...newSchedules[sourcePeriod] } : null;
+
+    // Firestore merge: true 사용 시 객체의 키를 delete 하면 기존 데이터가 지워지지 않고 남는 버그 방지
+    // 비어있는 교시를 명시적으로 덮어쓰기 위해 기본 빈 객체를 정의합니다.
+    const emptyPeriod = { subject: '', content: '', memo: '', supplies: '', linkedItems: [] };
 
     if (sourcePeriod < targetPeriod) {
       for (let i = sourcePeriod; i < targetPeriod; i++) {
         if (newSchedules[i + 1]) newSchedules[i] = { ...newSchedules[i + 1] };
-        else delete newSchedules[i];
+        else newSchedules[i] = { ...emptyPeriod };
       }
     } else {
       for (let i = sourcePeriod; i > targetPeriod; i--) {
         if (newSchedules[i - 1]) newSchedules[i] = { ...newSchedules[i - 1] };
-        else delete newSchedules[i];
+        else newSchedules[i] = { ...emptyPeriod };
       }
     }
-
+    
     if (sourceData) newSchedules[targetPeriod] = sourceData;
-    else delete newSchedules[targetPeriod];
-
+    else newSchedules[targetPeriod] = { ...emptyPeriod };
+    
     await setDoc(scheduleDocRef, {
       periods: newSchedules,
       updatedAt: Date.now()
