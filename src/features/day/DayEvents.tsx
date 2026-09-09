@@ -286,7 +286,13 @@ export default function DayEvents({
             type="text"
             value={newText}
             onChange={(e) => setNewText(e.target.value)}
-            placeholder="일정 내용 입력..."
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                handleSubmit(e as any);
+              }
+            }}
+            placeholder="일정 입력..."
             className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder-slate-400 transition-all"
             autoFocus
           />
@@ -351,6 +357,10 @@ export default function DayEvents({
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') saveEditing(event.id);
                         if (e.key === 'Escape') setEditingId(null);
+                        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                          e.preventDefault();
+                          saveEditing(event.id);
+                        }
                       }}
                       className="flex-1 px-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                       autoFocus

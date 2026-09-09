@@ -322,11 +322,17 @@ export default function DayJournal({
                 })}
               </div>
 
-              {/* 기록 내용 입력란 */}
+              {/* 기록 입력 영역 */}
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                placeholder="오늘의 학급 상황, 학생 지도 및 업무 메모를 기록하세요..."
+                onKeyDown={(e) => {
+                  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    handleSubmit(e as any);
+                  }
+                }}
+                placeholder="기록 내용..."
                 rows={3}
                 className="w-full p-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary resize-none placeholder-slate-400 leading-relaxed"
                 autoFocus
@@ -414,10 +420,16 @@ export default function DayJournal({
                           </button>
                         ))}
                       </div>
-
                       <textarea
                         value={editContent}
                         onChange={(e) => setEditContent(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') setEditingId(null);
+                          if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                            e.preventDefault();
+                            saveEditing(entry.id);
+                          }
+                        }}
                         rows={3}
                         className="w-full p-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary resize-none leading-relaxed"
                         autoFocus

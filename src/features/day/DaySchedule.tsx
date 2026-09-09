@@ -205,13 +205,21 @@ export default function DaySchedule({
                     </button>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-3 gap-2">
+                <div 
+                  className="grid grid-cols-3 gap-2"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') handleCancel();
+                    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                      e.preventDefault();
+                      handleSave(period);
+                    }
+                  }}
+                >
                   <input
                     type="text"
                     value={editSubject}
                     onChange={(e) => setEditSubject(e.target.value)}
-                    placeholder="과목명 (예: 국어)"
+                    placeholder="과목"
                     className="col-span-1 px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
                     autoFocus
                   />
@@ -219,22 +227,27 @@ export default function DaySchedule({
                     type="text"
                     value={editSupplies}
                     onChange={(e) => setEditSupplies(e.target.value)}
-                    placeholder="비고 / 준비물"
+                    placeholder="준비물"
                     className="col-span-2 px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
-
                 <textarea
                   value={editMemo}
                   onChange={(e) => setEditMemo(e.target.value)}
-                  placeholder="수업 내용 메모..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') handleCancel();
+                    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                      e.preventDefault();
+                      handleSave(period);
+                    }
+                  }}
+                  placeholder="수업 메모..."
                   rows={2}
                   className="w-full p-2.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary resize-none placeholder-slate-400 leading-relaxed"
                 />
               </div>
             );
           }
-
           return (
             <div
               key={period}
@@ -246,9 +259,12 @@ export default function DaySchedule({
             >
               <div className="flex gap-3 h-full items-stretch">
                 <div className="flex items-center justify-center text-slate-300 cursor-grab active:cursor-grabbing px-1 hover:text-slate-500">
-                  <span className="text-xl">≡</span>
+                  <span className="text-xl">☰</span>
                 </div>
-                <div className="flex-1 flex flex-col">
+                <div 
+                  className="flex-1 flex flex-col"
+                  onDoubleClick={(e) => { e.stopPropagation(); startEdit(period); }}
+                >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold border ${colorClass}`}>
