@@ -164,8 +164,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // 통합 검색: / 또는 ` 또는 ~ (입력창 포커스 아닐 때)
-      if ((e.key === '/' || e.key === '`' || e.key === '~') && !isInput) {
+      // 통합 검색: / 또는 ` 또는 ~ (입력창 포커스 아닐 때) 또는 Ctrl+F / Cmd+F (항상 작동)
+      if (((e.key === '/' || e.key === '`' || e.key === '~') && !isInput) || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f')) {
         e.preventDefault();
         setIsSearchModalOpen(true);
         return;
@@ -350,12 +350,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <button
               onClick={() => setIsSearchModalOpen(true)}
               className="p-1 sm:px-2.5 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center gap-0 sm:gap-1 shrink-0"
-              title="통합 검색 (단축키: /)"
+              title="통합 검색 (단축키: Ctrl+F 또는 /)"
             >
               <span>🔍</span>
               <span className="hidden sm:inline">검색</span>
               <kbd className="hidden md:inline px-1 py-0.2 bg-white rounded text-[10px] text-slate-400 font-mono shadow-2xs">
-                /
+                Ctrl+F
               </kbd>
             </button>
 
