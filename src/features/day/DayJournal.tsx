@@ -282,24 +282,25 @@ export default function DayJournal({
       {/* 상단 헤더 및 기록 입력 폼 */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
         <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isCollapsed ? '' : 'mb-4'}`}>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="text-slate-400 hover:text-slate-700 text-xs px-1 py-0.5 rounded hover:bg-slate-100 transition-colors"
-              title={isCollapsed ? '펼치기' : '접기'}
-            >
-              {isCollapsed ? '▶' : '▼'}
-            </button>
-            <span className="text-xl">📔</span>
-            <h3 className="text-base font-extrabold text-slate-800">기록</h3>
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-              {journals.length}
-            </span>
-          </div>
+          
+          <div className="flex flex-wrap items-center gap-3 flex-1">
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="text-slate-400 hover:text-slate-700 text-xs px-1 py-0.5 rounded hover:bg-slate-100 transition-colors"
+                title={isCollapsed ? '펼치기' : '접기'}
+              >
+                {isCollapsed ? '▶' : '▼'}
+              </button>
+              <span className="text-xl">📔</span>
+              <h3 className="text-base font-extrabold text-slate-800">기록</h3>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                {journals.length}
+              </span>
+            </div>
 
-          <div className="flex items-center sm:justify-end gap-2 flex-1 flex-wrap">
-            {/* 라벨 필터 바 (헤더로 이동) */}
+            {/* 라벨 필터 바 (좌측 타이틀 옆으로 이동) */}
             {!isCollapsed && journals.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5">
                 <button
@@ -327,16 +328,19 @@ export default function DayJournal({
                 ))}
               </div>
             )}
+          </div>
 
-            {!isCollapsed && !isFormOpen && (
+          {/* 우측 상단 버튼 */}
+          {!isCollapsed && !isFormOpen && (
+            <div className="flex items-center shrink-0">
               <button
                 onClick={() => setIsFormOpen(true)}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors shrink-0"
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
               >
                 + 추가
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {!isCollapsed && isFormOpen && (
