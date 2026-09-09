@@ -1,3 +1,5 @@
+//src/features/day/DayJournal.tsx
+
 import React, { useState, useEffect, useRef } from 'react';
 import type { JournalEntry } from '../../hooks/useDayData';
 import { renderFormattedText } from '../../lib/textUtils';
@@ -52,6 +54,9 @@ export default function DayJournal({
   const toggleCollapse = (id: string) => {
     setCollapsedIds(prev => ({ ...prev, [id]: !prev[id] }));
   };
+
+  // 필터 상태 추가
+  const [currentFilter, setCurrentFilter] = useState('전체');
 
   useEffect(() => {
     const fetchLabels = async () => {
@@ -267,6 +272,11 @@ export default function DayJournal({
 
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+  // 필터 적용된 리스트
+  const filteredJournals = currentFilter === '전체'
+    ? journals
+    : journals.filter((entry) => getLabelName(entry) === currentFilter);
+
   return (
     <div className="flex flex-col gap-4">
       {/* 상단 헤더 및 기록 입력 폼 */}
@@ -390,16 +400,45 @@ export default function DayJournal({
                 </div>
               )}
             </div>
-          </form>
-        )}
-      </div>
+            </form>
+          )}
+        </div>
 
-      {/* 기록 카드 리스트 (메모 뷰 스타일 다단 레이아웃) */}
-      {!isCollapsed && (
-        <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 [column-fill:_balance]">
-          {journals.length > 0 ? (
-            journals.map((entry, idx) => {
-              const isEditing = editingId === entry.id;
+        {/* 라벨 필터 바 */}
+        {!isCollapsed && journals.length > 0 && (
+          <div className="flex flex-wrap gap-2 px-1">
+            <button
+              onClick={() => setCurrentFilter('전체')}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
+                currentFilter === '전체'
+                  ? 'bg-slate-800 text-white'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              전체
+            </button>
+            {journalLabels.map((lbl) => (
+              <button
+                key={lbl.id}
+                onClick={() => setCurrentFilter(lbl.name)}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
+                  currentFilter === lbl.name
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {lbl.name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 기록 카드 리스트 (메모 뷰 스타일 다단 레이아웃) */}
+        {!isCollapsed && (
+          <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 [column-fill:_balance]">
+            {filteredJournals.length > 0 ? (
+              filteredJournals.map((entry, idx) => {
+                const isEditing = editingId === entry.id;
               const linkCount = (entry.linkedItems || []).length;
               const isCollapsedItem = !!collapsedIds[entry.id];
 
@@ -601,12 +640,14 @@ export default function DayJournal({
               );
             })
           ) : (
-            <div className="break-inside-avoid w-full text-center py-10 bg-white/60 rounded-2xl border border-dashed border-slate-300 p-6 shadow-xs">
-              <p className="text-slate-500 font-bold text-sm">등록된 기록이 없습니다.</p>
-            </div>
-          )}
-        </div>
-      )}
+              <div className="break-inside-avoid w-full text-center py-10 bg-white/60 rounded-2xl border border-dashed border-slate-300 p-6 shadow-xs">
+                <p className="text-slate-500 font-bold text-sm">
+                  {currentFilter === '전체' ? '등록된 기록이 없습니다.' : `'${currentFilter}' 라벨에 해당하는 기록이 없습니다.`}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
       {/* 개별 항목 파일 업로드용 숨김 input */}
       <input
