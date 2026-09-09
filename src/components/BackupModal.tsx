@@ -29,8 +29,6 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
   const [govYear, setGovYear] = useState<number>(new Date().getFullYear());
 
   const handleImportHolidays = async () => {
-    // 🚨 스토어의 키가 없다고 차단하는 로직(if (!govApiKey)...)을 완전히 삭제합니다. 🚨
-    
     const user = auth.currentUser;
     if (!user) return;
 
@@ -38,37 +36,19 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
     setStatusMsg(`${govYear}년 공휴일 정보를 가져오는 중...`);
 
     try {
-      const holidays = await fetchHolidaysFromGovApi(govYear, govApiKey);
-      const holidayDates = Object.keys(holidays);
+      const fetchedHolidays = await fetchHolidaysFromGovApi(govYear);
+      const holidayDates = Object.keys(fetchedHolidays);
 
       if (holidayDates.length === 0) {
         setProcessing(false);
         return alert('가져올 공휴일 데이터가 없습니다. API 키를 확인해주세요.');
       }
 
-      let count = 0;
-      for (const dateStr of holidayDates) {
-        const hName = holidays[dateStr];
-        const ref = doc(db, 'users', user.uid, 'events', dateStr);
-        const snap = await getDoc(ref);
-        const existing = snap.exists() ? snap.data() : {};
-        const eventList = existing.eventList || [];
+      // 일정(events)으로 하나씩 저장하지 않고, 달력 시스템의 공휴일 설정 문서에 통합 저장합니다.
+      const ref = doc(db, 'users', user.uid, 'settings', 'holidays');
+      await setDoc(ref, { ...fetchedHolidays, updatedAt: Date.now() }, { merge: true });
 
-        // 동일한 이름의 공휴일이 이미 있는지 중복 방지
-        if (!eventList.some((e: any) => e.content === hName)) {
-          eventList.push({
-            id: 'ev_hol_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
-            content: hName,
-            text: hName, // v3 호환
-            label: '공휴일',
-            completed: false,
-            createdAt: Date.now()
-          });
-          await setDoc(ref, { ...existing, eventList, updatedAt: Date.now() }, { merge: true });
-          count++;
-        }
-      }
-      alert(`${govYear}년 공휴일 ${count}건을 일정에 성공적으로 추가했습니다.`);
+      alert(`${govYear}년 공휴일 ${holidayDates.length}건을 성공적으로 적용했습니다.`);
     } catch (e: any) {
       console.error(e);
       alert('공휴일 가져오기 실패: ' + e.message);

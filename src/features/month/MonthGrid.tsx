@@ -69,9 +69,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
           const schedules = summary.schedules || {};
           const hasClasses = periodArray.some(p => schedules[p]?.subject?.trim() && schedules[p]?.subject?.toUpperCase() !== 'X');
           
-          // 공휴일 이벤트 찾기 (DB에 저장된 일정 기준)
-          const holidayEvent = events.find((e) => e.label === '공휴일' || e.labelIds?.includes('공휴일'));
-          const holidayName = dayObj.holidayName || holidays[dayObj.dateStr] || holidayEvent?.content;
+          const holidayName = dayObj.holidayName || holidays[dayObj.dateStr];
           const isHoliday = !!holidayName || dayObj.isSunday;
           return (
             <div
