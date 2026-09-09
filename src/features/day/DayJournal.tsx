@@ -32,7 +32,6 @@ export default function DayJournal({
   const [newAttachments, setNewAttachments] = useState<Attachment[]>([]);
   const [newLinkedItems, setNewLinkedItems] = useState<any[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [submitting, setSubmitting] = useState(false);
@@ -139,25 +138,6 @@ export default function DayJournal({
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', String(index));
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = async (e: React.DragEvent, targetIndex: number) => {
-    e.preventDefault();
-    if (draggedIndex !== null && draggedIndex !== targetIndex && onReorderJournals) {
-      await onReorderJournals(draggedIndex, targetIndex);
-    }
-    setDraggedIndex(null);
   };
 
   const handleLabelToggle = (labelName: string) => {
@@ -522,13 +502,7 @@ export default function DayJournal({
               return (
                 <div
                   key={entry.id}
-                  draggable={!editingId}
-                  onDragStart={(e) => handleDragStart(e, idx)}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, idx)}
-                  className={`break-inside-avoid mb-4 inline-block w-full group p-4 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300 bg-white transition-all flex flex-col gap-2 ${
-                    draggedIndex === idx ? 'opacity-40' : ''
-                  }`}
+                  className="break-inside-avoid mb-4 inline-block w-full group p-4 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300 bg-white transition-all flex flex-col gap-2"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -541,13 +515,25 @@ export default function DayJournal({
                         {isCollapsedItem ? '▶' : '▼'}
                       </button>
 
-                      {/* 그립 아이콘 (드래그 핸들 역할) */}
-                      <span
-                        className="text-slate-400 hover:text-slate-700 cursor-grab active:cursor-grabbing text-sm font-bold select-none px-0.5"
-                        title="드래그하여 순서 변경"
-                      >
-                        ☰
-                      </span>
+                      {/* 순서 변경 아이콘 */}
+                      <div className="flex flex-col items-center gap-0.5 shrink-0 px-0.5">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); if (idx > 0 && onReorderJournals) onReorderJournals(idx, idx - 1); }}
+                          disabled={idx === 0}
+                          className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-[10px]"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); if (idx < journals.length - 1 && onReorderJournals) onReorderJournals(idx, idx + 1); }}
+                          disabled={idx === journals.length - 1}
+                          className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-[10px]"
+                        >
+                          ▼
+                        </button>
+                      </div>
                       <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${getLabelColorClass(entry)}`}>
                         {getLabelName(entry)}
                       </span>

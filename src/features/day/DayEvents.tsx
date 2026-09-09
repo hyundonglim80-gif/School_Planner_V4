@@ -31,9 +31,7 @@ export default function DayEvents({
   const [newAttachments, setNewAttachments] = useState<Attachment[]>([]);
   const [newLinkedItems, setNewLinkedItems] = useState<any[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const [submitting, setSubmitting] = useState(false);
   const [forwarding, setForwarding] = useState(false);
   const { openLinkerModal, openLinkViewerModal, currentDate, isMultiSelectMode, selectedEventIds, toggleEventSelection, googleAccessToken } = useAppStore();
@@ -186,25 +184,6 @@ export default function DayEvents({
   };
 
 
-
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', String(index));
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = async (e: React.DragEvent, targetIndex: number) => {
-    e.preventDefault();
-    if (draggedIndex !== null && draggedIndex !== targetIndex && onReorderEvents) {
-      await onReorderEvents(draggedIndex, targetIndex);
-    }
-    setDraggedIndex(null);
-  };
 
   return (
     <div className={`bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 flex flex-col ${isCollapsed ? '' : 'h-full'}`}>
@@ -388,10 +367,6 @@ export default function DayEvents({
             return (
               <div
                 key={event.id}
-                draggable={!isMultiSelectMode}
-                onDragStart={(e) => handleDragStart(e, idx)}
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, idx)}
                 onClick={() => {
                   if (isMultiSelectMode) {
                     toggleEventSelection(event.id, formattedDate);
@@ -399,8 +374,6 @@ export default function DayEvents({
                 }}
                 className={`group flex items-center justify-between p-3 rounded-xl border transition-all ${
                   isMultiSelectMode ? 'cursor-pointer hover:bg-slate-50' : ''
-                } ${
-                  draggedIndex === idx ? 'opacity-40' : ''
                 } ${
                   selectedEventIds.includes(event.id)
                     ? 'border-primary ring-1 ring-primary bg-primary/5'
@@ -410,17 +383,28 @@ export default function DayEvents({
                 }`}
               >
                 <div className="flex items-center gap-2.5 flex-1 min-w-0 pointer-events-auto">
-                  {/* 세줄 드래그 핸들 (≡) */}
+                  {/* 순서 변경 아이콘 */}
                   {!isMultiSelectMode && (
-                    <span
-                      className="text-slate-400 hover:text-slate-700 cursor-grab active:cursor-grabbing text-sm font-bold select-none shrink-0 px-0.5"
-                      title="드래그하여 일정 순서 변경"
-                    >
-                      ≡
-                    </span>
+                    <div className="flex flex-col items-center gap-0.5 shrink-0 px-0.5">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); if (idx > 0 && onReorderEvents) onReorderEvents(idx, idx - 1); }}
+                        disabled={idx === 0}
+                        className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-xs"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); if (idx < events.length - 1 && onReorderEvents) onReorderEvents(idx, idx + 1); }}
+                        disabled={idx === events.length - 1}
+                        className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-xs"
+                      >
+                        ▼
+                      </button>
+                    </div>
                   )}
-
-                  {/* 다중 선택 체크박스 */}
+                  {/*   */}
                   {isMultiSelectMode && (
                     <input
                       type="checkbox"

@@ -36,8 +36,6 @@ export default function DaySchedule({
   const [editSupplies, setEditSupplies] = useState('');
   const [saving, setSaving] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
-  
-  const [draggedPeriod, setDraggedPeriod] = useState<number | null>(null);
 
   const { getDayTemplate } = useTimetableTemplate();
   const { openLinkerModal, openLinkViewerModal, openEvaluationModal } = useAppStore();
@@ -109,24 +107,6 @@ export default function DaySchedule({
         }
       }
     }
-  };
-
-  const handleDragStart = (e: React.DragEvent, period: number) => {
-    setDraggedPeriod(period);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = async (e: React.DragEvent, targetPeriod: number) => {
-    e.preventDefault();
-    if (draggedPeriod !== null && draggedPeriod !== targetPeriod) {
-      await onReorderPeriods(draggedPeriod, targetPeriod);
-    }
-    setDraggedPeriod(null);
   };
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -251,15 +231,26 @@ export default function DaySchedule({
           return (
             <div
               key={period}
-              draggable
-              onDragStart={(e) => handleDragStart(e, period)}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, period)}
-              className={`group p-3.5 rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[80px] hover:border-primary/50 hover:bg-slate-50/50 cursor-grab active:cursor-grabbing`}
+              className="group p-3.5 rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[80px] hover:border-primary/50 hover:bg-slate-50/50"
             >
               <div className="flex gap-3 h-full items-stretch">
-                <div className="flex items-center justify-center text-slate-300 cursor-grab active:cursor-grabbing px-1 hover:text-slate-500">
-                  <span className="text-xl">☰</span>
+                <div className="flex flex-col items-center justify-center gap-1 shrink-0 px-1">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); if (period > 1) onReorderPeriods(period, period - 1); }}
+                    disabled={period <= 1}
+                    className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-xs"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); if (period < maxPeriods) onReorderPeriods(period, period + 1); }}
+                    disabled={period >= maxPeriods}
+                    className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-xs"
+                  >
+                    ▼
+                  </button>
                 </div>
                 <div 
                   className="flex-1 flex flex-col"
