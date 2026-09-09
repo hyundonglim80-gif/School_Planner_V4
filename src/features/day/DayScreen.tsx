@@ -4,12 +4,15 @@ import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { formatDateStr, parseDateStr } from '../../lib/dateUtils';
 import { useDayData } from '../../hooks/useDayData';
+import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import DayEvents from './DayEvents';
 import DaySchedule from './DaySchedule';
 import DayJournal from './DayJournal';
 
 export default function DayScreen() {
   const { currentDate, setCurrentDate, selectedGroupId, showClass } = useAppStore();
+  const { templates, currentTemplateName } = useTimetableTemplate();
+  const maxPeriods = templates[currentTemplateName]?.names.length || 6;
 
   const dateStr = formatDateStr(new Date(currentDate));
 
@@ -73,6 +76,7 @@ export default function DayScreen() {
                 onSavePeriod={savePeriod} 
                 onReorderPeriods={reorderPeriods}
                 dateStr={dateStr}
+                maxPeriods={maxPeriods}
               />
             </div>
           )}

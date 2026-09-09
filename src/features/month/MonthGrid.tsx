@@ -1,9 +1,12 @@
+//src/features/month/MonthGrid.tsx
+
 import React from 'react';
 import type { CalendarDay } from '../../lib/dateUtils';
 import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
+import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import DetailEditModal from '../../components/DetailEditModal';
 import { useState } from 'react';
 
@@ -36,6 +39,10 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
   }, [days, showWeekend]);
   const { getLabelColor } = useLabels();
   const { holidays } = useGovHolidays();
+  const { templates, currentTemplateName } = useTimetableTemplate();
+  const maxPeriods = templates[currentTemplateName]?.names.length || 6;
+  const periodArray = Array.from({ length: maxPeriods }, (_, i) => i + 1);
+
   const [detailModal, setDetailModal] = useState<{
     isOpen: boolean;
     type: 'schedule' | 'event';
@@ -43,7 +50,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
     itemId: string | number;
     initialData: any;
   } | null>(null);
-  
+
   return (
     <>
     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
@@ -60,7 +67,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
           const summary = dataMap[dayObj.dateStr] || {};
           const events = summary.eventList || [];
           const schedules = summary.schedules || {};
-          const hasClasses = [1, 2, 3, 4, 5, 6].some(p => schedules[p]?.subject?.trim() && schedules[p]?.subject?.toUpperCase() !== 'X');
+          const hasClasses = periodArray.some(p => schedules[p]?.subject?.trim() && schedules[p]?.subject?.toUpperCase() !== 'X');
           const holidayName = dayObj.holidayName || holidays[dayObj.dateStr];
           const isHoliday = !!holidayName || dayObj.isSunday;
           return (
@@ -108,7 +115,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                 {/* V3 스타일 시간표 블록 표시 */}
                 {showClass && hasClasses && (
                   <div className="flex flex-nowrap gap-[1px] w-full mb-1.5 mt-0.5">
-                    {[1, 2, 3, 4, 5, 6].map((p) => {
+                    {periodArray.map((p) => {
                       const item = schedules[p];
                       const text = item?.subject?.trim() || '';
                       
