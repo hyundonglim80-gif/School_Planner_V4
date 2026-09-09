@@ -199,16 +199,11 @@ export default function DayJournal({
         setNewAttachments(prev => [...prev, ...uploaded]);
       }
     } catch (err: any) {
-      alert('파일 업로드 실패: ' + err.message);
+      alert('오류 발생: ' + err.message);
     } finally {
       setUploadingFiles(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  };
-
-  const handleItemFileChange = async (e: React.ChangeEvent<HTMLInputElement>, journalId: string) => {
-    setUploadTargetId(journalId);
-    await handleFileChange(e);
   };
 
   const handleRemoveAttachment = (idx: number) => {
@@ -619,7 +614,7 @@ export default function DayJournal({
         multiple
         className="hidden"
         ref={itemFileInputRef}
-        onChange={handleItemFileChange}
+        onChange={handleFileChange}
       />
     </div>
   );
