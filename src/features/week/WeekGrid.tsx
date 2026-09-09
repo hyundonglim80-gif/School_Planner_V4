@@ -49,9 +49,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
 
         const [, month, dateNum] = day.dateStr.split('-');
         
-        // 공휴일 이벤트 찾기
-        const holidayEvent = events.find((e) => e.label === '공휴일' || e.labelIds?.includes('공휴일'));
-        const holidayName = holidays[day.dateStr] || holidayEvent?.content;
+        const holidayName = holidays[day.dateStr];
         const isHoliday = !!holidayName || day.dayName === '일';
 
         return (

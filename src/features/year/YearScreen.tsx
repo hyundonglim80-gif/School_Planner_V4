@@ -142,9 +142,7 @@ export default function YearScreen() {
                       const evs = eventsMap[dObj.dateStr] || [];
                       const sch = schedulesMap[dObj.dateStr] || {};
 
-                      // 공휴일 이벤트 찾기
-                      const holidayEvent = evs.find((e: any) => e.label === '공휴일' || e.labelIds?.includes('공휴일'));
-                      const holidayName = holidays[dObj.dateStr] || holidayEvent?.content;
+                      const holidayName = holidays[dObj.dateStr];
                       const isHoliday = !!holidayName || dayOfWeekNum === 0;
                       
                       const dateColor = isHoliday ? 'text-red-500' : dayOfWeekNum === 6 ? 'text-blue-500' : 'text-blue-700';
