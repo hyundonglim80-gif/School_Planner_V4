@@ -281,8 +281,8 @@ export default function DayJournal({
     <div className="flex flex-col gap-4">
       {/* 상단 헤더 및 기록 입력 폼 */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
-        <div className={`flex items-center justify-between ${isCollapsed ? '' : 'mb-4'}`}>
-          <div className="flex items-center gap-2">
+        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isCollapsed ? '' : 'mb-4'}`}>
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setIsCollapsed(!isCollapsed)}
@@ -297,14 +297,46 @@ export default function DayJournal({
               {journals.length}
             </span>
           </div>
-          {!isCollapsed && !isFormOpen && (
-            <button
-              onClick={() => setIsFormOpen(true)}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
-            >
-              + 추가
-            </button>
-          )}
+
+          <div className="flex items-center sm:justify-end gap-2 flex-1 flex-wrap">
+            {/* 라벨 필터 바 (헤더로 이동) */}
+            {!isCollapsed && journals.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  onClick={() => setCurrentFilter('전체')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm ${
+                    currentFilter === '전체'
+                      ? 'bg-slate-800 text-white'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  전체
+                </button>
+                {journalLabels.map((lbl) => (
+                  <button
+                    key={lbl.id}
+                    onClick={() => setCurrentFilter(lbl.name)}
+                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm ${
+                      currentFilter === lbl.name
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {lbl.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {!isCollapsed && !isFormOpen && (
+              <button
+                onClick={() => setIsFormOpen(true)}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors shrink-0"
+              >
+                + 추가
+              </button>
+            )}
+          </div>
         </div>
 
         {!isCollapsed && isFormOpen && (
@@ -403,35 +435,6 @@ export default function DayJournal({
             </form>
           )}
         </div>
-
-        {/* 라벨 필터 바 */}
-        {!isCollapsed && journals.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-1">
-            <button
-              onClick={() => setCurrentFilter('전체')}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
-                currentFilter === '전체'
-                  ? 'bg-slate-800 text-white'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              전체
-            </button>
-            {journalLabels.map((lbl) => (
-              <button
-                key={lbl.id}
-                onClick={() => setCurrentFilter(lbl.name)}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
-                  currentFilter === lbl.name
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                {lbl.name}
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* 기록 카드 리스트 (메모 뷰 스타일 다단 레이아웃) */}
         {!isCollapsed && (
