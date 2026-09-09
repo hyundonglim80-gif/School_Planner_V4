@@ -1,3 +1,5 @@
+//src/features/day/DayScreen.tsx
+
 import React from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { formatDateStr, parseDateStr } from '../../lib/dateUtils';
@@ -7,7 +9,7 @@ import DaySchedule from './DaySchedule';
 import DayJournal from './DayJournal';
 
 export default function DayScreen() {
-  const { currentDate, setCurrentDate, selectedGroupId } = useAppStore();
+  const { currentDate, setCurrentDate, selectedGroupId, showClass } = useAppStore();
 
   const dateStr = formatDateStr(new Date(currentDate));
 
@@ -43,8 +45,8 @@ export default function DayScreen() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* 좌측 영역: 오늘 할 일(일정) & 기록 (5열) */}
-          <div className="lg:col-span-5 flex flex-col gap-6">
+          {/* 좌측 영역: 오늘 할 일(일정) & 기록 (수업 숨기면 12열, 아니면 5열) */}
+          <div className={`${showClass ? 'lg:col-span-5' : 'lg:col-span-12'} flex flex-col gap-6 transition-all duration-300`}>
             <DayEvents
               events={eventList}
               onAddEvent={addEventItem}
@@ -63,15 +65,17 @@ export default function DayScreen() {
             />
           </div>
 
-          {/* 우측 영역: 수업 및 시간표 (7열) */}
-          <div className="lg:col-span-7">
-            <DaySchedule 
-              schedules={schedules} 
-              onSavePeriod={savePeriod} 
-              onReorderPeriods={reorderPeriods}
-              dateStr={dateStr}
-            />
-          </div>
+          {/* 우측 영역: 수업 및 시간표 (7열) - showClass에 따른 조건부 렌더링 */}
+          {showClass && (
+            <div className="lg:col-span-7 transition-all duration-300">
+              <DaySchedule 
+                schedules={schedules} 
+                onSavePeriod={savePeriod} 
+                onReorderPeriods={reorderPeriods}
+                dateStr={dateStr}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

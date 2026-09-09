@@ -108,8 +108,7 @@ export const useAppStore = create<AppState>()(
       selectedGroupId: null,
       govApiKey: '',
       setScope: (scope) => {
-        const showClass = scope !== 'year' && scope !== 'month';
-        set({ scope, showClass });
+        set({ scope }); // showClass를 강제로 덮어쓰지 않고 기존 상태 유지
       },
       setSemesterFilter: (filter) => set({ semesterFilter: filter }),
       setShowWeekend: (showWeekend) => set({ showWeekend }),

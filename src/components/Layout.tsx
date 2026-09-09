@@ -1,3 +1,5 @@
+//src/components/Layout.tsx
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../features/auth/useAuth';
 import { useAppStore } from '../store/useAppStore';
@@ -541,6 +543,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 title="단축키: Shift + ↑/↓"
               >
                 {showWeekend ? '주말 숨기기' : '주말 보기'}
+              </button>
+              <button
+                onClick={() => setShowClass(!showClass)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border shadow-2xs ${
+                  showClass
+                    ? 'bg-blue-100 text-blue-700 border-blue-200'
+                    : 'bg-slate-100 text-slate-500 border-slate-200'
+                }`}
+              >
+                {showClass ? '수업 숨기기' : '수업 보이기'}
               </button>
             </div>
 
