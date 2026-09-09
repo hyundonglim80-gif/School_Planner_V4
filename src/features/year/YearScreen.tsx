@@ -95,7 +95,7 @@ export default function YearScreen() {
           <p className="text-xs text-slate-400 font-medium">연간 데이터를 불러오는 중입니다...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {months.map((mInfo) => {
             const daysInMonth = new Date(mInfo.year, mInfo.month, 0).getDate();
             const days = Array.from({ length: daysInMonth }, (_, i) => {
