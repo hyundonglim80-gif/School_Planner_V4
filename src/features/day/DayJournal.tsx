@@ -43,10 +43,15 @@ export default function DayJournal({
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
-  const [editLabel, setEditLabel] = useState('학급활동');
+  const [editLabel, setEditLabel] = useState('기본');
   const [editImageUrl, setEditImageUrl] = useState('');
-
   const [journalLabels, setJournalLabels] = useState<JournalLabel[]>(DEFAULT_JOURNAL_LABELS);
+  
+  // 항목별 접기/펼치기 상태
+  const [collapsedIds, setCollapsedIds] = useState<Record<string, boolean>>({});
+  const toggleCollapse = (id: string) => {
+    setCollapsedIds(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   useEffect(() => {
     const fetchLabels = async () => {
@@ -268,301 +273,315 @@ export default function DayJournal({
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
-      <div className={`flex items-center justify-between ${isCollapsed ? '' : 'mb-4'}`}>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="text-slate-400 hover:text-slate-700 text-xs px-1 py-0.5 rounded hover:bg-slate-100 transition-colors"
-            title={isCollapsed ? '기록 펼치기' : '기록 접기'}
-          >
-            {isCollapsed ? '▶' : '▼'}
-          </button>
-          <span className="text-xl">📋</span>
-          <h3 className="text-base font-extrabold text-slate-800">기록</h3>
-          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-            {journals.length}
-          </span>
+    <div className="flex flex-col gap-4">
+      {/* 상단 헤더 및 기록 입력 폼 */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
+        <div className={`flex items-center justify-between ${isCollapsed ? '' : 'mb-4'}`}>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="text-slate-400 hover:text-slate-700 text-xs px-1 py-0.5 rounded hover:bg-slate-100 transition-colors"
+              title={isCollapsed ? '펼치기' : '접기'}
+            >
+              {isCollapsed ? '▶' : '▼'}
+            </button>
+            <span className="text-xl">📔</span>
+            <h3 className="text-base font-extrabold text-slate-800">기록</h3>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+              {journals.length}
+            </span>
+          </div>
+          {!isCollapsed && !isFormOpen && (
+            <button
+              onClick={() => setIsFormOpen(true)}
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
+            >
+              + 추가
+            </button>
+          )}
         </div>
 
-        {!isCollapsed && !isFormOpen && (
-          <button
-            onClick={() => setIsFormOpen(true)}
-            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
-          >
-            +
-          </button>
+        {!isCollapsed && isFormOpen && (
+          <form onSubmit={handleSubmit} className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col gap-3">
+            {/* 라벨 선택 UI(모달 호출 제외) */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 mr-1">라벨:</span>
+              {journalLabels.map((lbl) => {
+                const isSelected = newLabels.includes(lbl.name);
+                return (
+                  <button
+                    key={lbl.id}
+                    type="button"
+                    onClick={() => handleLabelToggle(lbl.name)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                      isSelected
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {lbl.name}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* 본문 입력 */}
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                  e.preventDefault();
+                  handleSubmit(e as any);
+                }
+              }}
+              placeholder="기록 내용..."
+              rows={3}
+              className="w-full p-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary resize-none placeholder-slate-400 leading-relaxed"
+              autoFocus
+            />
+
+            {/* 하단 옵션 */}
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-end items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsFormOpen(false)}
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-xl transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={(!content.trim() && newAttachments.length === 0) || submitting || uploadingFiles}
+                  className="px-4 py-1.5 bg-primary hover:bg-blue-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-40"
+                >
+                  등록
+                </button>
+              </div>
+
+              {/* 첨부파일 미리보기 */}
+              {newAttachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {newAttachments.map((att, idx) => (
+                    <div key={idx} className="relative group rounded-lg overflow-hidden border border-slate-200 bg-white">
+                      {att.type === 'image' ? (
+                        <img src={att.url} alt={att.name} className="h-16 w-16 object-cover" />
+                      ) : (
+                        <div className="h-16 w-16 flex items-center justify-center bg-slate-100 text-[10px] text-slate-500 p-1 text-center truncate" title={att.name}>
+                          {att.name}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAttachment(idx)}
+                        className="absolute top-0.5 right-0.5 bg-black/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {newLinkedItems.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {newLinkedItems.map((link, idx) => (
+                    <div key={idx} className="flex items-center gap-1 bg-white border border-slate-200 pl-2 pr-1 py-1 rounded-md shadow-2xs">
+                      <span className="text-[10px] font-bold text-slate-600 truncate max-w-[120px]">{link.text}</span>
+                      <button type="button" onClick={() => handleRemoveLink(idx)} className="text-slate-400 hover:text-red-500 p-0.5">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </form>
         )}
       </div>
 
+      {/* 기록 카드 리스트 (메모 뷰 스타일 다단 레이아웃) */}
       {!isCollapsed && (
-        <>
-          {isFormOpen && (
-            <form onSubmit={handleSubmit} className="mb-4 p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col gap-3">
-              {/* 분류 선택 (다중 선택 UI) */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs font-semibold text-slate-500 mr-1">분류:</span>
-                {journalLabels.map((lbl) => {
-                  const isSelected = newLabels.includes(lbl.name);
-                  return (
-                    <button
-                      key={lbl.id}
-                      type="button"
-                      onClick={() => handleLabelToggle(lbl.name)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                        isSelected
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      {lbl.name}
-                    </button>
-                  );
-                })}
-              </div>
+        <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 [column-fill:_balance]">
+          {journals.length > 0 ? (
+            journals.map((entry, idx) => {
+              const isEditing = editingId === entry.id;
+              const linkCount = (entry.linkedItems || []).length;
+              const isCollapsedItem = !!collapsedIds[entry.id];
 
-              {/* 기록 입력 영역 */}
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                onKeyDown={(e) => {
-                  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                    e.preventDefault();
-                    handleSubmit(e as any);
-                  }
-                }}
-                placeholder="기록 내용..."
-                rows={3}
-                className="w-full p-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary resize-none placeholder-slate-400 leading-relaxed"
-                autoFocus
-              />
-
-              {/* 하단 첨부 영역 */}
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-end items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsFormOpen(false)}
-                    className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-xl transition-colors"
-                  >
-                    닫기
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={(!content.trim() && newAttachments.length === 0) || submitting || uploadingFiles}
-                    className="px-4 py-1.5 bg-primary hover:bg-blue-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-40"
-                  >
-                    저장하기
-                  </button>
-                </div>
-
-                {/* 첨부파일/링크 미리보기 */}
-                {newAttachments.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {newAttachments.map((att, idx) => (
-                      <div key={idx} className="relative group rounded-lg overflow-hidden border border-slate-200 bg-white">
-                        {att.type === 'image' ? (
-                          <img src={att.url} alt={att.name} className="h-16 w-16 object-cover" />
-                        ) : (
-                          <div className="h-16 w-16 flex items-center justify-center bg-slate-100 text-[10px] text-slate-500 p-1 text-center truncate" title={att.name}>
-                            문서
-                          </div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveAttachment(idx)}
-                          className="absolute top-0.5 right-0.5 bg-black/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {newLinkedItems.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {newLinkedItems.map((link, idx) => (
-                      <div key={idx} className="flex items-center gap-1 bg-white border border-slate-200 pl-2 pr-1 py-1 rounded-md shadow-2xs">
-                        <span className="text-[10px] font-bold text-slate-600 truncate max-w-[120px]">{link.text}</span>
-                        <button type="button" onClick={() => handleRemoveLink(idx)} className="text-slate-400 hover:text-red-500 p-0.5">✕</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </form>
-          )}
-
-          <div className="space-y-2.5">
-            {journals.length > 0 ? (
-              journals.map((entry, idx) => {
-                const isEditing = editingId === entry.id;
-                const linkCount = (entry.linkedItems || []).length;
-
-                if (isEditing) {
-                  return (
-                    <div key={entry.id} className="p-3.5 rounded-xl border border-primary/50 bg-blue-50/30 flex flex-col gap-3 shadow-xs">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-xs font-semibold text-slate-500 mr-1">분류:</span>
-                        {journalLabels.map((lbl) => (
-                          <button
-                            key={lbl.id}
-                            type="button"
-                            onClick={() => setEditLabel(lbl.name)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                              editLabel === lbl.name
-                                ? 'bg-blue-600 text-white shadow-xs'
-                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            {lbl.name}
-                          </button>
-                        ))}
-                      </div>
-                      <textarea
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Escape') setEditingId(null);
-                          if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                            e.preventDefault();
-                            saveEditing(entry.id);
-                          }
-                        }}
-                        rows={3}
-                        className="w-full p-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary resize-none leading-relaxed"
-                        autoFocus
-                      />
-                      
-                      {editImageUrl && (
-                        <div className="relative inline-block mb-2">
-                          <img src={editImageUrl} alt="첨부 이미지" className="h-24 w-auto rounded-lg border border-slate-200 object-cover" />
-                          <button type="button" onClick={() => setEditImageUrl('')} className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 text-xs">✕</button>
-                        </div>
-                      )}
-
-                      <div className="flex justify-between items-center">
-                        <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200/50 hover:bg-slate-200 text-slate-600 rounded-xl text-[11px] font-bold transition-colors cursor-pointer">
-                          <span>📷</span>
-                          <span>{uploadingFiles ? '업로드 중...' : '이미지 변경'}</span>
-                          <input type="file" accept="image/*" onChange={handleEditImageUpload} className="hidden" disabled={uploadingFiles} />
-                        </label>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setEditingId(null)}
-                            className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-xl transition-colors"
-                          >
-                            취소
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => saveEditing(entry.id)}
-                            disabled={uploadingFiles}
-                            className="px-4 py-1.5 bg-primary hover:bg-blue-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
-                          >
-                            저장
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
+              if (isEditing) {
                 return (
-                  <div
-                    key={entry.id}
-                    draggable={!editingId}
-                    onDragStart={(e) => handleDragStart(e, idx)}
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e, idx)}
-                    className={`group p-3.5 rounded-xl border border-slate-200/60 hover:border-slate-300 bg-white transition-all flex flex-col gap-2 ${
-                      draggedIndex === idx ? 'opacity-40' : ''
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {/* 세줄 드래그 핸들 (≡) */}
-                        <span
-                          className="text-slate-400 hover:text-slate-700 cursor-grab active:cursor-grabbing text-sm font-bold select-none px-0.5"
-                          title="드래그하여 기록 순서 변경"
+                  <div key={entry.id} className="break-inside-avoid mb-4 inline-block w-full p-4 rounded-2xl border border-primary/50 bg-blue-50/30 flex flex-col gap-3 shadow-md">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs font-semibold text-slate-500 mr-1">라벨:</span>
+                      {journalLabels.map((lbl) => (
+                        <button
+                          key={lbl.id}
+                          type="button"
+                          onClick={() => setEditLabel(lbl.name)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                            editLabel === lbl.name
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                          }`}
                         >
-                          ≡
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${getLabelColorClass(entry)}`}>
-                          {getLabelName(entry)}
-                        </span>
-                        <span className="text-[11px] text-slate-400">
-                          {new Date(entry.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        
-                        {linkCount > 0 && (
-                          <button 
-                            onClick={() => openLinkViewerModal('journal', formattedDate, entry.id)}
-                            className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 ml-1 hover:bg-yellow-200"
-                          >
-                            📑 {linkCount}
-                          </button>
-                        )}
-                        {entry.attachments && entry.attachments.length > 0 && (
-                          <span className="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0.5 rounded font-bold border border-slate-200 ml-1">
-                            📁 {entry.attachments.length}
-                          </span>
-                        )}
+                          {lbl.name}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setEditingId(null);
+                        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                          e.preventDefault();
+                          saveEditing(entry.id);
+                        }
+                      }}
+                      rows={3}
+                      className="w-full p-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary resize-none leading-relaxed"
+                      autoFocus
+                    />
+                    
+                    {editImageUrl && (
+                      <div className="relative inline-block mb-2">
+                        <img src={editImageUrl} alt="첨부 이미지" className="h-24 w-auto rounded-lg border border-slate-200 object-cover" />
+                        <button type="button" onClick={() => setEditImageUrl('')} className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 text-xs">×</button>
                       </div>
+                    )}
 
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex justify-between items-center">
+                      <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200/50 hover:bg-slate-200 text-slate-600 rounded-xl text-[11px] font-bold transition-colors cursor-pointer">
+                        <span>📷</span>
+                        <span>{uploadingFiles ? '업로드 중...' : '이미지 추가'}</span>
+                        <input type="file" accept="image/*" onChange={handleEditImageUpload} className="hidden" disabled={uploadingFiles} />
+                      </label>
+                      <div className="flex gap-2">
                         <button
                           type="button"
-                          onClick={() => {
-                            setUploadTargetId(entry.id);
-                            itemFileInputRef.current?.click();
-                          }}
-                          className="text-slate-400 hover:text-emerald-600 p-1 rounded-md text-xs font-bold"
-                          title="파일 첨부"
+                          onClick={() => setEditingId(null)}
+                          className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-xl transition-colors"
                         >
-                          📎
+                          취소
                         </button>
                         <button
                           type="button"
-                          onClick={() => startEditing(entry)}
-                          className="text-slate-400 hover:text-blue-600 p-1 rounded-md text-xs font-bold"
-                          title="기록 수정"
+                          onClick={() => saveEditing(entry.id)}
+                          disabled={uploadingFiles}
+                          className="px-4 py-1.5 bg-primary hover:bg-blue-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
                         >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => openLinkerModal('journal', formattedDate, entry.id)}
-                          className="text-slate-400 hover:text-yellow-600 p-1 rounded-md text-xs font-bold"
-                          title="링크 추가"
-                        >
-                          🔗
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            await onDeleteJournal(entry.id);
-                            showToast('기록이 삭제되었습니다. (상단 휴지통에서 복구 가능)');
-                          }}
-                          className="text-slate-400 hover:text-red-500 p-1 rounded-md text-xs transition-colors"
-                          title="삭제"
-                        >
-                          ✕
+                          저장
                         </button>
                       </div>
                     </div>
+                  </div>
+                );
+              }
 
-                    <div className="flex flex-col gap-2">
+              return (
+                <div
+                  key={entry.id}
+                  draggable={!editingId}
+                  onDragStart={(e) => handleDragStart(e, idx)}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, idx)}
+                  className={`break-inside-avoid mb-4 inline-block w-full group p-4 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300 bg-white transition-all flex flex-col gap-2 ${
+                    draggedIndex === idx ? 'opacity-40' : ''
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* 항목 접기/펼치기 삼각형 토글 버튼 */}
+                      <button
+                        type="button"
+                        onClick={() => toggleCollapse(entry.id)}
+                        className="text-slate-400 hover:text-primary transition-colors p-0.5 text-[10px]"
+                      >
+                        {isCollapsedItem ? '▶' : '▼'}
+                      </button>
+
+                      {/* 그립 아이콘 (드래그 핸들 역할) */}
+                      <span
+                        className="text-slate-400 hover:text-slate-700 cursor-grab active:cursor-grabbing text-sm font-bold select-none px-0.5"
+                        title="드래그하여 순서 변경"
+                      >
+                        ☰
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${getLabelColorClass(entry)}`}>
+                        {getLabelName(entry)}
+                      </span>
+                      <span className="text-[11px] text-slate-400">
+                        {new Date(entry.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      
+                      {linkCount > 0 && (
+                        <button 
+                          onClick={() => openLinkViewerModal('journal', formattedDate, entry.id)}
+                          className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200"
+                        >
+                            🔗 {linkCount}
+                        </button>
+                      )}
+                      {entry.attachments && entry.attachments.length > 0 && (
+                        <span className="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0.5 rounded font-bold border border-slate-200">
+                            📎 {entry.attachments.length}
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUploadTargetId(entry.id);
+                          itemFileInputRef.current?.click();
+                        }}
+                        className="text-slate-400 hover:text-emerald-600 p-1 rounded-md text-xs font-bold"
+                        title="파일 추가"
+                      >
+                        📎
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startEditing(entry)}
+                        className="text-slate-400 hover:text-blue-600 p-1 rounded-md text-xs font-bold"
+                        title="기록 수정"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => openLinkerModal('journal', formattedDate, entry.id)}
+                        className="text-slate-400 hover:text-yellow-600 p-1 rounded-md text-xs font-bold"
+                        title="링크 연결"
+                      >
+                        🔗
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await onDeleteJournal(entry.id);
+                          showToast('기록이 삭제되었습니다 (휴지통 보관)');
+                        }}
+                        className="text-slate-400 hover:text-red-500 p-1 rounded-md text-xs transition-colors"
+                        title="기록 삭제"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 항목이 접히지 않았을 때만 본문 및 첨부파일 표시 */}
+                  {!isCollapsedItem && (
+                    <div className="flex flex-col gap-3 mt-1">
                       <p
                         onDoubleClick={() => startEditing(entry)}
-                        className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed cursor-text"
+                        className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed cursor-text"
                         title="더블클릭하여 수정"
                       >
                         {entry.content}
                       </p>
                       {entry.imageUrl && (
-                        <div className="mt-2 rounded-lg overflow-hidden border border-slate-200/60 bg-slate-50 inline-block max-w-fit">
+                        <div className="mt-1 rounded-lg overflow-hidden border border-slate-200/60 bg-slate-50 inline-block max-w-fit">
                           <img src={entry.imageUrl} alt="첨부 이미지" className="max-w-full h-auto object-cover max-h-48" loading="lazy" />
                         </div>
                       )}
@@ -570,11 +589,11 @@ export default function DayJournal({
                         <div className="flex flex-wrap gap-2 mt-1">
                           {entry.attachments.map((att, idx) => (
                             att.type === 'image' ? (
-                              <a key={idx} href={att.url} target="_blank" rel="noreferrer" className="block w-16 h-16 rounded-lg overflow-hidden border border-slate-200">
+                              <a key={idx} href={att.url} target="_blank" rel="noreferrer" className="block w-16 h-16 rounded-lg overflow-hidden border border-slate-200 hover:shadow-sm transition-shadow">
                                 <img src={att.url} alt={att.name} className="w-full h-full object-cover" loading="lazy" />
                               </a>
                             ) : (
-                              <a key={idx} href={att.url} target="_blank" rel="noreferrer" className="block px-2 py-1 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-600 truncate max-w-[150px]" title={att.name}>
+                              <a key={idx} href={att.url} target="_blank" rel="noreferrer" className="block px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 truncate max-w-[150px] hover:bg-slate-100 transition-colors" title={att.name}>
                                 📎 {att.name}
                               </a>
                             )
@@ -582,24 +601,25 @@ export default function DayJournal({
                         </div>
                       )}
                     </div>
-              </div>
-            );
-          })
-        ) : (
-          <div className="py-8 text-center text-slate-400 text-xs">
-            <p>기록된 학급 및 업무 일지가 없습니다.</p>
-          </div>
-        )}
-      </div>
-        </>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div className="break-inside-avoid w-full text-center py-10 bg-white/60 rounded-2xl border border-dashed border-slate-300 p-6 shadow-xs">
+              <p className="text-slate-500 font-bold text-sm">등록된 기록이 없습니다.</p>
+            </div>
+          )}
+        </div>
       )}
-      {/* 개별 항목용 파일 업로드 인풋 */}
+
+      {/* 개별 항목 파일 업로드용 숨김 input */}
       <input
         type="file"
         multiple
         className="hidden"
         ref={itemFileInputRef}
-        onChange={handleFileChange}
+        onChange={handleItemFileChange}
       />
     </div>
   );

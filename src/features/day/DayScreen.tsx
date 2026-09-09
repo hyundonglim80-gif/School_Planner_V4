@@ -47,18 +47,37 @@ export default function DayScreen() {
           <p className="text-xs text-slate-400 font-medium">데이터를 불러오는 중입니다...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* 좌측 영역: 오늘 할 일(일정) & 기록 (수업 숨기면 12열, 아니면 5열) */}
-          <div className={`${showClass ? 'lg:col-span-5' : 'lg:col-span-12'} flex flex-col gap-6 transition-all duration-300`}>
-            <DayEvents
-              events={eventList}
-              onAddEvent={addEventItem}
-              onToggleEvent={toggleEventItem}
-              onDeleteEvent={deleteEventItem}
-              onUpdateEvent={updateEventItem}
-              onForwardIncomplete={forwardIncompleteEvents}
-              onReorderEvents={reorderEvents}
-            />
+        <div className="flex flex-col gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* 상단 좌측 영역: 오늘 할 일(일정) (수업 숨기면 12열, 아니면 5열) */}
+            <div className={`${showClass ? 'lg:col-span-5' : 'lg:col-span-12'} flex flex-col gap-6 transition-all duration-300`}>
+              <DayEvents
+                events={eventList}
+                onAddEvent={addEventItem}
+                onToggleEvent={toggleEventItem}
+                onDeleteEvent={deleteEventItem}
+                onUpdateEvent={updateEventItem}
+                onForwardIncomplete={forwardIncompleteEvents}
+                onReorderEvents={reorderEvents}
+              />
+            </div>
+
+            {/* 상단 우측 영역: 수업 및 시간표 (7열) - showClass에 따른 조건부 렌더링 */}
+            {showClass && (
+              <div className="lg:col-span-7 transition-all duration-300">
+                <DaySchedule 
+                  schedules={schedules} 
+                  onSavePeriod={savePeriod} 
+                  onReorderPeriods={reorderPeriods}
+                  dateStr={dateStr}
+                  maxPeriods={maxPeriods}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* 하단 영역: 기록 (메모 페이지 스타일로 가로로 넓게 카드형 배치) */}
+          <div className="w-full">
             <DayJournal
               journals={journals}
               onAddJournal={addJournalEntry}
@@ -67,19 +86,6 @@ export default function DayScreen() {
               onReorderJournals={reorderJournals}
             />
           </div>
-
-          {/* 우측 영역: 수업 및 시간표 (7열) - showClass에 따른 조건부 렌더링 */}
-          {showClass && (
-            <div className="lg:col-span-7 transition-all duration-300">
-              <DaySchedule 
-                schedules={schedules} 
-                onSavePeriod={savePeriod} 
-                onReorderPeriods={reorderPeriods}
-                dateStr={dateStr}
-                maxPeriods={maxPeriods}
-              />
-            </div>
-          )}
         </div>
       )}
     </div>
