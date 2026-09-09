@@ -138,13 +138,16 @@ export default function YearScreen() {
                       const dayOfWeekNum = dObj.dateObj.getDay();
                       const dayOfWeek = DAY_NAMES[dayOfWeekNum];
                       const isTodayEvent = dObj.dateStr === realTodayStr;
-                      const holidayName = holidays[dObj.dateStr];
+                      
+                      const evs = eventsMap[dObj.dateStr] || [];
+                      const sch = schedulesMap[dObj.dateStr] || {};
+
+                      // 공휴일 이벤트 찾기
+                      const holidayEvent = evs.find((e: any) => e.label === '공휴일' || e.labelIds?.includes('공휴일'));
+                      const holidayName = holidays[dObj.dateStr] || holidayEvent?.content;
                       const isHoliday = !!holidayName || dayOfWeekNum === 0;
                       
                       const dateColor = isHoliday ? 'text-red-500' : dayOfWeekNum === 6 ? 'text-blue-500' : 'text-blue-700';
-
-                      const evs = eventsMap[dObj.dateStr] || [];
-                      const sch = schedulesMap[dObj.dateStr] || {};
                       const hasClasses = periodArray.some(p => sch[p]?.subject?.trim() && sch[p]?.subject?.toUpperCase() !== 'X');
 
                       return (

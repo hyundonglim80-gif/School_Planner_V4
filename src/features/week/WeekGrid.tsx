@@ -49,10 +49,9 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
 
         const [, month, dateNum] = day.dateStr.split('-');
         
-        // 날짜 유틸의 고정 휴일 정보가 day 안에는 없으므로(getMonthCalendarDays와 달리)
-        // lib/dateUtils의 getHolidayName을 가져와도 되고, 그냥 holidays 캐시만 바라봐도 됨.
-        // 여기선 달력 데이터와 일관성을 위해 useGovHolidays 의 데이터를 우선 사용.
-        const holidayName = holidays[day.dateStr];
+        // 공휴일 이벤트 찾기
+        const holidayEvent = events.find((e) => e.label === '공휴일' || e.labelIds?.includes('공휴일'));
+        const holidayName = holidays[day.dateStr] || holidayEvent?.content;
         const isHoliday = !!holidayName || day.dayName === '일';
 
         return (

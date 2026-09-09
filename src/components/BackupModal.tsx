@@ -1,3 +1,5 @@
+//src/components/BackupModal.tsx
+
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, doc, setDoc, query, where, documentId, getDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -5,6 +7,7 @@ import { useGroups } from '../hooks/useGroups';
 import { useAppStore } from '../store/useAppStore';
 import { formatDate } from '../lib/dateUtils';
 import { exportToGoogleCalendar, importFromGoogleCalendar } from '../lib/googleSync';
+import { fetchHolidaysFromGovApi } from '../lib/govApi'; // API 훅 추가
 
 interface BackupModalProps {
   isOpen: boolean;
@@ -16,10 +19,66 @@ type ExportTarget = 'calendar' | 'sheets' | 'csv' | 'json';
 
 export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
   const { groups } = useGroups();
-  const { scope: appScope, currentDate: appCurrentDate } = useAppStore();
+  // govApiKey 가져오기 추가
+  const { scope: appScope, currentDate: appCurrentDate, govApiKey } = useAppStore();
 
-  // 1. 동기화 대상 공간 (개인 or 그룹)
+  // 1. 개인 or 그룹 선택
   const [selectedScope, setSelectedScope] = useState<'personal' | string>('personal');
+  
+  // 공휴일 가져오기 연도 상태
+  const [govYear, setGovYear] = useState<number>(new Date().getFullYear());
+
+  const handleImportHolidays = async () => {
+    if (!govApiKey) {
+      alert('설정(Settings) 메뉴에서 공공데이터포털 API 키를 먼저 입력해주세요.');
+      return;
+    }
+    const user = auth.currentUser;
+    if (!user) return;
+
+    setProcessing(true);
+    setStatusMsg(`${govYear}년 공휴일 정보를 가져오는 중...`);
+
+    try {
+      const holidays = await fetchHolidaysFromGovApi(govYear, govApiKey);
+      const holidayDates = Object.keys(holidays);
+
+      if (holidayDates.length === 0) {
+        setProcessing(false);
+        return alert('가져올 공휴일 데이터가 없습니다. API 키를 확인해주세요.');
+      }
+
+      let count = 0;
+      for (const dateStr of holidayDates) {
+        const hName = holidays[dateStr];
+        const ref = doc(db, 'users', user.uid, 'events', dateStr);
+        const snap = await getDoc(ref);
+        const existing = snap.exists() ? snap.data() : {};
+        const eventList = existing.eventList || [];
+
+        // 동일한 이름의 공휴일이 이미 있는지 중복 방지
+        if (!eventList.some((e: any) => e.content === hName)) {
+          eventList.push({
+            id: 'ev_hol_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
+            content: hName,
+            text: hName, // v3 호환
+            label: '공휴일',
+            completed: false,
+            createdAt: Date.now()
+          });
+          await setDoc(ref, { ...existing, eventList, updatedAt: Date.now() }, { merge: true });
+          count++;
+        }
+      }
+      alert(`${govYear}년 공휴일 ${count}건을 일정에 성공적으로 추가했습니다.`);
+    } catch (e: any) {
+      console.error(e);
+      alert('공휴일 가져오기 실패: ' + e.message);
+    } finally {
+      setProcessing(false);
+      setStatusMsg('');
+    }
+  };
 
   // 2. 내보내기 채널 대상 (구글 캘린더, 구글 시트, 로컬 CSV, JSON)
   const [exportTarget, setExportTarget] = useState<ExportTarget>('sheets');
@@ -690,6 +749,31 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
               </label>
             </div>
           </div>
+
+          {/* 🇰🇷 공휴일 가져오기 (여기에 추가됨) */}
+          <div className="p-4 bg-red-50/50 rounded-xl border border-red-100 flex flex-col gap-3 mt-4">
+            <div>
+              <h4 className="text-sm font-bold text-red-800">🇰🇷 공휴일 가져오기</h4>
+              <p className="text-[11px] text-red-600/80 mt-0.5">공공데이터포털에서 지정한 연도의 휴일을 가져와 '공휴일' 라벨이 붙은 일정으로 추가합니다.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input 
+                type="number" 
+                value={govYear} 
+                onChange={(e) => setGovYear(Number(e.target.value))}
+                className="w-24 px-3 py-1.5 border border-red-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-1 focus:ring-red-400 font-bold text-red-700"
+              />
+              <span className="text-sm font-bold text-red-700">년</span>
+              <button
+                onClick={handleImportHolidays}
+                disabled={processing}
+                className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-bold transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+              >
+                {processing && statusMsg.includes('가져오는 중') ? '불러오는 중...' : '휴일 일정 적용하기'}
+              </button>
+            </div>
+          </div>
+
         </div>
 
         {/* 숨겨진 파일 인풋 (가져오기용) */}
@@ -724,7 +808,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
               disabled={processing}
               className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-extrabold shadow-xs transition-all flex items-center gap-1.5"
             >
-              <span>📥</span> {processing ? (statusMsg || '처리 중...') : '내보내기'}
+              <span>📥</span> {processing && !statusMsg.includes('가져오는 중') ? (statusMsg || '처리 중...') : '내보내기'}
             </button>
           </div>
         </div>
