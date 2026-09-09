@@ -29,10 +29,8 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
   const [govYear, setGovYear] = useState<number>(new Date().getFullYear());
 
   const handleImportHolidays = async () => {
-    if (!govApiKey) {
-      alert('설정(Settings) 메뉴에서 공공데이터포털 API 키를 먼저 입력해주세요.');
-      return;
-    }
+    // 🚨 스토어의 키가 없다고 차단하는 로직(if (!govApiKey)...)을 완전히 삭제합니다. 🚨
+    
     const user = auth.currentUser;
     if (!user) return;
 
