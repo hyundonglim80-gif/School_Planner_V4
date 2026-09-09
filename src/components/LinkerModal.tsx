@@ -1,5 +1,7 @@
+//src/components/QuickAddModal.tsx
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { doc, getDoc, setDoc, getDocs, collection } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, collection, addDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { parseV3EventText } from '../hooks/useDayData';
@@ -90,6 +92,10 @@ export default function LinkerModal({
   const [scheduleDate, setScheduleDate] = useState(sourceDateStr || formatDateStr(new Date()));
   const [schedulePeriod, setSchedulePeriod] = useState<number>(1);
 
+  // 새 항목 즉시 생성 상태
+  const [newItemText, setNewItemText] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       setScheduleDate(sourceDateStr || formatDateStr(new Date()));
@@ -139,7 +145,7 @@ export default function LinkerModal({
     return { start: formatDateStr(s), end: formatDateStr(e) };
   }, [dateRange, sourceDateStr, customStart, customEnd]);
 
-  // 메모 전체 로드 (V3 fetchMemoData 이식)
+  // 메모 전체 로드
   const fetchMemoData = useCallback(async () => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
@@ -164,7 +170,7 @@ export default function LinkerModal({
         }
       });
 
-      // 2. 그룹 메모 (현재 선택 그룹이 있으면)
+      // 2. 그룹 메모
       if (selectedGroupId && selectedGroupId !== 'personal') {
         const groupSnap = await getDocs(collection(db, `groups/${selectedGroupId}/tasks`));
         groupSnap.forEach((d) => {
@@ -192,7 +198,7 @@ export default function LinkerModal({
     }
   }, [selectedGroupId]);
 
-  // 기간 범위 데이터 로드 (V3 fetchDateRangeData 이식)
+  // 기간 범위 데이터 로드
   const fetchDateRangeData = useCallback(async () => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
@@ -288,6 +294,7 @@ export default function LinkerModal({
       setCurrentPage(1);
       setSearchKeyword('');
       setSelectedLabelIds([]);
+      setNewItemText('');
       setSelectedSourcePeriod(sourcePeriod ? Number(sourcePeriod) : 1);
       setScheduleDate(sourceDateStr || formatDateStr(new Date()));
       setSchedulePeriod(1);
@@ -302,6 +309,89 @@ export default function LinkerModal({
       fetchDateRangeData();
     }
   }, [dateRange, isOpen, fetchDateRangeData]);
+
+  // 새 항목 즉시 생성 및 장바구니 추가
+  const handleCreateNewItem = async () => {
+    if (!newItemText.trim()) return;
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+
+    setIsCreating(true);
+    try {
+      const text = newItemText.trim();
+      let newItem: FetchedItem | null = null;
+      const dStr = sourceDateStr || formatDateStr(new Date());
+
+      if (currentTab === 'memo') {
+        const colRef = collection(db, getColPath('tasks'));
+        const newDoc = await addDoc(colRef, {
+          content: text,
+          text: text,
+          createdAt: Date.now(),
+          completed: false,
+          labels: [],
+          authorId: uid,
+          authorName: auth.currentUser?.displayName || '',
+        });
+        newItem = { id: newDoc.id, type: 'memo', title: text, date: formatDateStr(new Date()), fId: activeFId };
+        fetchMemoData();
+      } else if (currentTab === 'journal') {
+        const ref = doc(db, getColPath('journals'), dStr);
+        const snap = await getDoc(ref);
+        const existing = snap.exists() ? snap.data() : {};
+        const entries = existing.entries || [];
+        const newId = 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 4);
+        entries.push({
+          id: newId,
+          content: text,
+          createdAt: Date.now(),
+          label: '기본'
+        });
+        await setDoc(ref, { ...existing, entries, updatedAt: Date.now() }, { merge: true });
+        newItem = { id: newId, type: 'journal', title: text, date: dStr, fId: activeFId };
+        fetchDateRangeData();
+      } else if (currentTab === 'event') {
+        const ref = doc(db, getColPath('events'), dStr);
+        const snap = await getDoc(ref);
+        const existing = snap.exists() ? snap.data() : {};
+        let eventList = existing.eventList;
+        if (!eventList || eventList.length === 0) {
+          if (existing.eventText) eventList = parseV3EventText(existing.eventText);
+          else eventList = [];
+        }
+        const newId = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 4);
+        eventList.push({
+          id: newId,
+          content: text,
+          text: text,
+          completed: false,
+          createdAt: Date.now()
+        });
+        await setDoc(ref, { ...existing, eventList, updatedAt: Date.now() }, { merge: true });
+        newItem = { id: newId, type: 'event', title: text, date: dStr, fId: activeFId };
+        fetchDateRangeData();
+      }
+
+      if (newItem) {
+        setSelectedLinks((prev) => [
+          ...prev,
+          {
+            targetType: newItem!.type,
+            targetId: newItem!.id,
+            targetDate: newItem!.date,
+            title: newItem!.title,
+            targetFId: newItem!.fId,
+          },
+        ]);
+      }
+      setNewItemText('');
+    } catch (e: any) {
+      console.error(e);
+      alert('생성 중 오류가 발생했습니다.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   // 항목 선택/해제 토글
   const toggleSelection = (item: FetchedItem) => {
@@ -322,7 +412,7 @@ export default function LinkerModal({
     }
   };
 
-  // 수업 링크 직접 담기 (V3 addScheduleLink 이식)
+  // 수업 링크 직접 담기
   const addScheduleLink = () => {
     if (!scheduleDate || !schedulePeriod) return;
     const fakeId = `class_${scheduleDate}_${schedulePeriod}`;
@@ -359,9 +449,7 @@ export default function LinkerModal({
     setCurrentPage(1);
   };
 
-
-
-  // 최종 링크 저장 (V3 saveLinks 이식)
+  // 최종 링크 저장
   const handleSaveLinks = async () => {
     if (selectedLinks.length === 0) {
       alert('연결할 항목을 선택해주세요.');
@@ -572,6 +660,7 @@ export default function LinkerModal({
                 onClick={() => {
                   setCurrentTab(tab.key);
                   setCurrentPage(1);
+                  setNewItemText(''); // 탭 전환 시 생성 텍스트 초기화
                 }}
                 className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
                   currentTab === tab.key
@@ -584,7 +673,7 @@ export default function LinkerModal({
             ))}
           </div>
 
-          {/* 수업 탭 내용 (V3와 완벽 일치) */}
+          {/* 수업 탭 내용 */}
           {currentTab === 'schedule' ? (
             <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 flex flex-col gap-4">
               <h4 className="text-xs font-bold text-teal-800">🏫 수업 지정하여 연결</h4>
@@ -716,6 +805,33 @@ export default function LinkerModal({
                 }}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
+
+              {/* ✨ 새로운 항목 바로 생성 및 링크 */}
+              <div className="flex items-center gap-2 mt-1">
+                <input
+                  type="text"
+                  placeholder={`새로운 ${
+                    currentTab === 'memo' ? '메모' : currentTab === 'journal' ? '기록' : '일정'
+                  } 바로 생성 후 연결...`}
+                  value={newItemText}
+                  onChange={(e) => setNewItemText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                       e.preventDefault();
+                       handleCreateNewItem();
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-emerald-300 rounded-lg text-xs bg-emerald-50/30 focus:outline-none focus:ring-1 focus:ring-emerald-500 placeholder-emerald-600/50"
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateNewItem}
+                  disabled={isCreating || !newItemText.trim()}
+                  className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shrink-0 shadow-xs"
+                >
+                  {isCreating ? '생성 중...' : '+ 생성 및 연결'}
+                </button>
+              </div>
             </div>
           )}
 
