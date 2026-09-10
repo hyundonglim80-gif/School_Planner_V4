@@ -612,11 +612,11 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
 
   
   // 💡 지난 미완료 할 일 오늘로 가져오기 (Forwarding)
+  // 과거 일정을 이월하는 함수
   const forwardIncompleteEvents = useCallback(async () => {
     const user = auth.currentUser;
     if (!user || !dateStr) return 0;
     
-    // 타임존 오차 방지를 위해 기준 시간을 확실히 설정
     const today = new Date(dateStr + 'T00:00:00');
     const pastDates: string[] = [];
     for (let i = 1; i <= 14; i++) {
@@ -631,7 +631,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const settingsRef = doc(db, 'users', user.uid, 'settings', 'labels');
     const settingsSnap = await getDoc(settingsRef);
     
-    // 설정이 없을 경우 DEFAULT_EVENT_LABELS를 기본으로 사용 (이월 속성 복구 핵심)
+    // 기본 라벨 정의 (DEFAULT_EVENT_LABELS)
     let rawLabelDefs: any[] = [...DEFAULT_EVENT_LABELS];
     
     if (settingsSnap.exists()) {
@@ -644,6 +644,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const forwardLabelNames = rawLabelDefs.filter((l: any) => l.forward || l.isForward).map((l: any) => l.name);
     
     const incompleteItems: EventItem[] = [];
+    // 💡 과거 날짜에서 삭제할 내역을 임시 저장하는 배열 추가
+    const pastUpdates: { pDate: string, updatedList: EventItem[] }[] = [];
+
     for (const pDate of pastDates) {
       const docRef = groupId
         ? doc(db, 'groups', groupId, 'events', pDate)
@@ -658,8 +661,14 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           items = parseV3EventText(data.eventText);
         }
         
+        let hasChanges = false;
+        const remainingItems: EventItem[] = [];
+
         items.forEach(it => {
-          if (it.completed || !it.content.trim()) return;
+          if (it.completed || !it.content.trim()) {
+            remainingItems.push(it);
+            return;
+          }
 
           let labelName = '';
           if (it.label) {
@@ -673,7 +682,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           }
 
           if (forwardLabelNames.includes(labelName)) {
-            // 중복 검사 후 안전하게 복제 (링크와 첨부파일까지 복사)
+            // 이월 대상이므로 오늘 날짜 목록에 추가하고, 과거 목록에서는 제외
             if (!eventList.some(e => e.content === it.content) && !incompleteItems.some(e => e.content === it.content)) {
               incompleteItems.push({
                 id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5),
@@ -685,13 +694,65 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
                 attachments: it.attachments || [],
               });
             }
+            hasChanges = true; // 변경(삭제) 반영 플래그 
+          } else {
+            // 이월 대상이 아닌 일정만 남김
+            remainingItems.push(it);
           }
         });
+
+        if (hasChanges) {
+          pastUpdates.push({ pDate, updatedList: remainingItems });
+        }
       }
     }
+
     if (incompleteItems.length > 0) {
+      // 1. 오늘 날짜로 이월된 항목 저장
       const newList = [...eventList, ...incompleteItems];
       await saveEventItems(newList);
+
+      // 2. 💡 이월된 항목의 링크(역방향 링크)를 타겟 파일들에 오늘 날짜 기준으로 업데이트
+      for (const newItem of incompleteItems) {
+        if (newItem.linkedItems && newItem.linkedItems.length > 0) {
+          const sourceMeta = {
+            targetType: 'event',
+            targetId: newItem.id,
+            targetDate: dateStr, // 과거 날짜가 아닌 오늘 날짜 반영
+            targetPeriod: undefined,
+            title: `[${dateStr || ''}] ${newItem.content}`,
+            targetFId: groupId || 'personal',
+          };
+          for (const link of newItem.linkedItems) {
+            await addReverseLink(link, sourceMeta as any, groupId || 'personal');
+          }
+        }
+      }
+
+      // 3. 💡 어제(과거) 문서에서 이월된 일정 항목 삭제 저장
+      for (const update of pastUpdates) {
+        const pDocRef = groupId
+          ? doc(db, 'groups', groupId, 'events', update.pDate)
+          : doc(db, 'users', user.uid, 'events', update.pDate);
+        
+        const textToSave = formatV3EventText(update.updatedList);
+        const v3EventList = update.updatedList.map(item => ({
+          id: item.id,
+          content: item.content,
+          completed: !!item.completed,
+          authorId: user.uid,
+          authorName: user.displayName || '',
+          label: item.label || '',
+          labelIds: item.labelIds || [],
+          linkedItems: item.linkedItems || [],
+        }));
+        
+        await setDoc(pDocRef, {
+          eventText: textToSave,
+          eventList: v3EventList,
+          updatedAt: Date.now()
+        }, { merge: true });
+      }
     }
     return incompleteItems.length;
   }, [dateStr, groupId, eventList, saveEventItems]);
