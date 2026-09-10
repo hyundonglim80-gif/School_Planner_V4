@@ -88,7 +88,7 @@ export default function MemoScreen() {
                     : { backgroundColor: '#f8fafc', color: '#64748b', borderColor: '#e2e8f0' }
                 }
               >
-                {label.name}
+                {labelName}
               </button>
             );
           })}
