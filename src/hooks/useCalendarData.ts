@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { parseV3EventText, type PeriodSchedule, type EventItem } from './useDayData';
+import { parseV3EventText, type PeriodSchedule, type EventItem, runAutoForwarding } from './useDayData';
 
 export interface DaySummary {
   eventText?: string;
@@ -23,6 +23,9 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
 
     setLoading(true);
 
+    // 💡 주간/월간/년간 데이터 조회 시 이월 로직 자동 실행 (자체 페이지 이월 트리거)
+    runAutoForwarding(groupId).catch((e) => console.error('Calendar Auto-forwarding error:', e));
+
     const unsubs: (() => void)[] = [];
     const currentMap: Record<string, DaySummary> = {};
 
@@ -30,7 +33,7 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
       const eventDocRef = groupId
         ? doc(db, 'groups', groupId, 'events', dStr)
         : doc(db, 'users', user.uid, 'events', dStr);
-
+      
       const scheduleDocRef = groupId
         ? doc(db, 'groups', groupId, 'schedules', dStr)
         : doc(db, 'users', user.uid, 'schedules', dStr);
@@ -40,7 +43,6 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
           const data = snap.data();
           const rawText = data.eventText || '';
           let list: EventItem[] = [];
-
           if (Array.isArray(data.eventList) && data.eventList.length > 0) {
             list = data.eventList
               .map((e: any, idx: number) => ({
@@ -48,6 +50,8 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
                 content: e.content || '',
                 completed: !!e.completed,
                 label: e.label || undefined,
+                labelIds: e.labelIds || undefined,
+                linkedItems: e.linkedItems || [],
               }))
               .filter((e: EventItem) => e.content && e.content.trim().length > 0);
           } else if (rawText) {
@@ -86,6 +90,7 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
               normalized[Number(p)] = {
                 subject: val.subject || '',
                 content: val.content || '',
+                linkedItems: val.linkedItems || [],
               };
             }
           }

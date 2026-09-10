@@ -24,6 +24,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
   const { getLabelColor, getLabel } = useLabels();
   const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal } = useAppStore();
   const { holidays } = useGovHolidays();
+
   const [detailModal, setDetailModal] = useState<{
     isOpen: boolean;
     type: 'schedule' | 'event';
@@ -39,6 +40,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
         const summary = dataMap[day.dateStr] || {};
         const rawEvents = summary.eventList || [];
         const schedules = summary.schedules || {};
+
         const periodKeys = Object.keys(schedules)
           .map(Number)
           .filter((p) => {
@@ -49,13 +51,13 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
 
         const [, month, dateNum] = day.dateStr.split('-');
         
-        // 공휴일 정보 추출
-        const holidayEvent = rawEvents.find((e: any) => e.label === '공휴일' || e.labelIds?.includes('공휴일'));
+        // 휴일 체크
+        const holidayEvent = rawEvents.find((e: any) => e.label === '휴일' || e.labelIds?.includes('휴일'));
         const holidayName = holidays[day.dateStr] || holidayEvent?.content;
         const isHoliday = !!holidayName || day.dayName === '일';
-
-        // 기존 events 변수를 필터링된 배열로 덮어쓰기 (아래 JSX 수정 불필요)
-        const events = rawEvents.filter((e: any) => e.label !== '공휴일' && !e.labelIds?.includes('공휴일'));
+        
+        // 표시할 일반 일정
+        const events = rawEvents.filter((e: any) => e.label !== '휴일' && !e.labelIds?.includes('휴일'));
 
         return (
           <div
@@ -66,7 +68,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
             }`}
           >
             <div>
-              {/* 상단 날짜 및 요일 헤더 */}
+              {/* 상단 날짜 및 헤더 */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
                 <div className="flex items-center gap-2">
                   <span
@@ -75,14 +77,14 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                         ? 'bg-primary text-white shadow-xs'
                         : isHoliday
                         ? 'bg-rose-50 text-rose-600'
-                        : day.isWeekend // 토요일 등
+                        : day.isWeekend
                         ? 'bg-blue-50 text-blue-600'
                         : 'bg-slate-100 text-slate-700'
                     }`}
                   >
                     {day.dayName}
                   </span>
-                
+                  
                   <div className="flex flex-col">
                     <span className="text-xs font-bold text-slate-700">
                       {Number(month)}.{Number(dateNum)}
@@ -94,19 +96,14 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                     )}
                   </div>
                 </div>
-
-                <span className="text-[10px] text-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                  하루 ➔
-                </span>
               </div>
 
-              {/* 시간표 섹션 */}
+              {/* 시간표 (수업) 영역 */}
               {showClass && (
               <div className="mb-4">
                 <div className="text-[11px] font-extrabold text-slate-400 mb-2 flex items-center gap-1">
-                  <span>⏰</span> 시간표
+                  <span>수업</span>
                 </div>
-
                 {periodKeys.length > 0 ? (
                   <div className="space-y-1">
                     {periodKeys.map((p) => {
@@ -138,10 +135,10 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                                 e.stopPropagation();
                                 openLinkViewerModal('schedule', day.dateStr, String(p), p);
                               }}
-                              className="bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.2 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
-                              title="연결된 항목 보기 및 수정"
+                              className="bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
+                              title={`링크된 항목 ${(item.linkedItems || []).length}개`}
                             >
-                              📑 {(item.linkedItems || []).length}
+                              🔗 {(item.linkedItems || []).length}
                             </button>
                           )}
                         </div>
@@ -150,29 +147,29 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                   </div>
                 ) : (
                   <div className="text-[11px] text-slate-300 py-1 pl-1">
-                    수업 없음
+                    일정이 없습니다.
                   </div>
                 )}
               </div>
               )}
 
-              {/* 일정 섹션 */}
+              {/* 일정 (이벤트) 영역 */}
               {showEvents && (
               <div>
                 <div className="text-[11px] font-extrabold text-slate-400 mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-1">
-                    <span>📌</span> 일정
+                    <span>일정</span>
                   </div>
                   <div className="flex items-center gap-1">
                     {events.length > 0 && (
-                      <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-full font-bold">
+                      <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full font-bold">
                         {events.length}
                       </span>
                     )}
                     <button
                       onClick={(e) => { e.stopPropagation(); onQuickAdd(day.dateStr); }}
                       className="ml-1 w-5 h-5 rounded hover:bg-slate-200 text-slate-400 hover:text-primary flex items-center justify-center transition-colors text-xs font-bold leading-none"
-                      title="새 일정 추가"
+                      title="일정 빠른 추가"
                     >
                       +
                     </button>
@@ -233,6 +230,8 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                             </span>
                           )}
                           <span className="break-words flex-1">{ev.content}</span>
+                          
+                          {/* 💡 일정 옆 링크 아이콘 추가 */}
                           {(ev.linkedItems || []).length > 0 && (
                             <button
                               type="button"
@@ -240,10 +239,10 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                                 e.stopPropagation();
                                 openLinkViewerModal('event', day.dateStr, ev.id);
                               }}
-                              className="bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.2 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
-                              title="연결된 내용 보기 및 수정"
+                              className="bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
+                              title={`링크된 항목 ${(ev.linkedItems || []).length}개`}
                             >
-                              📑 {(ev.linkedItems || []).length}
+                              🔗 {(ev.linkedItems || []).length}
                             </button>
                           )}
                         </div>
@@ -252,21 +251,17 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                   </div>
                 ) : (
                   <div className="text-[11px] text-slate-300 py-1 pl-1">
-                    등록된 일정 없음
+                    일정이 없습니다.
                   </div>
                 )}
               </div>
               )}
             </div>
-
-            {/* 하단 푸터 영역 */}
-            <div className="pt-3 mt-3 border-t border-slate-50 text-[10px] text-slate-400 text-center">
-              자세히 보기
-            </div>
           </div>
         );
       })}
     </div>
+
     {detailModal && (
       <DetailEditModal
         isOpen={detailModal.isOpen}

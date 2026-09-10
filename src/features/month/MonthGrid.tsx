@@ -1,5 +1,3 @@
-//src/features/month/MonthGrid.tsx
-
 import React from 'react';
 import type { CalendarDay } from '../../lib/dateUtils';
 import type { DaySummary } from '../../hooks/useCalendarData';
@@ -30,16 +28,19 @@ const ALL_WEEKDAYS = [
 
 export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, showWeekend = true }: MonthGridProps) {
   const currentWeekdays = showWeekend ? ALL_WEEKDAYS : ALL_WEEKDAYS.slice(1, 6);
-  const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection } = useAppStore();
+  const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal } = useAppStore();
+
   const displayDays = React.useMemo(() => {
     if (!showWeekend) {
       return days.filter((d) => !d.isSunday && !d.isSaturday);
     }
     return days;
   }, [days, showWeekend]);
+
   const { getLabelColor } = useLabels();
   const { holidays } = useGovHolidays();
   const { templates, currentTemplateName } = useTimetableTemplate();
+  
   const maxPeriods = templates[currentTemplateName]?.names.length || 6;
   const periodArray = Array.from({ length: maxPeriods }, (_, i) => i + 1);
 
@@ -67,15 +68,17 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
           const summary = dataMap[dayObj.dateStr] || {};
           const rawEvents = summary.eventList || [];
           const schedules = summary.schedules || {};
+          
           const hasClasses = periodArray.some(p => schedules[p]?.subject?.trim() && schedules[p]?.subject?.toUpperCase() !== 'X');
           
-          // 공휴일 정보 추출
-          const holidayEvent = rawEvents.find((e: any) => e.label === '공휴일' || e.labelIds?.includes('공휴일'));
+          // 휴일 체크
+          const holidayEvent = rawEvents.find((e: any) => e.label === '휴일' || e.labelIds?.includes('휴일'));
           const holidayName = dayObj.holidayName || holidays[dayObj.dateStr] || holidayEvent?.content;
           const isHoliday = !!holidayName || dayObj.isSunday;
           
-          // 기존 events 변수를 필터링된 배열로 덮어쓰기 (아래 JSX 수정 불필요)
-          const events = rawEvents.filter((e: any) => e.label !== '공휴일' && !e.labelIds?.includes('공휴일'));
+          // 표시할 일반 일정
+          const events = rawEvents.filter((e: any) => e.label !== '휴일' && !e.labelIds?.includes('휴일'));
+
           return (
             <div
               key={dayObj.dateStr}
@@ -106,19 +109,19 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                       </span>
                     )}
                   </div>
+                  
                   <div className="flex items-center gap-1">
-                    {/* 퀵 추가 버튼 */}
                     <button
                       onClick={(e) => { e.stopPropagation(); onQuickAdd(dayObj.dateStr); }}
                       className="w-5 h-5 rounded hover:bg-slate-200 text-slate-400 hover:text-primary flex items-center justify-center transition-colors text-xs font-bold leading-none opacity-0 group-hover:opacity-100"
-                      title="일정 추가"
+                      title="빠른 추가"
                     >
                       +
                     </button>
                   </div>
                 </div>
                 
-                {/* V3 스타일 시간표 블록 표시 */}
+                {/* V3 수업 방식 */}
                 {showClass && hasClasses && (
                   <div className="flex flex-nowrap gap-[1px] w-full mb-1.5 mt-0.5">
                     {periodArray.map((p) => {
@@ -126,7 +129,6 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                       const text = item?.subject?.trim() || '';
                       
                       if (text && text.toUpperCase() !== 'X') {
-                        // V3의 글자 길이에 따른 동적 폰트 크기/자간 로직 이식
                         let fontSize = "text-[11px]";
                         let tracking = "tracking-normal";
                         if (text.length >= 5) { fontSize = "text-[7px]"; tracking = "tracking-tighter"; }
@@ -147,7 +149,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                               });
                             }}
                             className={`flex-1 min-w-0 h-[20px] flex items-center justify-center border border-emerald-300 rounded-[3px] bg-emerald-50 text-emerald-700 font-bold ${fontSize} ${tracking} whitespace-nowrap overflow-hidden cursor-pointer hover:bg-emerald-200 transition-colors`}
-                            title={`${text} (클릭하여 수정)`}
+                            title={`${text} (${p}교시)`}
                           >
                             {text}
                           </div>
@@ -216,32 +218,38 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                           </span>
                         )}
                         <span className="truncate flex-1">{ev.content}</span>
-                        {ev.linkedItems && ev.linkedItems.length > 0 && (
-                          <span className="text-[9px] text-yellow-800 font-bold shrink-0" title={`연결된 링크 ${ev.linkedItems.length}개`}>
-                            📑
-                          </span>
+                        
+                        {/* 💡 일정 옆 링크 아이콘 추가 */}
+                        {(ev.linkedItems || []).length > 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openLinkViewerModal('event', dayObj.dateStr, ev.id);
+                            }}
+                            className="bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer ml-1"
+                            title={`링크된 항목 ${(ev.linkedItems || []).length}개`}
+                          >
+                            🔗 {(ev.linkedItems || []).length}
+                          </button>
                         )}
                       </div>
                     );
                   })}
-
                   {events.length > 3 && (
                     <div className="text-[10px] font-bold text-slate-400 pl-1">
-                      +{events.length - 3}개 더보기
+                      +{events.length - 3}개
                     </div>
                   )}
                 </div>
                 )}
-              </div>
-
-              <div className="text-[10px] text-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity text-right">
-                보기 ➔
               </div>
             </div>
           );
         })}
       </div>
     </div>
+
     {detailModal && (
       <DetailEditModal
         isOpen={detailModal.isOpen}

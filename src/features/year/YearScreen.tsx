@@ -1,5 +1,3 @@
-//src/features/year/YearScreen.tsx
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, documentId, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
@@ -15,8 +13,7 @@ import QuickAddModal from '../../components/QuickAddModal';
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
 export default function YearScreen() {
-  const { currentDate, setCurrentDate, setScope, semesterFilter, showWeekend, showClass, showEvents, selectedGroupId, isMultiSelectMode, selectedEventIds, toggleEventSelection } = useAppStore();
-  
+  const { currentDate, setCurrentDate, setScope, semesterFilter, showWeekend, showClass, showEvents, selectedGroupId, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal } = useAppStore();
   const [eventsMap, setEventsMap] = useState<Record<string, any[]>>({});
   const [schedulesMap, setSchedulesMap] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
@@ -33,7 +30,6 @@ export default function YearScreen() {
   const { getLabelColor, getLabel } = useLabels();
   const { holidays } = useGovHolidays();
   const { templates, currentTemplateName } = useTimetableTemplate();
-  
   const maxPeriods = templates[currentTemplateName]?.names.length || 6;
   const periodArray = Array.from({ length: maxPeriods }, (_, i) => i + 1);
 
@@ -47,16 +43,15 @@ export default function YearScreen() {
     return list.filter((m) => m.semester === semesterFilter);
   }, [defaultAcademicYear, semesterFilter]);
 
-  // 1년치 데이터 범위 로드 (V3 최적화 방식)
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
-
+    
     const startStr = `${defaultAcademicYear}-03-01`;
     const endStr = `${defaultAcademicYear + 1}-02-29`;
-
+    
     const colPath = (col: string) => selectedGroupId && selectedGroupId !== 'personal' ? `groups/${selectedGroupId}/${col}` : `users/${user.uid}/${col}`;
-
+    
     setLoading(true);
 
     const unsubEvents = onSnapshot(query(collection(db, colPath('events')), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)), (snap) => {
@@ -92,7 +87,7 @@ export default function YearScreen() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-primary" />
-          <p className="text-xs text-slate-400 font-medium">연간 데이터를 불러오는 중입니다...</p>
+          <p className="text-xs text-slate-400 font-medium">데이터를 불러오는 중...</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -104,7 +99,6 @@ export default function YearScreen() {
               return { day: d, dateStr, dateObj: new Date(mInfo.year, mInfo.month - 1, d) };
             });
 
-            // V3와 동일하게 일정이 있거나 수업이 있는 날짜만 추출
             const activeDays = days.filter(dObj => {
               const dayOfWeekNum = dObj.dateObj.getDay();
               if (!showWeekend && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return false;
@@ -141,16 +135,14 @@ export default function YearScreen() {
                       
                       const evs = eventsMap[dObj.dateStr] || [];
                       const sch = schedulesMap[dObj.dateStr] || {};
-
-                      // 1. 공휴일 일정 찾기 (추석 등 음력 파악용)
-                      const holidayEvent = evs.find((e: any) => e.label === '공휴일' || e.labelIds?.includes('공휴일'));
+                      
+                      const holidayEvent = evs.find((e: any) => e.label === '휴일' || e.labelIds?.includes('휴일'));
                       const holidayName = holidays[dObj.dateStr] || holidayEvent?.content;
                       const isHoliday = !!holidayName || dayOfWeekNum === 0;
                       
                       const dateColor = isHoliday ? 'text-red-500' : dayOfWeekNum === 6 ? 'text-blue-500' : 'text-blue-700';
-
-                      // 2. 화면에 블록으로 그릴 이벤트에서 '공휴일'은 제외 (숨김)
-                      const visibleEvents = evs.filter((e: any) => e.label !== '공휴일' && !e.labelIds?.includes('공휴일'));
+                      
+                      const visibleEvents = evs.filter((e: any) => e.label !== '휴일' && !e.labelIds?.includes('휴일'));
                       const hasClasses = periodArray.some(p => sch[p]?.subject?.trim() && sch[p]?.subject?.toUpperCase() !== 'X');
 
                       return (
@@ -158,13 +150,13 @@ export default function YearScreen() {
                           key={dObj.dateStr} 
                           className={`flex flex-col gap-1.5 pb-3 border-b border-dashed border-slate-200 last:border-0 last:pb-0 ${isTodayEvent ? 'bg-blue-50/50 p-2 rounded-xl border-blue-200 border-solid -mx-2 px-2' : ''}`}
                         >
-                          {/* 날짜 헤더 */}
+                          {/* 헤더 */}
                           <div className="flex items-center justify-between">
                             <div 
                               className={`font-black cursor-pointer hover:underline flex items-center gap-1 ${dateColor} ${isTodayEvent ? 'text-base' : 'text-sm'}`}
                               onClick={() => handleDateClick(dObj.dateStr)}
                             >
-                              <span>{dObj.day}일({dayOfWeek})</span>
+                              <span>{dObj.day}일 ({dayOfWeek})</span>
                               {isTodayEvent && <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded-full ml-1">오늘</span>}
                               {holidayName && <span className="text-[10px] text-red-500 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md ml-1">{holidayName}</span>}
                             </div>
@@ -176,9 +168,8 @@ export default function YearScreen() {
                             </button>
                           </div>
 
-                          {/* 콘텐츠: 수업 & 일정 */}
                           <div className="flex flex-col gap-2">
-                            {/* 수업 블록 */}
+                            {/* 수업 표시 */}
                             {showClass && hasClasses && (
                               <div className="flex flex-nowrap gap-[1px] w-full mt-0.5">
                                 {periodArray.map((p) => {
@@ -199,7 +190,7 @@ export default function YearScreen() {
                                           setDetailModal({ isOpen: true, type: 'schedule', dateStr: dObj.dateStr, itemId: p, initialData: item });
                                         }}
                                         className={`flex-1 min-w-0 h-[22px] flex items-center justify-center border border-emerald-300 rounded-[3px] bg-emerald-50 text-emerald-700 font-bold ${fontSize} ${tracking} whitespace-nowrap overflow-hidden cursor-pointer hover:bg-emerald-200 transition-colors shadow-2xs`}
-                                        title={`${text} (클릭하여 수정)`}
+                                        title={`${text} (${p}교시)`}
                                       >
                                         {text}
                                       </div>
@@ -210,7 +201,7 @@ export default function YearScreen() {
                               </div>
                             )}
 
-                            {/* 일정 뱃지 목록 */}
+                            {/* 이벤트 표시 */}
                             {showEvents && visibleEvents.length > 0 && (
                               <div className="flex flex-col gap-1">
                                 {visibleEvents.map((ev) => {
@@ -251,6 +242,21 @@ export default function YearScreen() {
                                         </span>
                                       )}
                                       <span className="break-words flex-1 leading-snug">{ev.content}</span>
+                                      
+                                      {/* 💡 연간 일정에도 링크 아이콘 버튼 추가 */}
+                                      {(ev.linkedItems || []).length > 0 && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openLinkViewerModal('event', dObj.dateStr, ev.id);
+                                          }}
+                                          className="bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer ml-1"
+                                          title={`링크된 항목 ${(ev.linkedItems || []).length}개`}
+                                        >
+                                          🔗 {(ev.linkedItems || []).length}
+                                        </button>
+                                      )}
                                     </div>
                                   );
                                 })}
@@ -262,7 +268,7 @@ export default function YearScreen() {
                     })
                   ) : (
                     <div className="text-center text-slate-400 text-xs py-8 font-semibold">
-                      등록된 일정이 없습니다.
+                      기록된 일정이 없습니다.
                     </div>
                   )}
                 </div>
