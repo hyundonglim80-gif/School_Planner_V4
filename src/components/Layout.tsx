@@ -509,13 +509,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* 사용자 프로필 및 로그아웃 */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-medium text-slate-500 hidden md:inline">
+            <div className="flex items-center gap-2 pl-1">
+              {/* ✨ 구글 프로필 사진 출력 */}
+              {user?.photoURL ? (
+                <img 
+                  src={user.photoURL} 
+                  alt="Profile" 
+                  className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border-2 border-white shadow-sm object-cover"
+                  title={user?.displayName || '사용자'}
+                />
+              ) : (
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-xs font-bold text-slate-500 shadow-sm">
+                  {(user?.displayName || '선').charAt(0)}
+                </div>
+              )}
+              <span className="text-xs font-extrabold text-slate-700 hidden md:inline truncate max-w-[80px]">
                 {user?.displayName || '선생님'}
               </span>
               <button
                 onClick={logout}
-                className="px-2 py-1 sm:px-3 sm:py-1.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-xl font-bold text-[10px] sm:text-xs transition-colors shrink-0"
+                className="px-2 py-1 sm:px-3 sm:py-1.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-xl font-bold text-[10px] sm:text-xs transition-colors shrink-0 ml-1"
               >
                 로그아웃
               </button>

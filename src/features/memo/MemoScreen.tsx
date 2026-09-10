@@ -1,15 +1,18 @@
+//src/features/memo/MemoScreen.tsx
+
 import React, { useState } from 'react';
 import { useMemos } from '../../hooks/useMemos';
 import type { Memo, MemoAttachment } from '../../hooks/useMemos';
 import { useAppStore } from '../../store/useAppStore';
+import { useLabels } from '../../hooks/useLabels'; // ✨ 라벨 훅 추가
 import MemoCard from './MemoCard';
-import MemoFilter from './MemoFilter';
 import MemoDrawer from './MemoDrawer';
 import QuickLinks from './QuickLinks';
 
 export default function MemoScreen() {
   const { selectedGroupId } = useAppStore();
   const { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, deleteCompletedMemos } = useMemos(selectedGroupId);
+  const { memoLabels, getLabelColor } = useLabels(); // ✨ 등록된 메모 라벨 가져오기
   const [currentFilter, setCurrentFilter] = useState('전체');
   const [hideCompleted, setHideCompleted] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -60,7 +63,36 @@ export default function MemoScreen() {
     <div className="animate-fade-in pb-12">
       {/* 상단 컨트롤 바 (필터 바 및 액션 버튼들) */}
       <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
-        <MemoFilter currentFilter={currentFilter} onFilterChange={setCurrentFilter} />
+        
+        {/* ✨ 등록된 라벨 기반 필터 UI 직접 구현 */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide max-w-full">
+          <button
+            onClick={() => setCurrentFilter('전체')}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${
+              currentFilter === '전체' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            전체
+          </button>
+          {memoLabels.map(label => {
+            const isSelected = currentFilter === label.name;
+            const color = getLabelColor(label.name);
+            return (
+              <button
+                key={label.id}
+                onClick={() => setCurrentFilter(label.name)}
+                className="px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border"
+                style={
+                  isSelected
+                    ? { backgroundColor: color.bg, color: color.text, borderColor: color.border, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }
+                    : { backgroundColor: '#f8fafc', color: '#64748b', borderColor: '#e2e8f0' }
+                }
+              >
+                {label.name}
+              </button>
+            );
+          })}
+        </div>
 
         <div className="flex items-center gap-2 flex-wrap">
           {completedMemos.length > 0 && (
