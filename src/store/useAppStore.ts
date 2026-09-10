@@ -94,9 +94,12 @@ interface AppState {
   labelModalTab: 'event' | 'journal' | 'memo';
   openLabelModal: (tab?: 'event' | 'journal' | 'memo') => void;
   closeLabelModal: () => void;
+  
+  clearAuthData: () => void;
 }
 
 export const useAppStore = create<AppState>()(
+  
   persist(
     (set, get) => ({
       scope: 'day',
@@ -107,6 +110,16 @@ export const useAppStore = create<AppState>()(
       currentDate: new Date().toISOString(),
       selectedGroupId: null,
       govApiKey: '',
+	  
+	  clearAuthData: () => set({
+		  selectedGroupId: null,
+		  govApiKey: '',
+		  googleAccessToken: null,
+		  selectedEventIds: [],
+		  selectedEventDateMap: {},
+		  isMultiSelectMode: false,
+		}),
+	  
       setScope: (scope) => {
         set({ scope }); // showClass를 강제로 덮어쓰지 않고 기존 상태 유지
       },
@@ -355,15 +368,17 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'sp4-app-storage',
-      partialize: (state) => ({ 
-        scope: state.scope, 
+      // 개인정보/계정 관련 데이터는 제외하고 순수 UI 설정만 로컬에 캐싱합니다.
+      partialize: (state) => ({
+        scope: state.scope,
         semesterFilter: state.semesterFilter,
-        showWeekend: state.showWeekend, 
+        showWeekend: state.showWeekend,
         showClass: state.showClass,
         showEvents: state.showEvents,
-        selectedGroupId: state.selectedGroupId,
-        govApiKey: state.govApiKey,
+        // selectedGroupId와 govApiKey는 로컬 캐싱 대상에서 제거
       }),
     }
   )
 );
+
+

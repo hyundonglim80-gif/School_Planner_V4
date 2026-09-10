@@ -705,11 +705,17 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   // 자동 포워딩 (오늘 날짜일 때만, 한 번만 실행)
   useEffect(() => {
     if (!loading && eventList.length >= 0) {
+      const user = auth.currentUser;
+      if (!user) return; // 유저 확인 추가
+
       const now = new Date();
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       
-      if (dateStr === todayStr && !(window as any).__sp4_forwarded) {
-        (window as any).__sp4_forwarded = true;
+      // 계정별(UID) 고유 키를 사용하여 플래그 겹침 방지
+      const forwardFlagKey = `__sp4_forwarded_${user.uid}`;
+      
+      if (dateStr === todayStr && !(window as any)[forwardFlagKey]) {
+        (window as any)[forwardFlagKey] = true;
         forwardIncompleteEvents().catch(console.error);
       }
     }
