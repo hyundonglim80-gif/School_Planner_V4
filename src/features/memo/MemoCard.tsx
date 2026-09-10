@@ -2,7 +2,7 @@ import React from 'react';
 import type { Memo } from '../../hooks/useMemos';
 import { renderFormattedText } from '../../lib/textUtils';
 import { useAppStore } from '../../store/useAppStore';
-import { useLabels } from '../../hooks/useLabels'; // 💡 라벨 훅 임포트 추가
+import { useLabels } from '../../hooks/useLabels';
 
 interface MemoCardProps {
   memo: Memo;
@@ -52,10 +52,9 @@ const isImageFile = (att: NormalizedAttachment): boolean => {
 
 export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: MemoCardProps) {
   const { openLinkerModal, openLinkViewerModal } = useAppStore();
-  const { memoLabels } = useLabels(); // 💡 통합 메모 라벨 가져오기
+  const { memoLabels } = useLabels();
 
   const isCompleted = !!memo.completed;
-  const validLabels = (memo.labels || []).filter(label => memoLabels.includes(label)); // 💡 삭제된 라벨 거르기
   const linkCount = (memo.linkedItems || []).length;
 
   const memoDate = new Date(memo.createdAt);
@@ -75,6 +74,9 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
   const fileAttachments = React.useMemo(() => {
     return normalizedAttachments.filter((a) => !isImageFile(a));
   }, [normalizedAttachments]);
+
+  // 💡 등록된 라벨인지 확인하여 삭제된 라벨 거르기
+  const validLabels = (memo.labels || []).filter(label => memoLabels.includes(label));
 
   return (
     <div
@@ -177,7 +179,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
                 </a>
               </div>
             ))}
-            {/* 2. 일반 파일 렌더링 (디자인 개선) */}
+            {/* 2. 일반 파일 렌더링 */}
             {fileAttachments.map((fileAtt, idx) => {
               let icon = '📁';
               const name = fileAtt.name || '';
@@ -231,7 +233,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
         </p>
       </div>
 
-      {/* 하단 라벨 */}
+      {/* 💡 하단 라벨 (필터링된 validLabels만 렌더링) */}
       {validLabels.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-4 pt-3 border-t border-slate-50">
           {validLabels.map((label) => (
@@ -243,5 +245,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
             </span>
           ))}
         </div>
+      )}
+    </div>
   );
 }
