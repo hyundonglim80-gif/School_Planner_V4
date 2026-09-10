@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { DEFAULT_EVENT_LABELS, EventLabel } from '../hooks/useLabels'; // 💡 공통 규격 임포트
+import { DEFAULT_EVENT_LABELS, type EventLabel } from '../hooks/useLabels';
 
 interface MemoLabel {
   id: string;
