@@ -2,16 +2,21 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- ✨ 브라우저 탭 아이콘 (캐시 회피용 꼬리표 ?v=4.0 적용) -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=4.0" />
+    <link rel="apple-touch-icon" href="/favicon.svg?v=4.0" />
+    
+    <!-- PWA 매니페스트 (이것도 캐시 회피) -->
+    <link rel="manifest" href="/manifest.json?v=4.0" />
+    
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#2563eb" />
-    <link rel="apple-touch-icon" href="./favicon.svg" />
-    <link rel="manifest" href="./manifest.json" />
     <title>School Planner V4</title>
+    
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js').catch(err => {
+          navigator.serviceWorker.register('/sw.js').catch(err => {
             console.log('[SP4] Service Worker 등록 실패:', err);
           });
         });
