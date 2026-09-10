@@ -1,3 +1,4 @@
+//src/hooks/useLabels.ts
 import { useState, useEffect } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -13,26 +14,27 @@ export interface EventLabel {
   recur?: boolean;
 }
 
+// 💡 5대 기본 라벨 규격 완벽 통일 (이월 기능 정상 동작의 핵심)
 export const DEFAULT_EVENT_LABELS: EventLabel[] = [
-  { id: 'ev_1', name: ' ', color: 'red', calendar: true, skip: false, forward: false },
-  { id: 'ev_2', name: ' ', color: 'orange', calendar: true, skip: false, forward: false },
-  { id: 'ev_3', name: ' ', color: 'blue', calendar: false, skip: false, forward: false },
-  { id: 'ev_4', name: ' ', color: 'green', calendar: false, skip: false, forward: true },
-  { id: 'ev_5', name: ' ', color: 'purple', calendar: false, skip: false, forward: false },
+  { id: 'ev_1', name: '달력', color: 'red', calendar: true, skip: false, forward: false, period: false, recur: false },
+  { id: 'ev_2', name: '수업X', color: 'orange', calendar: true, skip: true, forward: false, period: false, recur: false },
+  { id: 'ev_3', name: '이월', color: 'green', calendar: false, skip: false, forward: true, period: false, recur: false },
+  { id: 'ev_4', name: '기간', color: 'indigo', calendar: false, skip: false, forward: false, period: true, recur: false },
+  { id: 'ev_5', name: '반복', color: 'purple', calendar: false, skip: false, forward: false, period: false, recur: true },
 ];
 
 const DEFAULT_MEMO_LABELS = ['긴급', '중요', '업무', '개인', '기타'];
 
 export const COLOR_PALETTE: Record<string, { bg: string; text: string; border: string; label: string }> = {
-  blue: { bg: '#dbeafe', text: '#1e40af', border: '#93c5fd', label: ' ' },
-  green: { bg: '#dcfce7', text: '#166534', border: '#86efac', label: ' ' },
-  red: { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5', label: ' ' },
-  orange: { bg: '#ffedd5', text: '#9a3412', border: '#fdba74', label: ' ' },
-  yellow: { bg: '#fef9c3', text: '#854d0e', border: '#fde047', label: ' ' },
-  indigo: { bg: '#e0e7ff', text: '#3730a3', border: '#a5b4fc', label: ' ' },
-  purple: { bg: '#f3e8ff', text: '#6b21a8', border: '#d8b4fe', label: ' ' },
-  pink: { bg: '#fce7f3', text: '#9d174d', border: '#f9a8d4', label: ' ' },
-  gray: { bg: '#f1f5f9', text: '#334155', border: '#cbd5e1', label: ' ' },
+  blue: { bg: '#dbeafe', text: '#1e40af', border: '#93c5fd', label: '파랑' },
+  green: { bg: '#dcfce7', text: '#166534', border: '#86efac', label: '초록' },
+  red: { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5', label: '빨강' },
+  orange: { bg: '#ffedd5', text: '#9a3412', border: '#fdba74', label: '주황' },
+  yellow: { bg: '#fef9c3', text: '#854d0e', border: '#fde047', label: '노랑' },
+  indigo: { bg: '#e0e7ff', text: '#3730a3', border: '#a5b4fc', label: '남색' },
+  purple: { bg: '#f3e8ff', text: '#6b21a8', border: '#d8b4fe', label: '보라' },
+  pink: { bg: '#fce7f3', text: '#9d174d', border: '#f9a8d4', label: '분홍' },
+  gray: { bg: '#f1f5f9', text: '#334155', border: '#cbd5e1', label: '회색' },
 };
 
 export function useLabels() {
@@ -75,7 +77,7 @@ export function useLabels() {
     });
 
     return () => unsub();
-  }, [auth.currentUser?.uid]); // Using auth.currentUser?.uid to re-trigger if needed, though mostly it's constant once logged in
+  }, [auth.currentUser?.uid]);
 
   const getLabelColor = (labelName: string) => {
     const label = eventLabels.find(l => l.name === labelName);

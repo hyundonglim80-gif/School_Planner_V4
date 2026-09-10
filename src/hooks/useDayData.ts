@@ -1,15 +1,16 @@
-import { useState, useEffect, useCallback, useRef } from 'react'; // useRef 추가
+//src/hooks/useDayData.ts
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { addReverseLink } from '../utils/linkUtils';
 import { moveToTrash } from '../utils/trashHelper';
-import { DEFAULT_EVENT_LABELS } from './useLabels'; // 기본 라벨 임포트 추가
+import { DEFAULT_EVENT_LABELS } from './useLabels'; // 💡 기본 라벨 임포트
 
 export interface Attachment {
   id?: string;
   name: string;
   url: string;
-  type: string; // 'image', 'document', etc.
+  type: string;
   size?: number;
 }
 
@@ -26,8 +27,8 @@ export interface EventItem {
 
 export interface PeriodSchedule {
   subject: string;
-  content: string; // V4 기존 (V3에서는 memo로 사용되기도 함)
-  memo?: string;   // V3 호환
+  content: string;
+  memo?: string;
   supplies?: string;
   linkedItems?: any[];
   imageUrl?: string;
@@ -45,11 +46,6 @@ export interface JournalEntry {
   attachments?: Attachment[];
 }
 
-/**
- * V3 eventText 문자열 파서
- * [v] 또는 [V] 로 시작하면 완료 처리
- * [라벨명] 내용 형식이면 라벨 분리
- */
 export function parseV3EventText(rawText: string): EventItem[] {
   if (!rawText || !rawText.trim()) return [];
   const lines = rawText.split('\n');
@@ -73,7 +69,6 @@ export function parseV3EventText(rawText: string): EventItem[] {
       content = labelMatch[2].trim();
     }
 
-    // Generate stable hash-based ID instead of Date.now() to prevent ID churn across re-renders
     const contentStr = content || t;
     const contentHash = Math.abs(contentStr.split('').reduce((acc, char) => ((acc << 5) - acc) + char.charCodeAt(0), 0)).toString(36);
     list.push({
@@ -87,9 +82,6 @@ export function parseV3EventText(rawText: string): EventItem[] {
   return list;
 }
 
-/**
- * V3 호환 eventText 직렬화
- */
 export function formatV3EventText(items: EventItem[]): string {
   return items
     .map((item) => {
@@ -120,7 +112,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
 
     setLoading(true);
 
-    // 네트워크 지연/학교 방화벽 차단 등으로 인한 무한 로딩 방지 타임아웃 (3초)
     const fallbackTimeout = setTimeout(() => {
       setLoading(false);
     }, 3000);
@@ -137,7 +128,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       ? doc(db, 'groups', groupId, 'journals', dateStr)
       : doc(db, 'users', user.uid, 'journals', dateStr);
 
-    // 1. 이벤트/할일 동기화 (V3 eventList & eventText 호환)
     const unsubEvent = onSnapshot(eventDocRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
@@ -185,7 +175,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       setLoading(false);
     });
 
-    // 2. 시간표 동기화 (V3 periods 구조 호환)
     const unsubSchedule = onSnapshot(scheduleDocRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
@@ -215,7 +204,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       setLoading(false);
     });
 
-    // 3. 일지 동기화 (V3 entries 구조 호환)
     const unsubJournal = onSnapshot(journalDocRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
@@ -254,7 +242,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     };
   }, [dateStr, groupId, auth.currentUser?.uid]);
 
-  // 오늘 할 일 목록 저장 (V3 eventList + eventText 양방향 동시 저장)
   const saveEventItems = useCallback(async (newList: EventItem[]) => {
     const user = auth.currentUser;
     if (!user || !dateStr) return;
@@ -345,7 +332,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
 
     let currentList = [...eventList];
 
-    // 만약 현재 state의 eventList가 비어있다면 Firestore에서 최신 목록 가져오기 (DetailEditModal 등 대비)
     if (currentList.length === 0) {
       try {
         const snap = await getDoc(eventDocRef);
@@ -369,10 +355,8 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       }
     }
 
-    // 1. 문자열로 엄격/비엄격 변환 매칭하여 대상 항목 찾기
     let itemToDelete = currentList.find(item => String(item.id) === String(id));
 
-    // 2. 만약 못 찾았을 경우 fallbackItem 활용
     if (!itemToDelete && fallbackItem && fallbackItem.content) {
       itemToDelete = {
         id: String(id),
@@ -384,7 +368,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       };
     }
 
-    // 3. 휴지통으로 이동
     if (itemToDelete) {
       try {
         await moveToTrash({
@@ -400,7 +383,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       }
     }
 
-    // 4. 원래 목록에서 해당 id 제외 후 저장
     const newList = currentList.filter(item => String(item.id) !== String(id));
     await saveEventItems(newList);
   }, [eventList, saveEventItems, dateStr, groupId]);
@@ -416,7 +398,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         (item.linkedItems && item.linkedItems.length > 0)
       );
     
-    // 원래 있던 항목이 새로운 업데이트로 인해 완전히 빈 값이 되어 필터링으로 사라지면 휴지통으로 이동(삭제) 처리
     const itemStillExists = newList.some(item => item.id === id);
     if (!itemStillExists) {
       await deleteEventItem(id);
@@ -426,7 +407,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     await saveEventItems(newList);
   }, [eventList, saveEventItems, deleteEventItem]);
 
-  // 시간표 특정 교시 저장
   const savePeriod = useCallback(async (period: number, data: PeriodSchedule) => {
     const user = auth.currentUser;
     if (!user || !dateStr) return;
@@ -451,9 +431,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     }, { merge: true });
   }, [dateStr, groupId, schedules]);
 
-  // 시간표 순서 일괄 재배치 (Drag & Drop 용)
-  
-    const reorderPeriods = useCallback(async (sourcePeriod: number, targetPeriod: number, maxPeriods: number = 6) => {
+  const reorderPeriods = useCallback(async (sourcePeriod: number, targetPeriod: number, maxPeriods: number = 6) => {
     const user = auth.currentUser;
     if (!user || !dateStr || sourcePeriod === targetPeriod) return;
     const scheduleDocRef = groupId
@@ -462,8 +440,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const newSchedules = { ...schedules };
     const sourceData = newSchedules[sourcePeriod] ? { ...newSchedules[sourcePeriod] } : null;
 
-    // Firestore merge: true 사용 시 객체의 키를 delete 하면 기존 데이터가 지워지지 않고 남는 버그 방지
-    // 비어있는 교시를 명시적으로 덮어쓰기 위해 기본 빈 객체를 정의합니다.
     const emptyPeriod = { subject: '', content: '', memo: '', supplies: '', linkedItems: [] };
 
     if (sourcePeriod < targetPeriod) {
@@ -487,7 +463,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     }, { merge: true });
   }, [dateStr, groupId, schedules]);
 
-  // 일지 추가/삭제
   const addJournalEntry = useCallback(async (content: string, label: string = '일반', labelIds: string[] = [], imageUrl?: string, options?: Partial<JournalEntry>) => {
     const user = auth.currentUser;
     if (!user || !dateStr || (!content.trim() && !imageUrl && (!options?.attachments || options.attachments.length === 0))) return;
@@ -507,7 +482,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       imageUrl: imageUrl || '',
       ...options
     };
-    // 🚨 최하단에 추가
+    
     const newJournals = [...journals, newEntry];
     await setDoc(journalDocRef, {
       entries: newJournals,
@@ -529,7 +504,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     }
   }, [dateStr, groupId, journals]);
 
-  // 일정 순서 변경 (Drag & Drop)
   const reorderEvents = useCallback(async (sourceIndex: number, targetIndex: number) => {
     if (sourceIndex === targetIndex || sourceIndex < 0 || targetIndex < 0 || sourceIndex >= eventList.length || targetIndex >= eventList.length) return;
     const newList = [...eventList];
@@ -538,7 +512,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     await saveEventItems(newList);
   }, [eventList, saveEventItems]);
 
-  // 기록 순서 변경 (Drag & Drop)
   const reorderJournals = useCallback(async (sourceIndex: number, targetIndex: number) => {
     if (sourceIndex === targetIndex || sourceIndex < 0 || targetIndex < 0 || sourceIndex >= journals.length || targetIndex >= journals.length) return;
     const user = auth.currentUser;
@@ -634,7 +607,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   }, [dateStr, groupId, journals, deleteJournalEntry]);
 
   
-  // 지난 미완료 할 일 오늘로 가져오기 (Forwarding)
+  // 💡 지난 미완료 할 일 오늘로 가져오기 (Forwarding)
   const forwardIncompleteEvents = useCallback(async () => {
     const user = auth.currentUser;
     if (!user || !dateStr) return 0;
@@ -654,7 +627,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const settingsRef = doc(db, 'users', user.uid, 'settings', 'labels');
     const settingsSnap = await getDoc(settingsRef);
     
-    // 설정이 없을 경우 DEFAULT_EVENT_LABELS를 기본으로 사용
+    // 설정이 없을 경우 DEFAULT_EVENT_LABELS를 기본으로 사용 (이월 속성 복구 핵심)
     let rawLabelDefs: any[] = [...DEFAULT_EVENT_LABELS];
     
     if (settingsSnap.exists()) {
@@ -719,42 +692,24 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     return incompleteItems.length;
   }, [dateStr, groupId, eventList, saveEventItems]);
 
-  // 이월 로직 실행을 제어하는 Ref (과거/오늘 이동 시 안정적 트리거)
+  // 이월 로직 실행을 제어하는 단일 Ref 트리거
   const forwardedDateRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!loading && eventList.length >= 0) {
-      const now = new Date();
-      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-      
-      // 오늘 날짜가 아니면 리셋 (다시 오늘로 돌아오면 실행되도록)
-      if (dateStr !== todayStr) {
-        forwardedDateRef.current = null;
-      }
-      
-      if (dateStr === todayStr && forwardedDateRef.current !== dateStr) {
-        forwardedDateRef.current = dateStr;
-        forwardIncompleteEvents().catch(console.error);
-      }
+    if (loading || !auth.currentUser) return;
+    
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    
+    // 오늘 날짜가 아니면 리셋 (다시 오늘로 돌아오면 실행되도록)
+    if (dateStr !== todayStr) {
+      forwardedDateRef.current = null;
+      return;
     }
-  }, [dateStr, loading, forwardIncompleteEvents]);
-
-  // 자동 포워딩 (오늘 날짜일 때만, 한 번만 실행)
-  useEffect(() => {
-    if (!loading && eventList.length >= 0) {
-      const user = auth.currentUser;
-      if (!user) return; // 유저 확인 추가
-
-      const now = new Date();
-      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-      
-      // 계정별(UID) 고유 키를 사용하여 플래그 겹침 방지
-      const forwardFlagKey = `__sp4_forwarded_${user.uid}`;
-      
-      if (dateStr === todayStr && !(window as any)[forwardFlagKey]) {
-        (window as any)[forwardFlagKey] = true;
-        forwardIncompleteEvents().catch(console.error);
-      }
+    
+    if (dateStr === todayStr && forwardedDateRef.current !== dateStr) {
+      forwardedDateRef.current = dateStr;
+      forwardIncompleteEvents().catch(console.error);
     }
   }, [dateStr, loading, forwardIncompleteEvents]);
 

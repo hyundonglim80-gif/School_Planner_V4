@@ -1,17 +1,8 @@
+//src/components/LabelModal.tsx
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-
-interface EventLabel {
-  id: string;
-  name: string;
-  color: string;
-  calendar?: boolean;
-  skip?: boolean;
-  forward?: boolean;
-  period?: boolean;
-  recur?: boolean;
-}
+import { DEFAULT_EVENT_LABELS, EventLabel } from '../hooks/useLabels'; // 💡 공통 규격 임포트
 
 interface MemoLabel {
   id: string;
@@ -35,14 +26,6 @@ const COLOR_PALETTE: Record<string, { bg: string; text: string; border: string; 
   purple: { bg: '#f3e8ff', text: '#6b21a8', border: '#d8b4fe', label: '보라' },
   gray: { bg: '#f1f5f9', text: '#334155', border: '#cbd5e1', label: '회색' },
 };
-
-const DEFAULT_EVENT_LABELS: EventLabel[] = [
-  { id: 'ev_1', name: '행사', color: 'red', calendar: true, skip: false, forward: false },
-  { id: 'ev_2', name: '출장', color: 'blue', calendar: true, skip: true, forward: false },
-  { id: 'ev_3', name: '연가', color: 'yellow', calendar: true, skip: true, forward: false },
-  { id: 'ev_4', name: '업무', color: 'green', calendar: false, skip: false, forward: true },
-  { id: 'ev_5', name: '회의', color: 'purple', calendar: false, skip: false, forward: false },
-];
 
 const DEFAULT_MEMO_LABELS: MemoLabel[] = [
   { id: 'memo_1', name: '긴급', color: 'red' },
@@ -119,7 +102,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
             color: l.color || 'blue',
             calendar: l.calendar !== false,
             skip: !!l.skip,
-            forward: !!l.forward,
+            forward: !!(l.forward || l.isForward),
             period: !!l.period,
             recur: !!l.recur,
           })));
@@ -138,23 +121,8 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
             color: l.color || 'green',
           })));
         } else {
-          // 로컬 스토리지 확인
-          const localMemo = localStorage.getItem('workCalendar_memoLabels');
-          let parsedMemos = DEFAULT_MEMO_LABELS;
-          if (localMemo) {
-            try {
-              const p = JSON.parse(localMemo);
-              if (Array.isArray(p)) {
-                parsedMemos = p.map((l: any, i: number) => ({
-                  id: (typeof l === 'object' && l.id) ? l.id : `memo_${i}_${typeof l === 'string' ? l : l.name || ''}`,
-                  name: typeof l === 'string' ? l : (l.name || ''),
-                  color: (typeof l === 'object' && l.color) ? l.color : 'green',
-                }));
-              }
-            } catch (err) {}
-          }
           setEventLabels(DEFAULT_EVENT_LABELS);
-          setMemoLabels(parsedMemos);
+          setMemoLabels(DEFAULT_MEMO_LABELS);
           setJournalLabels(DEFAULT_JOURNAL_LABELS);
         }
       } catch (e) {
@@ -253,12 +221,9 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
 
       await setDoc(docRef, payload, { merge: true });
 
-      // 로컬 스토리지에도 저장하여 즉각 반응하도록 지원
-      localStorage.setItem('workCalendar_memoLabels', JSON.stringify(memoLabels));
-      localStorage.setItem('workCalendar_labels', JSON.stringify(eventLabels));
-
-      alert('✅ 라벨 설정이 클라우드에 안전하게 저장되었습니다.');
-      onClose();
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+      // alert는 삭제하고 우측 하단 체크 표시로만 남김. 모달은 수동 닫기.
     } catch (e) {
       console.error('라벨 저장 오류:', e);
       alert('라벨 저장 중 오류가 발생했습니다.');
@@ -327,8 +292,8 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                 <strong>💡 일정 라벨 속성 안내</strong>
                 <ul className="list-disc list-inside mt-1 space-y-0.5 text-blue-800">
                   <li><strong>달력표시</strong>: 체크 시 월간/년간 캘린더 화면에 해당 일정이 강조 표시됩니다.</li>
-                  <li><strong>수업삭제</strong>: 해당 일정 등록 시 그 날짜의 시간표 과목을 자동으로 비웁니다.</li>
-                  <li><strong>완료</strong>: 체크박스가 활성화되며 완료되지 않으면 다음 날로 자동 이월됩니다.</li>
+                  <li><strong>수업X</strong>: 해당 일정 등록 시 그 날짜의 시간표 과목을 자동으로 비웁니다.</li>
+                  <li><strong>이월</strong>: 완료 체크되지 않으면 다음 날로 자동 이월됩니다.</li>
                   <li><strong>기간</strong>: 연속 기간 일정 등록 시 팝업이 지원됩니다.</li>
                   <li><strong>반복</strong>: 매주/매월 반복 일정 등록이 지원됩니다.</li>
                 </ul>
@@ -352,7 +317,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                         </span>
                       </div>
 
-                      {/* 5대 속성 체크박스 (달력, 수업삭제, 이월, 기간, 반복) */}
+                      {/* 5대 속성 체크박스 (달력, 수업X, 이월, 기간, 반복) */}
                       <div className="flex items-center gap-3 text-[11px] text-slate-600 flex-wrap">
                         <label className="flex items-center gap-1 cursor-pointer" title="월간/년간 달력에 표시">
                           <input
@@ -365,7 +330,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             }}
                             className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5"
                           />
-                          <span>📆 달력</span>
+                          <span>달력</span>
                         </label>
 
                         <label className="flex items-center gap-1 cursor-pointer" title="지정 날짜의 수업 과목 비움">
@@ -379,7 +344,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             }}
                             className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5"
                           />
-                          <span>🚫 수업삭제</span>
+                          <span>수업X</span>
                         </label>
 
                         <label className="flex items-center gap-1 cursor-pointer" title="미완료 시 다음 날로 자동 이월">
@@ -393,7 +358,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             }}
                             className="rounded text-emerald-600 focus:ring-0 w-3.5 h-3.5"
                           />
-                          <span>✅ 이월</span>
+                          <span>이월</span>
                         </label>
 
                         <label className="flex items-center gap-1 cursor-pointer" title="연속 기간 등록">
@@ -407,7 +372,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             }}
                             className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5"
                           />
-                          <span>📅 기간</span>
+                          <span>기간</span>
                         </label>
 
                         <label className="flex items-center gap-1 cursor-pointer" title="매주/매월 반복">
@@ -421,7 +386,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             }}
                             className="rounded text-purple-600 focus:ring-0 w-3.5 h-3.5"
                           />
-                          <span>🔁 반복</span>
+                          <span>반복</span>
                         </label>
                       </div>
 
@@ -475,7 +440,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                       onChange={(e) => setNewEventCalendar(e.target.checked)}
                       className="rounded text-blue-600 focus:ring-0"
                     />
-                    <span>📆 달력표시</span>
+                    <span>달력</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
@@ -484,7 +449,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                       onChange={(e) => setNewEventSkip(e.target.checked)}
                       className="rounded text-blue-600 focus:ring-0"
                     />
-                    <span>🚫 수업삭제</span>
+                    <span>수업X</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
@@ -493,7 +458,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                       onChange={(e) => setNewEventForward(e.target.checked)}
                       className="rounded text-blue-600 focus:ring-0"
                     />
-                    <span>✅ 완료체크/이월</span>
+                    <span>이월</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
@@ -502,7 +467,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                       onChange={(e) => setNewEventPeriod(e.target.checked)}
                       className="rounded text-indigo-600 focus:ring-0"
                     />
-                    <span>📅 기간</span>
+                    <span>기간</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
@@ -511,7 +476,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                       onChange={(e) => setNewEventRecur(e.target.checked)}
                       className="rounded text-purple-600 focus:ring-0"
                     />
-                    <span>🔁 반복</span>
+                    <span>반복</span>
                   </label>
                 </div>
               </div>
@@ -585,7 +550,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
             </div>
           )}
 
-          {/* TAB 3: 메모 라벨 (🔥 사용자 요청 1번) */}
+          {/* TAB 3: 메모 라벨 */}
           {activeTab === 'memo' && (
             <div className="space-y-4">
               <div className="bg-emerald-50 border-l-4 border-emerald-500 p-3 rounded-r-xl text-xs text-emerald-900 leading-relaxed">
