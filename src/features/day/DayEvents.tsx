@@ -59,7 +59,10 @@ export default function DayEvents({
       }
     }
     
-    const labelDefs = names.map(name => eventLabels.find(l => l.name === name));
+    // 💡 통합 라벨 관리에 존재하는(삭제되지 않은) 라벨만 필터링
+    const validNames = names.filter(name => eventLabels.some(l => l.name === name));
+    
+    const labelDefs = validNames.map(name => eventLabels.find(l => l.name === name));
     // 이월/완료 가능 속성 체크
     const isCompletable = labelDefs.some(def => def && (def.forward || (def as any).isForward));
     

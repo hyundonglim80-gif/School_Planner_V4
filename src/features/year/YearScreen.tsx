@@ -250,8 +250,9 @@ export default function YearScreen() {
                               <div className="flex flex-col gap-1">
                                 {visibleEvents.map((ev) => {
                                   const hasLabel = !!ev.label;
-                                  const labelColor = hasLabel ? getLabelColor(ev.label!) : null;
                                   const labelDef = hasLabel ? getLabel(ev.label!) : null;
+                                  const isValidLabel = !!labelDef; // 💡 등록된 라벨인지 확인
+                                  const labelColor = isValidLabel ? getLabelColor(ev.label!) : null;
                                   const isCompletable = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
 
                                   return (
@@ -280,7 +281,7 @@ export default function YearScreen() {
                                       {isMultiSelectMode && (
                                         <input type="checkbox" checked={selectedEventIds.includes(ev.id)} readOnly className="inline-block align-middle mr-1.5 pointer-events-none" />
                                       )}
-                                      {hasLabel && labelColor && !isMultiSelectMode && (
+                                      {isValidLabel && labelColor && !isMultiSelectMode && (
                                         <span
                                           className="inline-block align-middle mr-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
                                           style={{

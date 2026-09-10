@@ -166,12 +166,13 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                 {showEvents && (
                 <div className="space-y-1">
                   {events.slice(0, 3).map((ev) => {
-                    const hasLabel = !!ev.label;
-                    const labelColor = hasLabel ? getLabelColor(ev.label!) : null;
-                    const labelDef = hasLabel ? getLabel(ev.label!) : null;
-                    const isCompletable = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
+					  const hasLabel = !!ev.label;
+					  const labelDef = hasLabel ? getLabel(ev.label!) : null;
+					  const isValidLabel = !!labelDef; // 💡 등록된 라벨인지 확인
+					  const labelColor = isValidLabel ? getLabelColor(ev.label!) : null;
+					  const isCompletable = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
 
-                    return (
+					  return (
                       <div
                         key={ev.id}
                         onClick={(e) => {
@@ -207,9 +208,9 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                             className="inline-block align-middle mr-1 pointer-events-none"
                           />
                         )}
-                        {hasLabel && labelColor && !isMultiSelectMode && (
-                          <span
-                            className="inline-block align-middle mr-1 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
+                        {isValidLabel && labelColor && !isMultiSelectMode && (
+                                        <span
+                                          className="inline-block align-middle mr-1 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
                             style={{
                               backgroundColor: (ev.completed && isCompletable) ? '#f1f5f9' : labelColor.bg,
                               color: (ev.completed && isCompletable) ? '#94a3b8' : labelColor.text,

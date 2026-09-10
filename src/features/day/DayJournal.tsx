@@ -79,19 +79,21 @@ export default function DayJournal({
     fetchLabels();
   }, []);
 
+  // 💡 라벨이 삭제된 경우 빈 문자열('')을 반환하도록 수정된 함수
   const getLabelName = (entry: JournalEntry) => {
     if (entry.labelIds && entry.labelIds.length > 0) {
       const found = journalLabels.find(l => l.id === entry.labelIds![0]);
       if (found) return found.name;
-      // ID가 있지만 라벨 목록에서 찾지 못한 경우 (삭제된 라벨 등) ID 노출 방지
-      return '일반';
+      return ''; // 삭제된 라벨 숨김
     }
     if (entry.label && entry.label.startsWith('j_')) {
       const found = journalLabels.find(l => l.id === entry.label);
       if (found) return found.name;
-      return '일반';
+      return ''; // 삭제된 라벨 숨김
     }
-    return entry.label || '일반';
+    const found = journalLabels.find(l => l.name === entry.label);
+    if (found) return found.name;
+    return ''; // 삭제된 라벨 숨김
   };
 
   const getLabelColorClass = (entry: JournalEntry) => {
@@ -417,15 +419,15 @@ export default function DayJournal({
               )}
             </div>
             </form>
-          )}
-        </div>
+        )}
+      </div>
 
-        {/* 기록 카드 리스트 (메모 뷰 스타일 다단 레이아웃) */}
-        {!isCollapsed && (
-          <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 [column-fill:_balance]">
-            {filteredJournals.length > 0 ? (
-              filteredJournals.map((entry, idx) => {
-                const isEditing = editingId === entry.id;
+      {/* 기록 카드 리스트 (메모 뷰 스타일 다단 레이아웃) */}
+      {!isCollapsed && (
+        <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 [column-fill:_balance]">
+          {filteredJournals.length > 0 ? (
+            filteredJournals.map((entry, idx) => {
+              const isEditing = editingId === entry.id;
               const linkCount = (entry.linkedItems || []).length;
               const isCollapsedItem = !!collapsedIds[entry.id];
 
@@ -534,9 +536,14 @@ export default function DayJournal({
                           ▼
                         </button>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${getLabelColorClass(entry)}`}>
-                        {getLabelName(entry)}
-                      </span>
+
+                      {/* 💡 라벨이 삭제되지 않고 남아있을 때만 뱃지 표시 */}
+                      {getLabelName(entry) && (
+                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${getLabelColorClass(entry)}`}>
+                          {getLabelName(entry)}
+                        </span>
+                      )}
+
                       <span className="text-[11px] text-slate-400">
                         {new Date(entry.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
                       </span>
@@ -599,15 +606,15 @@ export default function DayJournal({
 
                   {/* 항목이 접히지 않았을 때만 본문 및 첨부파일 표시 */}
                   {!isCollapsedItem && (
-					  <div 
-						onDoubleClick={() => startEditing(entry)} 
-						className="flex flex-col gap-3 mt-1 cursor-pointer" 
-						title="더블클릭하여 수정"
-					  >
-						<p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
-						  {entry.content}
-						</p>
-						{entry.imageUrl && (
+                    <div 
+                      onDoubleClick={() => startEditing(entry)} 
+                      className="flex flex-col gap-3 mt-1 cursor-pointer" 
+                      title="더블클릭하여 수정"
+                    >
+                      <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
+                        {entry.content}
+                      </p>
+                      {entry.imageUrl && (
                         <div className="mt-1 rounded-lg overflow-hidden border border-slate-200/60 bg-slate-50 inline-block max-w-fit">
                           <img src={entry.imageUrl} alt="첨부 이미지" className="max-w-full h-auto object-cover max-h-48" loading="lazy" />
                         </div>

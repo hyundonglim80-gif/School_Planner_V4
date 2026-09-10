@@ -175,13 +175,13 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                 {events.length > 0 ? (
                   <div className="space-y-1.5">
                     {events.map((ev) => {
-                      const hasLabel = !!ev.label;
-                      const labelColor = hasLabel ? getLabelColor(ev.label!) : null;
-                      const labelDef = hasLabel ? getLabel(ev.label!) : null;
-                      // 라벨이 없으면 무조건 이월 기능 불가
-                      const isCompletable = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
+					  const hasLabel = !!ev.label;
+					  const labelDef = hasLabel ? getLabel(ev.label!) : null;
+					  const isValidLabel = !!labelDef; // 💡 등록된(삭제되지 않은) 라벨인지 확인
+					  const labelColor = isValidLabel ? getLabelColor(ev.label!) : null;
+					  const isCompletable = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
 
-                      return (
+					  return (
                         <div
                           key={ev.id}
                           onClick={(e) => {
@@ -218,9 +218,9 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                               className="inline-block align-middle mr-1.5 pointer-events-none"
                             />
                           )}
-                          {hasLabel && labelColor && !isMultiSelectMode && (
-                            <span
-                              className="inline-block align-middle mr-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap shadow-2xs"
+                          {isValidLabel && labelColor && !isMultiSelectMode && (
+                                        <span
+                                          className="inline-block align-middle mr-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
                               style={{
                                 backgroundColor: (ev.completed && isCompletable) ? '#f1f5f9' : labelColor.bg,
                                 color: (ev.completed && isCompletable) ? '#94a3b8' : labelColor.text,

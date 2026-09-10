@@ -2,6 +2,7 @@ import React from 'react';
 import type { Memo } from '../../hooks/useMemos';
 import { renderFormattedText } from '../../lib/textUtils';
 import { useAppStore } from '../../store/useAppStore';
+import { useLabels } from '../../hooks/useLabels'; // 💡 라벨 훅 임포트 추가
 
 interface MemoCardProps {
   memo: Memo;
@@ -51,8 +52,10 @@ const isImageFile = (att: NormalizedAttachment): boolean => {
 
 export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: MemoCardProps) {
   const { openLinkerModal, openLinkViewerModal } = useAppStore();
+  const { memoLabels } = useLabels(); // 💡 통합 메모 라벨 가져오기
 
   const isCompleted = !!memo.completed;
+  const validLabels = (memo.labels || []).filter(label => memoLabels.includes(label)); // 💡 삭제된 라벨 거르기
   const linkCount = (memo.linkedItems || []).length;
 
   const memoDate = new Date(memo.createdAt);
@@ -229,9 +232,9 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
       </div>
 
       {/* 하단 라벨 */}
-      {memo.labels && memo.labels.length > 0 && (
+      {validLabels.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-4 pt-3 border-t border-slate-50">
-          {memo.labels.map((label) => (
+          {validLabels.map((label) => (
             <span
               key={label}
               className="px-2 py-0.5 text-xs font-medium rounded-full bg-slate-100 text-slate-600"
@@ -240,7 +243,5 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
             </span>
           ))}
         </div>
-      )}
-    </div>
   );
 }
