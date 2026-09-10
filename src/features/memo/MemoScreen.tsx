@@ -14,6 +14,11 @@ export default function MemoScreen() {
   const { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, deleteCompletedMemos } = useMemos(selectedGroupId);
   const { getLabelColor } = useLabels(); 
   const [currentFilter, setCurrentFilter] = useState('전체');
+  
+  // ✨ 누락되었던 상태 변수 선언 복구
+  const [hideCompleted, setHideCompleted] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [editingMemo, setEditingMemo] = useState<Memo | null>(null);
 
   // ✨ 현재 저장된 메모들에서 실제 사용 중인 고유 라벨만 추출
   const memoLabels = Array.from(new Set(memos.flatMap(m => m.labels || []))).sort();
