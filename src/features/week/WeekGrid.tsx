@@ -37,7 +37,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
     <div className={"grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 " + (days.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-7") + " gap-3"}>
       {days.map((day) => {
         const summary = dataMap[day.dateStr] || {};
-        const events = summary.eventList || [];
+        const rawEvents = summary.eventList || [];
         const schedules = summary.schedules || {};
         const periodKeys = Object.keys(schedules)
           .map(Number)
@@ -49,8 +49,13 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
 
         const [, month, dateNum] = day.dateStr.split('-');
         
-        const holidayName = holidays[day.dateStr];
+        // 공휴일 정보 추출
+        const holidayEvent = rawEvents.find((e: any) => e.label === '공휴일' || e.labelIds?.includes('공휴일'));
+        const holidayName = holidays[day.dateStr] || holidayEvent?.content;
         const isHoliday = !!holidayName || day.dayName === '일';
+
+        // 기존 events 변수를 필터링된 배열로 덮어쓰기 (아래 JSX 수정 불필요)
+        const events = rawEvents.filter((e: any) => e.label !== '공휴일' && !e.labelIds?.includes('공휴일'));
 
         return (
           <div

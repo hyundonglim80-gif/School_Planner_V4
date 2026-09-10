@@ -33,17 +33,14 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
     if (!user) return;
 
     setProcessing(true);
-    // 학년도 처리를 위해 해당 연도와 다음 연도를 함께 가져온다고 안내합니다.
     setStatusMsg(`${govYear}~${govYear + 1}년 공휴일 정보를 가져오는 중...`);
 
     try {
-      // 💡 선택한 연도(govYear)와 다음 해(govYear + 1)의 공휴일을 동시에 요청합니다.
       const [holidaysThisYear, holidaysNextYear] = await Promise.all([
         fetchHolidaysFromGovApi(govYear),
         fetchHolidaysFromGovApi(govYear + 1)
       ]);
 
-      // 두 해의 공휴일 객체를 하나로 병합합니다.
       const fetchedHolidays = { ...holidaysThisYear, ...holidaysNextYear };
       const holidayDates = Object.keys(fetchedHolidays);
 
@@ -52,12 +49,30 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         return alert('가져올 공휴일 데이터가 없습니다. API 키를 확인해주세요.');
       }
 
-      // 일정(events)으로 하나씩 저장하지 않고, 달력 시스템의 공휴일 설정 문서에 통합 저장합니다.
-      const ref = doc(db, 'users', user.uid, 'settings', 'holidays');
-      // merge: true 옵션이 있으므로, 기존에 저장된 다른 연도의 공휴일을 지우지 않고 누적해서 저장합니다.
-      await setDoc(ref, { ...fetchedHolidays, updatedAt: Date.now() }, { merge: true });
+      let count = 0;
+      for (const dateStr of holidayDates) {
+        const hName = fetchedHolidays[dateStr];
+        const ref = doc(db, 'users', user.uid, 'events', dateStr);
+        const snap = await getDoc(ref);
+        const existing = snap.exists() ? snap.data() : {};
+        const eventList = existing.eventList || [];
 
-      alert(`학사일정 처리를 위해 ${govYear}년과 ${govYear + 1}년 공휴일 총 ${holidayDates.length}건을 성공적으로 적용했습니다.`);
+        // 중복 방지: 이미 같은 공휴일 라벨이나 이름이 있으면 추가하지 않음
+        if (!eventList.some((e: any) => e.content === hName || e.label === '공휴일' || e.labelIds?.includes('공휴일'))) {
+          eventList.push({
+            id: 'ev_hol_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
+            content: hName,
+            text: hName, // v3 호환
+            label: '공휴일',
+            labelIds: ['공휴일'],
+            completed: false,
+            createdAt: Date.now()
+          });
+          await setDoc(ref, { ...existing, eventList, updatedAt: Date.now() }, { merge: true });
+          count++;
+        }
+      }
+      alert(`학사일정 처리를 위해 ${govYear}년과 ${govYear + 1}년 공휴일 총 ${count}건을 일정에 성공적으로 추가했습니다.`);
     } catch (e: any) {
       console.error(e);
       alert('공휴일 가져오기 실패: ' + e.message);

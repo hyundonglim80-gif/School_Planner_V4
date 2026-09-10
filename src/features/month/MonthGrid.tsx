@@ -65,12 +65,17 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
       <div className={"grid " + (showWeekend ? "grid-cols-7" : "grid-cols-5") + " divide-x divide-y divide-slate-100"}>
         {displayDays.map((dayObj) => {
           const summary = dataMap[dayObj.dateStr] || {};
-          const events = summary.eventList || [];
+          const rawEvents = summary.eventList || [];
           const schedules = summary.schedules || {};
           const hasClasses = periodArray.some(p => schedules[p]?.subject?.trim() && schedules[p]?.subject?.toUpperCase() !== 'X');
           
-          const holidayName = dayObj.holidayName || holidays[dayObj.dateStr];
+          // 공휴일 정보 추출
+          const holidayEvent = rawEvents.find((e: any) => e.label === '공휴일' || e.labelIds?.includes('공휴일'));
+          const holidayName = dayObj.holidayName || holidays[dayObj.dateStr] || holidayEvent?.content;
           const isHoliday = !!holidayName || dayObj.isSunday;
+          
+          // 기존 events 변수를 필터링된 배열로 덮어쓰기 (아래 JSX 수정 불필요)
+          const events = rawEvents.filter((e: any) => e.label !== '공휴일' && !e.labelIds?.includes('공휴일'));
           return (
             <div
               key={dayObj.dateStr}

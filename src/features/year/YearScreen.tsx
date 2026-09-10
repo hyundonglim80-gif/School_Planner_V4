@@ -142,10 +142,15 @@ export default function YearScreen() {
                       const evs = eventsMap[dObj.dateStr] || [];
                       const sch = schedulesMap[dObj.dateStr] || {};
 
-                      const holidayName = holidays[dObj.dateStr];
+                      // 1. 공휴일 일정 찾기 (추석 등 음력 파악용)
+                      const holidayEvent = evs.find((e: any) => e.label === '공휴일' || e.labelIds?.includes('공휴일'));
+                      const holidayName = holidays[dObj.dateStr] || holidayEvent?.content;
                       const isHoliday = !!holidayName || dayOfWeekNum === 0;
                       
                       const dateColor = isHoliday ? 'text-red-500' : dayOfWeekNum === 6 ? 'text-blue-500' : 'text-blue-700';
+
+                      // 2. 화면에 블록으로 그릴 이벤트에서 '공휴일'은 제외 (숨김)
+                      const visibleEvents = evs.filter((e: any) => e.label !== '공휴일' && !e.labelIds?.includes('공휴일'));
                       const hasClasses = periodArray.some(p => sch[p]?.subject?.trim() && sch[p]?.subject?.toUpperCase() !== 'X');
 
                       return (
@@ -206,9 +211,9 @@ export default function YearScreen() {
                             )}
 
                             {/* 일정 뱃지 목록 */}
-                            {showEvents && evs.length > 0 && (
+                            {showEvents && visibleEvents.length > 0 && (
                               <div className="flex flex-col gap-1">
-                                {evs.map((ev) => {
+                                {visibleEvents.map((ev) => {
                                   const hasLabel = !!ev.label;
                                   const labelColor = hasLabel ? getLabelColor(ev.label!) : null;
                                   return (
