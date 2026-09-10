@@ -180,7 +180,6 @@ export default function DayEvents({
 
   return (
     <div className={`bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 flex flex-col ${isCollapsed ? '' : 'h-full'}`}>
-      {/* 타이틀 및 추가 버튼 */}
       <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isCollapsed ? '' : 'mb-4'}`}>
         <div className="flex items-center gap-2">
           <button
@@ -215,7 +214,6 @@ export default function DayEvents({
 
       {!isCollapsed && (
         <>
-      {/* 프로그레스 바 (완료 항목 있을 때만) */}
       {completableEvents.length > 0 && (
         <div className="w-full h-1.5 bg-slate-100 rounded-full mb-4 overflow-hidden">
           <div
@@ -225,10 +223,8 @@ export default function DayEvents({
         </div>
       )}
 
-      {/* 새 일정 폼 */}
       {isFormOpen && (
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4 flex flex-col gap-2">
-        {/* 라벨 선택 */}
         <div className="flex flex-wrap gap-1.5">
           {eventLabels.map(l => {
             const color = getLabelColor(l.name);
@@ -251,7 +247,6 @@ export default function DayEvents({
           })}
         </div>
         
-        {/* 입력 및 전송 */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-2 relative">
           <input
             type="text"
@@ -287,7 +282,6 @@ export default function DayEvents({
       </div>
       )}
 
-      {/* 일정 목록 */}
       <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[160px]">
         {events.length > 0 ? (
           events.map((event, idx) => {
@@ -362,7 +356,7 @@ export default function DayEvents({
                     toggleEventSelection(event.id, formattedDate);
                   }
                 }}
-                className={`group flex items-center justify-between p-3 rounded-xl border transition-all ${
+                className={`group flex items-start justify-between p-3 rounded-xl border transition-all ${
                   isMultiSelectMode ? 'cursor-pointer hover:bg-slate-50' : ''
                 } ${
                   selectedEventIds.includes(event.id)
@@ -372,10 +366,10 @@ export default function DayEvents({
                     : 'bg-white border-slate-200/60 hover:border-slate-300 text-slate-800'
                 }`}
               >
-                <div className="flex items-center gap-2.5 flex-1 min-w-0 pointer-events-auto">
-                  {/* 정렬 버튼 */}
+                {/* 💡 기존 flex-row 레이아웃에서 텍스트가 라벨 하단으로 자연스럽게 Wrapping 되도록 블록 내 inline 속성 적용 */}
+                <div className="flex-1 min-w-0 pointer-events-auto flex items-start">
                   {!isMultiSelectMode && (
-                    <div className="flex flex-col items-center gap-0.5 shrink-0 px-0.5">
+                    <div className="flex flex-col items-center gap-0.5 shrink-0 px-0.5 mr-1.5 mt-0.5">
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); if (idx > 0 && onReorderEvents) onReorderEvents(idx, idx - 1); }}
@@ -395,68 +389,74 @@ export default function DayEvents({
                     </div>
                   )}
 
-                  {/* 체크박스 (다중 선택 모드) */}
-                  {isMultiSelectMode && (
-                    <input
-                      type="checkbox"
-                      checked={selectedEventIds.includes(event.id)}
-                      readOnly
-                      className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 pointer-events-none"
-                    />
-                  )}
+                  <div className="leading-relaxed text-sm break-words flex-1">
+                    {/* 체크박스가 라벨 좌측으로 이동 */}
+                    {isMultiSelectMode && (
+                      <input
+                        type="checkbox"
+                        checked={selectedEventIds.includes(event.id)}
+                        readOnly
+                        className="inline-block align-middle mr-2 w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 pointer-events-none"
+                      />
+                    )}
+                    {info.isCompletable && !isMultiSelectMode && (
+                      <input
+                        type="checkbox"
+                        checked={!!event.completed}
+                        onChange={() => onToggleEvent(event.id)}
+                        className="inline-block align-middle mr-2 w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 cursor-pointer accent-primary"
+                        title="완료 토글"
+                      />
+                    )}
 
-                  {/* 1. 라벨 (다중 라벨 지원!) */}
-                  {info.names.length > 0 && (
-                    <div className="flex gap-1 shrink-0">
-                      {info.names.map(name => {
-                        const color = getLabelColor(name);
-                        return (
-                          <span
-                            key={name}
-                            className="text-[11px] font-bold px-2 py-0.5 rounded-md whitespace-nowrap shadow-2xs"
-                            style={{
-                              backgroundColor: (event.completed && info.isCompletable) ? '#f1f5f9' : color.bg,
-                              color: (event.completed && info.isCompletable) ? '#94a3b8' : color.text,
-                              border: '1px solid ' + ((event.completed && info.isCompletable) ? '#e2e8f0' : color.border)
-                            }}
-                          >
-                            {name}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
+                    {/* 라벨 (인라인 렌더링) */}
+                    {info.names.length > 0 && info.names.map(name => {
+                      const color = getLabelColor(name);
+                      return (
+                        <span
+                          key={name}
+                          className="inline-block align-middle mr-1.5 text-[11px] font-bold px-2 py-0.5 rounded-md shadow-2xs whitespace-nowrap"
+                          style={{
+                            backgroundColor: (event.completed && info.isCompletable) ? '#f1f5f9' : color.bg,
+                            color: (event.completed && info.isCompletable) ? '#94a3b8' : color.text,
+                            border: '1px solid ' + ((event.completed && info.isCompletable) ? '#e2e8f0' : color.border)
+                          }}
+                        >
+                          {name}
+                        </span>
+                      );
+                    })}
 
-                  {/* 2. 체크박스 (완료 가능한 항목일 때만) */}
-                  {info.isCompletable && !isMultiSelectMode && (
-                    <input
-                      type="checkbox"
-                      checked={!!event.completed}
-                      onChange={() => onToggleEvent(event.id)}
-                      className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 cursor-pointer accent-primary shrink-0"
-                      title="완료 토글"
-                    />
-                  )}
-
-                  {/* 3. 본문 텍스트 */}
-                  <div className="flex flex-col flex-1 min-w-0">
+                    {/* 본문 텍스트 (인라인 렌더링) */}
                     <span
                       onClick={(e) => {
                         if (isMultiSelectMode) return; 
                         if (info.isCompletable) onToggleEvent(event.id);
                       }}
                       onDoubleClick={() => !isMultiSelectMode && startEditing(event)}
-                      className={`text-sm break-words leading-relaxed ${info.isCompletable && !isMultiSelectMode ? 'cursor-pointer' : ''} ${
+                      className={`inline align-middle ${info.isCompletable && !isMultiSelectMode ? 'cursor-pointer' : ''} ${
                         event.completed && info.isCompletable ? 'line-through text-slate-400' : ''
                       }`}
                       title={isMultiSelectMode ? '' : '더블클릭하여 수정'}
                     >
                       {info.cleanContent}
                     </span>
-                    
-                    {/* 첨부파일 (배지 형태) */}
+
+                    {/* 연결된 링크 (인라인 렌더링) */}
+                    {event.linkedItems && event.linkedItems.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); openLinkViewerModal('event', formattedDate, event.id); }}
+                        className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 transition-colors cursor-pointer items-center gap-1"
+                        title={`링크된 항목 ${event.linkedItems.length}개`}
+                      >
+                        🔗 {event.linkedItems.length}
+                      </button>
+                    )}
+
+                    {/* 첨부파일 (하단 블록) */}
                     {event.attachments && event.attachments.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
+                      <div className="flex flex-wrap gap-1 mt-1.5 block">
                         {event.attachments.map((att, idx) => (
                           att.type === 'image' ? (
                             <a key={idx} href={att.url} target="_blank" rel="noreferrer" className="block w-8 h-8 rounded overflow-hidden border border-slate-200">
@@ -470,24 +470,10 @@ export default function DayEvents({
                         ))}
                       </div>
                     )}
-
-                    {/* 연결된 링크 (깔끔한 🔗 아이콘 포맷) */}
-                    {event.linkedItems && event.linkedItems.length > 0 && (
-                      <div className="mt-1.5">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); openLinkViewerModal('event', formattedDate, event.id); }}
-                          className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 transition-colors cursor-pointer flex items-center gap-1 inline-flex"
-                          title={`링크된 항목 ${event.linkedItems.length}개`}
-                        >
-                          🔗 {event.linkedItems.length}
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1 shrink-0 ml-2">
+                <div className="flex items-center gap-1 shrink-0 ml-2 mt-0.5">
                   <button
                     type="button"
                     onClick={() => openLinkerModal('event', formattedDate, event.id)}

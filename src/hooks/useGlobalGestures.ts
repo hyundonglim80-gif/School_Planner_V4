@@ -9,9 +9,7 @@ export function useGlobalGestures() {
   const scrollNavTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // 팝업(모달) 감지 함수: 모달이 열려있으면 제스처가 무시됨
     const isModalOpen = () => {
-      // 1. AppStore의 명시적 모달 상태 검사 (주요 모달들)
       const state = useAppStore.getState();
       if (
         state.isLinkerModalOpen ||
@@ -23,23 +21,19 @@ export function useGlobalGestures() {
         return true;
       }
       
-      // 2. Headless UI나 Radix UI 등 전역 Dialog 오버레이 또는 body 스크롤 방지 감지
       if (document.body.style.overflow === 'hidden') return true;
       if (document.querySelector('[role="dialog"]')) return true;
-
       return false;
     };
 
     const handleTouchStart = (e: TouchEvent) => {
       if (isModalOpen()) return;
-
       touchStartRef.current.x = e.touches[0].clientX;
       touchStartRef.current.y = e.touches[0].clientY;
 
       const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
       const currentScroll = Math.ceil(window.innerHeight + window.scrollY);
 
-      // 모바일 오차 50px 허용
       touchStartRef.current.atTop = window.scrollY <= 50;
       touchStartRef.current.atBottom = currentScroll >= scrollHeight - 50;
     };
@@ -55,8 +49,10 @@ export function useGlobalGestures() {
       const deltaY = touchStartRef.current.y - touchEndY;
 
       const state = useAppStore.getState();
+      
+      // 💡 스크롤 네비게이션이 꺼져있으면 무시
+      if (!state.enableScrollNav) return;
 
-      // 좌우 스와이프: 가로 이동거리가 세로 이동거리의 1.5배보다 크고 50px 이상 이동했을 때
       if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
         if (Math.abs(deltaX) > 50) {
           const currentIdx = SCOPES.indexOf(state.scope);
@@ -68,11 +64,11 @@ export function useGlobalGestures() {
           }
         }
       } else {
-        // 세로 스와이프: 메모 화면에서는 제외
         if (state.scope === 'memo') return;
 
         const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
         const currentScroll = Math.ceil(window.innerHeight + window.scrollY);
+
         const atBottom = currentScroll >= scrollHeight - 50;
         const atTop = window.scrollY <= 50;
 
@@ -91,9 +87,13 @@ export function useGlobalGestures() {
       const state = useAppStore.getState();
       if (state.scope === 'memo') return;
       if (scrollNavTimeout.current) return;
+      
+      // 💡 스크롤 네비게이션이 꺼져있으면 무시
+      if (!state.enableScrollNav) return;
 
       const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
       const currentScroll = Math.ceil(window.innerHeight + window.scrollY);
+
       const atBottom = currentScroll >= scrollHeight - 10;
       const atTop = window.scrollY <= 10;
 
@@ -101,6 +101,7 @@ export function useGlobalGestures() {
         touchStartRef.current.atTop = atTop;
         touchStartRef.current.atBottom = atBottom;
       }
+
       if (blockWheelTimer.current) clearTimeout(blockWheelTimer.current);
       blockWheelTimer.current = setTimeout(() => { blockWheelTimer.current = null; }, 150);
 

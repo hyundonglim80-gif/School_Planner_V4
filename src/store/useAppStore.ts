@@ -13,9 +13,12 @@ interface AppState {
   showWeekend: boolean;
   showClass: boolean;
   showEvents: boolean;
-  currentDate: string; // ISO String format
-  selectedGroupId: string | null; // null: 개인, string: 특정 공유 그룹 ID
-  govApiKey: string; // 공공데이터 API 키
+  currentDate: string; 
+  selectedGroupId: string | null; 
+  govApiKey: string; 
+  // 💡 스크롤 네비게이션 활성화 여부 추가
+  enableScrollNav: boolean;
+
   setScope: (scope: Scope) => void;
   setSemesterFilter: (filter: 'all' | 1 | 2) => void;
   setShowWeekend: (show: boolean) => void;
@@ -24,9 +27,10 @@ interface AppState {
   setCurrentDate: (date: Date) => void;
   setSelectedGroupId: (groupId: string | null) => void;
   setGovApiKey: (key: string) => void;
+  setEnableScrollNav: (enable: boolean) => void;
   navigatePrevDate: () => void;
   navigateNextDate: () => void;
-  
+
   // Multi Event Selection State
   isMultiSelectMode: boolean;
   selectedEventIds: string[];
@@ -37,11 +41,11 @@ interface AppState {
   selectAllEvents: (eventIds: string[], dateMap?: Record<string, string>) => void;
   bulkUpdateSelectedEvents: (updates: { completed?: boolean; label?: string }) => Promise<void>;
   bulkDeleteSelectedEvents: () => Promise<void>;
-  
+
   // Google API Token (For Tasks etc)
   googleAccessToken: string | null;
   setGoogleAccessToken: (token: string | null) => void;
-  
+
   // Linker Modal State
   isLinkerModalOpen: boolean;
   linkerSourceType: 'schedule' | 'schedule_header' | 'journal' | 'event' | 'memo' | 'manual';
@@ -94,12 +98,11 @@ interface AppState {
   labelModalTab: 'event' | 'journal' | 'memo';
   openLabelModal: (tab?: 'event' | 'journal' | 'memo') => void;
   closeLabelModal: () => void;
-  
+
   clearAuthData: () => void;
 }
 
 export const useAppStore = create<AppState>()(
-  
   persist(
     (set, get) => ({
       scope: 'day',
@@ -110,19 +113,18 @@ export const useAppStore = create<AppState>()(
       currentDate: new Date().toISOString(),
       selectedGroupId: null,
       govApiKey: '',
-	  
-	  clearAuthData: () => set({
-		  selectedGroupId: null,
-		  govApiKey: '',
-		  googleAccessToken: null,
-		  selectedEventIds: [],
-		  selectedEventDateMap: {},
-		  isMultiSelectMode: false,
-		}),
-	  
-      setScope: (scope) => {
-        set({ scope }); // showClass를 강제로 덮어쓰지 않고 기존 상태 유지
-      },
+      enableScrollNav: true,
+
+      clearAuthData: () => set({
+        selectedGroupId: null,
+        govApiKey: '',
+        googleAccessToken: null,
+        selectedEventIds: [],
+        selectedEventDateMap: {},
+        isMultiSelectMode: false,
+      }),
+
+      setScope: (scope) => set({ scope }),
       setSemesterFilter: (filter) => set({ semesterFilter: filter }),
       setShowWeekend: (showWeekend) => set({ showWeekend }),
       setShowClass: (showClass) => set({ showClass }),
@@ -130,6 +132,7 @@ export const useAppStore = create<AppState>()(
       setCurrentDate: (date) => set({ currentDate: date.toISOString() }),
       setSelectedGroupId: (selectedGroupId) => set({ selectedGroupId }),
       setGovApiKey: (govApiKey) => set({ govApiKey }),
+      setEnableScrollNav: (enable) => set({ enableScrollNav: enable }),
 
       navigatePrevDate: () => {
         const state = get();
@@ -168,12 +171,13 @@ export const useAppStore = create<AppState>()(
         set({ currentDate: d.toISOString() });
       },
 
-
       isMultiSelectMode: false,
       selectedEventIds: [],
       selectedEventDateMap: {},
+
       googleAccessToken: null,
       setGoogleAccessToken: (token) => set({ googleAccessToken: token }),
+
       setMultiSelectMode: (isMulti) => set({ 
         isMultiSelectMode: isMulti, 
         selectedEventIds: isMulti ? get().selectedEventIds : [],
@@ -184,14 +188,12 @@ export const useAppStore = create<AppState>()(
         const newSelected = isSelected
           ? state.selectedEventIds.filter(id => id !== eventId)
           : [...state.selectedEventIds, eventId];
-
         const newDateMap = { ...state.selectedEventDateMap };
         if (isSelected) {
           delete newDateMap[eventId];
         } else if (dateStr) {
           newDateMap[eventId] = dateStr;
         }
-
         return { selectedEventIds: newSelected, selectedEventDateMap: newDateMap };
       }),
       clearEventSelection: () => set({ selectedEventIds: [], selectedEventDateMap: {}, isMultiSelectMode: false }),
@@ -199,6 +201,7 @@ export const useAppStore = create<AppState>()(
         selectedEventIds: eventIds, 
         selectedEventDateMap: dateMap 
       }),
+      
       bulkUpdateSelectedEvents: async (updates) => {
         const { selectedEventIds, selectedEventDateMap, selectedGroupId, currentDate } = get();
         if (selectedEventIds.length === 0) return;
@@ -269,7 +272,6 @@ export const useAppStore = create<AppState>()(
           const data = snap.data();
           const currentList: any[] = data.eventList || [];
 
-          // Move deleted items to trash
           const toDelete = currentList.filter((item) => ids.map(String).includes(String(item.id)));
           for (const item of toDelete) {
             try {
@@ -288,7 +290,6 @@ export const useAppStore = create<AppState>()(
 
           const updatedList = currentList.filter((item) => !ids.map(String).includes(String(item.id)));
           const serializedText = formatV3EventText(updatedList);
-
           await setDoc(eventDocRef, {
             eventList: updatedList,
             eventText: serializedText,
@@ -365,20 +366,18 @@ export const useAppStore = create<AppState>()(
       labelModalTab: 'event',
       openLabelModal: (tab = 'event') => set({ isLabelModalOpen: true, labelModalTab: tab }),
       closeLabelModal: () => set({ isLabelModalOpen: false }),
+
     }),
     {
       name: 'sp4-app-storage',
-      // 개인정보/계정 관련 데이터는 제외하고 순수 UI 설정만 로컬에 캐싱합니다.
       partialize: (state) => ({
         scope: state.scope,
         semesterFilter: state.semesterFilter,
         showWeekend: state.showWeekend,
         showClass: state.showClass,
         showEvents: state.showEvents,
-        // selectedGroupId와 govApiKey는 로컬 캐싱 대상에서 제거
+        enableScrollNav: state.enableScrollNav, // 추가됨
       }),
     }
   )
 );
-
-

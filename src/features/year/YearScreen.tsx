@@ -207,6 +207,9 @@ export default function YearScreen() {
                                 {visibleEvents.map((ev) => {
                                   const hasLabel = !!ev.label;
                                   const labelColor = hasLabel ? getLabelColor(ev.label!) : null;
+                                  const labelDef = hasLabel ? getLabel(ev.label!) : null;
+                                  const isCompletable = labelDef ? !!labelDef.forward : true;
+
                                   return (
                                     <div
                                       key={ev.id}
@@ -218,20 +221,29 @@ export default function YearScreen() {
                                           setDetailModal({ isOpen: true, type: 'event', dateStr: dObj.dateStr, itemId: ev.id, initialData: ev });
                                         }
                                       }}
-                                      className={`px-1.5 py-1 rounded-lg text-xs leading-tight transition-all border flex items-center gap-1.5 hover:shadow-sm cursor-pointer ${
+                                      className={`px-1.5 py-1 rounded-lg text-xs leading-snug transition-all border block hover:shadow-sm cursor-pointer break-words ${
                                         selectedEventIds.includes(ev.id)
                                           ? 'bg-primary/10 border-primary text-primary'
                                           : ev.completed
-                                          ? 'bg-slate-50 border-slate-100 text-slate-400 line-through'
+                                          ? 'bg-slate-50 border-slate-100 text-slate-400'
                                           : 'bg-white border-slate-200 text-slate-700 font-medium'
                                       }`}
                                     >
+                                      {/* 💡 인라인 정렬 블록 */}
                                       {isMultiSelectMode && (
-                                        <input type="checkbox" checked={selectedEventIds.includes(ev.id)} readOnly className="pointer-events-none" />
+                                        <input type="checkbox" checked={selectedEventIds.includes(ev.id)} readOnly className="inline-block align-middle mr-1.5 pointer-events-none" />
+                                      )}
+                                      {isCompletable && !isMultiSelectMode && (
+                                        <input
+                                          type="checkbox"
+                                          checked={!!ev.completed}
+                                          readOnly
+                                          className="inline-block align-middle mr-1.5 w-3 h-3 accent-primary pointer-events-none"
+                                        />
                                       )}
                                       {hasLabel && labelColor && !isMultiSelectMode && (
                                         <span
-                                          className="text-[9px] font-bold px-1 py-0.5 rounded shrink-0 shadow-2xs"
+                                          className="inline-block align-middle mr-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
                                           style={{
                                             backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
                                             color: ev.completed ? '#94a3b8' : labelColor.text,
@@ -241,9 +253,10 @@ export default function YearScreen() {
                                           {ev.label}
                                         </span>
                                       )}
-                                      <span className="break-words flex-1 leading-snug">{ev.content}</span>
+                                      <span className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}>
+                                        {ev.content}
+                                      </span>
                                       
-                                      {/* 💡 연간 일정에도 링크 아이콘 버튼 추가 */}
                                       {(ev.linkedItems || []).length > 0 && (
                                         <button
                                           type="button"
@@ -251,7 +264,7 @@ export default function YearScreen() {
                                             e.stopPropagation();
                                             openLinkViewerModal('event', dObj.dateStr, ev.id);
                                           }}
-                                          className="bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer ml-1"
+                                          className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 cursor-pointer"
                                           title={`링크된 항목 ${(ev.linkedItems || []).length}개`}
                                         >
                                           🔗 {(ev.linkedItems || []).length}

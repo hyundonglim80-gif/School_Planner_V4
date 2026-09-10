@@ -37,7 +37,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
     return days;
   }, [days, showWeekend]);
 
-  const { getLabelColor } = useLabels();
+  const { getLabelColor, getLabel } = useLabels();
   const { holidays } = useGovHolidays();
   const { templates, currentTemplateName } = useTimetableTemplate();
   
@@ -71,12 +71,10 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
           
           const hasClasses = periodArray.some(p => schedules[p]?.subject?.trim() && schedules[p]?.subject?.toUpperCase() !== 'X');
           
-          // 휴일 체크
           const holidayEvent = rawEvents.find((e: any) => e.label === '휴일' || e.labelIds?.includes('휴일'));
           const holidayName = dayObj.holidayName || holidays[dayObj.dateStr] || holidayEvent?.content;
           const isHoliday = !!holidayName || dayObj.isSunday;
           
-          // 표시할 일반 일정
           const events = rawEvents.filter((e: any) => e.label !== '휴일' && !e.labelIds?.includes('휴일'));
 
           return (
@@ -121,7 +119,6 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                   </div>
                 </div>
                 
-                {/* V3 수업 방식 */}
                 {showClass && hasClasses && (
                   <div className="flex flex-nowrap gap-[1px] w-full mb-1.5 mt-0.5">
                     {periodArray.map((p) => {
@@ -170,6 +167,8 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                   {events.slice(0, 3).map((ev) => {
                     const hasLabel = !!ev.label;
                     const labelColor = hasLabel ? getLabelColor(ev.label!) : null;
+                    const labelDef = hasLabel ? getLabel(ev.label!) : null;
+                    const isCompletable = labelDef ? !!labelDef.forward : true;
 
                     return (
                       <div
@@ -188,26 +187,35 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                             });
                           }
                         }}
-                        className={`px-1.5 py-0.5 rounded text-[11px] font-medium truncate leading-tight flex items-center gap-1 hover:shadow-sm cursor-pointer ${
+                        className={`px-1.5 py-0.5 rounded text-[11px] font-medium leading-tight transition-all border block hover:shadow-sm cursor-pointer break-words ${
                           selectedEventIds.includes(ev.id)
-                            ? 'bg-primary/10 border border-primary text-primary'
+                            ? 'bg-primary/10 border-primary text-primary'
                             : ev.completed
-                            ? 'bg-slate-100 text-slate-400 line-through'
-                            : 'bg-blue-50 text-blue-800 border border-blue-100'
+                            ? 'bg-slate-100 text-slate-400'
+                            : 'bg-blue-50 text-blue-800 border-blue-100'
                         }`}
                         title={ev.content}
                       >
+                        {/* 💡 인라인 정렬 적용 (체크박스/라벨/텍스트) */}
                         {isMultiSelectMode && (
                           <input
                             type="checkbox"
                             checked={selectedEventIds.includes(ev.id)}
                             readOnly
-                            className="mr-0.5 pointer-events-none"
+                            className="inline-block align-middle mr-1 pointer-events-none"
+                          />
+                        )}
+                        {isCompletable && !isMultiSelectMode && (
+                          <input
+                            type="checkbox"
+                            checked={!!ev.completed}
+                            readOnly
+                            className="inline-block align-middle mr-1 w-2.5 h-2.5 accent-primary pointer-events-none"
                           />
                         )}
                         {hasLabel && labelColor && !isMultiSelectMode && (
                           <span
-                            className="text-[9px] font-bold px-1 py-0.5 rounded shrink-0"
+                            className="inline-block align-middle mr-1 text-[9px] font-bold px-1 py-0.5 rounded whitespace-nowrap"
                             style={{
                               backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
                               color: ev.completed ? '#94a3b8' : labelColor.text,
@@ -217,9 +225,10 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                             {ev.label}
                           </span>
                         )}
-                        <span className="truncate flex-1">{ev.content}</span>
+                        <span className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}>
+                          {ev.content}
+                        </span>
                         
-                        {/* 💡 일정 옆 링크 아이콘 추가 */}
                         {(ev.linkedItems || []).length > 0 && (
                           <button
                             type="button"
@@ -227,7 +236,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                               e.stopPropagation();
                               openLinkViewerModal('event', dayObj.dateStr, ev.id);
                             }}
-                            className="bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer ml-1"
+                            className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 cursor-pointer"
                             title={`링크된 항목 ${(ev.linkedItems || []).length}개`}
                           >
                             🔗 {(ev.linkedItems || []).length}
@@ -243,6 +252,8 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                   )}
                 </div>
                 )}
+              </div>
+              <div className="text-[10px] text-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity text-right">
               </div>
             </div>
           );

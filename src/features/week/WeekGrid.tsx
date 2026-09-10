@@ -51,12 +51,10 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
 
         const [, month, dateNum] = day.dateStr.split('-');
         
-        // 휴일 체크
         const holidayEvent = rawEvents.find((e: any) => e.label === '휴일' || e.labelIds?.includes('휴일'));
         const holidayName = holidays[day.dateStr] || holidayEvent?.content;
         const isHoliday = !!holidayName || day.dayName === '일';
         
-        // 표시할 일반 일정
         const events = rawEvents.filter((e: any) => e.label !== '휴일' && !e.labelIds?.includes('휴일'));
 
         return (
@@ -68,7 +66,6 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
             }`}
           >
             <div>
-              {/* 상단 날짜 및 헤더 */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
                 <div className="flex items-center gap-2">
                   <span
@@ -98,7 +95,6 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                 </div>
               </div>
 
-              {/* 시간표 (수업) 영역 */}
               {showClass && (
               <div className="mb-4">
                 <div className="text-[11px] font-extrabold text-slate-400 mb-2 flex items-center gap-1">
@@ -153,7 +149,6 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
               </div>
               )}
 
-              {/* 일정 (이벤트) 영역 */}
               {showEvents && (
               <div>
                 <div className="text-[11px] font-extrabold text-slate-400 mb-2 flex items-center justify-between">
@@ -201,25 +196,34 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                               });
                             }
                           }}
-                          className={`px-2 py-1.5 rounded-lg text-xs leading-tight transition-all border flex items-center gap-1.5 hover:shadow-sm cursor-pointer ${
+                          className={`px-2 py-1.5 rounded-lg text-xs leading-snug transition-all border block hover:shadow-sm cursor-pointer break-words ${
                             selectedEventIds.includes(ev.id)
                               ? 'bg-primary/10 border-primary text-primary'
                               : ev.completed
-                              ? 'bg-slate-50 border-slate-100 text-slate-400 line-through'
+                              ? 'bg-slate-50 border-slate-100 text-slate-400'
                               : 'bg-blue-50/60 border-blue-100 text-slate-800 font-medium'
                           }`}
                         >
+                          {/* 💡 블록 요소 내에서 인라인 정렬하여 자동 Wrapping 허용 */}
                           {isMultiSelectMode && (
                             <input
                               type="checkbox"
                               checked={selectedEventIds.includes(ev.id)}
                               readOnly
-                              className="pointer-events-none"
+                              className="inline-block align-middle mr-1.5 pointer-events-none"
+                            />
+                          )}
+                          {isCompletable && !isMultiSelectMode && (
+                            <input
+                              type="checkbox"
+                              checked={!!ev.completed}
+                              readOnly
+                              className="inline-block align-middle mr-1.5 w-3 h-3 accent-primary pointer-events-none"
                             />
                           )}
                           {hasLabel && labelColor && !isMultiSelectMode && (
                             <span
-                              className="text-[9px] font-bold px-1 py-0.5 rounded shrink-0 whitespace-nowrap"
+                              className="inline-block align-middle mr-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap shadow-2xs"
                               style={{
                                 backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
                                 color: ev.completed ? '#94a3b8' : labelColor.text,
@@ -229,9 +233,10 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                               {ev.label}
                             </span>
                           )}
-                          <span className="break-words flex-1">{ev.content}</span>
+                          <span className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}>
+                            {ev.content}
+                          </span>
                           
-                          {/* 💡 일정 옆 링크 아이콘 추가 */}
                           {(ev.linkedItems || []).length > 0 && (
                             <button
                               type="button"
@@ -239,7 +244,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                                 e.stopPropagation();
                                 openLinkViewerModal('event', day.dateStr, ev.id);
                               }}
-                              className="bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
+                              className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 cursor-pointer"
                               title={`링크된 항목 ${(ev.linkedItems || []).length}개`}
                             >
                               🔗 {(ev.linkedItems || []).length}
