@@ -12,7 +12,7 @@ import QuickLinks from './QuickLinks';
 export default function MemoScreen() {
   const { selectedGroupId } = useAppStore();
   const { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, deleteCompletedMemos } = useMemos(selectedGroupId);
-  const { memoLabels, getLabelColor } = useLabels(); // ✨ 등록된 메모 라벨 가져오기
+  const { eventLabels, getLabelColor } = useLabels(); // ✨ 등록된 통합 라벨(eventLabels) 가져오기
   const [currentFilter, setCurrentFilter] = useState('전체');
   const [hideCompleted, setHideCompleted] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -74,7 +74,7 @@ export default function MemoScreen() {
           >
             전체
           </button>
-          {memoLabels.map(label => {
+          {eventLabels.map((label: any) => {
             const isSelected = currentFilter === label.name;
             const color = getLabelColor(label.name);
             return (
