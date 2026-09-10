@@ -3,6 +3,7 @@ import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { addReverseLink } from '../utils/linkUtils';
 import { moveToTrash } from '../utils/trashHelper';
+import { DEFAULT_EVENT_LABELS } from './useLabels'; // ✅ 임포트 추가
 
 export interface Attachment {
   id?: string;
@@ -637,7 +638,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   const forwardIncompleteEvents = useCallback(async () => {
     const user = auth.currentUser;
     if (!user || !dateStr) return 0;
-    //
+    
     const today = new Date(dateStr);
     const pastDates: string[] = [];
     for (let i = 1; i <= 14; i++) {
@@ -648,25 +649,29 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       const day = String(d.getDate()).padStart(2, '0');
       pastDates.push(`${y}-${m}-${day}`);
     }
-    //   (forward  true
+    
     const settingsRef = doc(db, 'users', user.uid, 'settings', 'labels');
     const settingsSnap = await getDoc(settingsRef);
-    let forwardLabelNames: string[] = [];
-    let rawLabelDefs: any[] = [];
     
+    // ✅ Firestore에 저장된 설정이 없으면 DEFAULT_EVENT_LABELS를 기본값으로 사용
+    let rawLabelDefs: any[] = [...DEFAULT_EVENT_LABELS]; 
     if (settingsSnap.exists()) {
       const data = settingsSnap.data();
-      rawLabelDefs = data.eventLabels || data.labels || [];
-      if (rawLabelDefs.length > 0) {
-        forwardLabelNames = rawLabelDefs.filter((l: any) => l.forward || l.isForward).map((l: any) => l.name);
+      if (data.eventLabels || data.labels) {
+        rawLabelDefs = data.eventLabels || data.labels;
       }
     }
+    
+    // 이월(forward) 속성이 켜진 라벨 이름만 추출
+    const forwardLabelNames = rawLabelDefs.filter((l: any) => l.forward || l.isForward).map((l: any) => l.name);
+    
     const incompleteItems: EventItem[] = [];
     for (const pDate of pastDates) {
       const docRef = groupId
         ? doc(db, 'groups', groupId, 'events', pDate)
         : doc(db, 'users', user.uid, 'events', pDate);
       const snap = await getDoc(docRef);
+      
       if (snap.exists()) {
         const data = snap.data();
         let items: EventItem[] = [];
@@ -705,6 +710,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         });
       }
     }
+    
     if (incompleteItems.length > 0) {
       const newList = [...eventList, ...incompleteItems];
       await saveEventItems(newList);
