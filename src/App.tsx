@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import Layout from './components/Layout';
 import LoginScreen from './features/auth/LoginScreen';
 import DayScreen from './features/day/DayScreen';
@@ -8,26 +8,32 @@ import YearScreen from './features/year/YearScreen';
 import MemoScreen from './features/memo/MemoScreen';
 import { useAuth } from './features/auth/useAuth';
 import { useAppStore } from './store/useAppStore';
+import { runAutoForwarding } from './hooks/useDayData';
 
 function App() {
   const { user, loading } = useAuth();
-  const { scope } = useAppStore();
+  const { scope, selectedGroupId } = useAppStore();
+
+  // 💡 추가된 부분: 앱 구동 시 전역으로 이월 실행 (주간, 월간, 년간 화면 등 전체 반영)
+  useEffect(() => {
+    if (user) {
+      runAutoForwarding(selectedGroupId).catch(console.error);
+    }
+  }, [user, selectedGroupId]);
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg-body">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-slate-200 border-t-primary rounded-full animate-spin" />
-          <p className="text-xs text-slate-400 font-medium">로그인 상태 확인 중...</p>
+          <p className="text-xs text-slate-400 font-medium"> ...</p>
         </div>
       </div>
     );
   }
-
   if (!user) {
     return <LoginScreen />;
   }
-
   return (
     <Layout>
       {scope === 'day' && <DayScreen />}
