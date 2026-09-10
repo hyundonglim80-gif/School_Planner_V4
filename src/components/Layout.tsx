@@ -72,6 +72,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     labelModalTab,
     openLabelModal,
     closeLabelModal,
+    // 💡 스크롤 네비게이션 상태 가져오기
+    enableScrollNav,
+    setEnableScrollNav,
   } = useAppStore();
   const { groups } = useGroups();
   const { primaryDDay } = useDDay();
@@ -428,6 +431,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
               {isMoreMenuOpen && (
                 <div className="absolute right-0 top-10 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-fade-in text-xs">
+                  
+                  {/* 💡 스크롤 설정 추가된 부분 */}
+                  <label className="w-full px-4 py-2.5 flex items-center justify-between font-bold text-slate-700 hover:bg-slate-50 cursor-pointer border-b border-dashed border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span>🖱️</span> 스크롤 페이지 이동
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={enableScrollNav}
+                      onChange={(e) => setEnableScrollNav(e.target.checked)}
+                      className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 accent-primary cursor-pointer"
+                    />
+                  </label>
+
                   <button
                     onClick={() => {
                       setIsMoreMenuOpen(false);

@@ -1,3 +1,5 @@
+//src/features/year/YearScreen.tsx
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, documentId, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
@@ -6,7 +8,7 @@ import { useLabels } from '../../hooks/useLabels';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { getAcademicYear, getAcademicMonths, parseDateStr, formatDateStr } from '../../lib/dateUtils';
-import { parseV3EventText, formatV3EventText } from '../../hooks/useDayData';
+import { parseV3EventText, formatV3EventText, runAutoForwarding } from '../../hooks/useDayData';
 import DetailEditModal from '../../components/DetailEditModal';
 import QuickAddModal from '../../components/QuickAddModal';
 
@@ -56,14 +58,30 @@ export default function YearScreen() {
 
     const unsubEvents = onSnapshot(query(collection(db, colPath('events')), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)), (snap) => {
       const map: Record<string, any[]> = {};
+      let shouldForward = false;
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
       snap.forEach(d => {
         const data = d.data();
         let list = data.eventList || [];
         if (list.length === 0 && data.eventText) list = parseV3EventText(data.eventText);
         map[d.id] = list.filter((e: any) => e.content?.trim());
       });
+
+      // 💡 년간 뷰에서 과거 날짜의 수정 사항이 있다면 이월 로직 자동 실행 예약
+      snap.docChanges().forEach(change => {
+        if (change.doc.id < todayStr) {
+          shouldForward = true;
+        }
+      });
+
       setEventsMap(map);
       setLoading(false);
+
+      if (shouldForward) {
+        runAutoForwarding(selectedGroupId).catch(console.error);
+      }
     });
 
     const unsubSchedules = onSnapshot(query(collection(db, colPath('schedules')), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)), (snap) => {

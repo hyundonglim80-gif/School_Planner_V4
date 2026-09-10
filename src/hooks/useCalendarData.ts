@@ -1,3 +1,5 @@
+//src/hooks/useCalendarData.ts
+
 import { useState, useEffect } from 'react';
 import { doc, onSnapshot, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -71,6 +73,14 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
           };
         }
         setDataMap({ ...currentMap });
+
+        // 💡 퀵 추가 등을 통해 "과거 날짜"에 새로운 데이터가 변경된 경우 즉시 이월 로직 재실행
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        if (dStr < todayStr) {
+          runAutoForwarding(groupId).catch(console.error);
+        }
+
       }, (error) => {
         console.error('Calendar Event Snapshot Error:', error);
         setLoading(false);
