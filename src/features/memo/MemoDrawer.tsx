@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Memo, MemoAttachment } from '../../hooks/useMemos';
 import { auth, db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { uploadImage, uploadFile } from '../../utils/uploadHelper';
 import { useAppStore } from '../../store/useAppStore';
 
-const PRESET_LABELS = ['긴급', '중요', '학급운영', '학부모상담', '수업준비', '행정업무', '개인'];
+const PRESET_LABELS = [' ', ' ', ' ', ' ', ' ', ' ', ' '];
 
 interface MemoDrawerProps {
   isOpen: boolean;
@@ -17,9 +17,11 @@ interface MemoDrawerProps {
     attachments?: MemoAttachment[];
   }) => Promise<void>;
   editingMemo?: Memo | null;
+  onDelete?: (firestoreId: string) => Promise<void>;
+  defaultLabel?: string;
 }
 
-export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: MemoDrawerProps) {
+export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDelete, defaultLabel }: MemoDrawerProps) {
   const { openLabelModal, isLabelModalOpen } = useAppStore();
   const [content, setContent] = useState('');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
@@ -29,7 +31,8 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [presetLabels, setPresetLabels] = useState<string[]>(PRESET_LABELS);
 
-  // 라벨 데이터 불러오기 (Firestore 전용)
+  const handleSubmitRef = useRef<() => void>(() => {});
+
   useEffect(() => {
     const fetchMemoLabels = async () => {
       const user = auth.currentUser;
@@ -62,8 +65,7 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
     if (editingMemo) {
       setContent(editingMemo.content || editingMemo.text || '');
       setSelectedLabels(editingMemo.labels || []);
-
-      // 기존 첨부파일 또는 imageUrl 안전 초기화
+      
       let initialAttachments: MemoAttachment[] = [];
       if (editingMemo.attachments && Array.isArray(editingMemo.attachments)) {
         const parsedList: MemoAttachment[] = [];
@@ -73,13 +75,13 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
           if (typeof raw === 'string') {
             const url = raw.trim();
             if (url) {
-              const name = url.split('/').pop()?.split('?')[0] || '첨부 파일';
+              const name = url.split('/').pop()?.split('?')[0] || ' ';
               parsedList.push({ name, url, type: '' });
             }
           } else {
             const url = raw.url || raw.downloadUrl || raw.fileUrl || '';
             if (url && typeof url === 'string') {
-              const name = raw.name || url.split('/').pop()?.split('?')[0] || '첨부 파일';
+              const name = raw.name || url.split('/').pop()?.split('?')[0] || ' ';
               parsedList.push({
                 name,
                 url,
@@ -93,7 +95,7 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
       } else if (editingMemo.imageUrl) {
         initialAttachments = [
           {
-            name: '첨부 이미지',
+            name: ' ',
             url: editingMemo.imageUrl,
             type: 'image/jpeg',
           },
@@ -102,16 +104,24 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
       setAttachments(initialAttachments);
     } else {
       setContent('');
-      setSelectedLabels([]);
+      setSelectedLabels(defaultLabel && defaultLabel !== '전체' ? [defaultLabel] : []);
       setAttachments([]);
     }
-  }, [editingMemo, isOpen]);
+  }, [editingMemo, isOpen, defaultLabel]);
 
-  // ESC 키로 닫기 (라벨 모달이 열려있지 않을 때만)
+  useEffect(() => {
+    handleSubmitRef.current = () => handleSubmit();
+  }, [content, selectedLabels, attachments]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen && !isLabelModalOpen) {
+      if (!isOpen) return;
+      if (e.key === 'Escape' && !isLabelModalOpen) {
         onClose();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSubmitRef.current();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -137,14 +147,13 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
     }
   };
 
-  // 모든 형태의 파일 업로드 (다중 선택 및 중복/누적 첨부 지원)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     const user = auth.currentUser;
     if (!user) {
-      alert('로그인이 필요합니다.');
+      alert(' .');
       return;
     }
 
@@ -169,14 +178,12 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
         });
       }
 
-      // 기존 첨부파일 목록에 추가 (누적/중복 첨부)
       setAttachments((prev) => [...prev, ...newAttachments]);
     } catch (error) {
-      console.error('파일 업로드 오류:', error);
-      alert('파일 업로드 중 오류가 발생했습니다.');
+      console.error(' :', error);
+      alert(' .');
     } finally {
       setUploadingFiles(false);
-      // 같은 파일을 다시 선택할 수 있도록 input value 초기화
       e.target.value = '';
     }
   };
@@ -198,13 +205,13 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
     const type = att?.type || '';
 
     if (type.startsWith('image/') || (typeof url === 'string' && url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i))) {
-      return '🖼️';
+      return ' ';
     }
-    if (type.includes('pdf') || (typeof name === 'string' && name.endsWith('.pdf'))) return '📕';
-    if (typeof name === 'string' && name.match(/\.(doc|docx|hwp|hwpx|txt)$/i)) return '📄';
-    if (typeof name === 'string' && name.match(/\.(xls|xlsx|csv)$/i)) return '📊';
-    if (typeof name === 'string' && name.match(/\.(zip|7z|tar|gz|rar)$/i)) return '📦';
-    return '📎';
+    if (type.includes('pdf') || (typeof name === 'string' && name.endsWith('.pdf'))) return ' ';
+    if (typeof name === 'string' && name.match(/\.(doc|docx|hwp|hwpx|txt)$/i)) return ' ';
+    if (typeof name === 'string' && name.match(/\.(xls|xlsx|csv)$/i)) return ' ';
+    if (typeof name === 'string' && name.match(/\.(zip|7z|tar|gz|rar)$/i)) return ' ';
+    return ' ';
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -213,8 +220,6 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
 
     try {
       setSaving(true);
-
-      // 첫 번째 이미지를 imageUrl로 함께 지정하여 구버전과의 호환성 보장
       const firstImage = attachments.find(
         (a) =>
           (a?.type && typeof a.type === 'string' && a.type.startsWith('image/')) ||
@@ -229,8 +234,8 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
       });
       onClose();
     } catch (error) {
-      console.error('메모 저장 실패:', error);
-      alert('메모 저장 중 오류가 발생했습니다.');
+      console.error(' :', error);
+      alert(' .');
     } finally {
       setSaving(false);
     }
@@ -238,38 +243,33 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      {/* 배경 오버레이 */}
       <div
         className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300"
         onClick={onClose}
       />
 
-      {/* 우측 슬라이드 패널 (Drawer) */}
       <div className="relative w-full max-w-lg bg-white h-full shadow-2xl z-10 flex flex-col transform transition-transform duration-300 ease-in-out">
-        {/* 상단 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div>
             <h3 className="text-lg font-bold text-slate-800">
-              {editingMemo ? '메모 수정' : '새 메모 작성'}
+              {editingMemo ? ' ' : ' '}
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              단축키 Ctrl + Enter로 빠르게 저장할 수 있습니다.
+                Ctrl + Enter
             </p>
           </div>
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
           >
-            ✕
+                       
           </button>
         </div>
 
-        {/* 본문 입력 영역 */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* 메모 내용 Textarea */}
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-slate-600">
-              메모 내용 <span className="text-red-500">*</span>
+                <span className="text-red-500">*</span>
             </label>
             <textarea
               autoFocus
@@ -281,29 +281,26 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
                   handleSubmit();
                 }
               }}
-              placeholder="메모할 내용을 입력하세요..."
+              placeholder=" ..."
               className="w-full h-44 p-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none text-slate-800 leading-relaxed placeholder-slate-400 text-sm"
             />
           </div>
 
-          {/* 1. 라벨 선택 태그 & 라벨 설정 버튼 */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-semibold text-slate-600">
-                라벨 선택 (다중 선택 가능)
+                               
               </label>
-              {/* 더보기-라벨 설정으로 연결되는 버튼 */}
               <button
                 type="button"
                 onClick={() => openLabelModal('memo')}
                 className="text-xs text-primary hover:text-blue-700 font-bold flex items-center gap-1.5 px-2 py-0.5 rounded-md hover:bg-blue-50 transition-colors cursor-pointer"
-                title="더보기 메뉴의 통합 라벨 설정(메모 탭)으로 이동"
+                title=" "
               >
-                <span>⚙️</span>
-                <span>라벨 설정</span>
+                <span> </span>
+                <span> </span>
               </button>
             </div>
-
             <div className="flex flex-wrap gap-1.5">
               {presetLabels.map((label) => {
                 const isSelected = selectedLabels.includes(label);
@@ -318,20 +315,19 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
-                    {isSelected ? '✓ ' : ''}
+                    {isSelected ? '  ' : ''}
                     {label}
                   </button>
                 );
               })}
             </div>
 
-            {/* 사용자 정의 라벨 즉시 추가 */}
             <div className="flex gap-2 pt-2">
               <input
                 type="text"
                 value={customLabel}
                 onChange={(e) => setCustomLabel(e.target.value)}
-                placeholder="새 라벨 직접 입력..."
+                placeholder=" ..."
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
@@ -345,11 +341,10 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
                 onClick={handleAddCustomLabel}
                 className="px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-medium cursor-pointer"
               >
-                + 추가
+                + 
               </button>
             </div>
 
-            {/* 선택된 추가 라벨들 */}
             {selectedLabels.filter((l) => !presetLabels.includes(l)).length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {selectedLabels
@@ -365,7 +360,7 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
                         onClick={() => toggleLabel(label)}
                         className="hover:text-red-500 ml-0.5 cursor-pointer font-bold"
                       >
-                        ×
+                                               
                       </button>
                     </span>
                   ))}
@@ -373,19 +368,17 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
             )}
           </div>
 
-          {/* 2. 첨부 파일 (모든 형태의 파일 지원, 다중/중복 첨부 가능) */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-semibold text-slate-600">
-                첨부 파일 ({attachments.length}개)
+                  ({attachments.length} )
               </label>
-              <span className="text-[11px] text-slate-400">모든 파일 형식 및 다중 선택 가능</span>
+              <span className="text-[11px] text-slate-400"> </span>
             </div>
 
-            {/* 파일 첨부 버튼 */}
             <label className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer border border-dashed border-slate-300 shadow-2xs">
-              <span>{uploadingFiles ? '⏳' : '📎'}</span>
-              <span>{uploadingFiles ? '파일 업로드 중...' : '파일 첨부하기 (다중/추가 선택)'}</span>
+              <span>{uploadingFiles ? ' ' : ' '}</span>
+              <span>{uploadingFiles ? ' ...' : ' )'}</span>
               <input
                 type="file"
                 multiple
@@ -395,7 +388,6 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
               />
             </label>
 
-            {/* 첨부된 파일 목록 (중복/다중 첨부 렌더링) */}
             {attachments.length > 0 && (
               <div className="space-y-2 pt-1">
                 {attachments.map((att, idx) => {
@@ -437,14 +429,13 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
                           )}
                         </div>
                       </div>
-
                       <button
                         type="button"
                         onClick={() => handleRemoveAttachment(idx)}
                         className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0"
-                        title="파일 삭제"
+                        title=" "
                       >
-                        ✕
+                                               
                       </button>
                     </div>
                   );
@@ -452,33 +443,50 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
               </div>
             )}
           </div>
+
         </div>
 
-        {/* 하단 버튼 바 */}
-        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/50">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving || uploadingFiles}
-            className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSubmit()}
-            disabled={saving || uploadingFiles || !content.trim()}
-            className="px-5 py-2 text-sm font-bold text-white bg-primary hover:bg-blue-600 rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
-          >
-            {saving ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>저장 중...</span>
-              </>
-            ) : (
-              <span>{editingMemo ? '수정 완료' : '메모 등록'}</span>
-            )}
-          </button>
+        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50">
+          {editingMemo && onDelete ? (
+             <button
+               type="button"
+               onClick={async () => {
+                 if (window.confirm('정말 삭제하시겠습니까?')) {
+                   await onDelete(editingMemo.firestoreId);
+                   onClose();
+                 }
+               }}
+               className="px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-100 rounded-xl transition-colors cursor-pointer"
+             >
+               삭제
+             </button>
+          ) : <div></div>}
+          
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving || uploadingFiles}
+              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSubmit()}
+              disabled={saving || uploadingFiles || !content.trim()}
+              className="px-5 py-2 text-sm font-bold text-white bg-primary hover:bg-blue-600 rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+            >
+              {saving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>저장중...</span>
+                </>
+              ) : (
+                <span>{editingMemo ? '수정 (Ctrl+S)' : '저장 (Ctrl+S)'}</span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

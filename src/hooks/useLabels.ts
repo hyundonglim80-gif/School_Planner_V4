@@ -14,32 +14,36 @@ export interface EventLabel {
 }
 
 export const DEFAULT_EVENT_LABELS: EventLabel[] = [
-  { id: 'ev_1', name: '공문', color: 'red', calendar: true, skip: false, forward: false },
-  { id: 'ev_2', name: '기안', color: 'orange', calendar: true, skip: false, forward: false },
-  { id: 'ev_3', name: '보고', color: 'blue', calendar: false, skip: false, forward: false },
-  { id: 'ev_4', name: '업무', color: 'green', calendar: false, skip: false, forward: true },
-  { id: 'ev_5', name: '회의', color: 'purple', calendar: false, skip: false, forward: false },
+  { id: 'ev_1', name: ' ', color: 'red', calendar: true, skip: false, forward: false },
+  { id: 'ev_2', name: ' ', color: 'orange', calendar: true, skip: false, forward: false },
+  { id: 'ev_3', name: ' ', color: 'blue', calendar: false, skip: false, forward: false },
+  { id: 'ev_4', name: ' ', color: 'green', calendar: false, skip: false, forward: true },
+  { id: 'ev_5', name: ' ', color: 'purple', calendar: false, skip: false, forward: false },
 ];
 
+const DEFAULT_MEMO_LABELS = ['긴급', '중요', '업무', '개인', '기타'];
+
 export const COLOR_PALETTE: Record<string, { bg: string; text: string; border: string; label: string }> = {
-  blue: { bg: '#dbeafe', text: '#1e40af', border: '#93c5fd', label: '파랑' },
-  green: { bg: '#dcfce7', text: '#166534', border: '#86efac', label: '초록' },
-  red: { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5', label: '빨강' },
-  orange: { bg: '#ffedd5', text: '#9a3412', border: '#fdba74', label: '주황' },
-  yellow: { bg: '#fef9c3', text: '#854d0e', border: '#fde047', label: '노랑' },
-  indigo: { bg: '#e0e7ff', text: '#3730a3', border: '#a5b4fc', label: '남색' },
-  purple: { bg: '#f3e8ff', text: '#6b21a8', border: '#d8b4fe', label: '보라' },
-  pink: { bg: '#fce7f3', text: '#9d174d', border: '#f9a8d4', label: '분홍' },
-  gray: { bg: '#f1f5f9', text: '#334155', border: '#cbd5e1', label: '회색' },
+  blue: { bg: '#dbeafe', text: '#1e40af', border: '#93c5fd', label: ' ' },
+  green: { bg: '#dcfce7', text: '#166534', border: '#86efac', label: ' ' },
+  red: { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5', label: ' ' },
+  orange: { bg: '#ffedd5', text: '#9a3412', border: '#fdba74', label: ' ' },
+  yellow: { bg: '#fef9c3', text: '#854d0e', border: '#fde047', label: ' ' },
+  indigo: { bg: '#e0e7ff', text: '#3730a3', border: '#a5b4fc', label: ' ' },
+  purple: { bg: '#f3e8ff', text: '#6b21a8', border: '#d8b4fe', label: ' ' },
+  pink: { bg: '#fce7f3', text: '#9d174d', border: '#f9a8d4', label: ' ' },
+  gray: { bg: '#f1f5f9', text: '#334155', border: '#cbd5e1', label: ' ' },
 };
 
 export function useLabels() {
   const [eventLabels, setEventLabels] = useState<EventLabel[]>(DEFAULT_EVENT_LABELS);
+  const [memoLabels, setMemoLabels] = useState<string[]>(DEFAULT_MEMO_LABELS);
 
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) {
       setEventLabels(DEFAULT_EVENT_LABELS);
+      setMemoLabels(DEFAULT_MEMO_LABELS);
       return;
     }
 
@@ -58,8 +62,15 @@ export function useLabels() {
           period: !!l.period,
           recur: !!l.recur,
         })));
+
+        if (Array.isArray(data.memoLabels) && data.memoLabels.length > 0) {
+          setMemoLabels(data.memoLabels.map((l: any) => (typeof l === 'string' ? l : l.name)));
+        } else {
+          setMemoLabels(DEFAULT_MEMO_LABELS);
+        }
       } else {
         setEventLabels(DEFAULT_EVENT_LABELS);
+        setMemoLabels(DEFAULT_MEMO_LABELS);
       }
     });
 
@@ -73,5 +84,6 @@ export function useLabels() {
   };
 
   const getLabel = (labelName: string) => eventLabels.find(l => l.name === labelName);
-  return { eventLabels, getLabelColor, getLabel };
+
+  return { eventLabels, getLabelColor, getLabel, memoLabels };
 }

@@ -637,8 +637,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   const forwardIncompleteEvents = useCallback(async () => {
     const user = auth.currentUser;
     if (!user || !dateStr) return 0;
-
-    // 지난 14일간의 날짜 조회
+    //
     const today = new Date(dateStr);
     const pastDates: string[] = [];
     for (let i = 1; i <= 14; i++) {
@@ -649,27 +648,24 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       const day = String(d.getDate()).padStart(2, '0');
       pastDates.push(`${y}-${m}-${day}`);
     }
-
-    // 설정된 라벨 가져오기 (forward가 true인 라벨 식별)
+    //   (forward  true
     const settingsRef = doc(db, 'users', user.uid, 'settings', 'labels');
     const settingsSnap = await getDoc(settingsRef);
-    let forwardLabels = ['할일', '업무']; // 기본 forward 라벨명
+    let forwardLabelNames: string[] = [];
+    let rawLabelDefs: any[] = [];
     
     if (settingsSnap.exists()) {
       const data = settingsSnap.data();
-      const labels = data.eventLabels || data.labels;
-      if (labels) {
-        forwardLabels = labels.filter((l: any) => l.forward || l.isForward).map((l: any) => l.name);
+      rawLabelDefs = data.eventLabels || data.labels || [];
+      if (rawLabelDefs.length > 0) {
+        forwardLabelNames = rawLabelDefs.filter((l: any) => l.forward || l.isForward).map((l: any) => l.name);
       }
     }
-
     const incompleteItems: EventItem[] = [];
-
     for (const pDate of pastDates) {
       const docRef = groupId
         ? doc(db, 'groups', groupId, 'events', pDate)
         : doc(db, 'users', user.uid, 'events', pDate);
-
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         const data = snap.data();
@@ -679,26 +675,40 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         } else if (data.eventText) {
           items = parseV3EventText(data.eventText);
         }
+        
+        items.forEach(it => {
+          if (it.completed || !it.content.trim()) return;
 
-        items.filter(it => !it.completed && it.content.trim() && forwardLabels.includes(it.label || '일반')).forEach(it => {
-          // 중복 방지
-          if (!eventList.some(e => e.content === it.content) && !incompleteItems.some(e => e.content === it.content)) {
-            incompleteItems.push({
-              id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5),
-              content: it.content,
-              completed: false,
-              label: it.label,
-            });
+          let labelName = '';
+          if (it.label) {
+            labelName = it.label.split(',')[0].trim();
+          } else if (it.labelIds && it.labelIds.length > 0) {
+            const found = rawLabelDefs.find(l => l.id === it.labelIds![0]);
+            if (found) labelName = found.name;
+          } else {
+            const match = it.content.match(/^\[(.*?)\]\s*(.*)$/);
+            if (match) labelName = match[1].trim();
+          }
+
+          if (forwardLabelNames.includes(labelName)) {
+            if (!eventList.some(e => e.content === it.content) && !incompleteItems.some(e => e.content === it.content)) {
+              incompleteItems.push({
+                id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5),
+                content: it.content,
+                completed: false,
+                label: it.label,
+                labelIds: it.labelIds,
+                linkedItems: it.linkedItems,
+              });
+            }
           }
         });
       }
     }
-
     if (incompleteItems.length > 0) {
       const newList = [...eventList, ...incompleteItems];
       await saveEventItems(newList);
     }
-
     return incompleteItems.length;
   }, [dateStr, groupId, eventList, saveEventItems]);
 
