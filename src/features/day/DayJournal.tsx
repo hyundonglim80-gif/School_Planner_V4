@@ -80,7 +80,9 @@ export default function DayJournal({
   // 💡 라벨이 삭제된 경우 빈 문자열('')을 반환하도록 수정
   const getLabelName = (entry: JournalEntry) => {
     if (entry.labelIds && entry.labelIds.length > 0) {
-      const found = journalLabels.find(l => l.id === entry.labelIds![0]);
+      // 💡 ID뿐만 아니라 Name으로도 매칭되도록 유연하게 수정
+      const firstLabel = entry.labelIds[0];
+      const found = journalLabels.find(l => l.id === firstLabel || l.name === firstLabel);
       if (found) return found.name;
       return ''; // 삭제된 라벨 숨김
     }
@@ -97,7 +99,9 @@ export default function DayJournal({
   const getLabelColorClass = (entry: JournalEntry) => {
     let color = 'gray';
     if (entry.labelIds && entry.labelIds.length > 0) {
-      const found = journalLabels.find(l => l.id === entry.labelIds![0]);
+      // 💡 ID뿐만 아니라 Name으로도 매칭되도록 유연하게 수정
+      const firstLabel = entry.labelIds[0];
+      const found = journalLabels.find(l => l.id === firstLabel || l.name === firstLabel);
       if (found) color = found.color;
     } else if (entry.label && entry.label.startsWith('j_')) {
       const found = journalLabels.find(l => l.id === entry.label);
