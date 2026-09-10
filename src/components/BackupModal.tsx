@@ -33,10 +33,18 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
     if (!user) return;
 
     setProcessing(true);
-    setStatusMsg(`${govYear}년 공휴일 정보를 가져오는 중...`);
+    // 학년도 처리를 위해 해당 연도와 다음 연도를 함께 가져온다고 안내합니다.
+    setStatusMsg(`${govYear}~${govYear + 1}년 공휴일 정보를 가져오는 중...`);
 
     try {
-      const fetchedHolidays = await fetchHolidaysFromGovApi(govYear);
+      // 💡 선택한 연도(govYear)와 다음 해(govYear + 1)의 공휴일을 동시에 요청합니다.
+      const [holidaysThisYear, holidaysNextYear] = await Promise.all([
+        fetchHolidaysFromGovApi(govYear),
+        fetchHolidaysFromGovApi(govYear + 1)
+      ]);
+
+      // 두 해의 공휴일 객체를 하나로 병합합니다.
+      const fetchedHolidays = { ...holidaysThisYear, ...holidaysNextYear };
       const holidayDates = Object.keys(fetchedHolidays);
 
       if (holidayDates.length === 0) {
@@ -46,9 +54,10 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
 
       // 일정(events)으로 하나씩 저장하지 않고, 달력 시스템의 공휴일 설정 문서에 통합 저장합니다.
       const ref = doc(db, 'users', user.uid, 'settings', 'holidays');
+      // merge: true 옵션이 있으므로, 기존에 저장된 다른 연도의 공휴일을 지우지 않고 누적해서 저장합니다.
       await setDoc(ref, { ...fetchedHolidays, updatedAt: Date.now() }, { merge: true });
 
-      alert(`${govYear}년 공휴일 ${holidayDates.length}건을 성공적으로 적용했습니다.`);
+      alert(`학사일정 처리를 위해 ${govYear}년과 ${govYear + 1}년 공휴일 총 ${holidayDates.length}건을 성공적으로 적용했습니다.`);
     } catch (e: any) {
       console.error(e);
       alert('공휴일 가져오기 실패: ' + e.message);
