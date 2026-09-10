@@ -38,14 +38,12 @@ export function useMemos(groupId: string | null = null) {
       setLoading(false);
       return;
     }
-
     setLoading(true);
 
     const collectionRef = groupId
       ? collection(db, 'groups', groupId, 'tasks')
       : collection(db, 'users', user.uid, 'tasks');
 
-    // V3의 모든 구버전/신버전 문서를 누락 없이 구독
     const unsubscribe = onSnapshot(collectionRef, (snapshot) => {
       const newMemos: Memo[] = [];
       snapshot.forEach((docSnap) => {
@@ -63,26 +61,25 @@ export function useMemos(groupId: string | null = null) {
           linkedItems: data.linkedItems || [],
         } as Memo);
       });
-
-      // 최신순 정렬
+      
       newMemos.sort((a, b) => b.createdAt - a.createdAt);
       setMemos(newMemos);
       setLoading(false);
     }, (error) => {
-      console.error('메모 로드 오류:', error);
+      console.error('메모 불러오기 에러:', error);
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, [groupId, auth.currentUser?.uid]);
 
-  const addMemo = async (data: { content: string; labels?: string[]; imageUrl?: string; attachments?: MemoAttachment[] }) => {
+  const addMemo = async (data: { content: string; labels?: string[]; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[] }) => {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
 
     const collectionRef = groupId 
-      ? collection(db, 'groups', groupId, 'tasks') 
-      : collection(db, 'users', user.uid, 'tasks');
+       ? collection(db, 'groups', groupId, 'tasks')
+       : collection(db, 'users', user.uid, 'tasks');
 
     const now = Date.now();
     const newMemoData = {
@@ -94,21 +91,22 @@ export function useMemos(groupId: string | null = null) {
       labels: data.labels || [],
       imageUrl: data.imageUrl || '',
       attachments: data.attachments || [],
+      linkedItems: data.linkedItems || [],
       authorId: user.uid,
-      authorName: user.displayName || '선생님',
+      authorName: user.displayName || '이름 없음',
       sharedGroupIds: groupId ? [groupId] : []
     };
 
     return await addDoc(collectionRef, newMemoData);
   };
 
-  const updateMemo = async (firestoreId: string, data: { content?: string; labels?: string[]; completed?: boolean; imageUrl?: string; attachments?: MemoAttachment[] }) => {
+  const updateMemo = async (firestoreId: string, data: { content?: string; labels?: string[]; completed?: boolean; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[] }) => {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
 
     const docRef = groupId 
-      ? doc(db, 'groups', groupId, 'tasks', firestoreId) 
-      : doc(db, 'users', user.uid, 'tasks', firestoreId);
+       ? doc(db, 'groups', groupId, 'tasks', firestoreId)
+       : doc(db, 'users', user.uid, 'tasks', firestoreId);
 
     const updateData: any = {};
     if (data.content !== undefined) {
@@ -119,6 +117,7 @@ export function useMemos(groupId: string | null = null) {
     if (data.completed !== undefined) updateData.completed = data.completed;
     if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
     if (data.attachments !== undefined) updateData.attachments = data.attachments;
+    if (data.linkedItems !== undefined) updateData.linkedItems = data.linkedItems;
 
     return await updateDoc(docRef, updateData);
   };
@@ -143,9 +142,8 @@ export function useMemos(groupId: string | null = null) {
     }
 
     const docRef = groupId 
-      ? doc(db, 'groups', groupId, 'tasks', firestoreId) 
-      : doc(db, 'users', user.uid, 'tasks', firestoreId);
-
+       ? doc(db, 'groups', groupId, 'tasks', firestoreId)
+       : doc(db, 'users', user.uid, 'tasks', firestoreId);
     return await deleteDoc(docRef);
   };
 
@@ -173,11 +171,10 @@ export function useMemos(groupId: string | null = null) {
         } catch (e) {
           console.error('Failed to move memo to trash:', e);
         }
-
+        
         const docRef = groupId 
-          ? doc(db, 'groups', groupId, 'tasks', targetMemo.firestoreId) 
-          : doc(db, 'users', user.uid, 'tasks', targetMemo.firestoreId);
-
+           ? doc(db, 'groups', groupId, 'tasks', targetMemo.firestoreId)
+           : doc(db, 'users', user.uid, 'tasks', targetMemo.firestoreId);
         return deleteDoc(docRef);
       })
     );

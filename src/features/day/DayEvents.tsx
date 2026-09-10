@@ -33,21 +33,18 @@ export default function DayEvents({
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [forwarding, setForwarding] = useState(false);
+
   const { openLinkerModal, openLinkViewerModal, currentDate, isMultiSelectMode, selectedEventIds, toggleEventSelection, googleAccessToken } = useAppStore();
   const { eventLabels, getLabelColor, getLabel } = useLabels();
-
-  // 수정(Edit) 상태
+  
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [editLabel, setEditLabel] = useState<string | undefined>(undefined);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
-
   const formattedDate = formatDateStr(new Date(currentDate));
 
-  // 라벨 정보 및 클린 텍스트 추출 헬퍼
   const getEventLabelInfo = (event: EventItem) => {
     let names: string[] = [];
     if (event.label) {
@@ -73,7 +70,6 @@ export default function DayEvents({
     return { names, labelDefs, isCompletable, cleanContent };
   };
 
-  // 완료 속성 라벨을 가진 항목들 판별
   const completableEvents = events.filter((e) => {
     const info = getEventLabelInfo(e);
     return info.isCompletable;
@@ -118,7 +114,6 @@ export default function DayEvents({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newText.trim() && newAttachments.length === 0) return;
-
     try {
       setSubmitting(true);
       const labelStr = newLabels.length > 0 ? newLabels.join(',') : undefined;
@@ -147,7 +142,7 @@ export default function DayEvents({
     if (!files || files.length === 0) return;
     const user = auth.currentUser;
     if (!user) return alert('로그인이 필요합니다.');
-
+    
     setUploadingFiles(true);
     try {
       const uploaded: Attachment[] = [];
@@ -166,7 +161,7 @@ export default function DayEvents({
       }
       setNewAttachments(prev => [...prev, ...uploaded]);
     } catch (err: any) {
-      alert('파일 업로드 실패: ' + err.message);
+      alert('파일 업로드 에러: ' + err.message);
     } finally {
       setUploadingFiles(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -183,22 +178,20 @@ export default function DayEvents({
     });
   };
 
-
-
   return (
     <div className={`bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 flex flex-col ${isCollapsed ? '' : 'h-full'}`}>
-      {/* 타이틀 및 진행도 */}
+      {/* 타이틀 및 추가 버튼 */}
       <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isCollapsed ? '' : 'mb-4'}`}>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="text-slate-400 hover:text-slate-700 text-xs px-1 py-0.5 rounded hover:bg-slate-100 transition-colors"
-            title={isCollapsed ? '일정 펼치기' : '일정 접기'}
+            title={isCollapsed ? '펼치기' : '접기'}
           >
             {isCollapsed ? '▶' : '▼'}
           </button>
-          <span className="text-xl">📌</span>
+          <span className="text-xl">📅</span>
           <h3 className="text-base font-extrabold text-slate-800">일정</h3>
           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
             {events.length}
@@ -209,21 +202,20 @@ export default function DayEvents({
             </span>
           )}
         </div>
-
+        
         {!isCollapsed && !isFormOpen && (
           <button
             onClick={() => setIsFormOpen(true)}
             className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
           >
-            +
+            + 새 일정
           </button>
         )}
       </div>
 
       {!isCollapsed && (
         <>
-
-      {/* 진행 바 (완료 속성 라벨 일정이 있을 때만 표시) */}
+      {/* 프로그레스 바 (완료 항목 있을 때만) */}
       {completableEvents.length > 0 && (
         <div className="w-full h-1.5 bg-slate-100 rounded-full mb-4 overflow-hidden">
           <div
@@ -233,10 +225,10 @@ export default function DayEvents({
         </div>
       )}
 
-      {/* 새 할일 입력 폼 */}
+      {/* 새 일정 폼 */}
       {isFormOpen && (
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4 flex flex-col gap-2">
-        {/* 라벨 선택 버튼 나열 */}
+        {/* 라벨 선택 */}
         <div className="flex flex-wrap gap-1.5">
           {eventLabels.map(l => {
             const color = getLabelColor(l.name);
@@ -258,8 +250,8 @@ export default function DayEvents({
             );
           })}
         </div>
-
-        {/* 텍스트 입력 및 버튼들 */}
+        
+        {/* 입력 및 전송 */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-2 relative">
           <input
             type="text"
@@ -271,7 +263,7 @@ export default function DayEvents({
                 handleSubmit(e as any);
               }
             }}
-            placeholder="일정 입력..."
+            placeholder="새로운 일정을 추가하세요..."
             className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder-slate-400 transition-all"
             autoFocus
           />
@@ -281,21 +273,21 @@ export default function DayEvents({
               onClick={() => setIsFormOpen(false)}
               className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-xl transition-colors"
             >
-              닫기
+              취소
             </button>
             <button
               type="submit"
               disabled={(!newText.trim() && newAttachments.length === 0) || submitting || uploadingFiles}
               className="px-4 py-1.5 bg-primary hover:bg-blue-600 disabled:opacity-40 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-sm transition-all"
             >
-              추가
+              저장
             </button>
           </div>
         </form>
       </div>
       )}
 
-      {/* 할 일 목록 */}
+      {/* 일정 목록 */}
       <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[160px]">
         {events.length > 0 ? (
           events.map((event, idx) => {
@@ -327,7 +319,6 @@ export default function DayEvents({
                       );
                     })}
                   </div>
-
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
@@ -344,7 +335,6 @@ export default function DayEvents({
                       className="flex-1 px-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                       autoFocus
                     />
-
                     <button
                       type="button"
                       onClick={() => saveEditing(event.id)}
@@ -383,7 +373,7 @@ export default function DayEvents({
                 }`}
               >
                 <div className="flex items-center gap-2.5 flex-1 min-w-0 pointer-events-auto">
-                  {/* 순서 변경 아이콘 */}
+                  {/* 정렬 버튼 */}
                   {!isMultiSelectMode && (
                     <div className="flex flex-col items-center gap-0.5 shrink-0 px-0.5">
                       <button
@@ -404,7 +394,8 @@ export default function DayEvents({
                       </button>
                     </div>
                   )}
-                  {/*   */}
+
+                  {/* 체크박스 (다중 선택 모드) */}
                   {isMultiSelectMode && (
                     <input
                       type="checkbox"
@@ -414,7 +405,7 @@ export default function DayEvents({
                     />
                   )}
 
-                  {/* 1. 라벨 배지 (왼쪽에 가장 먼저 표시!) */}
+                  {/* 1. 라벨 (다중 라벨 지원!) */}
                   {info.names.length > 0 && (
                     <div className="flex gap-1 shrink-0">
                       {info.names.map(name => {
@@ -436,22 +427,22 @@ export default function DayEvents({
                     </div>
                   )}
 
-                  {/* 2. 체크박스 (완료 속성 라벨일 때만 표시, 다중 선택 모드 아닐 때) */}
+                  {/* 2. 체크박스 (완료 가능한 항목일 때만) */}
                   {info.isCompletable && !isMultiSelectMode && (
                     <input
                       type="checkbox"
                       checked={!!event.completed}
                       onChange={() => onToggleEvent(event.id)}
                       className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 cursor-pointer accent-primary shrink-0"
-                      title="완료 체크"
+                      title="완료 토글"
                     />
                   )}
 
-                  {/* 3. 일정 내용 및 첨부파일 */}
+                  {/* 3. 본문 텍스트 */}
                   <div className="flex flex-col flex-1 min-w-0">
                     <span
                       onClick={(e) => {
-                        if (isMultiSelectMode) return; // 상위 onClick에서 처리
+                        if (isMultiSelectMode) return; 
                         if (info.isCompletable) onToggleEvent(event.id);
                       }}
                       onDoubleClick={() => !isMultiSelectMode && startEditing(event)}
@@ -463,7 +454,7 @@ export default function DayEvents({
                       {info.cleanContent}
                     </span>
                     
-                    {/* 첨부파일 미리보기 (작게 표시) */}
+                    {/* 첨부파일 (배지 형태) */}
                     {event.attachments && event.attachments.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
                         {event.attachments.map((att, idx) => (
@@ -479,20 +470,18 @@ export default function DayEvents({
                         ))}
                       </div>
                     )}
-                    {/* 연결된 링크 표시 (기록과 동일한 방식) */}
+
+                    {/* 연결된 링크 (깔끔한 🔗 아이콘 포맷) */}
                     {event.linkedItems && event.linkedItems.length > 0 && (
-                      <div className="flex gap-1.5 mt-2 flex-wrap">
-                        {event.linkedItems.map((link: any, idx: number) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); openLinkViewerModal('event', formattedDate, event.id); }}
-                            className="px-1.5 py-0.5 bg-yellow-50 text-yellow-800 border border-yellow-300 rounded text-[10px] font-bold shadow-2xs hover:bg-yellow-100 transition-colors flex items-center gap-1"
-                          >
-                            <span className="text-yellow-600">📑</span>
-                            <span className="truncate max-w-[120px]">{link.title || '연결된 항목'}</span>
-                          </button>
-                        ))}
+                      <div className="mt-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); openLinkViewerModal('event', formattedDate, event.id); }}
+                          className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 transition-colors cursor-pointer flex items-center gap-1 inline-flex"
+                          title={`링크된 항목 ${event.linkedItems.length}개`}
+                        >
+                          🔗 {event.linkedItems.length}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -503,7 +492,7 @@ export default function DayEvents({
                     type="button"
                     onClick={() => openLinkerModal('event', formattedDate, event.id)}
                     className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-600 p-1 rounded hover:bg-slate-100 text-xs transition-all"
-                    title="링크 추가/수정"
+                    title="링크 연결"
                   >
                     🔗
                   </button>
@@ -511,7 +500,7 @@ export default function DayEvents({
                     type="button"
                     onClick={() => startEditing(event)}
                     className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-600 p-1 rounded hover:bg-slate-100 text-xs transition-all"
-                    title="일정 수정"
+                    title="수정"
                   >
                     ✏️
                   </button>
@@ -519,7 +508,7 @@ export default function DayEvents({
                     type="button"
                     onClick={async () => {
                       await onDeleteEvent(event.id);
-                      showToast('일정이 삭제되었습니다. (상단 휴지통에서 복구 가능)');
+                      showToast('휴지통으로 이동되었습니다.');
                     }}
                     className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 text-xs transition-all"
                     title="삭제"
@@ -532,9 +521,9 @@ export default function DayEvents({
           })
         ) : (
           <div className="flex flex-col items-center justify-center py-10 text-center text-slate-400 text-xs">
-            <span className="text-3xl mb-2">🎯</span>
-            <p>오늘 예정된 일정이 없습니다.</p>
-            <p className="mt-1 text-slate-400">위 입력창에서 등록하거나, 라벨 아이콘을 클릭해보세요.</p>
+            <span className="text-3xl mb-2">📋</span>
+            <p>오늘의 일정이 없습니다.</p>
+            <p className="mt-1 text-slate-400">+ 새 일정 버튼을 눌러 추가해보세요.</p>
           </div>
         )}
       </div>
