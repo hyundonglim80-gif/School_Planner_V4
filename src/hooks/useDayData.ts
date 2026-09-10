@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react'; // useRef 추가
 import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { addReverseLink } from '../utils/linkUtils';
 import { moveToTrash } from '../utils/trashHelper';
-import { DEFAULT_EVENT_LABELS } from './useLabels'; // ✅ 임포트 추가
+import { DEFAULT_EVENT_LABELS } from './useLabels'; // 기본 라벨 임포트 추가
 
 export interface Attachment {
   id?: string;
@@ -639,7 +639,8 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const user = auth.currentUser;
     if (!user || !dateStr) return 0;
     
-    const today = new Date(dateStr);
+    // 타임존 오차 방지를 위해 기준 시간을 확실히 설정
+    const today = new Date(dateStr + 'T00:00:00');
     const pastDates: string[] = [];
     for (let i = 1; i <= 14; i++) {
       const d = new Date(today);
@@ -653,16 +654,16 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const settingsRef = doc(db, 'users', user.uid, 'settings', 'labels');
     const settingsSnap = await getDoc(settingsRef);
     
-    // ✅ Firestore에 저장된 설정이 없으면 DEFAULT_EVENT_LABELS를 기본값으로 사용
-    let rawLabelDefs: any[] = [...DEFAULT_EVENT_LABELS]; 
+    // 설정이 없을 경우 DEFAULT_EVENT_LABELS를 기본으로 사용
+    let rawLabelDefs: any[] = [...DEFAULT_EVENT_LABELS];
+    
     if (settingsSnap.exists()) {
       const data = settingsSnap.data();
-      if (data.eventLabels || data.labels) {
+      if (Array.isArray(data.eventLabels) || Array.isArray(data.labels)) {
         rawLabelDefs = data.eventLabels || data.labels;
       }
     }
     
-    // 이월(forward) 속성이 켜진 라벨 이름만 추출
     const forwardLabelNames = rawLabelDefs.filter((l: any) => l.forward || l.isForward).map((l: any) => l.name);
     
     const incompleteItems: EventItem[] = [];
@@ -671,7 +672,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         ? doc(db, 'groups', groupId, 'events', pDate)
         : doc(db, 'users', user.uid, 'events', pDate);
       const snap = await getDoc(docRef);
-      
       if (snap.exists()) {
         const data = snap.data();
         let items: EventItem[] = [];
@@ -696,6 +696,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           }
 
           if (forwardLabelNames.includes(labelName)) {
+            // 중복 검사 후 안전하게 복제 (링크와 첨부파일까지 복사)
             if (!eventList.some(e => e.content === it.content) && !incompleteItems.some(e => e.content === it.content)) {
               incompleteItems.push({
                 id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5),
@@ -703,20 +704,40 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
                 completed: false,
                 label: it.label,
                 labelIds: it.labelIds,
-                linkedItems: it.linkedItems,
+                linkedItems: it.linkedItems || [], 
+                attachments: it.attachments || [],
               });
             }
           }
         });
       }
     }
-    
     if (incompleteItems.length > 0) {
       const newList = [...eventList, ...incompleteItems];
       await saveEventItems(newList);
     }
     return incompleteItems.length;
   }, [dateStr, groupId, eventList, saveEventItems]);
+
+  // 이월 로직 실행을 제어하는 Ref (과거/오늘 이동 시 안정적 트리거)
+  const forwardedDateRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!loading && eventList.length >= 0) {
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      
+      // 오늘 날짜가 아니면 리셋 (다시 오늘로 돌아오면 실행되도록)
+      if (dateStr !== todayStr) {
+        forwardedDateRef.current = null;
+      }
+      
+      if (dateStr === todayStr && forwardedDateRef.current !== dateStr) {
+        forwardedDateRef.current = dateStr;
+        forwardIncompleteEvents().catch(console.error);
+      }
+    }
+  }, [dateStr, loading, forwardIncompleteEvents]);
 
   // 자동 포워딩 (오늘 날짜일 때만, 한 번만 실행)
   useEffect(() => {

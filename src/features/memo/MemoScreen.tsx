@@ -17,7 +17,7 @@ export default function MemoScreen() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingMemo, setEditingMemo] = useState<Memo | null>(null);
 
-  // 창 크기에 따른 단(column) 개수 관리
+  // 창 크기에 따른 단(column) 개수 동적 관리
   const [columnsCount, setColumnsCount] = useState(4);
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export default function MemoScreen() {
   const activeMemos = filteredMemos.filter(m => !m.completed);
   const completedMemos = filteredMemos.filter(m => m.completed);
 
-  // 가로로 먼저 분배 후, 세로로 바짝 붙이는 Masonry 배열 생성기
+  // 가로로 먼저 분배 후, 세로로 바짝 붙이는 Masonry 배열 생성
   const distributeMemos = (items: Memo[]) => {
     const columns = Array.from({ length: columnsCount }, () => [] as Memo[]);
     items.forEach((item, index) => {
@@ -55,20 +55,6 @@ export default function MemoScreen() {
     setEditingMemo(null);
     setIsDrawerOpen(true);
   }, []);
-
-  // Ctrl+N 단축키 강제 캡처
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
-        e.preventDefault();
-        e.stopPropagation(); // 브라우저 기본 동작 완벽 차단
-        handleOpenCreate();
-      }
-    };
-    // 캡처링 단계(capture: true)에서 이벤트를 가장 먼저 가로챔
-    window.addEventListener('keydown', handleKeyDown, { capture: true });
-    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [handleOpenCreate]);
 
   const handleOpenEdit = (memo: Memo) => {
     setEditingMemo(memo);
