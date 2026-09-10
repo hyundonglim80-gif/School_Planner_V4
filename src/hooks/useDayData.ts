@@ -281,12 +281,16 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const parsedList = parseV3EventText(content.trim());
     const parsed = parsedList.length > 0 ? parsedList[0] : null;
     const newId = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5);
+    
     const newItem: EventItem = {
       id: newId,
       content: parsed ? parsed.content : content.trim(),
       completed: parsed ? parsed.completed : false,
-      label: parsed && parsed.label ? parsed.label : undefined,
+      
+      // 수정된 부분: options.label을 먼저 확인하고, 없으면 파싱된 라벨을 적용합니다.
+      label: options?.label || (parsed && parsed.label ? parsed.label : undefined),
       labelIds: options?.labelIds || (parsed && parsed.label ? [] : undefined),
+      
       linkedItems: options?.linkedItems || [],
       attachments: options?.attachments || [],
     };
