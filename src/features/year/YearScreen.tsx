@@ -251,7 +251,7 @@ export default function YearScreen() {
                                 {visibleEvents.map((ev) => {
                                   const hasLabel = !!ev.label;
                                   const labelDef = hasLabel ? getLabel(ev.label!) : null;
-                                  const isValidLabel = !!labelDef; // 💡 등록된 라벨인지 확인
+                                  const isValidLabel = !!labelDef; // 💡 등록된(삭제되지 않은) 라벨인지 확인
                                   const labelColor = isValidLabel ? getLabelColor(ev.label!) : null;
                                   const isCompletable = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
 

@@ -1,3 +1,5 @@
+//src/features/week/WeekGrid.tsx
+
 import React from 'react';
 import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
@@ -175,13 +177,14 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                 {events.length > 0 ? (
                   <div className="space-y-1.5">
                     {events.map((ev) => {
-					  const hasLabel = !!ev.label;
-					  const labelDef = hasLabel ? getLabel(ev.label!) : null;
-					  const isValidLabel = !!labelDef; // 💡 등록된(삭제되지 않은) 라벨인지 확인
-					  const labelColor = isValidLabel ? getLabelColor(ev.label!) : null;
-					  const isCompletable = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
+                      const hasLabel = !!ev.label;
+                      const labelDef = hasLabel ? getLabel(ev.label!) : null;
+                      // 💡 등록된 라벨인지 확인하여 삭제된 라벨 거르기
+                      const isValidLabel = !!labelDef; 
+                      const labelColor = isValidLabel ? getLabelColor(ev.label!) : null;
+                      const isCompletable = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
 
-					  return (
+                      return (
                         <div
                           key={ev.id}
                           onClick={(e) => {
@@ -209,7 +212,6 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                           }`}
                           title={isCompletable ? '클릭하여 완료 상태 변경' : '클릭하여 상세 보기'}
                         >
-                          {/* 체크박스가 완전히 제거되고 인라인 정렬 적용 */}
                           {isMultiSelectMode && (
                             <input
                               type="checkbox"
@@ -218,9 +220,10 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                               className="inline-block align-middle mr-1.5 pointer-events-none"
                             />
                           )}
+                          {/* 💡 유효한 라벨일 때만 렌더링 */}
                           {isValidLabel && labelColor && !isMultiSelectMode && (
-                                        <span
-                                          className="inline-block align-middle mr-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
+                            <span
+                              className="inline-block align-middle mr-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
                               style={{
                                 backgroundColor: (ev.completed && isCompletable) ? '#f1f5f9' : labelColor.bg,
                                 color: (ev.completed && isCompletable) ? '#94a3b8' : labelColor.text,
@@ -241,7 +244,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                                 e.stopPropagation();
                                 openLinkViewerModal('event', day.dateStr, ev.id);
                               }}
-                              className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 cursor-pointer"
+                              className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
                               title={`링크된 항목 ${(ev.linkedItems || []).length}개`}
                             >
                               🔗 {(ev.linkedItems || []).length}

@@ -1,5 +1,3 @@
-//src/features/day/DayJournal.tsx
-
 import React, { useState, useEffect, useRef } from 'react';
 import type { JournalEntry } from '../../hooks/useDayData';
 import { renderFormattedText } from '../../lib/textUtils';
@@ -79,7 +77,7 @@ export default function DayJournal({
     fetchLabels();
   }, []);
 
-  // 💡 라벨이 삭제된 경우 빈 문자열('')을 반환하도록 수정된 함수
+  // 💡 라벨이 삭제된 경우 빈 문자열('')을 반환하도록 수정
   const getLabelName = (entry: JournalEntry) => {
     if (entry.labelIds && entry.labelIds.length > 0) {
       const found = journalLabels.find(l => l.id === entry.labelIds![0]);

@@ -71,7 +71,7 @@ export default function DayEvents({
       cleanContent = cleanContent.replace(new RegExp(`^\\[${names[0]}\\]\\s*`), '');
     }
     
-    return { names, labelDefs, isCompletable, cleanContent };
+    return { names: validNames, labelDefs, isCompletable, cleanContent }; // validNames 반환
   };
 
   const completableEvents = events.filter((e) => {
@@ -391,7 +391,7 @@ export default function DayEvents({
                   )}
 
                   <div className="leading-relaxed text-sm break-words flex-1">
-                    {/* 💡 이월/완료 가능 일정인 경우에만 라벨 왼쪽에 체크박스 생성 */}
+                    {/* 💡 이월/완료 가능 일정인 경우에만 체크박스 표시 */}
                     {isMultiSelectMode && (
                       <input
                         type="checkbox"
@@ -410,7 +410,7 @@ export default function DayEvents({
                       />
                     )}
 
-                    {/* 라벨 (인라인 렌더링) */}
+                    {/* 라벨 (유효한 라벨만 렌더링) */}
                     {info.names.length > 0 && info.names.map(name => {
                       const color = getLabelColor(name);
                       return (
