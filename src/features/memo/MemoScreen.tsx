@@ -12,11 +12,11 @@ import QuickLinks from './QuickLinks';
 export default function MemoScreen() {
   const { selectedGroupId } = useAppStore();
   const { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, deleteCompletedMemos } = useMemos(selectedGroupId);
-  const { eventLabels, getLabelColor } = useLabels(); // ✨ 등록된 통합 라벨(eventLabels) 가져오기
+  const { getLabelColor } = useLabels(); 
   const [currentFilter, setCurrentFilter] = useState('전체');
-  const [hideCompleted, setHideCompleted] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [editingMemo, setEditingMemo] = useState<Memo | null>(null);
+
+  // ✨ 현재 저장된 메모들에서 실제 사용 중인 고유 라벨만 추출
+  const memoLabels = Array.from(new Set(memos.flatMap(m => m.labels || []))).sort();
 
   const filteredMemos = currentFilter === '전체'
     ? memos
@@ -74,13 +74,13 @@ export default function MemoScreen() {
           >
             전체
           </button>
-          {eventLabels.map((label: any) => {
-            const isSelected = currentFilter === label.name;
-            const color = getLabelColor(label.name);
+          {memoLabels.map((labelName) => {
+            const isSelected = currentFilter === labelName;
+            const color = getLabelColor(labelName);
             return (
               <button
-                key={label.id}
-                onClick={() => setCurrentFilter(label.name)}
+                key={labelName}
+                onClick={() => setCurrentFilter(labelName)}
                 className="px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border"
                 style={
                   isSelected

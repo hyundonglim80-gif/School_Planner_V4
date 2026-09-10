@@ -523,9 +523,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   {(user?.displayName || '선').charAt(0)}
                 </div>
               )}
-              <span className="text-xs font-extrabold text-slate-700 hidden md:inline truncate max-w-[80px]">
-                {user?.displayName || '선생님'}
-              </span>
               <button
                 onClick={logout}
                 className="px-2 py-1 sm:px-3 sm:py-1.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-xl font-bold text-[10px] sm:text-xs transition-colors shrink-0 ml-1"
