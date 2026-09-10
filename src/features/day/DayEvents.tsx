@@ -79,7 +79,6 @@ export default function DayEvents({
     return info.isCompletable;
   });
   const completedCount = completableEvents.filter((e) => e.completed).length;
-  const progressPercent = completableEvents.length > 0 ? Math.round((completedCount / completableEvents.length) * 100) : 0;
 
   const startEditing = (event: EventItem) => {
     const info = getEventLabelInfo(event);
@@ -218,15 +217,6 @@ export default function DayEvents({
 
       {!isCollapsed && (
         <>
-      {completableEvents.length > 0 && (
-        <div className="w-full h-1.5 bg-slate-100 rounded-full mb-4 overflow-hidden">
-          <div
-            className="h-full bg-primary transition-all duration-300 rounded-full"
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
-      )}
-
       {isFormOpen && (
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4 flex flex-col gap-2">
         <div className="flex flex-wrap gap-1.5">
