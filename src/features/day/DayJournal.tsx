@@ -599,15 +599,15 @@ export default function DayJournal({
 
                   {/* 항목이 접히지 않았을 때만 본문 및 첨부파일 표시 */}
                   {!isCollapsedItem && (
-                    <div className="flex flex-col gap-3 mt-1">
-                      <p
-                        onDoubleClick={() => startEditing(entry)}
-                        className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed cursor-text"
-                        title="더블클릭하여 수정"
-                      >
-                        {entry.content}
-                      </p>
-                      {entry.imageUrl && (
+					  <div 
+						onDoubleClick={() => startEditing(entry)} 
+						className="flex flex-col gap-3 mt-1 cursor-pointer" 
+						title="더블클릭하여 수정"
+					  >
+						<p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
+						  {entry.content}
+						</p>
+						{entry.imageUrl && (
                         <div className="mt-1 rounded-lg overflow-hidden border border-slate-200/60 bg-slate-50 inline-block max-w-fit">
                           <img src={entry.imageUrl} alt="첨부 이미지" className="max-w-full h-auto object-cover max-h-48" loading="lazy" />
                         </div>

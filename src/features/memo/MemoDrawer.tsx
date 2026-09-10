@@ -29,24 +29,15 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [presetLabels, setPresetLabels] = useState<string[]>(PRESET_LABELS);
 
-  // 라벨 목록 불러오기 (Firestore 및 localStorage 연동, 모달 닫힐 때도 최신화)
+  // 라벨 데이터 불러오기 (Firestore 전용)
   useEffect(() => {
     const fetchMemoLabels = async () => {
-      // 1. localStorage 우선 조회
-      try {
-        const saved = localStorage.getItem('workCalendar_memoLabels');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setPresetLabels(parsed.map((l: any) => (typeof l === 'string' ? l : l.name)));
-          }
-        }
-      } catch (e) {}
-
-      // 2. Firestore 최신 라벨 데이터 동기화
       const user = auth.currentUser;
-      if (!user) return;
-
+      if (!user) {
+        setPresetLabels(PRESET_LABELS);
+        return;
+      }
+      
       try {
         const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
         const snap = await getDoc(docRef);
@@ -55,15 +46,17 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo }: Mem
           if (Array.isArray(data.memoLabels) && data.memoLabels.length > 0) {
             const labelNames = data.memoLabels.map((l: any) => (typeof l === 'string' ? l : l.name));
             setPresetLabels(labelNames);
+            return;
           }
         }
+        setPresetLabels(PRESET_LABELS);
       } catch (e) {
         console.error('Failed to fetch memo labels:', e);
+        setPresetLabels(PRESET_LABELS);
       }
     };
-
     fetchMemoLabels();
-  }, [isOpen, isLabelModalOpen]);
+  }, [isOpen, isLabelModalOpen, auth.currentUser?.uid]);
 
   useEffect(() => {
     if (editingMemo) {

@@ -74,9 +74,14 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
 
   return (
     <div
-      className={`bg-white rounded-2xl p-4 transition-all duration-200 border flex flex-col group shadow-sm hover:shadow-md hover:border-slate-300 ${
+      onDoubleClick={(e) => { 
+        e.stopPropagation(); 
+        if (onEdit) onEdit(memo); 
+      }}
+      className={`bg-white rounded-2xl p-4 transition-all duration-200 border flex flex-col group shadow-sm hover:shadow-md hover:border-slate-300 cursor-pointer ${
         isCompleted ? 'bg-slate-50 border-slate-200 opacity-70' : 'border-slate-200/80'
       }`}
+      title="더블클릭하여 수정"
     >
       <div>
         {/* 상단 체크 및 날짜 & 삭제/수정 버튼 영역 */}
