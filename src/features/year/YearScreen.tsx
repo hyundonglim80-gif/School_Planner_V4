@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, query, where, documentId, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, documentId, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { getAcademicYear, getAcademicMonths, parseDateStr, formatDateStr } from '../../lib/dateUtils';
-import { parseV3EventText } from '../../hooks/useDayData';
+import { parseV3EventText, formatV3EventText } from '../../hooks/useDayData';
 import DetailEditModal from '../../components/DetailEditModal';
 import QuickAddModal from '../../components/QuickAddModal';
 
@@ -82,6 +82,35 @@ export default function YearScreen() {
     setScope('day');
   };
 
+  const handleToggleEvent = async (dateStr: string, eventId: string) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const eventDocRef = selectedGroupId
+      ? doc(db, 'groups', selectedGroupId, 'events', dateStr)
+      : doc(db, 'users', user.uid, 'events', dateStr);
+    
+    try {
+      const snap = await getDoc(eventDocRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        let list = data.eventList || [];
+        if (list.length === 0 && data.eventText) {
+          list = parseV3EventText(data.eventText);
+        }
+        const updatedList = list.map((item: any) => item.id === eventId ? { ...item, completed: !item.completed } : item);
+        const textToSave = formatV3EventText(updatedList);
+        
+        await setDoc(eventDocRef, {
+          eventList: updatedList,
+          eventText: textToSave,
+          updatedAt: Date.now()
+        }, { merge: true });
+      }
+    } catch (err) {
+      console.error('Toggle event error:', err);
+    }
+  };
+
   return (
     <div className="animate-fade-in pb-12">
       {loading ? (
@@ -150,7 +179,6 @@ export default function YearScreen() {
                           key={dObj.dateStr} 
                           className={`flex flex-col gap-1.5 pb-3 border-b border-dashed border-slate-200 last:border-0 last:pb-0 ${isTodayEvent ? 'bg-blue-50/50 p-2 rounded-xl border-blue-200 border-solid -mx-2 px-2' : ''}`}
                         >
-                          {/* 헤더 */}
                           <div className="flex items-center justify-between">
                             <div 
                               className={`font-black cursor-pointer hover:underline flex items-center gap-1 ${dateColor} ${isTodayEvent ? 'text-base' : 'text-sm'}`}
@@ -169,7 +197,6 @@ export default function YearScreen() {
                           </div>
 
                           <div className="flex flex-col gap-2">
-                            {/* 수업 표시 */}
                             {showClass && hasClasses && (
                               <div className="flex flex-nowrap gap-[1px] w-full mt-0.5">
                                 {periodArray.map((p) => {
@@ -201,14 +228,13 @@ export default function YearScreen() {
                               </div>
                             )}
 
-                            {/* 이벤트 표시 */}
                             {showEvents && visibleEvents.length > 0 && (
                               <div className="flex flex-col gap-1">
                                 {visibleEvents.map((ev) => {
                                   const hasLabel = !!ev.label;
                                   const labelColor = hasLabel ? getLabelColor(ev.label!) : null;
                                   const labelDef = hasLabel ? getLabel(ev.label!) : null;
-                                  const isCompletable = labelDef ? !!labelDef.forward : true;
+                                  const isCompletable = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
 
                                   return (
                                     <div
@@ -217,6 +243,8 @@ export default function YearScreen() {
                                         e.stopPropagation();
                                         if (isMultiSelectMode) {
                                           toggleEventSelection(ev.id, dObj.dateStr);
+                                        } else if (isCompletable) {
+                                          handleToggleEvent(dObj.dateStr, ev.id);
                                         } else {
                                           setDetailModal({ isOpen: true, type: 'event', dateStr: dObj.dateStr, itemId: ev.id, initialData: ev });
                                         }
@@ -224,36 +252,29 @@ export default function YearScreen() {
                                       className={`px-1.5 py-1 rounded-lg text-xs leading-snug transition-all border block hover:shadow-sm cursor-pointer break-words ${
                                         selectedEventIds.includes(ev.id)
                                           ? 'bg-primary/10 border-primary text-primary'
-                                          : ev.completed
+                                          : ev.completed && isCompletable
                                           ? 'bg-slate-50 border-slate-100 text-slate-400'
                                           : 'bg-white border-slate-200 text-slate-700 font-medium'
                                       }`}
+                                      title={isCompletable ? '클릭하여 완료 상태 변경' : '클릭하여 상세 보기'}
                                     >
-                                      {/* 💡 인라인 정렬 블록 */}
+                                      {/* 💡 체크박스 삭제 및 인라인 정렬 지원 */}
                                       {isMultiSelectMode && (
                                         <input type="checkbox" checked={selectedEventIds.includes(ev.id)} readOnly className="inline-block align-middle mr-1.5 pointer-events-none" />
-                                      )}
-                                      {isCompletable && !isMultiSelectMode && (
-                                        <input
-                                          type="checkbox"
-                                          checked={!!ev.completed}
-                                          readOnly
-                                          className="inline-block align-middle mr-1.5 w-3 h-3 accent-primary pointer-events-none"
-                                        />
                                       )}
                                       {hasLabel && labelColor && !isMultiSelectMode && (
                                         <span
                                           className="inline-block align-middle mr-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
                                           style={{
-                                            backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
-                                            color: ev.completed ? '#94a3b8' : labelColor.text,
-                                            border: '1px solid ' + (ev.completed ? '#e2e8f0' : labelColor.border)
+                                            backgroundColor: (ev.completed && isCompletable) ? '#f1f5f9' : labelColor.bg,
+                                            color: (ev.completed && isCompletable) ? '#94a3b8' : labelColor.text,
+                                            border: '1px solid ' + ((ev.completed && isCompletable) ? '#e2e8f0' : labelColor.border)
                                           }}
                                         >
                                           {ev.label}
                                         </span>
                                       )}
-                                      <span className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}>
+                                      <span className={`inline align-middle ${ev.completed && isCompletable ? 'line-through text-slate-400' : ''}`}>
                                         {ev.content}
                                       </span>
                                       
@@ -264,7 +285,7 @@ export default function YearScreen() {
                                             e.stopPropagation();
                                             openLinkViewerModal('event', dObj.dateStr, ev.id);
                                           }}
-                                          className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 cursor-pointer"
+                                          className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
                                           title={`링크된 항목 ${(ev.linkedItems || []).length}개`}
                                         >
                                           🔗 {(ev.linkedItems || []).length}

@@ -11,7 +11,6 @@ export default function WeekScreen() {
   const [quickAddDate, setQuickAddDate] = useState<string | null>(null);
 
   const curDateObj = useMemo(() => new Date(currentDate), [currentDate]);
-
   const weekDays = useMemo(() => {
     return getWeekDays(curDateObj);
   }, [curDateObj]);
@@ -20,7 +19,7 @@ export default function WeekScreen() {
     return weekDays.map(d => d.dateStr);
   }, [weekDays]);
 
-  const { dataMap, loading } = useCalendarData(dateStrings, selectedGroupId);
+  const { dataMap, loading, toggleEventItem } = useCalendarData(dateStrings, selectedGroupId);
 
   const rangeLabel = useMemo(() => {
     if (weekDays.length === 0) return '';
@@ -28,7 +27,7 @@ export default function WeekScreen() {
     const last = weekDays[weekDays.length - 1].dateStr;
     const [y, m, d1] = first.split('-');
     const [, , d2] = last.split('-');
-    return `${y}년 ${Number(m)}월 주간 (${Number(m)}.${Number(d1)} ~ ${Number(d2)})`;
+    return `${y}년 ${Number(m)}월 (${Number(m)}.${Number(d1)} ~ ${Number(d2)})`;
   }, [weekDays]);
 
   const handlePrevWeek = () => {
@@ -58,10 +57,11 @@ export default function WeekScreen() {
   }, [weekDays, showWeekend]);
 
   return (
-    <div className="animate-fade-in pb-12">{loading ? (
+    <div className="animate-fade-in pb-12">
+      {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-primary" />
-          <p className="text-xs text-slate-400 font-medium">주간 시간표 및 일정을 불러오는 중입니다...</p>
+          <p className="text-xs text-slate-400 font-medium">데이터를 불러오는 중...</p>
         </div>
       ) : (
         <WeekGrid
@@ -69,9 +69,11 @@ export default function WeekScreen() {
           days={displayWeekDays}
           dataMap={dataMap}
           onSelectDate={handleSelectDate}
+          onToggleEvent={toggleEventItem}
         />
       )}
-          {quickAddDate && <QuickAddModal isOpen={true} onClose={() => setQuickAddDate(null)} dateStr={quickAddDate} />}
+      
+      {quickAddDate && <QuickAddModal isOpen={true} onClose={() => setQuickAddDate(null)} dateStr={quickAddDate} />}
     </div>
   );
 }

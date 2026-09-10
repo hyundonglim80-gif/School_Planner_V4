@@ -22,7 +22,7 @@ export default function MonthScreen() {
     return calendarDays.map(d => d.dateStr);
   }, [calendarDays]);
 
-  const { dataMap, loading } = useCalendarData(dateStrings, selectedGroupId);
+  const { dataMap, loading, toggleEventItem } = useCalendarData(dateStrings, selectedGroupId);
 
   const handlePrevMonth = () => {
     const prev = new Date(year, month - 2, 1);
@@ -44,10 +44,11 @@ export default function MonthScreen() {
   };
 
   return (
-    <div className="animate-fade-in pb-12">{loading ? (
+    <div className="animate-fade-in pb-12">
+      {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-primary" />
-          <p className="text-xs text-slate-400 font-medium">월간 일정을 불러오는 중입니다...</p>
+          <p className="text-xs text-slate-400 font-medium">데이터를 불러오는 중...</p>
         </div>
       ) : (
         <MonthGrid
@@ -56,9 +57,11 @@ export default function MonthScreen() {
           dataMap={dataMap}
           onSelectDate={handleSelectDate}
           showWeekend={showWeekend}
+          onToggleEvent={toggleEventItem}
         />
       )}
-          {quickAddDate && <QuickAddModal isOpen={true} onClose={() => setQuickAddDate(null)} dateStr={quickAddDate} />}
+      
+      {quickAddDate && <QuickAddModal isOpen={true} onClose={() => setQuickAddDate(null)} dateStr={quickAddDate} />}
     </div>
   );
 }

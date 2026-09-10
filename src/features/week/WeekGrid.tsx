@@ -18,9 +18,10 @@ interface WeekGridProps {
   dataMap: Record<string, DaySummary>;
   onSelectDate: (dateStr: string) => void;
   onQuickAdd: (dateStr: string) => void;
+  onToggleEvent: (dateStr: string, eventId: string) => void;
 }
 
-export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: WeekGridProps) {
+export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onToggleEvent }: WeekGridProps) {
   const { getLabelColor, getLabel } = useLabels();
   const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal } = useAppStore();
   const { holidays } = useGovHolidays();
@@ -177,7 +178,8 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                       const hasLabel = !!ev.label;
                       const labelColor = hasLabel ? getLabelColor(ev.label!) : null;
                       const labelDef = hasLabel ? getLabel(ev.label!) : null;
-                      const isCompletable = labelDef ? !!labelDef.forward : true;
+                      // 라벨이 없으면 무조건 이월 기능 불가
+                      const isCompletable = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
 
                       return (
                         <div
@@ -186,6 +188,8 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                             e.stopPropagation();
                             if (isMultiSelectMode) {
                               toggleEventSelection(ev.id, day.dateStr);
+                            } else if (isCompletable) {
+                              onToggleEvent(day.dateStr, ev.id);
                             } else {
                               setDetailModal({
                                 isOpen: true,
@@ -199,12 +203,13 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                           className={`px-2 py-1.5 rounded-lg text-xs leading-snug transition-all border block hover:shadow-sm cursor-pointer break-words ${
                             selectedEventIds.includes(ev.id)
                               ? 'bg-primary/10 border-primary text-primary'
-                              : ev.completed
+                              : ev.completed && isCompletable
                               ? 'bg-slate-50 border-slate-100 text-slate-400'
                               : 'bg-blue-50/60 border-blue-100 text-slate-800 font-medium'
                           }`}
+                          title={isCompletable ? '클릭하여 완료 상태 변경' : '클릭하여 상세 보기'}
                         >
-                          {/* 💡 블록 요소 내에서 인라인 정렬하여 자동 Wrapping 허용 */}
+                          {/* 체크박스가 완전히 제거되고 인라인 정렬 적용 */}
                           {isMultiSelectMode && (
                             <input
                               type="checkbox"
@@ -213,27 +218,19 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd }: We
                               className="inline-block align-middle mr-1.5 pointer-events-none"
                             />
                           )}
-                          {isCompletable && !isMultiSelectMode && (
-                            <input
-                              type="checkbox"
-                              checked={!!ev.completed}
-                              readOnly
-                              className="inline-block align-middle mr-1.5 w-3 h-3 accent-primary pointer-events-none"
-                            />
-                          )}
                           {hasLabel && labelColor && !isMultiSelectMode && (
                             <span
                               className="inline-block align-middle mr-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap shadow-2xs"
                               style={{
-                                backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
-                                color: ev.completed ? '#94a3b8' : labelColor.text,
-                                border: '1px solid ' + (ev.completed ? '#e2e8f0' : labelColor.border)
+                                backgroundColor: (ev.completed && isCompletable) ? '#f1f5f9' : labelColor.bg,
+                                color: (ev.completed && isCompletable) ? '#94a3b8' : labelColor.text,
+                                border: '1px solid ' + ((ev.completed && isCompletable) ? '#e2e8f0' : labelColor.border)
                               }}
                             >
                               {ev.label}
                             </span>
                           )}
-                          <span className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}>
+                          <span className={`inline align-middle ${ev.completed && isCompletable ? 'line-through text-slate-400' : ''}`}>
                             {ev.content}
                           </span>
                           

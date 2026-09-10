@@ -14,6 +14,7 @@ interface MonthGridProps {
   onSelectDate: (dateStr: string) => void;
   onQuickAdd: (dateStr: string) => void;
   showWeekend?: boolean;
+  onToggleEvent: (dateStr: string, eventId: string) => void;
 }
 
 const ALL_WEEKDAYS = [
@@ -26,7 +27,7 @@ const ALL_WEEKDAYS = [
   { name: '토', color: 'text-blue-500' },
 ];
 
-export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, showWeekend = true }: MonthGridProps) {
+export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, showWeekend = true, onToggleEvent }: MonthGridProps) {
   const currentWeekdays = showWeekend ? ALL_WEEKDAYS : ALL_WEEKDAYS.slice(1, 6);
   const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal } = useAppStore();
 
@@ -168,7 +169,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                     const hasLabel = !!ev.label;
                     const labelColor = hasLabel ? getLabelColor(ev.label!) : null;
                     const labelDef = hasLabel ? getLabel(ev.label!) : null;
-                    const isCompletable = labelDef ? !!labelDef.forward : true;
+                    const isCompletable = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
 
                     return (
                       <div
@@ -177,6 +178,8 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                           e.stopPropagation();
                           if (isMultiSelectMode) {
                             toggleEventSelection(ev.id, dayObj.dateStr);
+                          } else if (isCompletable) {
+                            onToggleEvent(dayObj.dateStr, ev.id);
                           } else {
                             setDetailModal({
                               isOpen: true,
@@ -189,14 +192,13 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                         }}
                         className={`px-1.5 py-0.5 rounded text-[11px] font-medium leading-tight transition-all border block hover:shadow-sm cursor-pointer break-words ${
                           selectedEventIds.includes(ev.id)
-                            ? 'bg-primary/10 border-primary text-primary'
-                            : ev.completed
+                            ? 'bg-primary/10 border border-primary text-primary'
+                            : ev.completed && isCompletable
                             ? 'bg-slate-100 text-slate-400'
-                            : 'bg-blue-50 text-blue-800 border-blue-100'
+                            : 'bg-blue-50 text-blue-800 border border-blue-100'
                         }`}
-                        title={ev.content}
+                        title={isCompletable ? '클릭하여 완료 상태 변경' : '클릭하여 상세 보기'}
                       >
-                        {/* 💡 인라인 정렬 적용 (체크박스/라벨/텍스트) */}
                         {isMultiSelectMode && (
                           <input
                             type="checkbox"
@@ -205,27 +207,19 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                             className="inline-block align-middle mr-1 pointer-events-none"
                           />
                         )}
-                        {isCompletable && !isMultiSelectMode && (
-                          <input
-                            type="checkbox"
-                            checked={!!ev.completed}
-                            readOnly
-                            className="inline-block align-middle mr-1 w-2.5 h-2.5 accent-primary pointer-events-none"
-                          />
-                        )}
                         {hasLabel && labelColor && !isMultiSelectMode && (
                           <span
-                            className="inline-block align-middle mr-1 text-[9px] font-bold px-1 py-0.5 rounded whitespace-nowrap"
+                            className="inline-block align-middle mr-1 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
                             style={{
-                              backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
-                              color: ev.completed ? '#94a3b8' : labelColor.text,
-                              border: '1px solid ' + (ev.completed ? '#e2e8f0' : labelColor.border)
+                              backgroundColor: (ev.completed && isCompletable) ? '#f1f5f9' : labelColor.bg,
+                              color: (ev.completed && isCompletable) ? '#94a3b8' : labelColor.text,
+                              border: '1px solid ' + ((ev.completed && isCompletable) ? '#e2e8f0' : labelColor.border)
                             }}
                           >
                             {ev.label}
                           </span>
                         )}
-                        <span className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}>
+                        <span className={`inline align-middle ${ev.completed && isCompletable ? 'line-through text-slate-400' : ''}`}>
                           {ev.content}
                         </span>
                         
@@ -252,8 +246,6 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                   )}
                 </div>
                 )}
-              </div>
-              <div className="text-[10px] text-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity text-right">
               </div>
             </div>
           );

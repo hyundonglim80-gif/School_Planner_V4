@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { parseV3EventText, type PeriodSchedule, type EventItem, runAutoForwarding } from './useDayData';
+import { parseV3EventText, formatV3EventText, type PeriodSchedule, type EventItem, runAutoForwarding } from './useDayData';
 
 export interface DaySummary {
   eventText?: string;
@@ -23,7 +23,7 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
 
     setLoading(true);
 
-    // 💡 주간/월간/년간 데이터 조회 시 이월 로직 자동 실행 (자체 페이지 이월 트리거)
+    // 💡 주간/월간/년간 데이터 조회 시 이월 로직 자동 실행
     runAutoForwarding(groupId).catch((e) => console.error('Calendar Auto-forwarding error:', e));
 
     const unsubs: (() => void)[] = [];
@@ -121,5 +121,35 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
     };
   }, [JSON.stringify(dateStrings), groupId, auth.currentUser?.uid]);
 
-  return { dataMap, loading };
+  // 💡 달력형 뷰에서 즉시 완료 상태를 토글하는 헬퍼 함수
+  const toggleEventItem = async (dateStr: string, eventId: string) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const eventDocRef = groupId
+      ? doc(db, 'groups', groupId, 'events', dateStr)
+      : doc(db, 'users', user.uid, 'events', dateStr);
+    
+    try {
+      const snap = await getDoc(eventDocRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        let list = data.eventList || [];
+        if (list.length === 0 && data.eventText) {
+          list = parseV3EventText(data.eventText);
+        }
+        const updatedList = list.map((item: any) => item.id === eventId ? { ...item, completed: !item.completed } : item);
+        const textToSave = formatV3EventText(updatedList);
+        
+        await setDoc(eventDocRef, {
+          eventList: updatedList,
+          eventText: textToSave,
+          updatedAt: Date.now()
+        }, { merge: true });
+      }
+    } catch (error) {
+      console.error('Toggle Event Snapshot Error:', error);
+    }
+  };
+
+  return { dataMap, loading, toggleEventItem };
 }

@@ -60,6 +60,7 @@ export default function DayEvents({
     }
     
     const labelDefs = names.map(name => eventLabels.find(l => l.name === name));
+    // 이월/완료 가능 속성 체크
     const isCompletable = labelDefs.some(def => def && (def.forward || (def as any).isForward));
     
     let cleanContent = event.content;
@@ -352,9 +353,7 @@ export default function DayEvents({
               <div
                 key={event.id}
                 onClick={() => {
-                  if (isMultiSelectMode) {
-                    toggleEventSelection(event.id, formattedDate);
-                  }
+                  if (isMultiSelectMode) toggleEventSelection(event.id, formattedDate);
                 }}
                 className={`group flex items-start justify-between p-3 rounded-xl border transition-all ${
                   isMultiSelectMode ? 'cursor-pointer hover:bg-slate-50' : ''
@@ -366,7 +365,6 @@ export default function DayEvents({
                     : 'bg-white border-slate-200/60 hover:border-slate-300 text-slate-800'
                 }`}
               >
-                {/* 💡 기존 flex-row 레이아웃에서 텍스트가 라벨 하단으로 자연스럽게 Wrapping 되도록 블록 내 inline 속성 적용 */}
                 <div className="flex-1 min-w-0 pointer-events-auto flex items-start">
                   {!isMultiSelectMode && (
                     <div className="flex flex-col items-center gap-0.5 shrink-0 px-0.5 mr-1.5 mt-0.5">
@@ -390,13 +388,13 @@ export default function DayEvents({
                   )}
 
                   <div className="leading-relaxed text-sm break-words flex-1">
-                    {/* 체크박스가 라벨 좌측으로 이동 */}
+                    {/* 💡 이월/완료 가능 일정인 경우에만 라벨 왼쪽에 체크박스 생성 */}
                     {isMultiSelectMode && (
                       <input
                         type="checkbox"
                         checked={selectedEventIds.includes(event.id)}
                         readOnly
-                        className="inline-block align-middle mr-2 w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 pointer-events-none"
+                        className="inline-block align-middle mr-1.5 pointer-events-none w-4 h-4 rounded text-primary border-slate-300"
                       />
                     )}
                     {info.isCompletable && !isMultiSelectMode && (
@@ -404,7 +402,7 @@ export default function DayEvents({
                         type="checkbox"
                         checked={!!event.completed}
                         onChange={() => onToggleEvent(event.id)}
-                        className="inline-block align-middle mr-2 w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 cursor-pointer accent-primary"
+                        className="inline-block align-middle mr-1.5 w-4 h-4 rounded text-primary border-slate-300 cursor-pointer accent-primary"
                         title="완료 토글"
                       />
                     )}
@@ -427,7 +425,7 @@ export default function DayEvents({
                       );
                     })}
 
-                    {/* 본문 텍스트 (인라인 렌더링) */}
+                    {/* 본문 텍스트 */}
                     <span
                       onClick={(e) => {
                         if (isMultiSelectMode) return; 
@@ -442,7 +440,7 @@ export default function DayEvents({
                       {info.cleanContent}
                     </span>
 
-                    {/* 연결된 링크 (인라인 렌더링) */}
+                    {/* 연결된 링크 */}
                     {event.linkedItems && event.linkedItems.length > 0 && (
                       <button
                         type="button"
@@ -454,7 +452,7 @@ export default function DayEvents({
                       </button>
                     )}
 
-                    {/* 첨부파일 (하단 블록) */}
+                    {/* 첨부파일 블록 */}
                     {event.attachments && event.attachments.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1.5 block">
                         {event.attachments.map((att, idx) => (
