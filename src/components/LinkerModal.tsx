@@ -679,7 +679,7 @@ export default function LinkerModal({
               <h4 className="text-xs font-bold text-teal-800">🏫 수업 지정하여 연결</h4>
               <div className="flex gap-3">
                 <div className="flex-1">
-                  <label className="text-[11px] font-bold text-slate-600 mb-1 block">날짜</label>
+                  <label className="text-[16.5px] font-bold text-slate-600 mb-1 block">날짜</label>
                   <input
                     type="date"
                     value={scheduleDate}
@@ -688,7 +688,7 @@ export default function LinkerModal({
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="text-[11px] font-bold text-slate-600 mb-1 block">교시</label>
+                  <label className="text-[16.5px] font-bold text-slate-600 mb-1 block">교시</label>
                   <select
                     value={schedulePeriod}
                     onChange={(e) => setSchedulePeriod(Number(e.target.value))}
@@ -766,7 +766,7 @@ export default function LinkerModal({
                   <button
                     type="button"
                     onClick={() => toggleLabel('all')}
-                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors ${
+                    className={`px-2.5 py-1 rounded-full text-[16.5px] font-bold border transition-colors ${
                       selectedLabelIds.length === 0
                         ? 'bg-blue-600 text-white border-blue-600'
                         : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
@@ -781,7 +781,7 @@ export default function LinkerModal({
                         key={l.id}
                         type="button"
                         onClick={() => toggleLabel(l.id)}
-                        className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors ${
+                        className={`px-2.5 py-1 rounded-full text-[16.5px] font-bold border transition-colors ${
                           isSelected
                             ? 'bg-blue-600 text-white border-blue-600'
                             : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
@@ -862,7 +862,7 @@ export default function LinkerModal({
                             className="w-4 h-4 text-blue-600 rounded border-slate-300 pointer-events-none mr-3"
                           />
                           {item.date && (
-                            <span className="text-[11px] text-slate-400 w-20 shrink-0 font-medium">
+                            <span className="text-[16.5px] text-slate-400 w-20 shrink-0 font-medium">
                               {item.date}
                             </span>
                           )}
@@ -884,7 +884,7 @@ export default function LinkerModal({
                             key={p}
                             type="button"
                             onClick={() => setCurrentPage(p)}
-                            className={`px-2.5 py-1 rounded text-[11px] font-bold ${
+                            className={`px-2.5 py-1 rounded text-[16.5px] font-bold ${
                               p === clampedPage
                                 ? 'bg-blue-600 text-white'
                                 : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
@@ -904,7 +904,7 @@ export default function LinkerModal({
           <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
             <div className="font-bold text-xs text-slate-700 mb-2 flex items-center gap-1.5">
               <span>🛒 선택된 연결 항목</span>
-              <span className="bg-blue-100 text-blue-700 px-1.5 py-0.2 rounded-full text-[10px]">
+              <span className="bg-blue-100 text-blue-700 px-1.5 py-0.2 rounded-full text-[15px]">
                 {selectedLinks.length}
               </span>
             </div>

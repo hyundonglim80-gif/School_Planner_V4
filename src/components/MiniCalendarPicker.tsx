@@ -244,7 +244,7 @@ export default function MiniCalendarPicker({
               <button
                 type="button"
                 onClick={() => changeYear(-1)}
-                className="px-1 py-0.5 text-[11px] text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                className="px-1 py-0.5 text-[16.5px] text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors cursor-pointer"
                 title="이전 연도"
               >
                 «
@@ -252,7 +252,7 @@ export default function MiniCalendarPicker({
               <button
                 type="button"
                 onClick={() => changeMonth(-1)}
-                className="px-1 py-0.5 text-[11px] text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                className="px-1 py-0.5 text-[16.5px] text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors cursor-pointer"
                 title="이전 달"
               >
                 ◀
@@ -263,7 +263,7 @@ export default function MiniCalendarPicker({
               <button
                 type="button"
                 onClick={() => changeMonth(1)}
-                className="px-1 py-0.5 text-[11px] text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                className="px-1 py-0.5 text-[16.5px] text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors cursor-pointer"
                 title="다음 달"
               >
                 ▶
@@ -271,7 +271,7 @@ export default function MiniCalendarPicker({
               <button
                 type="button"
                 onClick={() => changeYear(1)}
-                className="px-1 py-0.5 text-[11px] text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                className="px-1 py-0.5 text-[16.5px] text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors cursor-pointer"
                 title="다음 연도"
               >
                 »
@@ -281,7 +281,7 @@ export default function MiniCalendarPicker({
               <button
                 type="button"
                 onClick={handleTodayClick}
-                className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded transition-colors cursor-pointer"
+                className="px-1.5 py-0.5 text-[15px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded transition-colors cursor-pointer"
               >
                 오늘
               </button>
@@ -297,7 +297,7 @@ export default function MiniCalendarPicker({
           </div>
 
           {/* 2. 요일 헤더 */}
-          <div className="grid grid-cols-7 mb-1 pb-1 border-b border-slate-100 text-center text-[10px] font-bold">
+          <div className="grid grid-cols-7 mb-1 pb-1 border-b border-slate-100 text-center text-[15px] font-bold">
             {weekDays.map((w, idx) => {
               const colorClass =
                 idx === 0
@@ -321,7 +321,7 @@ export default function MiniCalendarPicker({
                 key={`prev-${year}-${month}-${day}`}
                 type="button"
                 onClick={() => handleSelectDate(year, month, day)}
-                className="h-6 flex items-center justify-center text-[11px] text-slate-300 hover:bg-slate-100 hover:text-slate-500 rounded transition-colors cursor-pointer"
+                className="h-6 flex items-center justify-center text-[16.5px] text-slate-300 hover:bg-slate-100 hover:text-slate-500 rounded transition-colors cursor-pointer"
               >
                 {day}
               </button>
@@ -370,7 +370,7 @@ export default function MiniCalendarPicker({
                 key={`next-${year}-${month}-${day}`}
                 type="button"
                 onClick={() => handleSelectDate(year, month, day)}
-                className="h-6 flex items-center justify-center text-[11px] text-slate-300 hover:bg-slate-100 hover:text-slate-500 rounded transition-colors cursor-pointer"
+                className="h-6 flex items-center justify-center text-[16.5px] text-slate-300 hover:bg-slate-100 hover:text-slate-500 rounded transition-colors cursor-pointer"
               >
                 {day}
               </button>
@@ -378,7 +378,7 @@ export default function MiniCalendarPicker({
           </div>
 
           {/* 4. 하단 직접 선택 */}
-          <div className="flex justify-between items-center mt-1.5 pt-1.5 border-t border-slate-100 text-[10px]">
+          <div className="flex justify-between items-center mt-1.5 pt-1.5 border-t border-slate-100 text-[15px]">
             <label className="relative inline-flex items-center gap-1 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded cursor-pointer transition-colors font-medium">
               <span>📅 직접 선택</span>
               <input
@@ -393,7 +393,7 @@ export default function MiniCalendarPicker({
                 }}
               />
             </label>
-            <span className="text-[9px] text-slate-400">클릭 시 이동</span>
+            <span className="text-[13.5px] text-slate-400">클릭 시 이동</span>
           </div>
         </div>
       )}

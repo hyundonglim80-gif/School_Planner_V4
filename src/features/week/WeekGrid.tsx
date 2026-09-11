@@ -90,7 +90,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                       {Number(month)}.{Number(dateNum)}
                     </span>
                     {holidayName && (
-                      <span className="text-[10px] font-bold text-red-600 truncate max-w-[65px]">
+                      <span className="text-[15px] font-bold text-red-600 truncate max-w-[65px]">
                         {holidayName}
                       </span>
                     )}
@@ -100,7 +100,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
 
               {showClass && (
               <div className="mb-4">
-                <div className="text-[11px] font-extrabold text-slate-400 mb-2 flex items-center gap-1">
+                <div className="text-[16.5px] font-extrabold text-slate-400 mb-2 flex items-center gap-1">
                   <span>수업</span>
                 </div>
                 {periodKeys.length > 0 ? (
@@ -123,8 +123,8 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                           }}
                           className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-50 border border-slate-100 text-xs hover:bg-slate-100 cursor-pointer transition-colors"
                         >
-                          <span className="font-bold text-[10px] text-primary shrink-0">{p}교시</span>
-                          <span className="font-semibold text-slate-800 truncate text-[11px] flex-1">
+                          <span className="font-bold text-[15px] text-primary shrink-0">{p}교시</span>
+                          <span className="font-semibold text-slate-800 truncate text-[16.5px] flex-1">
                             {periodText}
                           </span>
                           {(item.linkedItems || []).length > 0 && (
@@ -134,7 +134,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                                 e.stopPropagation();
                                 openLinkViewerModal('schedule', day.dateStr, String(p), p);
                               }}
-                              className="bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
+                              className="bg-yellow-100 text-yellow-800 text-[13.5px] px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
                               title={`링크된 항목 ${(item.linkedItems || []).length}개`}
                             >
                               🔗 {(item.linkedItems || []).length}
@@ -145,7 +145,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                     })}
                   </div>
                 ) : (
-                  <div className="text-[11px] text-slate-300 py-1 pl-1">
+                  <div className="text-[16.5px] text-slate-300 py-1 pl-1">
                     일정이 없습니다.
                   </div>
                 )}
@@ -154,13 +154,13 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
 
               {showEvents && (
               <div>
-                <div className="text-[11px] font-extrabold text-slate-400 mb-2 flex items-center justify-between">
+                <div className="text-[16.5px] font-extrabold text-slate-400 mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     <span>일정</span>
                   </div>
                   <div className="flex items-center gap-1">
                     {events.length > 0 && (
-                      <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full font-bold">
+                      <span className="text-[15px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full font-bold">
                         {events.length}
                       </span>
                     )}
@@ -223,7 +223,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                           {/* 💡 유효한 라벨일 때만 렌더링 */}
                           {isValidLabel && labelColor && !isMultiSelectMode && (
                             <span
-                              className="inline-block align-middle mr-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
+                              className="inline-block align-middle mr-1.5 text-[13.5px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
                               style={{
                                 backgroundColor: (ev.completed && isCompletable) ? '#f1f5f9' : labelColor.bg,
                                 color: (ev.completed && isCompletable) ? '#94a3b8' : labelColor.text,
@@ -244,7 +244,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                                 e.stopPropagation();
                                 openLinkViewerModal('event', day.dateStr, ev.id);
                               }}
-                              className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
+                              className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[13.5px] px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
                               title={`링크된 항목 ${(ev.linkedItems || []).length}개`}
                             >
                               🔗 {(ev.linkedItems || []).length}
@@ -255,7 +255,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                     })}
                   </div>
                 ) : (
-                  <div className="text-[11px] text-slate-300 py-1 pl-1">
+                  <div className="text-[16.5px] text-slate-300 py-1 pl-1">
                     일정이 없습니다.
                   </div>
                 )}

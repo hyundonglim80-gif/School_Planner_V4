@@ -398,7 +398,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
             <span className="text-xl">🧑‍🤝‍🧑</span>
             <div>
               <h2 className="text-base font-extrabold text-slate-800">학급 정보(명렬표) 관리</h2>
-              <p className="text-[11px] text-slate-500">구글 시트 연동으로 학급 명렬표 및 학생 조사표 데이터를 관리합니다.</p>
+              <p className="text-[16.5px] text-slate-500">구글 시트 연동으로 학급 명렬표 및 학생 조사표 데이터를 관리합니다.</p>
             </div>
           </div>
           <button
@@ -414,7 +414,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
           <div className="flex items-center gap-2">
             <span className="font-bold text-emerald-800">📊 연결된 구글 시트:</span>
             {spreadsheetId ? (
-              <span className="text-emerald-700 font-mono text-[11px] bg-white px-2 py-0.5 rounded border border-emerald-200">
+              <span className="text-emerald-700 font-mono text-[16.5px] bg-white px-2 py-0.5 rounded border border-emerald-200">
                 ...{spreadsheetId.slice(-10)}
               </span>
             ) : (
@@ -473,7 +473,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
           {/* 학급 메타 정보 입력 */}
           <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 mb-1">학년도</label>
+              <label className="block text-[16.5px] font-bold text-slate-500 mb-1">학년도</label>
               <input
                 type="number"
                 value={currentClass.year || new Date().getFullYear()}
@@ -482,7 +482,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 mb-1">학년</label>
+              <label className="block text-[16.5px] font-bold text-slate-500 mb-1">학년</label>
               <input
                 type="text"
                 value={currentClass.grade || ''}
@@ -492,7 +492,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 mb-1">반</label>
+              <label className="block text-[16.5px] font-bold text-slate-500 mb-1">반</label>
               <input
                 type="text"
                 value={currentClass.classNum || ''}

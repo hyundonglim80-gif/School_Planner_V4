@@ -394,7 +394,7 @@ export default function DayJournal({
                       {att.type === 'image' ? (
                         <img src={att.url} alt={att.name} className="h-16 w-16 object-cover" />
                       ) : (
-                        <div className="h-16 w-16 flex items-center justify-center bg-slate-100 text-[10px] text-slate-500 p-1 text-center truncate" title={att.name}>
+                        <div className="h-16 w-16 flex items-center justify-center bg-slate-100 text-[15px] text-slate-500 p-1 text-center truncate" title={att.name}>
                           {att.name}
                         </div>
                       )}
@@ -413,7 +413,7 @@ export default function DayJournal({
                 <div className="flex flex-wrap gap-1 mt-1">
                   {newLinkedItems.map((link, idx) => (
                     <div key={idx} className="flex items-center gap-1 bg-white border border-slate-200 pl-2 pr-1 py-1 rounded-md shadow-2xs">
-                      <span className="text-[10px] font-bold text-slate-600 truncate max-w-[120px]">{link.text}</span>
+                      <span className="text-[15px] font-bold text-slate-600 truncate max-w-[120px]">{link.text}</span>
                       <button type="button" onClick={() => handleRemoveLink(idx)} className="text-slate-400 hover:text-red-500 p-0.5">×</button>
                     </div>
                   ))}
@@ -476,7 +476,7 @@ export default function DayJournal({
                     )}
 
                     <div className="flex justify-between items-center">
-                      <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200/50 hover:bg-slate-200 text-slate-600 rounded-xl text-[11px] font-bold transition-colors cursor-pointer">
+                      <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200/50 hover:bg-slate-200 text-slate-600 rounded-xl text-[16.5px] font-bold transition-colors cursor-pointer">
                         <span>📷</span>
                         <span>{uploadingFiles ? '업로드 중...' : '이미지 추가'}</span>
                         <input type="file" accept="image/*" onChange={handleEditImageUpload} className="hidden" disabled={uploadingFiles} />
@@ -514,7 +514,7 @@ export default function DayJournal({
                       <button
                         type="button"
                         onClick={() => toggleCollapse(entry.id)}
-                        className="text-slate-400 hover:text-primary transition-colors p-0.5 text-[10px]"
+                        className="text-slate-400 hover:text-primary transition-colors p-0.5 text-[15px]"
                       >
                         {isCollapsedItem ? '▶' : '▼'}
                       </button>
@@ -525,7 +525,7 @@ export default function DayJournal({
                           type="button"
                           onClick={(e) => { e.stopPropagation(); if (idx > 0 && onReorderJournals) onReorderJournals(idx, idx - 1); }}
                           disabled={idx === 0}
-                          className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-[10px]"
+                          className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-[15px]"
                         >
                           ▲
                         </button>
@@ -533,7 +533,7 @@ export default function DayJournal({
                           type="button"
                           onClick={(e) => { e.stopPropagation(); if (idx < journals.length - 1 && onReorderJournals) onReorderJournals(idx, idx + 1); }}
                           disabled={idx === journals.length - 1}
-                          className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-[10px]"
+                          className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-[15px]"
                         >
                           ▼
                         </button>
@@ -541,25 +541,25 @@ export default function DayJournal({
 
                       {/* 💡 라벨이 삭제되지 않고 남아있을 때만 뱃지 표시 */}
                       {getLabelName(entry) && (
-                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${getLabelColorClass(entry)}`}>
+                        <span className={`px-2 py-0.5 rounded-md text-[16.5px] font-bold border ${getLabelColorClass(entry)}`}>
                           {getLabelName(entry)}
                         </span>
                       )}
 
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-[16.5px] text-slate-400">
                         {new Date(entry.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                       
                       {linkCount > 0 && (
                         <button 
                           onClick={() => openLinkViewerModal('journal', formattedDate, entry.id)}
-                          className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200"
+                          className="bg-yellow-100 text-yellow-800 text-[15px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200"
                         >
                             🔗 {linkCount}
                         </button>
                       )}
                       {entry.attachments && entry.attachments.length > 0 && (
-                        <span className="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0.5 rounded font-bold border border-slate-200">
+                        <span className="bg-slate-100 text-slate-600 text-[15px] px-1.5 py-0.5 rounded font-bold border border-slate-200">
                             📎 {entry.attachments.length}
                         </span>
                       )}

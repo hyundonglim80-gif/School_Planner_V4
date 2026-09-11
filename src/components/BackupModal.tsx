@@ -558,7 +558,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
             <span className="text-xl">💾</span>
             <div>
               <h2 className="text-base font-extrabold text-slate-800">내보내기 / 가져오기 통합 관리</h2>
-              <p className="text-[11px] text-slate-500">구글 캘린더, 구글 시트, 로컬 파일로 데이터를 안전하게 연동합니다.</p>
+              <p className="text-[16.5px] text-slate-500">구글 캘린더, 구글 시트, 로컬 파일로 데이터를 안전하게 연동합니다.</p>
             </div>
           </div>
           <button
@@ -618,7 +618,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
                 <div className="flex items-center gap-2">
                   <span className="text-emerald-700 font-bold">백업 구글 시트:</span>
                   {spreadsheetId ? (
-                    <span className="font-mono text-[11px] text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200">
+                    <span className="font-mono text-[16.5px] text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200">
                       ...{spreadsheetId.slice(-12)}
                     </span>
                   ) : (
@@ -756,7 +756,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
           <div className="p-4 bg-red-50/50 rounded-xl border border-red-100 flex flex-col gap-3 mt-4">
             <div>
               <h4 className="text-sm font-bold text-red-800">🇰🇷 공휴일 가져오기</h4>
-              <p className="text-[11px] text-red-600/80 mt-0.5">공공데이터포털에서 지정한 연도의 휴일을 가져와 '공휴일' 라벨이 붙은 일정으로 추가합니다.</p>
+              <p className="text-[16.5px] text-red-600/80 mt-0.5">공공데이터포털에서 지정한 연도의 휴일을 가져와 '공휴일' 라벨이 붙은 일정으로 추가합니다.</p>
             </div>
             <div className="flex items-center gap-2">
               <input 

@@ -137,7 +137,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             placeholder="인코딩된 API Key를 입력하세요"
             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-primary"
           />
-          <p className="text-[10px] text-slate-400 mt-1">공휴일을 달력에 표시하기 위해 필요합니다. (자동 저장)</p>
+          <p className="text-[15px] text-slate-400 mt-1">공휴일을 달력에 표시하기 위해 필요합니다. (자동 저장)</p>
         </div>
 
         {/* 푸터 */}

@@ -393,7 +393,7 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
                             {att.name}
                           </a>
                           {att.size && (
-                            <span className="text-[10px] text-slate-400 block">
+                            <span className="text-[15px] text-slate-400 block">
                               {formatFileSize(att.size)}
                             </span>
                           )}

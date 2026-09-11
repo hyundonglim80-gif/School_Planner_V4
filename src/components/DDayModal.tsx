@@ -103,7 +103,7 @@ export default function DDayModal({ isOpen, onClose }: DDayModalProps) {
                       </span>
                       <div>
                         <div className="text-sm font-bold text-slate-800">{item.title}</div>
-                        <div className="text-[11px] text-slate-400">{item.date}</div>
+                        <div className="text-[16.5px] text-slate-400">{item.date}</div>
                       </div>
                     </div>
 

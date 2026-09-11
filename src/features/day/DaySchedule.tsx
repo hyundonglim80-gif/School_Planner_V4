@@ -267,7 +267,7 @@ export default function DaySchedule({
                       {linkCount > 0 && (
                         <button 
                           onClick={(e) => { e.stopPropagation(); dateStr && openLinkViewerModal('schedule', dateStr, String(period), period); }}
-                          className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 ml-1 hover:bg-yellow-200 cursor-pointer"
+                          className="bg-yellow-100 text-yellow-800 text-[15px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 ml-1 hover:bg-yellow-200 cursor-pointer"
                           title="연결된 항목 보기 및 수정"
                         >
                           📑 {linkCount}
@@ -304,13 +304,13 @@ export default function DaySchedule({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                     <div className="flex flex-col">
-                      <span className="text-slate-400 text-[10px] mb-0.5">📝 수업 메모</span>
+                      <span className="text-slate-400 text-[15px] mb-0.5">📝 수업 메모</span>
                       <p className="text-slate-600 whitespace-pre-wrap leading-relaxed">
                         {item.memo || item.content || <span className="text-slate-300">없음</span>}
                       </p>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-slate-400 text-[10px] mb-0.5">📌 비고 / 준비물</span>
+                      <span className="text-slate-400 text-[15px] mb-0.5">📌 비고 / 준비물</span>
                       <p className="text-amber-600 font-medium whitespace-pre-wrap leading-relaxed">
                         {item.supplies || <span className="text-slate-300 font-normal">없음</span>}
                       </p>

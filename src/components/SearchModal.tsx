@@ -303,7 +303,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                   <button
                     key={opt.id}
                     onClick={() => toggleFilter(opt.id)}
-                    className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all border ${
+                    className={`px-3 py-1.5 text-[16.5px] font-bold rounded-lg transition-all border ${
                       isActive 
                         ? 'bg-primary text-white border-primary shadow-xs' 
                         : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -377,10 +377,10 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1.5">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badgeClass}`}>
+                        <span className={`px-2 py-0.5 rounded text-[15px] font-bold border ${badgeClass}`}>
                           {badgeText}
                         </span>
-                        <span className="text-[11px] font-bold text-slate-700">{res.title}</span>
+                        <span className="text-[16.5px] font-bold text-slate-700">{res.title}</span>
                       </div>
                       <p className="text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
                         {res.snippet}

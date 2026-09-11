@@ -168,7 +168,7 @@ export default function YearScreen() {
               >
                 <div className="text-center font-black text-blue-800 text-lg mb-4 pb-2 border-b-2 border-blue-100 flex items-center justify-center gap-2">
                   <span>{mInfo.label}</span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-lg">
+                  <span className="text-[15px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-lg">
                     {mInfo.semester}학기
                   </span>
                 </div>
@@ -203,8 +203,8 @@ export default function YearScreen() {
                               onClick={() => handleDateClick(dObj.dateStr)}
                             >
                               <span>{dObj.day}일 ({dayOfWeek})</span>
-                              {isTodayEvent && <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded-full ml-1">오늘</span>}
-                              {holidayName && <span className="text-[10px] text-red-500 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md ml-1">{holidayName}</span>}
+                              {isTodayEvent && <span className="text-[15px] bg-blue-600 text-white px-1.5 py-0.5 rounded-full ml-1">오늘</span>}
+                              {holidayName && <span className="text-[15px] text-red-500 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md ml-1">{holidayName}</span>}
                             </div>
                             <button
                               onClick={(e) => { e.stopPropagation(); setQuickAddDate(dObj.dateStr); }}
@@ -221,11 +221,11 @@ export default function YearScreen() {
                                   const item = sch[p];
                                   const text = item?.subject?.trim() || '';
                                   if (text && text.toUpperCase() !== 'X') {
-                                    let fontSize = "text-[11px]";
+                                    let fontSize = "text-[16.5px]";
                                     let tracking = "tracking-normal";
-                                    if (text.length >= 5) { fontSize = "text-[7px]"; tracking = "tracking-tighter"; }
-                                    else if (text.length === 4) { fontSize = "text-[9px]"; tracking = "tracking-tighter"; }
-                                    else if (text.length === 3) { fontSize = "text-[10px]"; tracking = "tracking-tight"; }
+                                    if (text.length >= 5) { fontSize = "text-[10.5px]"; tracking = "tracking-tighter"; }
+                                    else if (text.length === 4) { fontSize = "text-[13.5px]"; tracking = "tracking-tighter"; }
+                                    else if (text.length === 3) { fontSize = "text-[15px]"; tracking = "tracking-tight"; }
 
                                     return (
                                       <div
@@ -283,7 +283,7 @@ export default function YearScreen() {
                                       )}
                                       {isValidLabel && labelColor && !isMultiSelectMode && (
                                         <span
-                                          className="inline-block align-middle mr-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
+                                          className="inline-block align-middle mr-1.5 text-[13.5px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
                                           style={{
                                             backgroundColor: (ev.completed && isCompletable) ? '#f1f5f9' : labelColor.bg,
                                             color: (ev.completed && isCompletable) ? '#94a3b8' : labelColor.text,
@@ -304,7 +304,7 @@ export default function YearScreen() {
                                             e.stopPropagation();
                                             openLinkViewerModal('event', dObj.dateStr, ev.id);
                                           }}
-                                          className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
+                                          className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[13.5px] px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
                                           title={`링크된 항목 ${(ev.linkedItems || []).length}개`}
                                         >
                                           🔗 {(ev.linkedItems || []).length}

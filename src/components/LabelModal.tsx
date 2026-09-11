@@ -318,7 +318,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                       </div>
 
                       {/* 5대 속성 체크박스 (달력, 수업X, 이월, 기간, 반복) */}
-                      <div className="flex items-center gap-3 text-[11px] text-slate-600 flex-wrap">
+                      <div className="flex items-center gap-3 text-[16.5px] text-slate-600 flex-wrap">
                         <label className="flex items-center gap-1 cursor-pointer" title="월간/년간 달력에 표시">
                           <input
                             type="checkbox"
@@ -574,14 +574,14 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                           <button
                             disabled={idx === 0}
                             onClick={() => handleMoveMemoLabel(idx, 'up')}
-                            className={`text-[10px] px-1 rounded ${idx === 0 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700'}`}
+                            className={`text-[15px] px-1 rounded ${idx === 0 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700'}`}
                           >
                             ▲
                           </button>
                           <button
                             disabled={idx === memoLabels.length - 1}
                             onClick={() => handleMoveMemoLabel(idx, 'down')}
-                            className={`text-[10px] px-1 rounded ${idx === memoLabels.length - 1 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700'}`}
+                            className={`text-[15px] px-1 rounded ${idx === memoLabels.length - 1 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700'}`}
                           >
                             ▼
                           </button>

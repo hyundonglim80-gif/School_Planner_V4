@@ -154,7 +154,7 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
                     setLinkedItems(prev => [...prev, ...links]);
                   });
                 }}
-                className="px-2 py-1 bg-yellow-50 text-yellow-800 border border-yellow-300 rounded text-[10px] font-bold hover:bg-yellow-100 transition-colors"
+                className="px-2 py-1 bg-yellow-50 text-yellow-800 border border-yellow-300 rounded text-[15px] font-bold hover:bg-yellow-100 transition-colors"
               >
                 + 링크 추가
               </button>
@@ -163,7 +163,7 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
               <div className="flex flex-wrap gap-1.5 mt-1">
                 {linkedItems.map((link, idx) => (
                   <div key={idx} className="flex items-center gap-1 bg-white border border-slate-200 pl-2 pr-1 py-1 rounded-md shadow-2xs">
-                    <span className="text-[10px] font-bold text-slate-600 truncate max-w-[150px]">
+                    <span className="text-[15px] font-bold text-slate-600 truncate max-w-[150px]">
                       {link.title || link.text}
                     </span>
                     <button type="button" onClick={() => handleRemoveLink(idx)} className="text-slate-400 hover:text-red-500 p-0.5">

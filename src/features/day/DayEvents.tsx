@@ -299,7 +299,7 @@ export default function DayEvents({
                           key={l.id}
                           type="button"
                           onClick={() => handleEditLabelToggle(l.name)}
-                          className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all border ${isSelected ? 'ring-2 ring-primary ring-offset-1 shadow-xs' : 'opacity-70 hover:opacity-100 bg-white text-slate-600 border-slate-200'}`}
+                          className={`px-2.5 py-1 text-[16.5px] font-bold rounded-lg transition-all border ${isSelected ? 'ring-2 ring-primary ring-offset-1 shadow-xs' : 'opacity-70 hover:opacity-100 bg-white text-slate-600 border-slate-200'}`}
                           style={isSelected ? { backgroundColor: c.bg, color: c.text, borderColor: c.border } : {}}
                         >
                           {l.name}
@@ -406,7 +406,7 @@ export default function DayEvents({
                       return (
                         <span
                           key={name}
-                          className="inline-block align-middle mr-1.5 text-[11px] font-bold px-2 py-0.5 rounded-md shadow-2xs whitespace-nowrap"
+                          className="inline-block align-middle mr-1.5 text-[16.5px] font-bold px-2 py-0.5 rounded-md shadow-2xs whitespace-nowrap"
                           style={{
                             backgroundColor: (event.completed && info.isCompletable) ? '#f1f5f9' : color.bg,
                             color: (event.completed && info.isCompletable) ? '#94a3b8' : color.text,
@@ -438,7 +438,7 @@ export default function DayEvents({
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); openLinkViewerModal('event', formattedDate, event.id); }}
-                        className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 transition-colors cursor-pointer items-center gap-1"
+                        className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[15px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 transition-colors cursor-pointer items-center gap-1"
                         title={`링크된 항목 ${event.linkedItems.length}개`}
                       >
                         🔗 {event.linkedItems.length}
@@ -454,7 +454,7 @@ export default function DayEvents({
                               <img src={att.url} alt={att.name} className="w-full h-full object-cover" />
                             </a>
                           ) : (
-                            <a key={idx} href={att.url} target="_blank" rel="noreferrer" className="block px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[9px] text-slate-500 truncate max-w-[80px]" title={att.name}>
+                            <a key={idx} href={att.url} target="_blank" rel="noreferrer" className="block px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[13.5px] text-slate-500 truncate max-w-[80px]" title={att.name}>
                               📎 {att.name}
                             </a>
                           )

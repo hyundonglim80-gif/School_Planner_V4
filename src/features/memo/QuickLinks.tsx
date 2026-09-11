@@ -89,7 +89,7 @@ export default function QuickLinks() {
         <div className="flex items-center gap-2">
           <span className="text-base">🔗</span>
           <span className="text-xs font-extrabold text-slate-800">빠른 업무 링크</span>
-          <span className="text-[11px] text-slate-400">자주 쓰는 교육 사이트 및 문서 바로가기</span>
+          <span className="text-[16.5px] text-slate-400">자주 쓰는 교육 사이트 및 문서 바로가기</span>
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
@@ -114,7 +114,7 @@ export default function QuickLinks() {
             >
               <span>🔗</span>
               <span>{link.name}</span>
-              <span className="text-[10px] text-blue-400 group-hover:text-blue-600 transition-colors">↗</span>
+              <span className="text-[15px] text-blue-400 group-hover:text-blue-600 transition-colors">↗</span>
             </a>
           ))
         )}
@@ -177,7 +177,7 @@ export default function QuickLinks() {
                     >
                       <div className="flex flex-col min-w-0 pr-2">
                         <span className="font-bold text-slate-800 truncate">{link.name}</span>
-                        <span className="text-[10px] text-slate-400 truncate">{link.url}</span>
+                        <span className="text-[15px] text-slate-400 truncate">{link.url}</span>
                       </div>
                       <button
                         onClick={() => handleDeleteLink(link.id)}

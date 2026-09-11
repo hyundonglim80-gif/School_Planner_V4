@@ -6,6 +6,16 @@
   --color-bg-body: #f8fafc;
   --color-bg-card: #ffffff;
   --color-bg-hover: #f1f5f9;
+
+  /* 전체 글자 크기를 기존 대비 150%로 확대 (모바일 가독성 개선) */
+  --text-xs: 1.125rem;
+  --text-sm: 1.3125rem;
+  --text-base: 1.5rem;
+  --text-lg: 1.6875rem;
+  --text-xl: 1.875rem;
+  --text-2xl: 2.25rem;
+  --text-3xl: 2.8125rem;
+  --text-4xl: 3.375rem;
 }
 
 @layer base {

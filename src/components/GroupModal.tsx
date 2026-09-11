@@ -128,7 +128,7 @@ export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
                         <div className="flex items-center gap-2 mb-1">
                           <h4 className="font-bold text-sm text-slate-800">{group.name}</h4>
                           {isOwner && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-700">
+                            <span className="px-2 py-0.5 rounded-full text-[15px] font-extrabold bg-blue-100 text-blue-700">
                               그룹장
                             </span>
                           )}
@@ -146,7 +146,7 @@ export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
                           </span>
                           <button
                             onClick={() => handleCopyCode(group.inviteCode)}
-                            className="px-2 py-0.5 text-[11px] font-bold text-primary hover:bg-blue-50 rounded transition-colors"
+                            className="px-2 py-0.5 text-[16.5px] font-bold text-primary hover:bg-blue-50 rounded transition-colors"
                           >
                             {copyFeedback === group.inviteCode ? '복사됨!' : '코드 복사'}
                           </button>
@@ -205,7 +205,7 @@ export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
                   className="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   autoFocus
                 />
-                <p className="text-[11px] text-slate-400 mt-1">
+                <p className="text-[16.5px] text-slate-400 mt-1">
                   그룹이 생성되면 6자리 고유 초대 코드가 발급됩니다.
                 </p>
               </div>
@@ -237,7 +237,7 @@ export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
                   className="w-full px-4 py-2.5 text-sm uppercase tracking-widest font-mono font-bold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   autoFocus
                 />
-                <p className="text-[11px] text-slate-400 mt-1">
+                <p className="text-[16.5px] text-slate-400 mt-1">
                   다른 선생님께 전달받은 초대 코드를 입력해 그룹에 참여하세요.
                 </p>
               </div>
