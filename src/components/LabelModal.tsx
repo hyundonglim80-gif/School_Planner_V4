@@ -83,58 +83,69 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
 
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  // 💡 불러오기가 실제로 성공하기 전까지는 저장을 막아서, 로드 실패 시
+  // 화면 표시용으로 채운 기본값이 실수로 클라우드에 덮어써지는 것을 방지한다.
+  const [labelsLoaded, setLabelsLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
-    if (!isOpen) return;
+  const fetchLabels = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
 
-    const fetchLabels = async () => {
-      const user = auth.currentUser;
-      if (!user) return;
+    setLoadError(false);
+    try {
+      const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
+      const snap = await getDoc(docRef);
 
-      try {
-        const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
-        const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        const rawEvents = data.eventLabels || data.labels || DEFAULT_EVENT_LABELS;
+        setEventLabels(rawEvents.map((l: any, i: number) => ({
+          id: l.id || `ev_${i}_${l.name || ''}`,
+          name: l.name || '',
+          color: l.color || 'blue',
+          calendar: l.calendar !== false,
+          skip: !!l.skip,
+          forward: !!(l.forward || l.isForward),
+          period: !!l.period,
+          recur: !!l.recur,
+        })));
 
-        if (snap.exists()) {
-          const data = snap.data();
-          const rawEvents = data.eventLabels || data.labels || DEFAULT_EVENT_LABELS;
-          setEventLabels(rawEvents.map((l: any, i: number) => ({
-            id: l.id || `ev_${i}_${l.name || ''}`,
-            name: l.name || '',
-            color: l.color || 'blue',
-            calendar: l.calendar !== false,
-            skip: !!l.skip,
-            forward: !!(l.forward || l.isForward),
-            period: !!l.period,
-            recur: !!l.recur,
-          })));
+        const rawMemos = data.memoLabels || DEFAULT_MEMO_LABELS;
+        setMemoLabels(rawMemos.map((l: any, i: number) => ({
+          id: (typeof l === 'object' && l.id) ? l.id : `memo_${i}_${typeof l === 'string' ? l : l.name || ''}`,
+          name: typeof l === 'string' ? l : (l.name || ''),
+          color: (typeof l === 'object' && l.color) ? l.color : 'green',
+        })));
 
-          const rawMemos = data.memoLabels || DEFAULT_MEMO_LABELS;
-          setMemoLabels(rawMemos.map((l: any, i: number) => ({
-            id: (typeof l === 'object' && l.id) ? l.id : `memo_${i}_${typeof l === 'string' ? l : l.name || ''}`,
-            name: typeof l === 'string' ? l : (l.name || ''),
-            color: (typeof l === 'object' && l.color) ? l.color : 'green',
-          })));
-
-          const rawJournals = data.journalLabels || DEFAULT_JOURNAL_LABELS;
-          setJournalLabels(rawJournals.map((l: any, i: number) => ({
-            id: l.id || `j_${i}_${l.name || ''}`,
-            name: l.name || '',
-            color: l.color || 'green',
-          })));
-        } else {
-          setEventLabels(DEFAULT_EVENT_LABELS);
-          setMemoLabels(DEFAULT_MEMO_LABELS);
-          setJournalLabels(DEFAULT_JOURNAL_LABELS);
-        }
-      } catch (e) {
-        console.error('라벨 불러오기 오류:', e);
+        const rawJournals = data.journalLabels || DEFAULT_JOURNAL_LABELS;
+        setJournalLabels(rawJournals.map((l: any, i: number) => ({
+          id: l.id || `j_${i}_${l.name || ''}`,
+          name: l.name || '',
+          color: l.color || 'green',
+        })));
+      } else {
+        // 신규 계정이라 저장된 라벨이 아직 없는 정상적인 경우 -> 기본값을 보여주고 저장도 허용
         setEventLabels(DEFAULT_EVENT_LABELS);
         setMemoLabels(DEFAULT_MEMO_LABELS);
         setJournalLabels(DEFAULT_JOURNAL_LABELS);
       }
-    };
+      setLabelsLoaded(true);
+    } catch (e) {
+      console.error('라벨 불러오기 오류:', e);
+      // 불러오기 자체가 실패한 경우 -> 화면에는 기본값을 임시로 보여주되,
+      // labelsLoaded를 true로 만들지 않아 저장(클라우드 덮어쓰기)은 막는다.
+      setEventLabels(DEFAULT_EVENT_LABELS);
+      setMemoLabels(DEFAULT_MEMO_LABELS);
+      setJournalLabels(DEFAULT_JOURNAL_LABELS);
+      setLoadError(true);
+    }
+  };
 
+  useEffect(() => {
+    if (!isOpen) return;
+    setLabelsLoaded(false);
+    setLoadError(false);
     fetchLabels();
   }, [isOpen]);
 
@@ -209,6 +220,10 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   const handleSaveAll = async () => {
     const user = auth.currentUser;
     if (!user) return;
+    if (!labelsLoaded) {
+      alert('라벨 정보를 아직 불러오지 못했습니다. 다시 불러온 뒤 저장해주세요.');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -666,6 +681,18 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
 
         {/* 푸터 버튼 */}
         <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-slate-100 bg-slate-50">
+          {loadError && (
+            <div className="mr-auto flex items-center gap-2 text-rose-600 text-xs font-bold">
+              <span>⚠️ 라벨 정보를 불러오지 못했습니다. 지금 저장하면 안 됩니다.</span>
+              <button
+                type="button"
+                onClick={fetchLabels}
+                className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-lg text-xs font-bold"
+              >
+                다시 불러오기
+              </button>
+            </div>
+          )}
           <button
             onClick={onClose}
             className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-all"
@@ -675,8 +702,9 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
           {saveSuccess && <span className="text-emerald-500 text-xs font-bold mr-2">✅ 저장되었습니다</span>}
           <button
             onClick={handleSaveAll}
-            disabled={saving}
-            className="px-5 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+            disabled={saving || !labelsLoaded}
+            title={!labelsLoaded ? '라벨 정보를 불러오는 중에는 저장할 수 없습니다' : undefined}
+            className="px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
           >
             <span>💾</span> {saving ? '저장 중...' : '클라우드 저장'}
           </button>
