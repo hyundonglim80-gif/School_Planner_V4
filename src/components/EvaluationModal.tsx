@@ -3,6 +3,7 @@ import { useEvaluation } from '../hooks/useEvaluation';
 import type { EvaluationItem } from '../hooks/useEvaluation';
 import { useRoster } from '../hooks/useRoster';
 import { useAppStore } from '../store/useAppStore';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface EvaluationModalProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ const SUBJECTS = ['국어','도덕','사회','수학','과학','실과','체육'
 const DEFAULT_STEPS = ['우수', '보통', '노력요함', '미흡', '매우미흡'];
 
 export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSource = 'schedule', defaultPeriod = 1, defaultSubject = '' }: EvaluationModalProps) {
+  useBodyScrollLock(isOpen);
   const { selectedGroupId } = useAppStore();
   const { loadEvaluations, saveEvaluations, deleteEvaluation } = useEvaluation(selectedGroupId);
   const { rosterList: rosters } = useRoster();

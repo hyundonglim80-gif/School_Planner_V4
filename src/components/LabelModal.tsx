@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { DEFAULT_EVENT_LABELS, type EventLabel } from '../hooks/useLabels';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface MemoLabel {
   id: string;
@@ -51,6 +52,7 @@ interface LabelModalProps {
 }
 
 export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: LabelModalProps) {
+  useBodyScrollLock(isOpen);
   const [activeTab, setActiveTab] = useState<'event' | 'journal' | 'memo'>(initialTab);
 
   useEffect(() => {

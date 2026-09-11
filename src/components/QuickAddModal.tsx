@@ -4,6 +4,7 @@ import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
 import { addReverseLink } from '../utils/linkUtils';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface QuickAddModalProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface QuickAddModalProps {
 }
 
 export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModalProps) {
+  useBodyScrollLock(isOpen);
   const { selectedGroupId, openLinkerModal } = useAppStore();
   const { eventLabels, getLabelColor } = useLabels();
 

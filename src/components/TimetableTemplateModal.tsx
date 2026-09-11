@@ -6,6 +6,7 @@ import {
   type TimetableTemplateItem,
 } from '../hooks/useTimetableTemplate';
 import { formatDate } from '../lib/dateUtils';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface TimetableTemplateModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ const DAYS: { key: WeekDayKey; label: string; color: string }[] = [
 ];
 
 export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTemplateModalProps) {
+  useBodyScrollLock(isOpen);
   const {
     templates,
     currentTemplateName,

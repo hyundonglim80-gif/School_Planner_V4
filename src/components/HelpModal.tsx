@@ -1,4 +1,5 @@
 import React from 'react';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface HelpModalProps {
   isOpen: boolean;
@@ -6,6 +7,7 @@ interface HelpModalProps {
 }
 
 export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
+  useBodyScrollLock(isOpen);
   if (!isOpen) return null;
 
   return (

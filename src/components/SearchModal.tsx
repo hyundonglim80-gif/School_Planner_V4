@@ -6,6 +6,7 @@ import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { parseDateStr, formatDateStr } from '../lib/dateUtils';
 import { parseV3EventText } from '../hooks/useDayData';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface SearchResultItem {
   id: string;
@@ -32,6 +33,7 @@ const FILTER_OPTIONS = [
 ];
 
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
+  useBodyScrollLock(isOpen);
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [searching, setSearching] = useState(false);

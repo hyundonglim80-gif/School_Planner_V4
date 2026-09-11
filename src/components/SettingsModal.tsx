@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -9,6 +10,7 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+  useBodyScrollLock(isOpen);
   const [periodNames, setPeriodNames] = useState<string[]>(['1', '2', '3', '4', '5', '6']);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);

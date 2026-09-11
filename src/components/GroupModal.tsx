@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useGroups } from '../hooks/useGroups';
 import { auth } from '../lib/firebase';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface GroupModalProps {
   isOpen: boolean;
@@ -8,6 +9,7 @@ interface GroupModalProps {
 }
 
 export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
+  useBodyScrollLock(isOpen);
   const { groups, createGroup, joinGroup, leaveGroup, deleteGroup } = useGroups();
   const [activeTab, setActiveTab] = useState<'list' | 'create' | 'join'>('list');
   const [newGroupName, setNewGroupName] = useState('');

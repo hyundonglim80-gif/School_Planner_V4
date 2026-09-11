@@ -5,6 +5,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { uploadImage, uploadFile } from '../../utils/uploadHelper';
 import { useAppStore } from '../../store/useAppStore';
 import { formatDateStr } from '../../lib/dateUtils';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 const PRESET_LABELS = ['긴급', '중요', '업무', '아이디어', '수업', '개인', '기타'];
 
@@ -26,6 +27,7 @@ interface MemoDrawerProps {
 export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDelete, defaultLabel }: MemoDrawerProps) {
   const { openLabelModal, isLabelModalOpen, openLinkerModal, currentDate } = useAppStore();
   const formattedDate = formatDateStr(new Date(currentDate));
+  useBodyScrollLock(isOpen);
 
   const [content, setContent] = useState('');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);

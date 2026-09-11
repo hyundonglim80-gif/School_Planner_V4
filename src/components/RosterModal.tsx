@@ -3,6 +3,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useRoster, type ClassRoster, type Student } from '../hooks/useRoster';
 import { downloadCSV, parseCSV } from '../utils/csvHelper';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface RosterModalProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface RosterModalProps {
 }
 
 export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
+  useBodyScrollLock(isOpen);
   const { rosterList, saveRosterList } = useRoster();
 
   const [currentClasses, setCurrentClasses] = useState<ClassRoster[]>([]);

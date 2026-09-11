@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface RecurringModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ function formatDate(d: Date): string {
 }
 
 export default function RecurringModal({ isOpen, onClose, defaultContent = '', defaultLabelName = '', defaultStartDate }: RecurringModalProps) {
+  useBodyScrollLock(isOpen);
   const { selectedGroupId } = useAppStore();
   const [content, setContent] = useState(defaultContent);
   const [labelName, setLabelName] = useState(defaultLabelName);

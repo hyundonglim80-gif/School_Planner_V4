@@ -8,6 +8,7 @@ import { useAppStore } from '../store/useAppStore';
 import { formatDate } from '../lib/dateUtils';
 import { exportToGoogleCalendar, importFromGoogleCalendar } from '../lib/googleSync';
 import { fetchHolidaysFromGovApi } from '../lib/govApi'; // API 훅 추가
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface BackupModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ type PeriodType = 'current' | 'today' | 'week' | 'month' | 'sem1' | 'sem2' | 'ye
 type ExportTarget = 'calendar' | 'sheets' | 'csv' | 'json';
 
 export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
+  useBodyScrollLock(isOpen);
   const { groups } = useGroups();
   // govApiKey 가져오기 추가
   const { scope: appScope, currentDate: appCurrentDate, govApiKey } = useAppStore();

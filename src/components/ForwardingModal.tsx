@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface ForwardingModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ function formatDate(d: Date): string {
 }
 
 export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProps) {
+  useBodyScrollLock(isOpen);
   const { selectedGroupId } = useAppStore();
   const [incompleteEvents, setIncompleteEvents] = useState<ForwardEvent[]>([]);
   const [loading, setLoading] = useState(false);

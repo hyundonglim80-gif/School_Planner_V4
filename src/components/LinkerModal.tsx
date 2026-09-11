@@ -7,6 +7,7 @@ import { useAppStore } from '../store/useAppStore';
 import { parseV3EventText } from '../hooks/useDayData';
 import { useLabels } from '../hooks/useLabels';
 import { addReverseLink } from '../utils/linkUtils';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface LinkerModalProps {
   isOpen: boolean;
@@ -58,6 +59,7 @@ export default function LinkerModal({
 }: LinkerModalProps) {
   const { selectedGroupId, linkerCallback } = useAppStore();
   const { eventLabels } = useLabels();
+  useBodyScrollLock(isOpen);
 
   const [currentTab, setCurrentTab] = useState<'event' | 'schedule' | 'journal' | 'memo'>('event');
   const [selectedSourcePeriod, setSelectedSourcePeriod] = useState<number>(

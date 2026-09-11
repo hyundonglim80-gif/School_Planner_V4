@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useDDay, calculateDDay } from '../hooks/useDDay';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface DDayModalProps {
   isOpen: boolean;
@@ -7,6 +8,7 @@ interface DDayModalProps {
 }
 
 export default function DDayModal({ isOpen, onClose }: DDayModalProps) {
+  useBodyScrollLock(isOpen);
   const { dDayList, addDDay, deleteDDay } = useDDay();
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');

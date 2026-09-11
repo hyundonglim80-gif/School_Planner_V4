@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface LinkViewerModalProps {
   isOpen: boolean;
@@ -33,6 +34,7 @@ export default function LinkViewerModal({
   sourcePeriod,
   sourceFId,
 }: LinkViewerModalProps) {
+  useBodyScrollLock(isOpen);
   const { selectedGroupId, setCurrentDate, setScope } = useAppStore();
   const [links, setLinks] = useState<NormalizedLink[]>([]);
   const [loading, setLoading] = useState(false);

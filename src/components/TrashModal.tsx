@@ -3,6 +3,7 @@ import { collection, query, getDocs, orderBy, doc, getDoc, setDoc } from 'fireba
 import { db, auth } from '../lib/firebase';
 import { completeRestoreFromTrash, deleteFromTrash, type TrashItem } from '../utils/trashHelper';
 import { formatV3EventText } from '../hooks/useDayData';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 interface TrashModalProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface TrashModalProps {
 }
 
 export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
+  useBodyScrollLock(isOpen);
   const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);

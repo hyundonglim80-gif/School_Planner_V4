@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 export interface QuickLinkItem {
   id: string;
@@ -20,6 +21,7 @@ export default function QuickLinks() {
   const [newName, setNewName] = useState('');
   const [newUrl, setNewUrl] = useState('');
   const [saving, setSaving] = useState(false);
+  useBodyScrollLock(isModalOpen);
 
   useEffect(() => {
     const user = auth.currentUser;
