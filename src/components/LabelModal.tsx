@@ -237,8 +237,39 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
 
   if (!isOpen) return null;
 
+  // --- 클라우드 저장 함수 ---
+  const saveLabelsToCloud = async (
+    nextEvents: EventLabel[],
+    nextMemos: MemoLabel[],
+    nextJournals: JournalLabel[]
+  ) => {
+    const user = auth.currentUser;
+    if (!user || !labelsLoaded) return;
+
+    try {
+      const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
+      const payload = {
+        eventLabels: nextEvents,
+        memoLabels: nextMemos,
+        journalLabels: nextJournals,
+        labels: nextEvents, // V3 호환성
+        updatedAt: Date.now(),
+      };
+
+      await setDoc(docRef, payload, { merge: true });
+      originalEventLabelsRef.current = nextEvents;
+      originalJournalLabelsRef.current = nextJournals;
+      originalMemoLabelsRef.current = nextMemos;
+
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (e) {
+      console.error('라벨 자동 클라우드 저장 오류:', e);
+    }
+  };
+
   // --- 일정 라벨 핸들러 ---
-  const handleAddEventLabel = () => {
+  const handleAddEventLabel = async () => {
     if (!newEventName.trim()) return;
     const newLbl: EventLabel = {
       id: `ev_${Date.now()}`,
@@ -250,10 +281,12 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
       period: newEventPeriod,
       recur: newEventRecur,
     };
-    setEventLabels([...eventLabels, newLbl]);
+    const next = [...eventLabels, newLbl];
+    setEventLabels(next);
     setNewEventName('');
     setNewEventPeriod(false);
     setNewEventRecur(false);
+    await saveLabelsToCloud(next, memoLabels, journalLabels);
   };
 
   const handleDeleteEventLabel = (id: string) => {
@@ -271,15 +304,17 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   };
 
   // --- 메모 라벨 핸들러 ---
-  const handleAddMemoLabel = () => {
+  const handleAddMemoLabel = async () => {
     if (!newMemoName.trim()) return;
     const newLbl: MemoLabel = {
       id: `memo_${Date.now()}`,
       name: newMemoName.trim(),
       color: newMemoColor,
     };
-    setMemoLabels([...memoLabels, newLbl]);
+    const next = [...memoLabels, newLbl];
+    setMemoLabels(next);
     setNewMemoName('');
+    await saveLabelsToCloud(eventLabels, next, journalLabels);
   };
 
   const handleDeleteMemoLabel = (id: string) => {
@@ -297,15 +332,17 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   };
 
   // --- 기록 라벨 핸들러 ---
-  const handleAddJournalLabel = () => {
+  const handleAddJournalLabel = async () => {
     if (!newJournalName.trim()) return;
     const newLbl: JournalLabel = {
       id: `j_${Date.now()}`,
       name: newJournalName.trim(),
       color: newJournalColor,
     };
-    setJournalLabels([...journalLabels, newLbl]);
+    const next = [...journalLabels, newLbl];
+    setJournalLabels(next);
     setNewJournalName('');
+    await saveLabelsToCloud(eventLabels, memoLabels, next);
   };
 
   const handleMoveJournalLabel = (index: number, direction: 'up' | 'down') => {

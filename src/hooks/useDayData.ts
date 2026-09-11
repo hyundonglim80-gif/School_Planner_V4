@@ -23,6 +23,11 @@ export interface EventItem {
   linkedItems?: any[];
   imageUrl?: string;
   attachments?: Attachment[];
+  calendar?: boolean;
+  forward?: boolean;
+  period?: boolean;
+  recur?: boolean;
+  skip?: boolean;
 }
 
 export interface PeriodSchedule {
@@ -170,7 +175,10 @@ export async function runAutoForwarding(groupId: string | null) {
           if (match) labelName = match[1].trim();
         }
 
-        if (forwardLabelNames.includes(labelName)) {
+        const isForwardTarget =
+          it.forward === true || (it.forward !== false && forwardLabelNames.includes(labelName));
+
+        if (isForwardTarget) {
           // 이월 복사본 생성 (오늘자 중복 체크)
           const isDuplicate =
             todayEventList.some(e => e.content === it.content) || incompleteItems.some(e => e.content === it.content);
@@ -183,6 +191,12 @@ export async function runAutoForwarding(groupId: string | null) {
               labelIds: it.labelIds,
               linkedItems: it.linkedItems || [],
               attachments: it.attachments || [],
+              imageUrl: it.imageUrl,
+              calendar: it.calendar,
+              forward: it.forward,
+              period: it.period,
+              recur: it.recur,
+              skip: it.skip,
             });
           } else {
             // 💡 이미 오늘 목록에 같은 내용이 있어 이월 복사본을 만들지 않는 경우,
@@ -243,6 +257,12 @@ export async function runAutoForwarding(groupId: string | null) {
         label: item.label || '',
         labelIds: item.labelIds || [],
         linkedItems: item.linkedItems || [],
+        imageUrl: item.imageUrl || '',
+        ...(item.calendar !== undefined ? { calendar: item.calendar } : {}),
+        ...(item.forward !== undefined ? { forward: item.forward } : {}),
+        ...(item.period !== undefined ? { period: item.period } : {}),
+        ...(item.recur !== undefined ? { recur: item.recur } : {}),
+        ...(item.skip !== undefined ? { skip: item.skip } : {}),
       }));
       tx.set(todayDocRef, {
         eventText: textToSaveToday,
@@ -283,6 +303,12 @@ export async function runAutoForwarding(groupId: string | null) {
         label: item.label || '',
         labelIds: item.labelIds || [],
         linkedItems: item.linkedItems || [],
+        imageUrl: item.imageUrl || '',
+        ...(item.calendar !== undefined ? { calendar: item.calendar } : {}),
+        ...(item.forward !== undefined ? { forward: item.forward } : {}),
+        ...(item.period !== undefined ? { period: item.period } : {}),
+        ...(item.recur !== undefined ? { recur: item.recur } : {}),
+        ...(item.skip !== undefined ? { skip: item.skip } : {}),
       }));
       
       await setDoc(pDocRef, {
@@ -347,6 +373,12 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
               label: label || undefined,
               labelIds: e.labelIds,
               linkedItems: e.linkedItems || [],
+              imageUrl: e.imageUrl,
+              calendar: e.calendar,
+              forward: e.forward,
+              period: e.period,
+              recur: e.recur,
+              skip: e.skip,
             };
           }).filter((e: EventItem) => 
             (e.content && e.content.trim().length > 0) || 
@@ -461,6 +493,12 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       label: item.label || '',
       labelIds: item.labelIds || [],
       linkedItems: item.linkedItems || [],
+      imageUrl: item.imageUrl || '',
+      ...(item.calendar !== undefined ? { calendar: item.calendar } : {}),
+      ...(item.forward !== undefined ? { forward: item.forward } : {}),
+      ...(item.period !== undefined ? { period: item.period } : {}),
+      ...(item.recur !== undefined ? { recur: item.recur } : {}),
+      ...(item.skip !== undefined ? { skip: item.skip } : {}),
     }));
     await setDoc(eventDocRef, {
       eventText: textToSave,
@@ -545,6 +583,12 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
               label: e.label || undefined,
               labelIds: e.labelIds,
               linkedItems: e.linkedItems || [],
+              imageUrl: e.imageUrl,
+              calendar: e.calendar,
+              forward: e.forward,
+              period: e.period,
+              recur: e.recur,
+              skip: e.skip,
             }));
           } else if (data.eventText) {
             currentList = parseV3EventText(data.eventText);

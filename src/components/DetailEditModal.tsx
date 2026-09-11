@@ -41,6 +41,13 @@ export default function DetailEditModal({
   const [imageUrl, setImageUrl] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState(false);
 
+  // 개별 일정 속성 상태 (달력 / 이월 / 기간 / 반복 / 수업X)
+  const [itemCalendar, setItemCalendar] = useState(true);
+  const [itemForward, setItemForward] = useState(false);
+  const [itemPeriod, setItemPeriod] = useState(false);
+  const [itemRecur, setItemRecur] = useState(false);
+  const [itemSkip, setItemSkip] = useState(false);
+
   const currentItem = type === 'schedule'
     ? schedules[Number(itemId)]
     : eventList.find(e => String(e.id) === String(itemId));
@@ -57,21 +64,86 @@ export default function DetailEditModal({
         // Event
         setContent(initialData.content || '');
         const initLabel = initialData.label || '';
-        setLabels(initLabel.split(',').map((l: string) => l.trim()).filter(Boolean));
+        const parsedLabels = initLabel.split(',').map((l: string) => l.trim()).filter(Boolean);
+        setLabels(parsedLabels);
         setImageUrl(initialData.imageUrl || '');
+
+        // 라벨 기본 속성 찾기
+        const primaryLabelDef = eventLabels.find(l => parsedLabels.includes(l.name));
+
+        // 개별 일정 속성 우선, 없으면 라벨 기본값, 없으면 기본 규격
+        setItemCalendar(
+          initialData.calendar !== undefined
+            ? !!initialData.calendar
+            : (primaryLabelDef ? primaryLabelDef.calendar !== false : true)
+        );
+        setItemForward(
+          initialData.forward !== undefined
+            ? !!initialData.forward
+            : (primaryLabelDef ? !!(primaryLabelDef.forward || (primaryLabelDef as any).isForward) : false)
+        );
+        setItemPeriod(
+          initialData.period !== undefined
+            ? !!initialData.period
+            : (primaryLabelDef ? !!primaryLabelDef.period : false)
+        );
+        setItemRecur(
+          initialData.recur !== undefined
+            ? !!initialData.recur
+            : (primaryLabelDef ? !!primaryLabelDef.recur : false)
+        );
+        setItemSkip(
+          initialData.skip !== undefined
+            ? !!initialData.skip
+            : (primaryLabelDef ? !!primaryLabelDef.skip : false)
+        );
       }
       setIsEditing(false); // Default to viewer mode for the modal
     }
-  }, [isOpen, initialData, type]);
+  }, [isOpen, initialData, type, eventLabels]);
 
   if (!isOpen) return null;
 
   const toggleLabel = (labelName: string) => {
-    setLabels(prev =>
-      prev.includes(labelName)
-        ? prev.filter(l => l !== labelName)
-        : [...prev, labelName]
-    );
+    setLabels(prev => {
+      const willSelect = !prev.includes(labelName);
+      const next = willSelect
+        ? [...prev, labelName]
+        : prev.filter(l => l !== labelName);
+
+      // 새로 라벨이 선택되면 해당 라벨의 기본 속성값 자동 연동
+      if (willSelect) {
+        const targetLabelDef = eventLabels.find(l => l.name === labelName);
+        if (targetLabelDef) {
+          setItemCalendar(targetLabelDef.calendar !== false);
+          setItemForward(!!(targetLabelDef.forward || (targetLabelDef as any).isForward));
+          setItemPeriod(!!targetLabelDef.period);
+          setItemRecur(!!targetLabelDef.recur);
+          setItemSkip(!!targetLabelDef.skip);
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleToggleAttributeQuick = async (
+    attr: 'calendar' | 'forward' | 'period' | 'recur' | 'skip',
+    newVal: boolean
+  ) => {
+    if (type !== 'event') return;
+    if (attr === 'calendar') setItemCalendar(newVal);
+    if (attr === 'forward') setItemForward(newVal);
+    if (attr === 'period') setItemPeriod(newVal);
+    if (attr === 'recur') setItemRecur(newVal);
+    if (attr === 'skip') setItemSkip(newVal);
+
+    try {
+      await updateEventItem(String(itemId), {
+        [attr]: newVal,
+      });
+    } catch (err) {
+      console.error('속성 업데이트 실패:', err);
+    }
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,6 +179,11 @@ export default function DetailEditModal({
           content,
           label: labels.join(','),
           imageUrl,
+          calendar: itemCalendar,
+          forward: itemForward,
+          period: itemPeriod,
+          recur: itemRecur,
+          skip: itemSkip,
         });
       }
       setIsEditing(false);
@@ -260,28 +337,84 @@ export default function DetailEditModal({
                 </>
               )}
               {type === 'event' && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-2">라벨 (다중 선택 가능)</label>
-                  <div className="flex flex-wrap gap-2">
-                    {eventLabels.map(l => {
-                      const isSelected = labels.includes(l.name);
-                      return (
-                        <button
-                          key={l.id}
-                          type="button"
-                          onClick={() => toggleLabel(l.name)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
-                            isSelected 
-                              ? 'bg-primary text-white border-primary shadow-xs' 
-                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                          }`}
-                        >
-                          {l.name}
-                        </button>
-                      );
-                    })}
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-2">라벨 (다중 선택 가능)</label>
+                    <div className="flex flex-wrap gap-2">
+                      {eventLabels.map(l => {
+                        const isSelected = labels.includes(l.name);
+                        return (
+                          <button
+                            key={l.id}
+                            type="button"
+                            onClick={() => toggleLabel(l.name)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                              isSelected 
+                                ? 'bg-primary text-white border-primary shadow-xs' 
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            {l.name}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+
+                  {/* 💡 개별 일정 맞춤 5대 속성 체크박스 */}
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-600">
+                      속성 설정 <span className="text-[11px] font-normal text-slate-400">(개별 일정 맞춤 조정)</span>
+                    </label>
+                    <div className="flex items-center gap-3.5 pt-0.5 text-xs font-medium text-slate-700 flex-wrap">
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="월간/년간 달력에 표시">
+                        <input
+                          type="checkbox"
+                          checked={itemCalendar}
+                          onChange={(e) => setItemCalendar(e.target.checked)}
+                          className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <span className="font-semibold text-[12.5px]">달력</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="미완료 시 다음 날로 자동 이월">
+                        <input
+                          type="checkbox"
+                          checked={itemForward}
+                          onChange={(e) => setItemForward(e.target.checked)}
+                          className="rounded text-emerald-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <span className="font-semibold text-[12.5px]">이월</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="연속 기간 등록">
+                        <input
+                          type="checkbox"
+                          checked={itemPeriod}
+                          onChange={(e) => setItemPeriod(e.target.checked)}
+                          className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <span className="font-semibold text-[12.5px]">기간</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="매주/매월 반복">
+                        <input
+                          type="checkbox"
+                          checked={itemRecur}
+                          onChange={(e) => setItemRecur(e.target.checked)}
+                          className="rounded text-purple-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <span className="font-semibold text-[12.5px]">반복</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="지정 날짜의 수업 과목 비움">
+                        <input
+                          type="checkbox"
+                          checked={itemSkip}
+                          onChange={(e) => setItemSkip(e.target.checked)}
+                          className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <span className="font-semibold text-[12.5px]">수업X</span>
+                      </label>
+                    </div>
+                  </div>
+                </>
               )}
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">
@@ -342,6 +475,61 @@ export default function DetailEditModal({
                         {l}
                       </span>
                     ))}
+                  </div>
+                </div>
+              )}
+              {type === 'event' && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-slate-400">일정 속성</span>
+                    <span className="text-[11px] text-slate-400">체크하여 즉시 변경 가능</span>
+                  </div>
+                  <div className="flex items-center gap-3.5 p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex-wrap">
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="월간/년간 달력에 표시">
+                      <input
+                        type="checkbox"
+                        checked={itemCalendar}
+                        onChange={(e) => handleToggleAttributeQuick('calendar', e.target.checked)}
+                        className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span className="font-semibold text-[12.5px] text-slate-700">달력</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="미완료 시 다음 날로 자동 이월">
+                      <input
+                        type="checkbox"
+                        checked={itemForward}
+                        onChange={(e) => handleToggleAttributeQuick('forward', e.target.checked)}
+                        className="rounded text-emerald-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span className="font-semibold text-[12.5px] text-slate-700">이월</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="연속 기간 등록">
+                      <input
+                        type="checkbox"
+                        checked={itemPeriod}
+                        onChange={(e) => handleToggleAttributeQuick('period', e.target.checked)}
+                        className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span className="font-semibold text-[12.5px] text-slate-700">기간</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="매주/매월 반복">
+                      <input
+                        type="checkbox"
+                        checked={itemRecur}
+                        onChange={(e) => handleToggleAttributeQuick('recur', e.target.checked)}
+                        className="rounded text-purple-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span className="font-semibold text-[12.5px] text-slate-700">반복</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="지정 날짜의 수업 과목 비움">
+                      <input
+                        type="checkbox"
+                        checked={itemSkip}
+                        onChange={(e) => handleToggleAttributeQuick('skip', e.target.checked)}
+                        className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span className="font-semibold text-[12.5px] text-slate-700">수업X</span>
+                    </label>
                   </div>
                 </div>
               )}
