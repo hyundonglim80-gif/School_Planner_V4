@@ -199,9 +199,9 @@ export async function runAutoForwarding(groupId: string | null) {
     // 1. 오늘 날짜에 저장
     const newList = [...todayEventList, ...incompleteItems];
     const textToSaveToday = formatV3EventText(newList);
-    const v3EventListToday = newList.map(item => ({
-      id: item.id,
-      content: item.content,
+    const v3EventListToday = newList.map((item, idx) => ({
+      id: item.id || 'ev_' + Date.now().toString(36) + '_' + idx,
+      content: item.content || '',
       completed: !!item.completed,
       authorId: user.uid,
       authorName: user.displayName || '',
@@ -222,7 +222,6 @@ export async function runAutoForwarding(groupId: string | null) {
           targetType: 'event',
           targetId: newItem.id,
           targetDate: todayStr,
-          targetPeriod: undefined,
           title: `[${todayStr || ''}] ${newItem.content}`,
           targetFId: groupId || 'personal',
         };
@@ -239,9 +238,9 @@ export async function runAutoForwarding(groupId: string | null) {
         : doc(db, 'users', user.uid, 'events', update.pDate);
       
       const textToSave = formatV3EventText(update.updatedList);
-      const v3EventList = update.updatedList.map(item => ({
-        id: item.id,
-        content: item.content,
+      const v3EventList = update.updatedList.map((item, idx) => ({
+        id: item.id || 'ev_' + Date.now().toString(36) + '_' + idx,
+        content: item.content || '',
         completed: !!item.completed,
         authorId: user.uid,
         authorName: user.displayName || '',
@@ -466,7 +465,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         targetType: 'event',
         targetId: newId,
         targetDate: dateStr || '',
-        targetPeriod: undefined,
         title: `[${dateStr || ''}] ${newItem.content}`,
         targetFId: groupId || 'personal',
       };
@@ -667,7 +665,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         targetType: 'journal',
         targetId: newId,
         targetDate: dateStr || '',
-        targetPeriod: undefined,
         title: `[${dateStr || ''}] ${newEntry.content.substring(0, 20)}`,
         targetFId: groupId || 'personal',
       };

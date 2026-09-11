@@ -58,7 +58,7 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
         id: newId,
         content: text.trim(), // V4 호환성을 위한 content
         text: text.trim(),    // 기존 코드 호환
-        label: selectedLabels.length > 0 ? selectedLabels.join(',') : undefined,
+        label: selectedLabels.length > 0 ? selectedLabels.join(',') : '',
         labelIds: selectedLabels,
         linkedItems,
         completed: false,
