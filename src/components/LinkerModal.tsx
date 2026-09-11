@@ -79,7 +79,7 @@ export default function LinkerModal({
   const [selectedLinks, setSelectedLinks] = useState<SelectedLinkItem[]>([]);
 
   // 필터 및 페이징 상태
-  const [dateRange, setDateRange] = useState('today');
+  const [dateRange, setDateRange] = useState('1week');
   const [customStart, setCustomStart] = useState(sourceDateStr);
   const [customEnd, setCustomEnd] = useState(sourceDateStr);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -122,9 +122,7 @@ export default function LinkerModal({
     let s = new Date(center);
     let e = new Date(center);
 
-    if (dateRange === 'today') {
-      return { start: sourceDateStr, end: sourceDateStr };
-    } else if (dateRange === '1week') {
+    if (dateRange === '1week') {
       s.setDate(s.getDate() - 7);
       e.setDate(e.getDate() + 7);
     } else if (dateRange === '1month') {
@@ -290,7 +288,7 @@ export default function LinkerModal({
     if (isOpen) {
       setSelectedLinks([]);
       setCurrentTab('event');
-      setDateRange('today');
+      setDateRange('1week');
       setCurrentPage(1);
       setSearchKeyword('');
       setSelectedLabelIds([]);
@@ -586,13 +584,20 @@ export default function LinkerModal({
   // 현재 탭의 데이터 필터링 (라벨 + 검색어)
   const currentList: FetchedItem[] = currentTab === 'schedule' ? [] : tabItems[currentTab] || [];
   const filteredList = currentList.filter((item: FetchedItem) => {
-    // 1. 라벨 필터 (일정, 기록)
+    // 1. 기간 필터 (메모는 서버에서 전체 로드하므로 클라이언트에서 기간 필터링)
+    if (currentTab === 'memo' && item.date) {
+      const { start, end } = computeDateRange();
+      if (start && end && (item.date < start || item.date > end)) {
+        return false;
+      }
+    }
+    // 2. 라벨 필터 (일정, 기록)
     if (selectedLabelIds.length > 0 && (currentTab === 'event' || currentTab === 'journal')) {
       if (!item.labelIds || !item.labelIds.some((id: string) => selectedLabelIds.includes(id))) {
         return false;
       }
     }
-    // 2. 키워드 검색
+    // 3. 키워드 검색
     if (searchKeyword.trim()) {
       return item.title.toLowerCase().includes(searchKeyword.toLowerCase().trim());
     }
@@ -713,52 +718,62 @@ export default function LinkerModal({
           ) : (
             /* 일정/기록/메모 탭 공통 필터 영역 */
             <div className="flex flex-col gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-              {/* 기간 범위 필터 (메모 탭 제외) */}
-              {currentTab !== 'memo' && (
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-600 shrink-0">조회 범위:</span>
-                    <select
-                      value={dateRange}
-                      onChange={(e) => setDateRange(e.target.value)}
-                      className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 bg-white"
-                    >
-                      <option value="today">현재 페이지 날짜</option>
-                      <option value="1week">±1주일</option>
-                      <option value="1month">±1개월</option>
-                      <option value="sem1">1학기 전체</option>
-                      <option value="sem2">2학기 전체</option>
-                      <option value="year">학년도 전체</option>
-                      <option value="custom">직접 지정</option>
-                    </select>
-                    <button
-                      type="button"
-                      onClick={fetchDateRangeData}
-                      className="ml-auto px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 transition-colors"
-                    >
-                      조회
-                    </button>
-                  </div>
-
-                  {dateRange === 'custom' && (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="date"
-                        value={customStart}
-                        onChange={(e) => setCustomStart(e.target.value)}
-                        className="px-2 py-1 text-xs border rounded-lg bg-white"
-                      />
-                      <span className="text-xs text-slate-400">~</span>
-                      <input
-                        type="date"
-                        value={customEnd}
-                        onChange={(e) => setCustomEnd(e.target.value)}
-                        className="px-2 py-1 text-xs border rounded-lg bg-white"
-                      />
-                    </div>
-                  )}
+              {/* 기간 범위 필터 (일정/기록/메모 공통) */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-600 shrink-0">조회 범위:</span>
+                  <select
+                    value={dateRange}
+                    onChange={(e) => {
+                      setDateRange(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 bg-white"
+                  >
+                    <option value="1week">±1주일</option>
+                    <option value="1month">±1개월</option>
+                    <option value="sem1">1학기 전체</option>
+                    <option value="sem2">2학기 전체</option>
+                    <option value="year">학년도 전체</option>
+                    <option value="custom">기간 설정</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (currentTab === 'memo') fetchMemoData();
+                      else fetchDateRangeData();
+                      setCurrentPage(1);
+                    }}
+                    className="ml-auto px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 transition-colors"
+                  >
+                    조회
+                  </button>
                 </div>
-              )}
+
+                {dateRange === 'custom' && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={customStart}
+                      onChange={(e) => {
+                        setCustomStart(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="px-2 py-1 text-xs border rounded-lg bg-white"
+                    />
+                    <span className="text-xs text-slate-400">~</span>
+                    <input
+                      type="date"
+                      value={customEnd}
+                      onChange={(e) => {
+                        setCustomEnd(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="px-2 py-1 text-xs border rounded-lg bg-white"
+                    />
+                  </div>
+                )}
+              </div>
 
               {/* 라벨 칩 필터 (일정, 기록 탭) */}
               {(currentTab === 'event' || currentTab === 'journal') && labels.length > 0 && (

@@ -113,7 +113,7 @@ export const useAppStore = create<AppState>()(
       currentDate: new Date().toISOString(),
       selectedGroupId: null,
       govApiKey: '',
-      enableScrollNav: true,
+      enableScrollNav: false,
 
       clearAuthData: () => set({
         selectedGroupId: null,
