@@ -3,6 +3,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import DetailEditModal from './DetailEditModal';
 
 interface ForwardingModalProps {
   isOpen: boolean;
@@ -25,6 +26,10 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
   const [incompleteEvents, setIncompleteEvents] = useState<ForwardEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [completingKeys, setCompletingKeys] = useState<Set<string>>(new Set());
+  const [detailItem, setDetailItem] = useState<{ dateStr: string; itemId: string; initialData: any } | null>(null);
+
+  const itemKey = (item: ForwardEvent) => `${item.dateStr}_${item.eventIdx}`;
 
   useEffect(() => {
     if (isOpen) scanIncompleteEvents();
@@ -152,9 +157,48 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
     }
   };
 
+  // 라벨 클릭 시 완료 처리 (체크 효과 후 목록에서 제거)
+  const handleToggleComplete = async (item: ForwardEvent) => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    const key = itemKey(item);
+    setCompletingKeys(prev => new Set(prev).add(key));
+
+    try {
+      const colPath = selectedGroupId && selectedGroupId !== 'personal'
+        ? `groups/${selectedGroupId}/events`
+        : `users/${uid}/events`;
+      const snap = await getDoc(doc(db, colPath, item.dateStr));
+      if (snap.exists()) {
+        const data = snap.data();
+        const eventList = data.eventList || [];
+        if (eventList[item.eventIdx]) {
+          eventList[item.eventIdx] = { ...eventList[item.eventIdx], completed: true };
+          await setDoc(doc(db, colPath, item.dateStr), { ...data, eventList, updatedAt: Date.now() }, { merge: true });
+        }
+      }
+      setTimeout(() => {
+        setIncompleteEvents(prev => prev.filter(e => !(e.dateStr === item.dateStr && e.eventIdx === item.eventIdx)));
+        setCompletingKeys(prev => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      }, 450);
+    } catch (e: any) {
+      setCompletingKeys(prev => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+      alert('완료 처리 중 오류: ' + e.message);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col border border-slate-200" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
@@ -180,15 +224,53 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
             </div>
           ) : (
             <div className="space-y-2">
-              {incompleteEvents.map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">{item.event.text}</p>
-                    <p className="text-xs text-slate-400">{item.dateStr} · {(item.event.labelIds || []).join(', ')}</p>
+              {incompleteEvents.map((item, idx) => {
+                const isCompleting = completingKeys.has(itemKey(item));
+                return (
+                  <div
+                    key={idx}
+                    className={`flex items-center justify-between p-3 border rounded-xl transition-colors duration-300 ${
+                      isCompleting ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() =>
+                        setDetailItem({ dateStr: item.dateStr, itemId: String(item.event.id), initialData: item.event })
+                      }
+                    >
+                      <p className={`text-sm font-bold truncate transition-colors ${isCompleting ? 'text-emerald-600 line-through' : 'text-slate-800'}`}>
+                        {isCompleting && <span className="mr-1">✅</span>}
+                        {item.event.text}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        <span className="text-xs text-slate-400">{item.dateStr}</span>
+                        {(item.event.labelIds || []).map((labelId: string) => (
+                          <button
+                            key={labelId}
+                            type="button"
+                            title="클릭하면 완료 처리됩니다"
+                            disabled={isCompleting}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleComplete(item);
+                            }}
+                            className="text-[16.5px] px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-600 hover:bg-emerald-100 hover:text-emerald-700 font-bold transition-colors disabled:opacity-60 cursor-pointer"
+                          >
+                            {labelId}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteForwarded(item)}
+                      className="text-slate-300 hover:text-red-500 text-xs font-bold p-1 shrink-0"
+                    >
+                      ✕
+                    </button>
                   </div>
-                  <button onClick={() => handleDeleteForwarded(item)} className="text-slate-300 hover:text-red-500 text-xs font-bold p-1">✕</button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -206,5 +288,20 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
         </div>
       </div>
     </div>
+
+    {detailItem && (
+      <DetailEditModal
+        isOpen={true}
+        onClose={() => {
+          setDetailItem(null);
+          scanIncompleteEvents();
+        }}
+        type="event"
+        dateStr={detailItem.dateStr}
+        itemId={detailItem.itemId}
+        initialData={detailItem.initialData}
+      />
+    )}
+    </>
   );
 }
