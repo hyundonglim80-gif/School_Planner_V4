@@ -254,12 +254,36 @@ export default function DayJournal({
     }
   };
 
+  const [columnsCount, setColumnsCount] = useState(4);
+
+  useEffect(() => {
+    const updateCols = () => {
+      if (window.innerWidth >= 1024) setColumnsCount(4);
+      else if (window.innerWidth >= 768) setColumnsCount(3);
+      else if (window.innerWidth >= 640) setColumnsCount(2);
+      else setColumnsCount(1);
+    };
+    updateCols();
+    window.addEventListener('resize', updateCols);
+    return () => window.removeEventListener('resize', updateCols);
+  }, []);
+
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   // 필터 적용된 리스트
   const filteredJournals = currentFilter === '전체'
     ? journals
     : journals.filter((entry) => getLabelName(entry) === currentFilter);
+
+  const distributeJournals = (items: JournalEntry[]) => {
+    const columns = Array.from({ length: columnsCount }, () => [] as { entry: JournalEntry; idx: number }[]);
+    items.forEach((item, index) => {
+      columns[index % columnsCount].push({ entry: item, idx: index });
+    });
+    return columns;
+  };
+
+  const journalColumns = distributeJournals(filteredJournals);
 
   return (
     <div className="flex flex-col gap-4">
@@ -424,232 +448,239 @@ export default function DayJournal({
         )}
       </div>
 
-      {/* 기록 카드 리스트 (메모 뷰 스타일 다단 레이아웃) */}
+      {/* 기록 카드 리스트 (메모 페이지와 동일한 가로 우선 다단 레이아웃) */}
       {!isCollapsed && (
-        <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 [column-fill:_balance]">
-          {filteredJournals.length > 0 ? (
-            filteredJournals.map((entry, idx) => {
-              const isEditing = editingId === entry.id;
-              const linkCount = (entry.linkedItems || []).length;
-              const isCollapsedItem = !!collapsedIds[entry.id];
+        filteredJournals.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-start">
+            {journalColumns.map((col, colIndex) => (
+              <div key={colIndex} className="flex flex-col gap-4">
+                {col.map(({ entry }) => {
+                  const isEditing = editingId === entry.id;
+                  const linkCount = (entry.linkedItems || []).length;
+                  const isCollapsedItem = !!collapsedIds[entry.id];
+                  const origIdx = journals.findIndex(j => j.id === entry.id);
 
-              if (isEditing) {
-                return (
-                  <div key={entry.id} className="break-inside-avoid mb-4 inline-block w-full p-4 rounded-2xl border border-primary/50 bg-blue-50/30 flex flex-col gap-3 shadow-md">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-xs font-semibold text-slate-500 mr-1">라벨:</span>
-                      {journalLabels.map((lbl) => (
-                        <button
-                          key={lbl.id}
-                          type="button"
-                          onClick={() => setEditLabel(lbl.name)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                            editLabel === lbl.name
-                              ? 'bg-blue-600 text-white shadow-xs'
-                              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                          }`}
-                        >
-                          {lbl.name}
-                        </button>
-                      ))}
-                    </div>
-                    <textarea
-                      value={editContent}
-                      onChange={(e) => setEditContent(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') setEditingId(null);
-                        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                          e.preventDefault();
-                          saveEditing(entry.id);
-                        }
-                      }}
-                      rows={3}
-                      className="w-full p-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary resize-none leading-relaxed"
-                      autoFocus
-                    />
-                    
-                    {editImageUrl && (
-                      <div className="relative inline-block mb-2">
-                        <img src={editImageUrl} alt="첨부 이미지" className="h-24 w-auto rounded-lg border border-slate-200 object-cover" />
-                        <button type="button" onClick={() => setEditImageUrl('')} className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 text-xs">×</button>
-                      </div>
-                    )}
-
-                    <div className="flex justify-between items-center">
-                      <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200/50 hover:bg-slate-200 text-slate-600 rounded-xl text-[16.5px] font-bold transition-colors cursor-pointer">
-                        <span>📷</span>
-                        <span>{uploadingFiles ? '업로드 중...' : '이미지 추가'}</span>
-                        <input type="file" accept="image/*" onChange={handleEditImageUpload} className="hidden" disabled={uploadingFiles} />
-                      </label>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setEditingId(null)}
-                          className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-xl transition-colors"
-                        >
-                          취소
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => saveEditing(entry.id)}
-                          disabled={uploadingFiles}
-                          className="px-4 py-1.5 bg-primary hover:bg-blue-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
-                        >
-                          저장
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              return (
-                <div
-                  key={entry.id}
-                  className="break-inside-avoid mb-4 inline-block w-full group p-4 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300 bg-white transition-all flex flex-col gap-2"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {/* 항목 접기/펼치기 삼각형 토글 버튼 */}
-                      <button
-                        type="button"
-                        onClick={() => toggleCollapse(entry.id)}
-                        className="text-slate-400 hover:text-primary transition-colors p-0.5 text-[15px]"
-                      >
-                        {isCollapsedItem ? '▶' : '▼'}
-                      </button>
-
-                      {/* 순서 변경 아이콘 */}
-                      <div className="flex flex-col items-center gap-0.5 shrink-0 px-0.5">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); if (idx > 0 && onReorderJournals) onReorderJournals(idx, idx - 1); }}
-                          disabled={idx === 0}
-                          className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-[15px]"
-                        >
-                          ▲
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); if (idx < journals.length - 1 && onReorderJournals) onReorderJournals(idx, idx + 1); }}
-                          disabled={idx === journals.length - 1}
-                          className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-[15px]"
-                        >
-                          ▼
-                        </button>
-                      </div>
-
-                      {/* 💡 라벨이 삭제되지 않고 남아있을 때만 뱃지 표시 */}
-                      {getLabelName(entry) && (
-                        <span className={`px-2 py-0.5 rounded-md text-[16.5px] font-bold border ${getLabelColorClass(entry)}`}>
-                          {getLabelName(entry)}
-                        </span>
-                      )}
-
-                      <span className="text-[16.5px] text-slate-400">
-                        {new Date(entry.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      
-                      {linkCount > 0 && (
-                        <button 
-                          onClick={() => openLinkViewerModal('journal', formattedDate, entry.id)}
-                          className="bg-yellow-100 text-yellow-800 text-[15px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200"
-                        >
-                            🔗 {linkCount}
-                        </button>
-                      )}
-                      {entry.attachments && entry.attachments.length > 0 && (
-                        <span className="bg-slate-100 text-slate-600 text-[15px] px-1.5 py-0.5 rounded font-bold border border-slate-200">
-                            📎 {entry.attachments.length}
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUploadTargetId(entry.id);
-                          itemFileInputRef.current?.click();
-                        }}
-                        className="text-slate-400 hover:text-emerald-600 p-1 rounded-md text-xs font-bold"
-                        title="파일 추가"
-                      >
-                        📎
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => startEditing(entry)}
-                        className="text-slate-400 hover:text-blue-600 p-1 rounded-md text-xs font-bold"
-                        title="기록 수정"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => openLinkerModal('journal', formattedDate, entry.id)}
-                        className="text-slate-400 hover:text-yellow-600 p-1 rounded-md text-xs font-bold"
-                        title="링크 연결"
-                      >
-                        🔗
-                      </button>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await onDeleteJournal(entry.id);
-                          showToast('기록이 삭제되었습니다 (휴지통 보관)');
-                        }}
-                        className="text-slate-400 hover:text-red-500 p-1 rounded-md text-xs transition-colors"
-                        title="기록 삭제"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 항목이 접히지 않았을 때만 본문 및 첨부파일 표시 */}
-                  {!isCollapsedItem && (
-                    <div 
-                      onDoubleClick={() => startEditing(entry)} 
-                      className="flex flex-col gap-3 mt-1 cursor-pointer" 
-                      title="더블클릭하여 수정"
-                    >
-                      <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
-                        {entry.content}
-                      </p>
-                      {entry.imageUrl && (
-                        <div className="mt-1 rounded-lg overflow-hidden border border-slate-200/60 bg-slate-50 inline-block max-w-fit">
-                          <img src={entry.imageUrl} alt="첨부 이미지" className="max-w-full h-auto object-cover max-h-48" loading="lazy" />
-                        </div>
-                      )}
-                      {entry.attachments && entry.attachments.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {entry.attachments.map((att, idx) => (
-                            att.type === 'image' ? (
-                              <a key={idx} href={att.url} target="_blank" rel="noreferrer" className="block w-16 h-16 rounded-lg overflow-hidden border border-slate-200 hover:shadow-sm transition-shadow">
-                                <img src={att.url} alt={att.name} className="w-full h-full object-cover" loading="lazy" />
-                              </a>
-                            ) : (
-                              <a key={idx} href={att.url} target="_blank" rel="noreferrer" className="block px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 truncate max-w-[150px] hover:bg-slate-100 transition-colors" title={att.name}>
-                                📎 {att.name}
-                              </a>
-                            )
+                  if (isEditing) {
+                    return (
+                      <div key={entry.id} className="w-full p-4 rounded-2xl border border-primary/50 bg-blue-50/30 flex flex-col gap-3 shadow-md">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-xs font-semibold text-slate-500 mr-1">라벨:</span>
+                          {journalLabels.map((lbl) => (
+                            <button
+                              key={lbl.id}
+                              type="button"
+                              onClick={() => setEditLabel(lbl.name)}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                                editLabel === lbl.name
+                                  ? 'bg-blue-600 text-white shadow-xs'
+                                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {lbl.name}
+                            </button>
                           ))}
                         </div>
+                        <textarea
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') setEditingId(null);
+                            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                              e.preventDefault();
+                              saveEditing(entry.id);
+                            }
+                          }}
+                          rows={3}
+                          className="w-full p-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary resize-none leading-relaxed"
+                          autoFocus
+                        />
+                        
+                        {editImageUrl && (
+                          <div className="relative inline-block mb-2">
+                            <img src={editImageUrl} alt="첨부 이미지" className="h-24 w-auto rounded-lg border border-slate-200 object-cover" />
+                            <button type="button" onClick={() => setEditImageUrl('')} className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 text-xs">×</button>
+                          </div>
+                        )}
+
+                        <div className="flex justify-between items-center">
+                          <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200/50 hover:bg-slate-200 text-slate-600 rounded-xl text-[16.5px] font-bold transition-colors cursor-pointer">
+                            <span>📷</span>
+                            <span>{uploadingFiles ? '업로드 중...' : '이미지 추가'}</span>
+                            <input type="file" accept="image/*" onChange={handleEditImageUpload} className="hidden" disabled={uploadingFiles} />
+                          </label>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setEditingId(null)}
+                              className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-xl transition-colors"
+                            >
+                              취소
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => saveEditing(entry.id)}
+                              disabled={uploadingFiles}
+                              className="px-4 py-1.5 bg-primary hover:bg-blue-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+                            >
+                              저장
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={entry.id}
+                      className="w-full group p-4 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300 bg-white transition-all flex flex-col gap-2"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {/* 항목 접기/펼치기 삼각형 토글 버튼 */}
+                          <button
+                            type="button"
+                            onClick={() => toggleCollapse(entry.id)}
+                            className="text-slate-400 hover:text-primary transition-colors p-0.5 text-[15px] cursor-pointer"
+                          >
+                            {isCollapsedItem ? '▶' : '▼'}
+                          </button>
+
+                          {/* 순서 변경 아이콘 */}
+                          <div className="flex flex-col items-center gap-0.5 shrink-0 px-0.5">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); if (origIdx > 0 && onReorderJournals) onReorderJournals(origIdx, origIdx - 1); }}
+                              disabled={origIdx <= 0}
+                              className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-[15px] cursor-pointer"
+                            >
+                              ▲
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); if (origIdx < journals.length - 1 && onReorderJournals) onReorderJournals(origIdx, origIdx + 1); }}
+                              disabled={origIdx >= journals.length - 1}
+                              className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-[15px] cursor-pointer"
+                            >
+                              ▼
+                            </button>
+                          </div>
+
+                          {/* 💡 라벨이 삭제되지 않고 남아있을 때만 뱃지 표시 */}
+                          {getLabelName(entry) && (
+                            <span className={`px-2 py-0.5 rounded-md text-[16.5px] font-bold border ${getLabelColorClass(entry)}`}>
+                              {getLabelName(entry)}
+                            </span>
+                          )}
+
+                          <span className="text-[16.5px] text-slate-400">
+                            {new Date(entry.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          
+                          {linkCount > 0 && (
+                            <button 
+                              type="button"
+                              onClick={() => openLinkViewerModal('journal', formattedDate, entry.id)}
+                              className="bg-yellow-100 text-yellow-800 text-[15px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 cursor-pointer"
+                            >
+                                🔗 {linkCount}
+                            </button>
+                          )}
+                          {entry.attachments && entry.attachments.length > 0 && (
+                            <span className="bg-slate-100 text-slate-600 text-[15px] px-1.5 py-0.5 rounded font-bold border border-slate-200">
+                                📎 {entry.attachments.length}
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUploadTargetId(entry.id);
+                              itemFileInputRef.current?.click();
+                            }}
+                            className="text-slate-400 hover:text-emerald-600 p-1 rounded-md text-xs font-bold cursor-pointer"
+                            title="파일 추가"
+                          >
+                            📎
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => startEditing(entry)}
+                            className="text-slate-400 hover:text-blue-600 p-1 rounded-md text-xs font-bold cursor-pointer"
+                            title="기록 수정"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openLinkerModal('journal', formattedDate, entry.id)}
+                            className="text-slate-400 hover:text-yellow-600 p-1 rounded-md text-xs font-bold cursor-pointer"
+                            title="링크 연결"
+                          >
+                            🔗
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await onDeleteJournal(entry.id);
+                              showToast('기록이 삭제되었습니다 (휴지통 보관)');
+                            }}
+                            className="text-slate-400 hover:text-red-500 p-1 rounded-md text-xs transition-colors cursor-pointer"
+                            title="기록 삭제"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 항목이 접히지 않았을 때만 본문 및 첨부파일 표시 */}
+                      {!isCollapsedItem && (
+                        <div 
+                          onDoubleClick={() => startEditing(entry)} 
+                          className="flex flex-col gap-3 mt-1 cursor-pointer" 
+                          title="더블클릭하여 수정"
+                        >
+                          <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
+                            {entry.content}
+                          </p>
+                          {entry.imageUrl && (
+                            <div className="mt-1 rounded-lg overflow-hidden border border-slate-200/60 bg-slate-50 inline-block max-w-fit">
+                              <img src={entry.imageUrl} alt="첨부 이미지" className="max-w-full h-auto object-cover max-h-48" loading="lazy" />
+                            </div>
+                          )}
+                          {entry.attachments && entry.attachments.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {entry.attachments.map((att, attIdx) => (
+                                att.type === 'image' ? (
+                                  <a key={attIdx} href={att.url} target="_blank" rel="noreferrer" className="block w-16 h-16 rounded-lg overflow-hidden border border-slate-200 hover:shadow-sm transition-shadow">
+                                    <img src={att.url} alt={att.name} className="w-full h-full object-cover" loading="lazy" />
+                                  </a>
+                                ) : (
+                                  <a key={attIdx} href={att.url} target="_blank" rel="noreferrer" className="block px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 truncate max-w-[150px] hover:bg-slate-100 transition-colors" title={att.name}>
+                                    📎 {att.name}
+                                  </a>
+                                )
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
-              );
-            })
-          ) : (
-              <div className="break-inside-avoid w-full text-center py-10 bg-white/60 rounded-2xl border border-dashed border-slate-300 p-6 shadow-xs">
-                <p className="text-slate-500 font-bold text-sm">
-                  {currentFilter === '전체' ? '등록된 기록이 없습니다.' : `'${currentFilter}' 라벨에 해당하는 기록이 없습니다.`}
-                </p>
+                  );
+                })}
               </div>
-            )}
+            ))}
           </div>
-        )}
+        ) : (
+          <div className="w-full text-center py-10 bg-white/60 rounded-2xl border border-dashed border-slate-300 p-6 shadow-xs">
+            <p className="text-slate-500 font-bold text-sm">
+              {currentFilter === '전체' ? '등록된 기록이 없습니다.' : `'${currentFilter}' 라벨에 해당하는 기록이 없습니다.`}
+            </p>
+          </div>
+        )
+      )}
 
       {/* 개별 항목 파일 업로드용 숨김 input */}
       <input
