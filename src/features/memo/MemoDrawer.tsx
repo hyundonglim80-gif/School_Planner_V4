@@ -39,6 +39,22 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
   const [presetLabels, setPresetLabels] = useState<string[]>(PRESET_LABELS);
 
   const handleSubmitRef = useRef<() => void>(() => {});
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const adjustTextareaHeight = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.max(120, el.scrollHeight)}px`;
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      requestAnimationFrame(() => {
+        adjustTextareaHeight();
+      });
+    }
+  }, [content, isOpen]);
 
   useEffect(() => {
     const fetchMemoLabels = async () => {
@@ -280,6 +296,7 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
               메모 내용 <span className="text-red-500">*</span>
             </label>
             <textarea
+              ref={textareaRef}
               autoFocus
               value={content}
               onChange={(e) => setContent(e.target.value)}
@@ -290,7 +307,7 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
                 }
               }}
               placeholder="자유롭게 생각을 기록해보세요..."
-              className="w-full h-44 p-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none text-slate-800 leading-relaxed placeholder-slate-400 text-sm"
+              className="w-full min-h-[120px] p-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none text-slate-800 leading-relaxed placeholder-slate-400 text-sm overflow-hidden"
             />
           </div>
 
