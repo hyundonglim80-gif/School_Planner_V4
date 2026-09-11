@@ -26,7 +26,7 @@ export default function DetailEditModal({
   initialData,
 }: DetailEditModalProps) {
   useBodyScrollLock(isOpen);
-  const { selectedGroupId, openLinkerModal, openLinkViewerModal, openEvaluationModal } = useAppStore();
+  const { selectedGroupId, openLinkerModal, openLinkViewerModal, openEvaluationModal, openLabelModal } = useAppStore();
   const { updateEventItem, deleteEventItem, savePeriod, eventList, schedules } = useDayData(isOpen ? dateStr : '', selectedGroupId);
   const { eventLabels } = useLabels();
 
@@ -339,7 +339,18 @@ export default function DetailEditModal({
               {type === 'event' && (
                 <>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-2">라벨 (다중 선택 가능)</label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-bold text-slate-500">라벨 (다중 선택 가능)</label>
+                      <button
+                        type="button"
+                        onClick={() => openLabelModal('event')}
+                        className="text-xs text-primary hover:text-blue-700 font-bold flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                        title="더보기 - 통합 라벨 관리 열기"
+                      >
+                        <span>⚙️</span>
+                        <span>라벨 수정</span>
+                      </button>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {eventLabels.map(l => {
                         const isSelected = labels.includes(l.name);
@@ -466,16 +477,31 @@ export default function DetailEditModal({
                   </div>
                 </>
               )}
-              {type === 'event' && labels.length > 0 && (
+              {type === 'event' && (
                 <div>
-                  <span className="text-xs font-bold text-slate-400 block mb-1">라벨</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {labels.map(l => (
-                      <span key={l} className="inline-block px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg font-bold text-xs">
-                        {l}
-                      </span>
-                    ))}
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-slate-400">라벨</span>
+                    <button
+                      type="button"
+                      onClick={() => openLabelModal('event')}
+                      className="text-[11px] text-primary hover:text-blue-700 font-bold flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-blue-50 transition-colors cursor-pointer"
+                      title="더보기 - 통합 라벨 관리 열기"
+                    >
+                      <span>⚙️</span>
+                      <span>라벨 수정</span>
+                    </button>
                   </div>
+                  {labels.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {labels.map(l => (
+                        <span key={l} className="inline-block px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg font-bold text-xs">
+                          {l}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400">지정된 라벨 없음</p>
+                  )}
                 </div>
               )}
               {type === 'event' && (

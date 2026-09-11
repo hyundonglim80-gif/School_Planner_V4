@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { JournalEntry } from '../../hooks/useDayData';
 import { renderFormattedText } from '../../lib/textUtils';
 import { useAppStore } from '../../store/useAppStore';
+import { useLabels } from '../../hooks/useLabels';
 import { DEFAULT_JOURNAL_LABELS, type JournalLabel } from '../../components/LabelModal';
 import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
@@ -37,14 +38,22 @@ export default function DayJournal({
   
   const itemFileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
-  const { openLinkerModal, openLinkViewerModal, currentDate } = useAppStore();
+  const { openLinkerModal, openLinkViewerModal, openLabelModal, isLabelModalOpen, currentDate } = useAppStore();
   const formattedDate = formatDateStr(new Date(currentDate));
+  const { journalLabels: hookJournalLabels } = useLabels();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [editLabel, setEditLabel] = useState('기본');
   const [editImageUrl, setEditImageUrl] = useState('');
   const [journalLabels, setJournalLabels] = useState<JournalLabel[]>(DEFAULT_JOURNAL_LABELS);
+
+  // useLabels의 실시간 구독 값과 동기화
+  useEffect(() => {
+    if (hookJournalLabels && hookJournalLabels.length > 0) {
+      setJournalLabels(hookJournalLabels);
+    }
+  }, [hookJournalLabels]);
   
   // 항목별 접기/펼치기 상태
   const [collapsedIds, setCollapsedIds] = useState<Record<string, boolean>>({});
@@ -75,7 +84,7 @@ export default function DayJournal({
       }
     };
     fetchLabels();
-  }, []);
+  }, [isLabelModalOpen]);
 
   // 💡 라벨이 삭제된 경우 빈 문자열('')을 반환하도록 수정
   const getLabelName = (entry: JournalEntry) => {
@@ -353,26 +362,39 @@ export default function DayJournal({
 
         {!isCollapsed && isFormOpen && (
           <form onSubmit={handleSubmit} className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col gap-3">
-            {/* 라벨 선택 UI(모달 호출 제외) */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-500 mr-1">라벨:</span>
-              {journalLabels.map((lbl) => {
-                const isSelected = newLabels.includes(lbl.name);
-                return (
-                  <button
-                    key={lbl.id}
-                    type="button"
-                    onClick={() => handleLabelToggle(lbl.name)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                      isSelected
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    {lbl.name}
-                  </button>
-                );
-              })}
+            {/* 라벨 선택 UI */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold text-slate-500">라벨:</span>
+                <button
+                  type="button"
+                  onClick={() => openLabelModal('journal')}
+                  className="text-xs text-primary hover:text-blue-700 font-bold flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                  title="더보기 - 통합 라벨 관리 열기"
+                >
+                  <span>⚙️</span>
+                  <span>라벨 수정</span>
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {journalLabels.map((lbl) => {
+                  const isSelected = newLabels.includes(lbl.name);
+                  return (
+                    <button
+                      key={lbl.id}
+                      type="button"
+                      onClick={() => handleLabelToggle(lbl.name)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {lbl.name}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* 본문 입력 */}
@@ -463,22 +485,35 @@ export default function DayJournal({
                   if (isEditing) {
                     return (
                       <div key={entry.id} className="w-full p-4 rounded-2xl border border-primary/50 bg-blue-50/30 flex flex-col gap-3 shadow-md">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-xs font-semibold text-slate-500 mr-1">라벨:</span>
-                          {journalLabels.map((lbl) => (
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs font-semibold text-slate-500">라벨:</span>
                             <button
-                              key={lbl.id}
                               type="button"
-                              onClick={() => setEditLabel(lbl.name)}
-                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                                editLabel === lbl.name
-                                  ? 'bg-blue-600 text-white shadow-xs'
-                                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                              }`}
+                              onClick={() => openLabelModal('journal')}
+                              className="text-xs text-primary hover:text-blue-700 font-bold flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                              title="더보기 - 통합 라벨 관리 열기"
                             >
-                              {lbl.name}
+                              <span>⚙️</span>
+                              <span>라벨 수정</span>
                             </button>
-                          ))}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {journalLabels.map((lbl) => (
+                              <button
+                                key={lbl.id}
+                                type="button"
+                                onClick={() => setEditLabel(lbl.name)}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                                  editLabel === lbl.name
+                                    ? 'bg-blue-600 text-white shadow-xs'
+                                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                                }`}
+                              >
+                                {lbl.name}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                         <textarea
                           value={editContent}

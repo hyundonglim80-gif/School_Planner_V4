@@ -37,15 +37,30 @@ export const COLOR_PALETTE: Record<string, { bg: string; text: string; border: s
   gray: { bg: '#f1f5f9', text: '#334155', border: '#cbd5e1', label: '회색' },
 };
 
+export interface JournalLabel {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export const DEFAULT_JOURNAL_LABELS: JournalLabel[] = [
+  { id: 'j_1', name: '학급활동', color: 'green' },
+  { id: 'j_2', name: '학생상담', color: 'yellow' },
+  { id: 'j_3', name: '업무전달', color: 'blue' },
+  { id: 'j_4', name: '수업기록', color: 'purple' },
+];
+
 export function useLabels() {
   const [eventLabels, setEventLabels] = useState<EventLabel[]>(DEFAULT_EVENT_LABELS);
   const [memoLabels, setMemoLabels] = useState<string[]>(DEFAULT_MEMO_LABELS);
+  const [journalLabels, setJournalLabels] = useState<JournalLabel[]>(DEFAULT_JOURNAL_LABELS);
 
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) {
       setEventLabels(DEFAULT_EVENT_LABELS);
       setMemoLabels(DEFAULT_MEMO_LABELS);
+      setJournalLabels(DEFAULT_JOURNAL_LABELS);
       return;
     }
 
@@ -70,9 +85,20 @@ export function useLabels() {
         } else {
           setMemoLabels(DEFAULT_MEMO_LABELS);
         }
+
+        if (Array.isArray(data.journalLabels) && data.journalLabels.length > 0) {
+          setJournalLabels(data.journalLabels.map((l: any, i: number) => ({
+            id: l.id || `j_${i}_${l.name || ''}`,
+            name: l.name || '',
+            color: l.color || 'green',
+          })));
+        } else {
+          setJournalLabels(DEFAULT_JOURNAL_LABELS);
+        }
       } else {
         setEventLabels(DEFAULT_EVENT_LABELS);
         setMemoLabels(DEFAULT_MEMO_LABELS);
+        setJournalLabels(DEFAULT_JOURNAL_LABELS);
       }
     });
 
@@ -87,5 +113,5 @@ export function useLabels() {
 
   const getLabel = (labelName: string) => eventLabels.find(l => l.name === labelName);
 
-  return { eventLabels, getLabelColor, getLabel, memoLabels };
+  return { eventLabels, getLabelColor, getLabel, memoLabels, journalLabels };
 }

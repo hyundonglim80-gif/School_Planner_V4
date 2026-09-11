@@ -320,10 +320,10 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
                 type="button"
                 onClick={() => openLabelModal('memo')}
                 className="text-xs text-primary hover:text-blue-700 font-bold flex items-center gap-1.5 px-2 py-0.5 rounded-md hover:bg-blue-50 transition-colors cursor-pointer"
-                title="라벨 편집"
+                title="더보기 - 통합 라벨 관리 열기"
               >
                 <span>⚙️</span>
-                <span>라벨 편집</span>
+                <span>라벨 수정</span>
               </button>
             </div>
             <div className="flex flex-wrap gap-1.5">

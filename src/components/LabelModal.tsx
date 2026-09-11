@@ -534,7 +534,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fade-in backdrop-blur-xs">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50 p-4 animate-fade-in backdrop-blur-xs">
       <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
