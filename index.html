@@ -10,10 +10,11 @@
     <!-- 매니페스트 경로 상대경로(./) 원상 복구 -->
     <link rel="manifest" href="./manifest.json" />
     
-    <!-- PC와 동일한 가로 레이아웃(1280px)을 유지하고, 좁은 화면에서는 배율을 축소해 한 페이지에 담습니다. -->
+    <!-- 상단 버튼(로고~로그아웃)이 줄바꿈/겹침 없이 모두 표시되는 최소 폭은 실측 약 894px이며, -->
+    <!-- 폰트 렌더링 여유를 두어 960px로 고정해 PC와 동일한 레이아웃을 유지합니다. -->
     <!-- initial-scale을 지정하지 않아야 브라우저가 화면 너비에 맞게 자동으로 축소 배율을 계산하며, -->
     <!-- user-scalable=yes + maximum-scale 지정 안 함으로 핀치줌 확대는 계속 가능합니다. -->
-    <meta name="viewport" content="width=1280, user-scalable=yes" />
+    <meta name="viewport" content="width=960, user-scalable=yes" />
     <meta name="theme-color" content="#2563eb" />
     <title>School Planner V4</title>
     
