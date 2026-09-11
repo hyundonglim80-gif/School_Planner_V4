@@ -192,6 +192,16 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     setEventLabels(eventLabels.filter((l) => l.id !== id));
   };
 
+  const handleMoveEventLabel = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= eventLabels.length) return;
+    const updated = [...eventLabels];
+    const temp = updated[index];
+    updated[index] = updated[targetIndex];
+    updated[targetIndex] = temp;
+    setEventLabels(updated);
+  };
+
   // --- 메모 라벨 핸들러 ---
   const handleAddMemoLabel = () => {
     if (!newMemoName.trim()) return;
@@ -228,6 +238,16 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     };
     setJournalLabels([...journalLabels, newLbl]);
     setNewJournalName('');
+  };
+
+  const handleMoveJournalLabel = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= journalLabels.length) return;
+    const updated = [...journalLabels];
+    const temp = updated[index];
+    updated[index] = updated[targetIndex];
+    updated[targetIndex] = temp;
+    setJournalLabels(updated);
   };
 
   const handleDeleteJournalLabel = (id: string) => {
@@ -482,36 +502,70 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                   return (
                     <div
                       key={lbl.id || `ev_key_${idx}`}
-                      className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition-all text-xs gap-2 flex-wrap"
+                      className="flex flex-col gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition-all text-xs"
                     >
-                      <div className="flex items-center gap-1.5 min-w-[120px]">
-                        <span
-                          className="px-2.5 py-1 rounded-md font-bold text-xs shadow-2xs border"
-                          style={{ backgroundColor: style.bg, color: style.text, borderColor: style.border }}
+                      {/* 이동/이름/색상 + 삭제 (메모 라벨과 동일 스타일) */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex flex-col gap-0.5">
+                            <button
+                              disabled={idx === 0}
+                              onClick={() => handleMoveEventLabel(idx, 'up')}
+                              className={`text-[15px] px-1 rounded ${idx === 0 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700'}`}
+                            >
+                              ▲
+                            </button>
+                            <button
+                              disabled={idx === eventLabels.length - 1}
+                              onClick={() => handleMoveEventLabel(idx, 'down')}
+                              className={`text-[15px] px-1 rounded ${idx === eventLabels.length - 1 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700'}`}
+                            >
+                              ▼
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            value={lbl.name}
+                            onChange={(e) => {
+                              const updated = [...eventLabels];
+                              updated[idx].name = e.target.value;
+                              setEventLabels(updated);
+                            }}
+                            className="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-800 w-24 focus:outline-none"
+                          />
+                          <select
+                            value={lbl.color}
+                            onChange={(e) => {
+                              const updated = [...eventLabels];
+                              updated[idx].color = e.target.value;
+                              setEventLabels(updated);
+                            }}
+                            className="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-700 focus:outline-none"
+                          >
+                            {Object.entries(COLOR_PALETTE).map(([key, val]) => (
+                              <option key={key} value={key}>
+                                {val.label}
+                              </option>
+                            ))}
+                          </select>
+                          <span
+                            className="w-4 h-4 rounded-full border shadow-2xs"
+                            style={{ backgroundColor: style.bg, borderColor: style.border }}
+                          />
+                        </div>
+                        <button
+                          onClick={() => handleDeleteEventLabel(lbl.id)}
+                          className="text-slate-400 hover:text-red-500 font-black px-1.5 py-0.5 rounded transition-colors"
+                          title="라벨 삭제"
                         >
-                          {lbl.name}
-                        </span>
-                        <select
-                          value={lbl.color}
-                          onChange={(e) => {
-                            const updated = [...eventLabels];
-                            updated[idx].color = e.target.value;
-                            setEventLabels(updated);
-                          }}
-                          className="px-1.5 py-1 bg-white border border-slate-200 rounded text-[15px] font-bold text-slate-700 focus:outline-none"
-                          title="색상 변경"
-                        >
-                          {Object.entries(COLOR_PALETTE).map(([key, val]) => (
-                            <option key={key} value={key}>
-                              {val.label}
-                            </option>
-                          ))}
-                        </select>
+                          ✕
+                        </button>
                       </div>
 
-                      {/* 5대 속성 체크박스 (달력, 수업X, 이월, 기간, 반복) */}
-                      <div className="flex items-center gap-3 text-[16.5px] text-slate-600 flex-wrap">
-                        <label className="flex items-center gap-1 cursor-pointer" title="월간/년간 달력에 표시">
+                      {/* 5대 속성 (속성명 아래에 체크박스) */}
+                      <div className="flex items-center gap-4 pt-1.5 border-t border-slate-200/70 text-[15px] text-slate-600">
+                        <label className="flex flex-col items-center gap-1 cursor-pointer" title="월간/년간 달력에 표시">
+                          <span>달력</span>
                           <input
                             type="checkbox"
                             checked={lbl.calendar !== false}
@@ -522,10 +576,10 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             }}
                             className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5"
                           />
-                          <span>달력</span>
                         </label>
 
-                        <label className="flex items-center gap-1 cursor-pointer" title="지정 날짜의 수업 과목 비움">
+                        <label className="flex flex-col items-center gap-1 cursor-pointer" title="지정 날짜의 수업 과목 비움">
+                          <span>수업X</span>
                           <input
                             type="checkbox"
                             checked={!!lbl.skip}
@@ -536,10 +590,10 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             }}
                             className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5"
                           />
-                          <span>수업X</span>
                         </label>
 
-                        <label className="flex items-center gap-1 cursor-pointer" title="미완료 시 다음 날로 자동 이월">
+                        <label className="flex flex-col items-center gap-1 cursor-pointer" title="미완료 시 다음 날로 자동 이월">
+                          <span>이월</span>
                           <input
                             type="checkbox"
                             checked={!!lbl.forward}
@@ -550,10 +604,10 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             }}
                             className="rounded text-emerald-600 focus:ring-0 w-3.5 h-3.5"
                           />
-                          <span>이월</span>
                         </label>
 
-                        <label className="flex items-center gap-1 cursor-pointer" title="연속 기간 등록">
+                        <label className="flex flex-col items-center gap-1 cursor-pointer" title="연속 기간 등록">
+                          <span>기간</span>
                           <input
                             type="checkbox"
                             checked={!!lbl.period}
@@ -564,10 +618,10 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             }}
                             className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5"
                           />
-                          <span>기간</span>
                         </label>
 
-                        <label className="flex items-center gap-1 cursor-pointer" title="매주/매월 반복">
+                        <label className="flex flex-col items-center gap-1 cursor-pointer" title="매주/매월 반복">
+                          <span>반복</span>
                           <input
                             type="checkbox"
                             checked={!!lbl.recur}
@@ -578,17 +632,8 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             }}
                             className="rounded text-purple-600 focus:ring-0 w-3.5 h-3.5"
                           />
-                          <span>반복</span>
                         </label>
                       </div>
-
-                      <button
-                        onClick={() => handleDeleteEventLabel(lbl.id)}
-                        className="text-slate-400 hover:text-red-500 font-black px-1.5 py-0.5 rounded transition-colors ml-auto"
-                        title="라벨 삭제"
-                      >
-                        ✕
-                      </button>
                     </div>
                   );
                 })}
@@ -625,50 +670,50 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                 </div>
 
                 <div className="flex flex-wrap gap-4 text-xs font-medium text-slate-600 pt-1">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
+                  <label className="flex flex-col items-center gap-1 cursor-pointer">
+                    <span>달력</span>
                     <input
                       type="checkbox"
                       checked={newEventCalendar}
                       onChange={(e) => setNewEventCalendar(e.target.checked)}
                       className="rounded text-blue-600 focus:ring-0"
                     />
-                    <span>달력</span>
                   </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
+                  <label className="flex flex-col items-center gap-1 cursor-pointer">
+                    <span>수업X</span>
                     <input
                       type="checkbox"
                       checked={newEventSkip}
                       onChange={(e) => setNewEventSkip(e.target.checked)}
                       className="rounded text-blue-600 focus:ring-0"
                     />
-                    <span>수업X</span>
                   </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
+                  <label className="flex flex-col items-center gap-1 cursor-pointer">
+                    <span>이월</span>
                     <input
                       type="checkbox"
                       checked={newEventForward}
                       onChange={(e) => setNewEventForward(e.target.checked)}
                       className="rounded text-blue-600 focus:ring-0"
                     />
-                    <span>이월</span>
                   </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
+                  <label className="flex flex-col items-center gap-1 cursor-pointer">
+                    <span>기간</span>
                     <input
                       type="checkbox"
                       checked={newEventPeriod}
                       onChange={(e) => setNewEventPeriod(e.target.checked)}
                       className="rounded text-indigo-600 focus:ring-0"
                     />
-                    <span>기간</span>
                   </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
+                  <label className="flex flex-col items-center gap-1 cursor-pointer">
+                    <span>반복</span>
                     <input
                       type="checkbox"
                       checked={newEventRecur}
                       onChange={(e) => setNewEventRecur(e.target.checked)}
                       className="rounded text-purple-600 focus:ring-0"
                     />
-                    <span>반복</span>
                   </label>
                 </div>
               </div>
@@ -694,13 +739,33 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                       key={lbl.id || `j_key_${idx}`}
                       className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition-all text-xs"
                     >
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className="px-2.5 py-1 rounded-md font-bold text-xs shadow-2xs border"
-                          style={{ backgroundColor: style.bg, color: style.text, borderColor: style.border }}
-                        >
-                          {lbl.name}
-                        </span>
+                      <div className="flex items-center gap-2">
+                        <div className="flex flex-col gap-0.5">
+                          <button
+                            disabled={idx === 0}
+                            onClick={() => handleMoveJournalLabel(idx, 'up')}
+                            className={`text-[15px] px-1 rounded ${idx === 0 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700'}`}
+                          >
+                            ▲
+                          </button>
+                          <button
+                            disabled={idx === journalLabels.length - 1}
+                            onClick={() => handleMoveJournalLabel(idx, 'down')}
+                            className={`text-[15px] px-1 rounded ${idx === journalLabels.length - 1 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700'}`}
+                          >
+                            ▼
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={lbl.name}
+                          onChange={(e) => {
+                            const updated = [...journalLabels];
+                            updated[idx].name = e.target.value;
+                            setJournalLabels(updated);
+                          }}
+                          className="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-800 w-32 focus:outline-none"
+                        />
                         <select
                           value={lbl.color}
                           onChange={(e) => {
@@ -708,8 +773,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             updated[idx].color = e.target.value;
                             setJournalLabels(updated);
                           }}
-                          className="px-1.5 py-1 bg-white border border-slate-200 rounded text-[15px] font-bold text-slate-700 focus:outline-none"
-                          title="색상 변경"
+                          className="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-700 focus:outline-none"
                         >
                           {Object.entries(COLOR_PALETTE).map(([key, val]) => (
                             <option key={key} value={key}>
@@ -717,10 +781,15 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             </option>
                           ))}
                         </select>
+                        <span
+                          className="w-4 h-4 rounded-full border shadow-2xs"
+                          style={{ backgroundColor: style.bg, borderColor: style.border }}
+                        />
                       </div>
                       <button
                         onClick={() => handleDeleteJournalLabel(lbl.id)}
                         className="text-slate-400 hover:text-red-500 font-black px-1.5 py-0.5 rounded transition-colors"
+                        title="기록 라벨 삭제"
                       >
                         ✕
                       </button>
