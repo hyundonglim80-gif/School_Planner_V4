@@ -126,26 +126,6 @@ export default function DetailEditModal({
     });
   };
 
-  const handleToggleAttributeQuick = async (
-    attr: 'calendar' | 'forward' | 'period' | 'recur' | 'skip',
-    newVal: boolean
-  ) => {
-    if (type !== 'event') return;
-    if (attr === 'calendar') setItemCalendar(newVal);
-    if (attr === 'forward') setItemForward(newVal);
-    if (attr === 'period') setItemPeriod(newVal);
-    if (attr === 'recur') setItemRecur(newVal);
-    if (attr === 'skip') setItemSkip(newVal);
-
-    try {
-      await updateEventItem(String(itemId), {
-        [attr]: newVal,
-      });
-    } catch (err) {
-      console.error('속성 업데이트 실패:', err);
-    }
-  };
-
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -506,56 +486,36 @@ export default function DetailEditModal({
               )}
               {type === 'event' && (
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-bold text-slate-400">일정 속성</span>
-                    <span className="text-[11px] text-slate-400">체크하여 즉시 변경 가능</span>
-                  </div>
-                  <div className="flex items-center gap-3.5 p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex-wrap">
-                    <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="월간/년간 달력에 표시">
-                      <input
-                        type="checkbox"
-                        checked={itemCalendar}
-                        onChange={(e) => handleToggleAttributeQuick('calendar', e.target.checked)}
-                        className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
-                      />
-                      <span className="font-semibold text-[12.5px] text-slate-700">달력</span>
-                    </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="미완료 시 다음 날로 자동 이월">
-                      <input
-                        type="checkbox"
-                        checked={itemForward}
-                        onChange={(e) => handleToggleAttributeQuick('forward', e.target.checked)}
-                        className="rounded text-emerald-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
-                      />
-                      <span className="font-semibold text-[12.5px] text-slate-700">이월</span>
-                    </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="연속 기간 등록">
-                      <input
-                        type="checkbox"
-                        checked={itemPeriod}
-                        onChange={(e) => handleToggleAttributeQuick('period', e.target.checked)}
-                        className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
-                      />
-                      <span className="font-semibold text-[12.5px] text-slate-700">기간</span>
-                    </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="매주/매월 반복">
-                      <input
-                        type="checkbox"
-                        checked={itemRecur}
-                        onChange={(e) => handleToggleAttributeQuick('recur', e.target.checked)}
-                        className="rounded text-purple-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
-                      />
-                      <span className="font-semibold text-[12.5px] text-slate-700">반복</span>
-                    </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="지정 날짜의 수업 과목 비움">
-                      <input
-                        type="checkbox"
-                        checked={itemSkip}
-                        onChange={(e) => handleToggleAttributeQuick('skip', e.target.checked)}
-                        className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
-                      />
-                      <span className="font-semibold text-[12.5px] text-slate-700">수업X</span>
-                    </label>
+                  <span className="text-xs font-bold text-slate-400 block mb-1.5">일정 속성</span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {itemCalendar && (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
+                        달력
+                      </span>
+                    )}
+                    {itemForward && (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                        이월
+                      </span>
+                    )}
+                    {itemPeriod && (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs">
+                        기간
+                      </span>
+                    )}
+                    {itemRecur && (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs">
+                        반복
+                      </span>
+                    )}
+                    {itemSkip && (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
+                        수업X
+                      </span>
+                    )}
+                    {!itemCalendar && !itemForward && !itemPeriod && !itemRecur && !itemSkip && (
+                      <span className="text-xs text-slate-400 font-medium">설정된 속성 없음</span>
+                    )}
                   </div>
                 </div>
               )}

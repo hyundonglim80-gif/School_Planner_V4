@@ -460,35 +460,6 @@ export default function DayEvents({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1 shrink-0 ml-2 mt-0.5">
-                  <button
-                    type="button"
-                    onClick={() => openLinkerModal('event', formattedDate, event.id)}
-                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-600 p-1 rounded hover:bg-slate-100 text-xs transition-all"
-                    title="링크 연결"
-                  >
-                    🔗
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => startEditing(event)}
-                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-600 p-1 rounded hover:bg-slate-100 text-xs transition-all"
-                    title="수정"
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await onDeleteEvent(event.id);
-                      showToast('휴지통으로 이동되었습니다.');
-                    }}
-                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 text-xs transition-all"
-                    title="삭제"
-                  >
-                    ✕
-                  </button>
-                </div>
               </div>
             );
           })
