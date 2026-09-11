@@ -171,9 +171,9 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                     const hasLabel = !!ev.label;
                     const labelDef = hasLabel ? getLabel(ev.label!) : null;
                     // 💡 등록된 라벨인지 확인하여 삭제된 라벨 거르기
-                    const isValidLabel = !!labelDef; 
+                    const isValidLabel = !!labelDef;
                     const labelColor = isValidLabel ? getLabelColor(ev.label!) : null;
-                    const isCompletable = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
+                    const isForwardLabel = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
 
                     return (
                       <div
@@ -182,8 +182,6 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                           e.stopPropagation();
                           if (isMultiSelectMode) {
                             toggleEventSelection(ev.id, dayObj.dateStr);
-                          } else if (isCompletable) {
-                            onToggleEvent(dayObj.dateStr, ev.id);
                           } else {
                             setDetailModal({
                               isOpen: true,
@@ -197,11 +195,11 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                         className={`px-1.5 py-0.5 rounded text-[16.5px] font-medium leading-tight transition-all border block hover:shadow-sm cursor-pointer break-words ${
                           selectedEventIds.includes(ev.id)
                             ? 'bg-primary/10 border border-primary text-primary'
-                            : ev.completed && isCompletable
+                            : ev.completed
                             ? 'bg-slate-100 text-slate-400'
                             : 'bg-blue-50 text-blue-800 border border-blue-100'
                         }`}
-                        title={isCompletable ? '클릭하여 완료 상태 변경' : '클릭하여 상세 보기'}
+                        title="클릭하여 상세 보기"
                       >
                         {isMultiSelectMode && (
                           <input
@@ -211,20 +209,25 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                             className="inline-block align-middle mr-1 pointer-events-none"
                           />
                         )}
-                        {/* 💡 유효한 라벨일 때만 렌더링 */}
+                        {/* 💡 유효한 라벨일 때만 렌더링, 클릭 시 완료 토글(이월 라벨이면 이월도 정지) */}
                         {isValidLabel && labelColor && !isMultiSelectMode && (
                           <span
-                            className="inline-block align-middle mr-1 text-[13.5px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleEvent(dayObj.dateStr, ev.id);
+                            }}
+                            title={isForwardLabel ? '클릭하여 완료 처리 (이월 정지)' : '클릭하여 완료 처리'}
+                            className="inline-block align-middle mr-1 text-[13.5px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap cursor-pointer"
                             style={{
-                              backgroundColor: (ev.completed && isCompletable) ? '#f1f5f9' : labelColor.bg,
-                              color: (ev.completed && isCompletable) ? '#94a3b8' : labelColor.text,
-                              border: '1px solid ' + ((ev.completed && isCompletable) ? '#e2e8f0' : labelColor.border)
+                              backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
+                              color: ev.completed ? '#94a3b8' : labelColor.text,
+                              border: '1px solid ' + (ev.completed ? '#e2e8f0' : labelColor.border)
                             }}
                           >
                             {ev.label}
                           </span>
                         )}
-                        <span className={`inline align-middle ${ev.completed && isCompletable ? 'line-through text-slate-400' : ''}`}>
+                        <span className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}>
                           {ev.content}
                         </span>
                         
