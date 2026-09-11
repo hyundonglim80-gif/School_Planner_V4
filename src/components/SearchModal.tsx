@@ -346,7 +346,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
         </div>
 
         {/* 검색 결과 영역 */}
-        <div className="p-4 overflow-y-auto flex-1 space-y-2 bg-slate-50/50">
+        <div className="p-4 overflow-y-auto flex-1 min-h-0 space-y-2 bg-slate-50/50">
           {searching ? (
             <div className="py-12 text-center text-slate-500 text-xs font-bold">
               <div className="w-8 h-8 border-2 border-slate-200 border-t-primary rounded-full animate-spin mx-auto mb-3" />

@@ -169,7 +169,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-2">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-2">
           {loading ? (
             <p className="text-center text-slate-400 text-xs py-8">스캔 중...</p>
           ) : incompleteEvents.length === 0 ? (

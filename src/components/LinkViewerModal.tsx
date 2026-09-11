@@ -446,7 +446,7 @@ export default function LinkViewerModal({
         </div>
 
         {/* 본문 링크 목록 */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 bg-slate-50/50 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 bg-slate-50/50 space-y-3">
           {loading ? (
             <div className="text-center py-12 text-slate-400 flex flex-col items-center gap-2">
               <div className="w-6 h-6 border-2 border-slate-300 border-t-primary rounded-full animate-spin" />

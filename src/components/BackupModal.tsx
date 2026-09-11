@@ -572,7 +572,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         </div>
 
         {/* 컨텐츠 스크롤 영역 */}
-        <div className="p-6 overflow-y-auto space-y-4 flex-1 text-xs">
+        <div className="p-6 overflow-y-auto space-y-4 flex-1 min-h-0 text-xs">
           {/* 1. 데이터 내보내기/가져오기 대상 채널 선택 (🔥 구글 캘린더 / 구글 시트 / 로컬 CSV) */}
           <div>
             <label className="block font-bold text-slate-800 mb-1.5 text-xs">1. 데이터 연동 대상</label>

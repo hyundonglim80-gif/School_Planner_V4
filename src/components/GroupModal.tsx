@@ -115,7 +115,7 @@ export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
         </div>
 
         {/* 탭 본문 */}
-        <div className="p-6 overflow-y-auto flex-1">
+        <div className="p-6 overflow-y-auto flex-1 min-h-0">
           {activeTab === 'list' && (
             <div className="space-y-3">
               {groups.length > 0 ? (

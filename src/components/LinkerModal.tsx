@@ -635,7 +635,7 @@ export default function LinkerModal({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 flex flex-col gap-4">
           {/* schedule_header인 경우 교시 선택 UI (V3 동일) */}
           {(sourceType === 'schedule_header' || sourceType === 'schedule') && (
             <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 flex items-center gap-3">

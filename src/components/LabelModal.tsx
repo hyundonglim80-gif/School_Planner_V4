@@ -286,7 +286,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
         </div>
 
         {/* 내용 영역 */}
-        <div className="p-6 overflow-y-auto space-y-4 flex-1">
+        <div className="p-6 overflow-y-auto space-y-4 flex-1 min-h-0">
           {/* TAB 1: 일정 라벨 */}
           {activeTab === 'event' && (
             <div className="space-y-4">
