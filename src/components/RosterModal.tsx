@@ -471,7 +471,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
         </div>
 
         {/* 메인 컨텐츠 영역 */}
-        <div className="p-6 overflow-y-auto space-y-4 flex-1 min-h-0">
+        <div className="p-6 overflow-y-auto space-y-4 flex-1 min-h-0" data-scroll-lock>
           {/* 학급 메타 정보 입력 */}
           <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
             <div>

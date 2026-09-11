@@ -118,7 +118,7 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
           </button>
         </div>
         
-        <div className="p-4 overflow-y-auto flex-1 min-h-0 bg-slate-50/50">
+        <div className="p-4 overflow-y-auto flex-1 min-h-0 bg-slate-50/50" data-scroll-lock>
           {loading ? (
             <div className="text-center py-8 text-slate-500">불러오는 중...</div>
           ) : trashItems.length === 0 ? (

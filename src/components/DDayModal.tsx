@@ -52,7 +52,7 @@ export default function DDayModal({ isOpen, onClose }: DDayModalProps) {
         </div>
 
         {/* 본문 */}
-        <div className="p-6 overflow-y-auto flex-1 min-h-0 space-y-5">
+        <div className="p-6 overflow-y-auto flex-1 min-h-0 space-y-5" data-scroll-lock>
           {/* 새 D-Day 등록 폼 */}
           <form onSubmit={handleSubmit} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
             <div className="text-xs font-bold text-slate-700">새 D-Day 추가</div>

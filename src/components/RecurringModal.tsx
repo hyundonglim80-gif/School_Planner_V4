@@ -140,7 +140,7 @@ export default function RecurringModal({ isOpen, onClose, defaultContent = '', d
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4" data-scroll-lock>
           {/* 일정 내용 */}
           <div>
             <label className="text-xs font-bold text-slate-600 block mb-1">일정 내용</label>

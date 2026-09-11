@@ -95,7 +95,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         </div>
 
         {/* 교시 목록 */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-2">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-2" data-scroll-lock>
           {loading ? (
             <div className="text-center py-8 text-slate-400 text-xs">불러오는 중...</div>
           ) : (

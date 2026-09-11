@@ -296,7 +296,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
         </div>
 
         {/* 스크롤 컨텐츠 */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1 min-h-0">
+        <div className="p-6 overflow-y-auto space-y-5 flex-1 min-h-0" data-scroll-lock>
           {/* 1. 시간표 테이블 (교시 관리 포함) */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">

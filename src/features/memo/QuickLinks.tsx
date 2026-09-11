@@ -139,7 +139,7 @@ export default function QuickLinks() {
               </button>
             </div>
 
-            <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto text-xs">
+            <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto text-xs" data-scroll-lock>
               {/* 새 링크 추가 */}
               <div className="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
                 <span className="font-bold text-slate-700 block">+ 새 링크 추가</span>
@@ -171,7 +171,7 @@ export default function QuickLinks() {
               {/* 현재 링크 목록 */}
               <div className="space-y-2">
                 <span className="font-bold text-slate-700 block">등록된 링크 목록 ({links.length})</span>
-                <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1" data-scroll-lock>
                   {links.map((link) => (
                     <div
                       key={link.id}

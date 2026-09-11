@@ -33,7 +33,7 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
         </div>
 
         {/* 본문 */}
-        <div className="p-6 overflow-y-auto flex-1 min-h-0 space-y-5 text-xs text-slate-700 leading-relaxed">
+        <div className="p-6 overflow-y-auto flex-1 min-h-0 space-y-5 text-xs text-slate-700 leading-relaxed" data-scroll-lock>
           {/* 주요 키보드 단축키 */}
           <div className="space-y-2">
             <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5">

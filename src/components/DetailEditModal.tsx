@@ -4,6 +4,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
 import { auth } from '../lib/firebase';
 import { uploadImage } from '../utils/uploadHelper';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 export type DetailEditType = 'schedule' | 'event';
 
@@ -24,6 +25,7 @@ export default function DetailEditModal({
   itemId,
   initialData,
 }: DetailEditModalProps) {
+  useBodyScrollLock(isOpen);
   const { selectedGroupId, openLinkerModal, openLinkViewerModal, openEvaluationModal } = useAppStore();
   const { updateEventItem, deleteEventItem, savePeriod } = useDayData(isOpen ? dateStr : '', selectedGroupId);
   const { eventLabels } = useLabels();
@@ -149,7 +151,7 @@ export default function DetailEditModal({
         </div>
 
         {/* Content */}
-        <div className="p-5 flex-1 overflow-y-auto max-h-[70vh]">
+        <div className="p-5 flex-1 overflow-y-auto max-h-[70vh]" data-scroll-lock>
           {/* Action Buttons */}
           {!isEditing && (
             <div className="flex flex-wrap gap-2 mb-5 pb-5 border-b border-slate-100">

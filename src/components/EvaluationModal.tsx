@@ -182,7 +182,7 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4" data-scroll-lock>
           {/* 목록 모드 */}
           {viewMode === 'list' && (
             <div className="space-y-2">

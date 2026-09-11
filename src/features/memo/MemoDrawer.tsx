@@ -274,7 +274,7 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6" data-scroll-lock>
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-slate-600">
               메모 내용 <span className="text-red-500">*</span>
