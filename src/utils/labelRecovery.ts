@@ -42,7 +42,7 @@ async function scanDayDocCollection(
   const found = new Set<string>();
   for (const base of basePaths) {
     try {
-      const snap = await getDocs(collection(db, ...base, colName));
+      const snap = await getDocs(collection(db, `${base.join('/')}/${colName}`));
       snap.forEach((docSnap) => {
         const data = docSnap.data();
         const list = colName === 'events' ? data.eventList || [] : data.entries || [];
@@ -62,7 +62,7 @@ async function scanMemoCollection(basePaths: string[][]): Promise<Set<string>> {
   const found = new Set<string>();
   for (const base of basePaths) {
     try {
-      const snap = await getDocs(collection(db, ...base, 'tasks'));
+      const snap = await getDocs(collection(db, `${base.join('/')}/tasks`));
       snap.forEach((docSnap) => {
         const data = docSnap.data();
         (data.labels || []).forEach((n: string) => {
