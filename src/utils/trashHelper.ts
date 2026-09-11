@@ -3,7 +3,7 @@ import { db, auth } from '../lib/firebase';
 
 export interface TrashItem {
   id: string; // The original ID of the item
-  type: 'event' | 'journal' | 'memo' | 'schedule'; // Type of item
+  type: 'event' | 'journal' | 'memo' | 'schedule' | 'dday' | 'eval' | 'roster' | 'label' | 'template'; // Type of item
   deletedAt: number; // Timestamp of deletion
   originalDateStr?: string; // The date string it belonged to (e.g., '2026-09-07')
   fId?: string; // The group/folder ID it belonged to

@@ -4,6 +4,7 @@ import { db, auth } from '../lib/firebase';
 import { useRoster, type ClassRoster, type Student } from '../hooks/useRoster';
 import { downloadCSV, parseCSV } from '../utils/csvHelper';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { moveToTrash } from '../utils/trashHelper';
 
 interface RosterModalProps {
   isOpen: boolean;
@@ -23,12 +24,15 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   const [loadingSheet, setLoadingSheet] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  // 저장 시점에 삭제된 학급/학생을 찾아내기 위한, 모달을 연 시점의 원본 스냅샷
+  const originalClassesRef = React.useRef<ClassRoster[]>([]);
 
   useEffect(() => {
     if (!isOpen) return;
 
     if (rosterList && rosterList.length > 0) {
       setCurrentClasses(JSON.parse(JSON.stringify(rosterList)));
+      originalClassesRef.current = JSON.parse(JSON.stringify(rosterList));
     } else {
       setCurrentClasses([
         {
@@ -38,6 +42,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
           students: [],
         },
       ]);
+      originalClassesRef.current = [];
     }
     setCurrentIndex(0);
 
@@ -376,11 +381,62 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     }
   };
 
+  // 학급 식별 키 (id가 없어 year+grade+classNum 조합으로 식별)
+  const classKey = (c: ClassRoster) => `${c.year}_${c.grade}_${c.classNum}`;
+
+  // 저장 직전, 모달을 처음 열었을 때와 비교해 삭제된 학급/학생을 찾아 휴지통으로 보낸다.
+  const trashRemovedRosterEntries = async () => {
+    const original = originalClassesRef.current;
+
+    for (const origClass of original) {
+      const key = classKey(origClass);
+      const stillExists = currentClasses.find((c) => classKey(c) === key);
+
+      if (!stillExists) {
+        // 학급 전체가 삭제됨
+        try {
+          await moveToTrash({
+            id: `roster_class_${key}_${Date.now()}`,
+            type: 'roster',
+            content: `${origClass.year}년 ${origClass.grade}학년 ${origClass.classNum}반 (학급 전체, 학생 ${(origClass.students || []).length}명)`,
+            data: { kind: 'class', class: origClass },
+          });
+        } catch (err) {
+          console.error('학급 휴지통 이동 실패:', err);
+        }
+        continue;
+      }
+
+      // 학급은 남아있으므로 학생 단위로 비교
+      const currentStudentNums = new Set((stillExists.students || []).map((s) => s.num));
+      for (const student of origClass.students || []) {
+        if (!currentStudentNums.has(student.num)) {
+          try {
+            await moveToTrash({
+              id: `roster_student_${key}_${student.num}_${Date.now()}`,
+              type: 'roster',
+              content: `${student.name && student.name !== '000' ? student.name : student.num + '번'} (${origClass.grade}학년 ${origClass.classNum}반)`,
+              data: {
+                kind: 'student',
+                classKey: { year: origClass.year, grade: origClass.grade, classNum: origClass.classNum },
+                student,
+              },
+            });
+          } catch (err) {
+            console.error('학생 휴지통 이동 실패:', err);
+          }
+        }
+      }
+    }
+  };
+
   // 최종 저장
   const handleSave = async () => {
     setSaving(true);
     try {
+      await trashRemovedRosterEntries();
       await saveRosterList(currentClasses);
+      originalClassesRef.current = JSON.parse(JSON.stringify(currentClasses));
       alert('✅ 학급 정보(명렬표 및 조사표 데이터)가 성공적으로 저장되었습니다.');
       onClose();
     } catch (e) {

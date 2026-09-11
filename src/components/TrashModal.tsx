@@ -10,6 +10,18 @@ interface TrashModalProps {
   onClose: () => void;
 }
 
+const TYPE_LABELS: Record<string, string> = {
+  event: '일정',
+  journal: '기록',
+  memo: '메모',
+  schedule: '수업',
+  dday: 'D-Day',
+  eval: '조사표',
+  roster: '명단',
+  label: '라벨',
+  template: '시간표',
+};
+
 export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
   useBodyScrollLock(isOpen);
   const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
@@ -50,8 +62,6 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
     if (!user) return;
 
     const { type, originalDateStr, fId, data } = item;
-    if (type !== 'memo' && !originalDateStr) throw new Error('원래 날짜 정보가 없어 복원할 수 없습니다.');
-
     const isGroup = fId && fId !== 'personal';
 
     if (type === 'memo') {
@@ -60,11 +70,12 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
         : doc(db, 'users', user.uid, 'tasks', data.firestoreId || item.id);
       const { firestoreId, ...memoData } = data;
       await setDoc(targetRef, memoData, { merge: true });
-    } else {
-      const col = type === 'event' ? 'events' : type === 'journal' ? 'journals' : 'schedules';
+    } else if (type === 'event' || type === 'journal') {
+      if (!originalDateStr) throw new Error('원래 날짜 정보가 없어 복원할 수 없습니다.');
+      const col = type === 'event' ? 'events' : 'journals';
       const targetRef = isGroup
-        ? doc(db, 'groups', fId, col, originalDateStr!)
-        : doc(db, 'users', user.uid, col, originalDateStr!);
+        ? doc(db, 'groups', fId, col, originalDateStr)
+        : doc(db, 'users', user.uid, col, originalDateStr);
 
       const snap = await getDoc(targetRef);
       const currentData = snap.exists() ? snap.data() : {};
@@ -74,11 +85,68 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
         list.push(data);
         const serializedText = formatV3EventText(list);
         await setDoc(targetRef, { eventList: list, eventText: serializedText, updatedAt: Date.now() }, { merge: true });
-      } else if (type === 'journal') {
+      } else {
         const entries = currentData.entries || [];
         entries.push(data);
         await setDoc(targetRef, { entries, updatedAt: Date.now() }, { merge: true });
       }
+    } else if (type === 'eval') {
+      if (!originalDateStr) throw new Error('원래 날짜 정보가 없어 복원할 수 없습니다.');
+      const targetRef = isGroup
+        ? doc(db, 'groups', fId, 'evaluations', originalDateStr)
+        : doc(db, 'users', user.uid, 'evaluations', originalDateStr);
+      const snap = await getDoc(targetRef);
+      const list = snap.exists() ? (snap.data().list || []) : [];
+      if (!list.some((e: any) => e.id === data.id)) list.push(data);
+      await setDoc(targetRef, { list, updatedAt: Date.now() }, { merge: true });
+    } else if (type === 'dday') {
+      const prefRef = doc(db, 'users', user.uid, 'settings', 'preferences');
+      const snap = await getDoc(prefRef);
+      const dDayList = snap.exists() ? (snap.data().dDayList || []) : [];
+      if (!dDayList.some((d: any) => d.id === data.id)) dDayList.push(data);
+      await setDoc(prefRef, { dDayList }, { merge: true });
+    } else if (type === 'roster') {
+      const rosterRef = doc(db, 'users', user.uid, 'settings', 'rosters');
+      const snap = await getDoc(rosterRef);
+      const list: any[] = snap.exists() ? (snap.data().classList || snap.data().rosters || []) : [];
+      const keyOf = (c: any) => `${c.year}_${c.grade}_${c.classNum}`;
+
+      if (data.kind === 'class') {
+        const key = keyOf(data.class);
+        if (!list.some((c) => keyOf(c) === key)) list.push(data.class);
+      } else {
+        const key = keyOf(data.classKey);
+        const target = list.find((c) => keyOf(c) === key);
+        if (target) {
+          target.students = target.students || [];
+          if (!target.students.some((s: any) => s.num === data.student.num)) {
+            target.students.push(data.student);
+          }
+        } else {
+          // 학급 자체도 함께 삭제되어 없는 경우, 학생만 담을 새 학급을 만들어 복원한다.
+          list.push({ ...data.classKey, students: [data.student] });
+        }
+      }
+      await setDoc(rosterRef, { classList: list, rosters: list, updatedAt: Date.now() }, { merge: true });
+    } else if (type === 'label') {
+      const labelRef = doc(db, 'users', user.uid, 'settings', 'labels');
+      const snap = await getDoc(labelRef);
+      const cur = snap.exists() ? snap.data() : {};
+      const field = data.kind === 'event' ? 'eventLabels' : data.kind === 'journal' ? 'journalLabels' : 'memoLabels';
+      const list: any[] = cur[field] || [];
+      if (!list.some((l: any) => l.id === data.label.id)) list.push(data.label);
+      const payload: any = { [field]: list, updatedAt: Date.now() };
+      if (field === 'eventLabels') payload.labels = list; // V3 호환성
+      await setDoc(labelRef, payload, { merge: true });
+    } else if (type === 'template') {
+      const tplRef = doc(db, 'users', user.uid, 'settings', 'timetable_v5');
+      const snap = await getDoc(tplRef);
+      const templates = snap.exists() ? (snap.data().templates || {}) : {};
+      const name = templates[data.name] ? `${data.name} (복원됨)` : data.name;
+      templates[name] = data.template;
+      await setDoc(tplRef, { templates, updatedAt: Date.now() }, { merge: true });
+    } else {
+      throw new Error('이 항목 유형은 아직 복원을 지원하지 않습니다.');
     }
 
     await completeRestoreFromTrash(item.id);
@@ -259,7 +327,7 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
                   <div className="flex-1 min-w-0 pr-4">
                     <div className="flex items-center gap-2 mb-1 text-xs text-slate-500">
                       <span className="font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-                        {item.type === 'event' ? '일정' : item.type === 'journal' ? '기록' : item.type}
+                        {TYPE_LABELS[item.type] || item.type}
                       </span>
                       <span>{item.originalDateStr || '날짜 없음'}</span>
                       <span>•</span>

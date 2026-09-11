@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { moveToTrash } from '../utils/trashHelper';
 
 export interface EvalRecord {
   [studentNum: number]: {
@@ -73,10 +74,25 @@ export function useEvaluation(groupId?: string | null) {
 
   const deleteEvaluation = useCallback(async (dateStr: string, evalId: string) => {
     const list = await loadEvaluations(dateStr);
+    const target = list.find(e => e.id === evalId);
+    if (target) {
+      try {
+        await moveToTrash({
+          id: target.id,
+          type: 'eval',
+          originalDateStr: dateStr,
+          fId: groupId || 'personal',
+          content: target.title,
+          data: target,
+        });
+      } catch (err) {
+        console.error('조사표 휴지통 이동 실패:', err);
+      }
+    }
     const filtered = list.filter(e => e.id !== evalId);
     await saveEvaluations(dateStr, filtered);
     return filtered;
-  }, [loadEvaluations, saveEvaluations]);
+  }, [loadEvaluations, saveEvaluations, groupId]);
 
   return { loading, loadEvaluations, saveEvaluations, deleteEvaluation };
 }

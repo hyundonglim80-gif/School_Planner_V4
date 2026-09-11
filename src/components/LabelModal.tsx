@@ -6,6 +6,7 @@ import { DEFAULT_EVENT_LABELS, type EventLabel } from '../hooks/useLabels';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useGroups } from '../hooks/useGroups';
 import { scanForMissingLabels, pickRecoveryColor } from '../utils/labelRecovery';
+import { moveToTrash } from '../utils/trashHelper';
 
 interface MemoLabel {
   id: string;
@@ -91,6 +92,10 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   // 화면 표시용으로 채운 기본값이 실수로 클라우드에 덮어써지는 것을 방지한다.
   const [labelsLoaded, setLabelsLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  // 저장 시점에 삭제된 라벨을 찾아내기 위한, 불러온 시점의 원본 스냅샷
+  const originalEventLabelsRef = React.useRef<EventLabel[]>([]);
+  const originalJournalLabelsRef = React.useRef<JournalLabel[]>([]);
+  const originalMemoLabelsRef = React.useRef<MemoLabel[]>([]);
 
   const fetchLabels = async () => {
     const user = auth.currentUser;
@@ -104,7 +109,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
       if (snap.exists()) {
         const data = snap.data();
         const rawEvents = data.eventLabels || data.labels || DEFAULT_EVENT_LABELS;
-        setEventLabels(rawEvents.map((l: any, i: number) => ({
+        const nextEventLabels = rawEvents.map((l: any, i: number) => ({
           id: l.id || `ev_${i}_${l.name || ''}`,
           name: l.name || '',
           color: l.color || 'blue',
@@ -113,26 +118,35 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
           forward: !!(l.forward || l.isForward),
           period: !!l.period,
           recur: !!l.recur,
-        })));
+        }));
+        setEventLabels(nextEventLabels);
+        originalEventLabelsRef.current = nextEventLabels;
 
         const rawMemos = data.memoLabels || DEFAULT_MEMO_LABELS;
-        setMemoLabels(rawMemos.map((l: any, i: number) => ({
+        const nextMemoLabels = rawMemos.map((l: any, i: number) => ({
           id: (typeof l === 'object' && l.id) ? l.id : `memo_${i}_${typeof l === 'string' ? l : l.name || ''}`,
           name: typeof l === 'string' ? l : (l.name || ''),
           color: (typeof l === 'object' && l.color) ? l.color : 'green',
-        })));
+        }));
+        setMemoLabels(nextMemoLabels);
+        originalMemoLabelsRef.current = nextMemoLabels;
 
         const rawJournals = data.journalLabels || DEFAULT_JOURNAL_LABELS;
-        setJournalLabels(rawJournals.map((l: any, i: number) => ({
+        const nextJournalLabels = rawJournals.map((l: any, i: number) => ({
           id: l.id || `j_${i}_${l.name || ''}`,
           name: l.name || '',
           color: l.color || 'green',
-        })));
+        }));
+        setJournalLabels(nextJournalLabels);
+        originalJournalLabelsRef.current = nextJournalLabels;
       } else {
         // 신규 계정이라 저장된 라벨이 아직 없는 정상적인 경우 -> 기본값을 보여주고 저장도 허용
         setEventLabels(DEFAULT_EVENT_LABELS);
         setMemoLabels(DEFAULT_MEMO_LABELS);
         setJournalLabels(DEFAULT_JOURNAL_LABELS);
+        originalEventLabelsRef.current = DEFAULT_EVENT_LABELS;
+        originalMemoLabelsRef.current = DEFAULT_MEMO_LABELS;
+        originalJournalLabelsRef.current = DEFAULT_JOURNAL_LABELS;
       }
       setLabelsLoaded(true);
     } catch (e) {
@@ -220,6 +234,41 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     setJournalLabels(journalLabels.filter((l) => l.id !== id));
   };
 
+  // 저장 직전, 불러온 시점과 비교해 삭제된 라벨을 찾아 휴지통으로 보낸다.
+  const trashRemovedLabels = async () => {
+    const removedEvents = originalEventLabelsRef.current.filter(
+      (orig) => !eventLabels.some((l) => l.id === orig.id)
+    );
+    const removedJournals = originalJournalLabelsRef.current.filter(
+      (orig) => !journalLabels.some((l) => l.id === orig.id)
+    );
+    const removedMemos = originalMemoLabelsRef.current.filter(
+      (orig) => !memoLabels.some((l) => l.id === orig.id)
+    );
+
+    for (const lbl of removedEvents) {
+      try {
+        await moveToTrash({ id: lbl.id, type: 'label', content: `[일정] ${lbl.name}`, data: { kind: 'event', label: lbl } });
+      } catch (err) {
+        console.error('라벨 휴지통 이동 실패:', err);
+      }
+    }
+    for (const lbl of removedJournals) {
+      try {
+        await moveToTrash({ id: lbl.id, type: 'label', content: `[기록] ${lbl.name}`, data: { kind: 'journal', label: lbl } });
+      } catch (err) {
+        console.error('라벨 휴지통 이동 실패:', err);
+      }
+    }
+    for (const lbl of removedMemos) {
+      try {
+        await moveToTrash({ id: lbl.id, type: 'label', content: `[메모] ${lbl.name}`, data: { kind: 'memo', label: lbl } });
+      } catch (err) {
+        console.error('라벨 휴지통 이동 실패:', err);
+      }
+    }
+  };
+
   // --- 전체 라벨 저장 ---
   const handleSaveAll = async () => {
     const user = auth.currentUser;
@@ -231,6 +280,8 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
 
     setSaving(true);
     try {
+      await trashRemovedLabels();
+
       const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
       const payload = {
         eventLabels,
@@ -241,6 +292,9 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
       };
 
       await setDoc(docRef, payload, { merge: true });
+      originalEventLabelsRef.current = eventLabels;
+      originalJournalLabelsRef.current = journalLabels;
+      originalMemoLabelsRef.current = memoLabels;
 
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -341,6 +395,9 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
         },
         { merge: true }
       );
+      originalEventLabelsRef.current = restoredEventLabels;
+      originalJournalLabelsRef.current = restoredJournalLabels;
+      originalMemoLabelsRef.current = restoredMemoLabels;
 
       alert(`✅ ${totalMissing}개의 라벨을 복구하고 저장했습니다.`);
     } catch (e) {

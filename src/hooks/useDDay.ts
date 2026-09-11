@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { moveToTrash } from '../utils/trashHelper';
 
 export interface DDayItem {
   id: string;
@@ -72,6 +73,19 @@ export function useDDay() {
   }, [dDayList, saveDDayList]);
 
   const deleteDDay = useCallback(async (id: string) => {
+    const target = dDayList.find((d) => d.id === id);
+    if (target) {
+      try {
+        await moveToTrash({
+          id: target.id,
+          type: 'dday',
+          content: target.title,
+          data: target,
+        });
+      } catch (err) {
+        console.error('D-Day 휴지통 이동 실패:', err);
+      }
+    }
     const newList = dDayList.filter((d) => d.id !== id);
     await saveDDayList(newList);
   }, [dDayList, saveDDayList]);

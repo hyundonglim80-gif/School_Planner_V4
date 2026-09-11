@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { doc, onSnapshot, setDoc, getDocs, query, where, documentId, writeBatch, collection } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { formatDate } from '../lib/dateUtils';
+import { moveToTrash } from '../utils/trashHelper';
 
 export type WeekDayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri';
 export type WeekTimetable = Record<WeekDayKey, Record<number, string>>;
@@ -82,6 +83,22 @@ export function useTimetableTemplate() {
     if (!user) return;
     const docRef = doc(db, 'users', user.uid, 'settings', 'timetable_v5');
 
+    // 저장 직전 상태(templates)와 비교해 사라진 템플릿을 휴지통으로 보낸다.
+    for (const name of Object.keys(templates)) {
+      if (!(name in newTemplates)) {
+        try {
+          await moveToTrash({
+            id: `template_${name}_${Date.now()}`,
+            type: 'template',
+            content: name,
+            data: { name, template: templates[name] },
+          });
+        } catch (err) {
+          console.error('시간표 템플릿 휴지통 이동 실패:', err);
+        }
+      }
+    }
+
     const cur = newTemplates[currentTemplateName] || Object.values(newTemplates)[0];
 
     await setDoc(docRef, {
@@ -90,7 +107,7 @@ export function useTimetableTemplate() {
       currentNames: cur ? cur.names : DEFAULT_NAMES,
       updatedAt: Date.now(),
     }, { merge: true });
-  }, [currentTemplateName, semesterConfig]);
+  }, [templates, currentTemplateName, semesterConfig]);
 
   // 시간표 캘린더 일괄 덮어쓰기 (applyTimetableToCalendar)
   const applyTimetableToCalendar = useCallback(async (
