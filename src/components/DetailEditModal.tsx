@@ -28,7 +28,7 @@ export default function DetailEditModal({
   useBodyScrollLock(isOpen);
   const { selectedGroupId, openLinkerModal, openLinkViewerModal, openEvaluationModal, openLabelModal } = useAppStore();
   const { updateEventItem, deleteEventItem, savePeriod, eventList, schedules } = useDayData(isOpen ? dateStr : '', selectedGroupId);
-  const { eventLabels } = useLabels();
+  const { eventLabels, getLabelColor } = useLabels();
 
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -61,46 +61,78 @@ export default function DetailEditModal({
         setSupplies(initialData.supplies || '');
         setImageUrl(initialData.imageUrl || '');
       } else {
-        // Event
-        setContent(initialData.content || '');
-        const initLabel = initialData.label || '';
-        const parsedLabels = initLabel.split(',').map((l: string) => l.trim()).filter(Boolean);
-        setLabels(parsedLabels);
-        setImageUrl(initialData.imageUrl || '');
+        // Event: currentItem과 initialData를 통합하여 가장 최신 데이터 사용
+        const targetItem = currentItem || initialData;
 
-        // 라벨 기본 속성 찾기
-        const primaryLabelDef = eventLabels.find(l => parsedLabels.includes(l.name));
+        // 1. 라벨 추출 (label 문자열, labelIds 배열, labels 배열, content의 [라벨] 정규식 패턴 모두 지원)
+        let extractedLabels: string[] = [];
+        let rawContent = targetItem.content || '';
 
-        // 개별 일정 속성 우선, 없으면 라벨 기본값, 없으면 기본 규격
+        if (targetItem.label && typeof targetItem.label === 'string') {
+          extractedLabels = targetItem.label.split(',').map((l: string) => l.trim()).filter(Boolean);
+        } else if (Array.isArray(targetItem.labelIds) && targetItem.labelIds.length > 0) {
+          const found = eventLabels.filter(l => targetItem.labelIds!.includes(l.id));
+          extractedLabels = found.map(f => f.name);
+        } else if (Array.isArray(targetItem.labels) && targetItem.labels.length > 0) {
+          extractedLabels = targetItem.labels.map((l: any) => (typeof l === 'string' ? l : l.name)).filter(Boolean);
+        }
+
+        // 만약 여전히 라벨이 비어있다면 content에서 [라벨명] 패턴 검사
+        if (extractedLabels.length === 0 && rawContent) {
+          const match = rawContent.match(/^\[(.*?)\]\s*(.*)$/);
+          if (match) {
+            extractedLabels = [match[1].trim()];
+            rawContent = match[2].trim();
+          }
+        } else if (extractedLabels.length === 1 && rawContent.startsWith(`[${extractedLabels[0]}]`)) {
+          rawContent = rawContent.replace(new RegExp(`^\\[${extractedLabels[0]}\\]\\s*`), '');
+        }
+
+        setContent(rawContent);
+        setLabels(extractedLabels);
+        setImageUrl(targetItem.imageUrl || '');
+
+        // 2. 일정 속성 판단 (개별 일정에 명시된 값이 있으면 최우선, 없으면 부여된 라벨들의 속성, 둘 다 없으면 false)
+        const hasCalendarProp = extractedLabels.some(name => {
+          const def = eventLabels.find(l => l.name === name);
+          return def ? def.calendar !== false : false;
+        });
+        const hasForwardProp = extractedLabels.some(name => {
+          const def = eventLabels.find(l => l.name === name);
+          return def ? !!(def.forward || (def as any).isForward) : false;
+        });
+        const hasPeriodProp = extractedLabels.some(name => {
+          const def = eventLabels.find(l => l.name === name);
+          return def ? !!def.period : false;
+        });
+        const hasRecurProp = extractedLabels.some(name => {
+          const def = eventLabels.find(l => l.name === name);
+          return def ? !!def.recur : false;
+        });
+        const hasSkipProp = extractedLabels.some(name => {
+          const def = eventLabels.find(l => l.name === name);
+          return def ? !!def.skip : false;
+        });
+
         setItemCalendar(
-          initialData.calendar !== undefined
-            ? !!initialData.calendar
-            : (primaryLabelDef ? primaryLabelDef.calendar !== false : true)
+          targetItem.calendar !== undefined ? !!targetItem.calendar : hasCalendarProp
         );
         setItemForward(
-          initialData.forward !== undefined
-            ? !!initialData.forward
-            : (primaryLabelDef ? !!(primaryLabelDef.forward || (primaryLabelDef as any).isForward) : false)
+          targetItem.forward !== undefined ? !!targetItem.forward : hasForwardProp
         );
         setItemPeriod(
-          initialData.period !== undefined
-            ? !!initialData.period
-            : (primaryLabelDef ? !!primaryLabelDef.period : false)
+          targetItem.period !== undefined ? !!targetItem.period : hasPeriodProp
         );
         setItemRecur(
-          initialData.recur !== undefined
-            ? !!initialData.recur
-            : (primaryLabelDef ? !!primaryLabelDef.recur : false)
+          targetItem.recur !== undefined ? !!targetItem.recur : hasRecurProp
         );
         setItemSkip(
-          initialData.skip !== undefined
-            ? !!initialData.skip
-            : (primaryLabelDef ? !!primaryLabelDef.skip : false)
+          targetItem.skip !== undefined ? !!targetItem.skip : hasSkipProp
         );
       }
       setIsEditing(false); // Default to viewer mode for the modal
     }
-  }, [isOpen, initialData, type, eventLabels]);
+  }, [isOpen, initialData, currentItem, type, eventLabels]);
 
   if (!isOpen) return null;
 
@@ -121,6 +153,13 @@ export default function DetailEditModal({
           setItemRecur(!!targetLabelDef.recur);
           setItemSkip(!!targetLabelDef.skip);
         }
+      } else if (next.length === 0) {
+        // 라벨이 모두 해제된 경우 속성 기본값 초기화
+        setItemCalendar(false);
+        setItemForward(false);
+        setItemPeriod(false);
+        setItemRecur(false);
+        setItemSkip(false);
       }
       return next;
     });
@@ -473,11 +512,22 @@ export default function DetailEditModal({
                   </div>
                   {labels.length > 0 ? (
                     <div className="flex flex-wrap gap-1.5">
-                      {labels.map(l => (
-                        <span key={l} className="inline-block px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg font-bold text-xs">
-                          {l}
-                        </span>
-                      ))}
+                      {labels.map(l => {
+                        const color = getLabelColor(l);
+                        return (
+                          <span
+                            key={l}
+                            className="inline-block px-2.5 py-1 rounded-lg font-bold text-xs shadow-2xs"
+                            style={{
+                              backgroundColor: color.bg,
+                              color: color.text,
+                              border: `1px solid ${color.border}`,
+                            }}
+                          >
+                            {l}
+                          </span>
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-xs text-slate-400">지정된 라벨 없음</p>
