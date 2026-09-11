@@ -4,6 +4,8 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { DEFAULT_EVENT_LABELS, type EventLabel } from '../hooks/useLabels';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useGroups } from '../hooks/useGroups';
+import { scanForMissingLabels, pickRecoveryColor } from '../utils/labelRecovery';
 
 interface MemoLabel {
   id: string;
@@ -53,7 +55,9 @@ interface LabelModalProps {
 
 export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: LabelModalProps) {
   useBodyScrollLock(isOpen);
+  const { groups } = useGroups();
   const [activeTab, setActiveTab] = useState<'event' | 'journal' | 'memo'>(initialTab);
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     if (isOpen && initialTab) {
@@ -246,6 +250,104 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
       alert('라벨 저장 중 오류가 발생했습니다.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // --- 삭제된(또는 누락된) 라벨 자동 복구 ---
+  // 실제 저장된 일정/기록/메모 데이터를 전부 훑어서, 현재 라벨 목록에 없는 라벨 이름을 찾아
+  // 기본값으로 다시 등록한다. 찾기만 하고 저장은 사용자가 확인한 뒤에만 진행한다.
+  const handleScanMissingLabels = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    setScanning(true);
+    try {
+      const groupIds = groups.map((g) => g.id);
+      const result = await scanForMissingLabels(
+        user.uid,
+        groupIds,
+        eventLabels.map((l) => l.name),
+        journalLabels.map((l) => l.name),
+        memoLabels.map((l) => l.name)
+      );
+
+      const totalMissing =
+        result.missingEventNames.length + result.missingJournalNames.length + result.missingMemoNames.length;
+
+      if (totalMissing === 0) {
+        alert('✅ 검사 완료: 삭제되었거나 누락된 라벨이 없습니다.');
+        return;
+      }
+
+      const lines: string[] = [];
+      if (result.missingEventNames.length > 0) lines.push(`일정: ${result.missingEventNames.join(', ')}`);
+      if (result.missingJournalNames.length > 0) lines.push(`기록: ${result.missingJournalNames.join(', ')}`);
+      if (result.missingMemoNames.length > 0) lines.push(`메모: ${result.missingMemoNames.join(', ')}`);
+
+      const proceed = window.confirm(
+        `다음 라벨이 실제 데이터에는 남아있지만 라벨 목록에는 없습니다. 기본값으로 복구할까요?\n\n${lines.join('\n')}\n\n(색상/속성은 나중에 목록에서 직접 조정할 수 있습니다)`
+      );
+      if (!proceed) return;
+
+      let colorIdx = eventLabels.length;
+      const restoredEventLabels = [
+        ...eventLabels,
+        ...result.missingEventNames.map((name) => ({
+          id: `ev_recovered_${Date.now()}_${colorIdx++}`,
+          name,
+          color: pickRecoveryColor(colorIdx),
+          calendar: true,
+          skip: false,
+          forward: false,
+          period: false,
+          recur: false,
+        })),
+      ];
+
+      let jColorIdx = journalLabels.length;
+      const restoredJournalLabels = [
+        ...journalLabels,
+        ...result.missingJournalNames.map((name) => ({
+          id: `j_recovered_${Date.now()}_${jColorIdx++}`,
+          name,
+          color: pickRecoveryColor(jColorIdx),
+        })),
+      ];
+
+      let mColorIdx = memoLabels.length;
+      const restoredMemoLabels = [
+        ...memoLabels,
+        ...result.missingMemoNames.map((name) => ({
+          id: `memo_recovered_${Date.now()}_${mColorIdx++}`,
+          name,
+          color: pickRecoveryColor(mColorIdx),
+        })),
+      ];
+
+      setEventLabels(restoredEventLabels);
+      setJournalLabels(restoredJournalLabels);
+      setMemoLabels(restoredMemoLabels);
+
+      // 복구된 목록을 바로 저장
+      const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
+      await setDoc(
+        docRef,
+        {
+          eventLabels: restoredEventLabels,
+          memoLabels: restoredMemoLabels,
+          journalLabels: restoredJournalLabels,
+          labels: restoredEventLabels, // V3 호환성
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      );
+
+      alert(`✅ ${totalMissing}개의 라벨을 복구하고 저장했습니다.`);
+    } catch (e) {
+      console.error('라벨 복구 스캔 오류:', e);
+      alert('라벨 복구 중 오류가 발생했습니다.');
+    } finally {
+      setScanning(false);
     }
   };
 
@@ -681,7 +783,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
 
         {/* 푸터 버튼 */}
         <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-slate-100 bg-slate-50">
-          {loadError && (
+          {loadError ? (
             <div className="mr-auto flex items-center gap-2 text-rose-600 text-xs font-bold">
               <span>⚠️ 라벨 정보를 불러오지 못했습니다. 지금 저장하면 안 됩니다.</span>
               <button
@@ -692,6 +794,16 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                 다시 불러오기
               </button>
             </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleScanMissingLabels}
+              disabled={scanning || !labelsLoaded}
+              title="저장된 일정/기록/메모를 검사해서 삭제된 라벨을 다시 등록합니다"
+              className="mr-auto px-3 py-2 bg-white hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed text-slate-600 border border-slate-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+            >
+              <span>🔍</span> {scanning ? '검사 중...' : '삭제된 라벨 복구'}
+            </button>
           )}
           <button
             onClick={onClose}
