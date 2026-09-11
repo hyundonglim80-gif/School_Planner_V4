@@ -27,7 +27,7 @@ export default function DetailEditModal({
 }: DetailEditModalProps) {
   useBodyScrollLock(isOpen);
   const { selectedGroupId, openLinkerModal, openLinkViewerModal, openEvaluationModal } = useAppStore();
-  const { updateEventItem, deleteEventItem, savePeriod } = useDayData(isOpen ? dateStr : '', selectedGroupId);
+  const { updateEventItem, deleteEventItem, savePeriod, eventList, schedules } = useDayData(isOpen ? dateStr : '', selectedGroupId);
   const { eventLabels } = useLabels();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -40,6 +40,11 @@ export default function DetailEditModal({
   const [labels, setLabels] = useState<string[]>([]);
   const [imageUrl, setImageUrl] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  const currentItem = type === 'schedule'
+    ? schedules[Number(itemId)]
+    : eventList.find(e => String(e.id) === String(itemId));
+  const currentLinkedItems = currentItem?.linkedItems ?? initialData?.linkedItems ?? [];
 
   useEffect(() => {
     if (isOpen && initialData) {
@@ -112,12 +117,26 @@ export default function DetailEditModal({
   };
 
   const handleDelete = async () => {
-    if (type !== 'event') return;
-    if (window.confirm('이 일정을 삭제하시겠습니까?')) {
+    const confirmMsg = type === 'schedule' ? '이 교시의 수업 내용을 삭제하시겠습니까?' : '이 일정을 삭제하시겠습니까?';
+    if (window.confirm(confirmMsg)) {
       try {
         setSaving(true);
-        await deleteEventItem(String(itemId), initialData);
+        if (type === 'schedule') {
+          await savePeriod(Number(itemId), {
+            subject: '',
+            content: '',
+            memo: '',
+            supplies: '',
+            imageUrl: '',
+            linkedItems: [],
+          });
+        } else {
+          await deleteEventItem(String(itemId), initialData);
+        }
         onClose();
+      } catch (err) {
+        console.error('Delete failed', err);
+        alert('삭제에 실패했습니다.');
       } finally {
         setSaving(false);
       }
@@ -134,16 +153,27 @@ export default function DetailEditModal({
           <h2 className="text-lg font-black text-slate-800">{title}</h2>
           <div className="flex items-center gap-2">
             {!isEditing && (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="px-3 py-1.5 text-xs font-bold text-white bg-primary rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                ✏️ 수정
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  className="px-3 py-1.5 text-xs font-bold text-white bg-primary rounded-lg hover:bg-blue-600 transition-colors cursor-pointer"
+                >
+                  ✏️ 수정
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={saving}
+                  className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors cursor-pointer"
+                >
+                  🗑️ 삭제
+                </button>
+              </>
             )}
             <button
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 font-bold transition-colors"
+              className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 font-bold transition-colors cursor-pointer"
             >
               ✕
             </button>
@@ -171,13 +201,13 @@ export default function DetailEditModal({
                   >
                     🔗 링크 추가
                   </button>
-                  {initialData?.linkedItems && initialData.linkedItems.length > 0 && (
+                  {currentLinkedItems.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => { openLinkViewerModal('schedule', dateStr, String(itemId), Number(itemId)); onClose(); }}
+                      onClick={() => { openLinkViewerModal('schedule', dateStr, String(itemId), Number(itemId)); }}
                       className="px-3 py-1.5 bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      📑 연결된 링크 ({initialData.linkedItems.length})
+                      📑 연결된 링크 ({currentLinkedItems.length})
                     </button>
                   )}
                 </>
@@ -191,13 +221,13 @@ export default function DetailEditModal({
                   >
                     🔗 링크 추가
                   </button>
-                  {initialData?.linkedItems && initialData.linkedItems.length > 0 && (
+                  {currentLinkedItems.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => { openLinkViewerModal('event', dateStr, String(itemId)); onClose(); }}
+                      onClick={() => { openLinkViewerModal('event', dateStr, String(itemId)); }}
                       className="px-3 py-1.5 bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      📑 연결된 링크 ({initialData.linkedItems.length})
+                      📑 연결된 링크 ({currentLinkedItems.length})
                     </button>
                   )}
                 </>
@@ -335,17 +365,14 @@ export default function DetailEditModal({
         {/* Footer */}
         {isEditing && (
           <div className="px-5 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50">
-            {type === 'event' ? (
-              <button
-                onClick={handleDelete}
-                disabled={saving}
-                className="px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-              >
-                삭제
-              </button>
-            ) : (
-              <div />
-            )}
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={saving}
+              className="px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+            >
+              삭제
+            </button>
             <div className="flex gap-2">
               <button
                 onClick={() => setIsEditing(false)}
