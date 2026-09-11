@@ -4,6 +4,7 @@ import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import DetailEditModal from './DetailEditModal';
+import { moveToTrash } from '../utils/trashHelper';
 
 interface ForwardingModalProps {
   isOpen: boolean;
@@ -148,8 +149,24 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
       const snap = await getDoc(doc(db, colPath, item.dateStr));
       if (snap.exists()) {
         const data = snap.data();
-        const eventList = (data.eventList || []).filter((_: any, i: number) => i !== item.eventIdx);
-        await setDoc(doc(db, colPath, item.dateStr), { ...data, eventList, updatedAt: Date.now() }, { merge: true });
+        const eventList = data.eventList || [];
+        const itemToDelete = eventList[item.eventIdx];
+        if (itemToDelete) {
+          try {
+            await moveToTrash({
+              id: String(itemToDelete.id ?? item.eventIdx),
+              type: 'event',
+              originalDateStr: item.dateStr,
+              fId: selectedGroupId || 'personal',
+              content: itemToDelete.text || itemToDelete.content || item.event.text,
+              data: itemToDelete,
+            });
+          } catch (trashErr) {
+            console.error('휴지통 이동 실패:', trashErr);
+          }
+        }
+        const updatedList = eventList.filter((_: any, i: number) => i !== item.eventIdx);
+        await setDoc(doc(db, colPath, item.dateStr), { ...data, eventList: updatedList, updatedAt: Date.now() }, { merge: true });
       }
       setIncompleteEvents(prev => prev.filter(e => !(e.dateStr === item.dateStr && e.eventIdx === item.eventIdx)));
     } catch (e: any) {

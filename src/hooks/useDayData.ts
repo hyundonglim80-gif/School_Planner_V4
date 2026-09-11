@@ -153,10 +153,10 @@ export async function runAutoForwarding(groupId: string | null) {
       let hasChanges = false;
       const remainingItems: EventItem[] = [];
 
-      items.forEach(it => {
+      for (const it of items) {
         if (it.completed || !it.content.trim()) {
           remainingItems.push(it);
-          return;
+          continue;
         }
 
         let labelName = '';
@@ -172,22 +172,39 @@ export async function runAutoForwarding(groupId: string | null) {
 
         if (forwardLabelNames.includes(labelName)) {
           // 이월 복사본 생성 (오늘자 중복 체크)
-          if (!todayEventList.some(e => e.content === it.content) && !incompleteItems.some(e => e.content === it.content)) {
+          const isDuplicate =
+            todayEventList.some(e => e.content === it.content) || incompleteItems.some(e => e.content === it.content);
+          if (!isDuplicate) {
             incompleteItems.push({
               id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5),
               content: it.content,
               completed: false,
               label: it.label,
               labelIds: it.labelIds,
-              linkedItems: it.linkedItems || [], 
+              linkedItems: it.linkedItems || [],
               attachments: it.attachments || [],
             });
+          } else {
+            // 💡 이미 오늘 목록에 같은 내용이 있어 이월 복사본을 만들지 않는 경우,
+            // 과거 원본을 그냥 지우지 않고 휴지통으로 보내 데이터 유실을 방지한다.
+            try {
+              await moveToTrash({
+                id: String((it as any).id || pDate),
+                type: 'event',
+                originalDateStr: pDate,
+                fId: groupId || 'personal',
+                content: it.content,
+                data: it,
+              });
+            } catch (trashErr) {
+              console.error('이월 중복 항목 휴지통 이동 실패:', trashErr);
+            }
           }
           hasChanges = true;
         } else {
           remainingItems.push(it);
         }
-      });
+      }
 
       if (hasChanges) {
         pastUpdates.push({ pDate, updatedList: remainingItems });
