@@ -556,10 +556,10 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                 <strong>💡 일정 라벨 속성 안내</strong>
                 <ul className="list-disc list-inside mt-1 space-y-0.5 text-blue-800">
                   <li><strong>달력표시</strong>: 체크 시 월간/년간 캘린더 화면에 해당 일정이 강조 표시됩니다.</li>
-                  <li><strong>수업X</strong>: 해당 일정 등록 시 그 날짜의 시간표 과목을 자동으로 비웁니다.</li>
                   <li><strong>이월</strong>: 완료 체크되지 않으면 다음 날로 자동 이월됩니다.</li>
                   <li><strong>기간</strong>: 연속 기간 일정 등록 시 팝업이 지원됩니다.</li>
                   <li><strong>반복</strong>: 매주/매월 반복 일정 등록이 지원됩니다.</li>
+                  <li><strong>수업X</strong>: 해당 일정 등록 시 그 날짜의 시간표 과목을 자동으로 비웁니다.</li>
                 </ul>
               </div>
 
@@ -609,7 +609,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                         />
                       </div>
 
-                      {/* 중간: 5대 속성 (속성명과 체크박스를 한 줄 가로로 배치) */}
+                      {/* 중간: 5대 속성 (달력 -> 이월 -> 기간 -> 반복 -> 수업X) */}
                       <div className="flex items-center gap-2.5 text-xs text-slate-600 flex-nowrap shrink-0">
                         <label className="flex items-center gap-1 cursor-pointer select-none hover:text-slate-900" title="월간/년간 달력에 표시">
                           <input
@@ -623,20 +623,6 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                           />
                           <span className="font-semibold text-[12.5px]">달력</span>
-                        </label>
-
-                        <label className="flex items-center gap-1 cursor-pointer select-none hover:text-slate-900" title="지정 날짜의 수업 과목 비움">
-                          <input
-                            type="checkbox"
-                            checked={!!lbl.skip}
-                            onChange={(e) => {
-                              const updated = [...eventLabels];
-                              updated[idx].skip = e.target.checked;
-                              setEventLabels(updated);
-                            }}
-                            className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
-                          />
-                          <span className="font-semibold text-[12.5px]">수업X</span>
                         </label>
 
                         <label className="flex items-center gap-1 cursor-pointer select-none hover:text-slate-900" title="미완료 시 다음 날로 자동 이월">
@@ -679,6 +665,20 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             className="rounded text-purple-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                           />
                           <span className="font-semibold text-[12.5px]">반복</span>
+                        </label>
+
+                        <label className="flex items-center gap-1 cursor-pointer select-none hover:text-slate-900" title="지정 날짜의 수업 과목 비움">
+                          <input
+                            type="checkbox"
+                            checked={!!lbl.skip}
+                            onChange={(e) => {
+                              const updated = [...eventLabels];
+                              updated[idx].skip = e.target.checked;
+                              setEventLabels(updated);
+                            }}
+                            className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                          />
+                          <span className="font-semibold text-[12.5px]">수업X</span>
                         </label>
                       </div>
 
@@ -732,15 +732,6 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                   <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900">
                     <input
                       type="checkbox"
-                      checked={newEventSkip}
-                      onChange={(e) => setNewEventSkip(e.target.checked)}
-                      className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
-                    />
-                    <span className="font-semibold text-[12.5px]">수업X</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900">
-                    <input
-                      type="checkbox"
                       checked={newEventForward}
                       onChange={(e) => setNewEventForward(e.target.checked)}
                       className="rounded text-emerald-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
@@ -764,6 +755,15 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                       className="rounded text-purple-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                     />
                     <span className="font-semibold text-[12.5px]">반복</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900">
+                    <input
+                      type="checkbox"
+                      checked={newEventSkip}
+                      onChange={(e) => setNewEventSkip(e.target.checked)}
+                      className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                    />
+                    <span className="font-semibold text-[12.5px]">수업X</span>
                   </label>
                 </div>
               </div>
