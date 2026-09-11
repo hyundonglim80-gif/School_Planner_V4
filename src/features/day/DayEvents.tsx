@@ -6,6 +6,7 @@ import { uploadFile, uploadImage } from '../../utils/uploadHelper';
 import { auth } from '../../lib/firebase';
 import { showToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
+import DetailEditModal from '../../components/DetailEditModal';
 
 interface DayEventsProps {
   events: EventItem[];
@@ -43,6 +44,7 @@ export default function DayEvents({
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [detailItem, setDetailItem] = useState<{ dateStr: string; itemId: string; initialData: any } | null>(null);
   const formattedDate = formatDateStr(new Date(currentDate));
 
   const getEventLabelInfo = (event: EventItem) => {
@@ -58,26 +60,22 @@ export default function DayEvents({
         names = [match[1].trim()];
       }
     }
-    
+
     // 💡 통합 라벨 관리에 존재하는(삭제되지 않은) 라벨만 필터링
     const validNames = names.filter(name => eventLabels.some(l => l.name === name));
-    
+
     const labelDefs = validNames.map(name => eventLabels.find(l => l.name === name));
-    // 이월/완료 가능 속성 체크
-    const isCompletable = labelDefs.some(def => def && (def.forward || (def as any).isForward));
-    
+
     let cleanContent = event.content;
     if (names.length === 1 && cleanContent.startsWith(`[${names[0]}]`)) {
       cleanContent = cleanContent.replace(new RegExp(`^\\[${names[0]}\\]\\s*`), '');
     }
-    
-    return { names: validNames, labelDefs, isCompletable, cleanContent }; // validNames 반환
+
+    return { names: validNames, labelDefs, cleanContent }; // validNames 반환
   };
 
-  const completableEvents = events.filter((e) => {
-    const info = getEventLabelInfo(e);
-    return info.isCompletable;
-  });
+  // 라벨이 붙어 있어 라벨 칩 클릭으로 완료 처리할 수 있는 일정들
+  const completableEvents = events.filter((e) => getEventLabelInfo(e).names.length > 0);
   const completedCount = completableEvents.filter((e) => e.completed).length;
 
   const startEditing = (event: EventItem) => {
@@ -182,6 +180,7 @@ export default function DayEvents({
   };
 
   return (
+    <>
     <div className={`bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 flex flex-col ${isCollapsed ? '' : 'h-full'}`}>
       <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isCollapsed ? '' : 'mb-4'}`}>
         <div className="flex items-center gap-2">
@@ -353,7 +352,7 @@ export default function DayEvents({
                 } ${
                   selectedEventIds.includes(event.id)
                     ? 'border-primary ring-1 ring-primary bg-primary/5'
-                    : event.completed && info.isCompletable
+                    : event.completed
                     ? 'bg-slate-50 border-slate-100 text-slate-400'
                     : 'bg-white border-slate-200/60 hover:border-slate-300 text-slate-800'
                 }`}
@@ -381,7 +380,6 @@ export default function DayEvents({
                   )}
 
                   <div className="leading-relaxed text-sm break-words flex-1">
-                    {/* 💡 이월/완료 가능 일정인 경우에만 체크박스 표시 */}
                     {isMultiSelectMode && (
                       <input
                         type="checkbox"
@@ -390,27 +388,25 @@ export default function DayEvents({
                         className="inline-block align-middle mr-1.5 pointer-events-none w-4 h-4 rounded text-primary border-slate-300"
                       />
                     )}
-                    {info.isCompletable && !isMultiSelectMode && (
-                      <input
-                        type="checkbox"
-                        checked={!!event.completed}
-                        onChange={() => onToggleEvent(event.id)}
-                        className="inline-block align-middle mr-1.5 w-4 h-4 rounded text-primary border-slate-300 cursor-pointer accent-primary"
-                        title="완료 토글"
-                      />
-                    )}
 
-                    {/* 라벨 (유효한 라벨만 렌더링) */}
-                    {info.names.length > 0 && info.names.map(name => {
+                    {/* 라벨 칩 (유효한 라벨만 렌더링): 클릭 시 완료 처리 (이월 속성 라벨이면 이월도 정지) */}
+                    {info.names.length > 0 && info.names.map((name, i) => {
                       const color = getLabelColor(name);
+                      const def = info.labelDefs[i];
+                      const isForward = !!(def && (def.forward || (def as any).isForward));
                       return (
                         <span
                           key={name}
-                          className="inline-block align-middle mr-1.5 text-[16.5px] font-bold px-2 py-0.5 rounded-md shadow-2xs whitespace-nowrap"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!isMultiSelectMode) onToggleEvent(event.id);
+                          }}
+                          title={isMultiSelectMode ? '' : (isForward ? '클릭하여 완료 처리 (이월 정지)' : '클릭하여 완료 처리')}
+                          className={`inline-block align-middle mr-1.5 text-[16.5px] font-bold px-2 py-0.5 rounded-md shadow-2xs whitespace-nowrap ${isMultiSelectMode ? '' : 'cursor-pointer'}`}
                           style={{
-                            backgroundColor: (event.completed && info.isCompletable) ? '#f1f5f9' : color.bg,
-                            color: (event.completed && info.isCompletable) ? '#94a3b8' : color.text,
-                            border: '1px solid ' + ((event.completed && info.isCompletable) ? '#e2e8f0' : color.border)
+                            backgroundColor: event.completed ? '#f1f5f9' : color.bg,
+                            color: event.completed ? '#94a3b8' : color.text,
+                            border: '1px solid ' + (event.completed ? '#e2e8f0' : color.border)
                           }}
                         >
                           {name}
@@ -418,17 +414,17 @@ export default function DayEvents({
                       );
                     })}
 
-                    {/* 본문 텍스트 */}
+                    {/* 본문 텍스트: 클릭 시 상세 확인 팝업, 더블클릭 시 빠른 인라인 수정 */}
                     <span
                       onClick={(e) => {
-                        if (isMultiSelectMode) return; 
-                        if (info.isCompletable) onToggleEvent(event.id);
+                        if (isMultiSelectMode) return;
+                        setDetailItem({ dateStr: formattedDate, itemId: event.id, initialData: event });
                       }}
                       onDoubleClick={() => !isMultiSelectMode && startEditing(event)}
-                      className={`inline align-middle ${info.isCompletable && !isMultiSelectMode ? 'cursor-pointer' : ''} ${
-                        event.completed && info.isCompletable ? 'line-through text-slate-400' : ''
+                      className={`inline align-middle ${!isMultiSelectMode ? 'cursor-pointer' : ''} ${
+                        event.completed ? 'line-through text-slate-400' : ''
                       }`}
-                      title={isMultiSelectMode ? '' : '더블클릭하여 수정'}
+                      title={isMultiSelectMode ? '' : '클릭하여 상세 보기 (더블클릭하여 빠른 수정)'}
                     >
                       {info.cleanContent}
                     </span>
@@ -507,5 +503,17 @@ export default function DayEvents({
         </>
       )}
     </div>
+
+    {detailItem && (
+      <DetailEditModal
+        isOpen={true}
+        onClose={() => setDetailItem(null)}
+        type="event"
+        dateStr={detailItem.dateStr}
+        itemId={detailItem.itemId}
+        initialData={detailItem.initialData}
+      />
+    )}
+    </>
   );
 }
