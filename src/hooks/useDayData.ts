@@ -1,6 +1,6 @@
 //src/hooks/useDayData.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, getDoc, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { addReverseLink } from '../utils/linkUtils';
 import { moveToTrash } from '../utils/trashHelper';
@@ -214,23 +214,42 @@ export async function runAutoForwarding(groupId: string | null) {
 
   if (incompleteItems.length > 0) {
     // 1. 오늘 날짜에 저장
-    const newList = [...todayEventList, ...incompleteItems];
-    const textToSaveToday = formatV3EventText(newList);
-    const v3EventListToday = newList.map((item, idx) => ({
-      id: item.id || 'ev_' + Date.now().toString(36) + '_' + idx,
-      content: item.content || '',
-      completed: !!item.completed,
-      authorId: user.uid,
-      authorName: user.displayName || '',
-      label: item.label || '',
-      labelIds: item.labelIds || [],
-      linkedItems: item.linkedItems || [],
-    }));
-    await setDoc(todayDocRef, {
-      eventText: textToSaveToday,
-      eventList: v3EventListToday,
-      updatedAt: Date.now()
-    }, { merge: true });
+    // 💡 여기까지 오는 동안(과거 14일 조회 등) 시간이 걸리므로, 그 사이 사용자가 오늘 일정을
+    // 추가/수정했을 수 있다. 처음에 미리 읽어둔 todayEventList로 그냥 덮어쓰면 그 변경이
+    // 통째로 사라질 수 있어, 트랜잭션으로 쓰기 직전 최신 상태를 다시 읽어 병합한다.
+    await runTransaction(db, async (tx) => {
+      const freshSnap = await tx.get(todayDocRef);
+      let freshList: EventItem[] = [];
+      if (freshSnap.exists()) {
+        const freshData = freshSnap.data();
+        if (Array.isArray(freshData.eventList) && freshData.eventList.length > 0) {
+          freshList = freshData.eventList;
+        } else if (freshData.eventText) {
+          freshList = parseV3EventText(freshData.eventText);
+        }
+      }
+      // 트랜잭션 재시도 등으로 이미 반영되어 있을 수 있으니 중복 추가 방지
+      const toAdd = incompleteItems.filter(
+        (ni) => !freshList.some((fi: any) => fi.content === ni.content)
+      );
+      const mergedList = [...freshList, ...toAdd];
+      const textToSaveToday = formatV3EventText(mergedList);
+      const v3EventListToday = mergedList.map((item: any, idx: number) => ({
+        id: item.id || 'ev_' + Date.now().toString(36) + '_' + idx,
+        content: item.content || '',
+        completed: !!item.completed,
+        authorId: item.authorId || user.uid,
+        authorName: item.authorName || user.displayName || '',
+        label: item.label || '',
+        labelIds: item.labelIds || [],
+        linkedItems: item.linkedItems || [],
+      }));
+      tx.set(todayDocRef, {
+        eventText: textToSaveToday,
+        eventList: v3EventListToday,
+        updatedAt: Date.now()
+      }, { merge: true });
+    });
 
     // 2. 이월된 항목의 링크 타겟 업데이트
     for (const newItem of incompleteItems) {
