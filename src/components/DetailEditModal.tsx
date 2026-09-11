@@ -64,16 +64,24 @@ export default function DetailEditModal({
         // Event: currentItem과 initialData를 통합하여 가장 최신 데이터 사용
         const targetItem = currentItem || initialData;
 
-        // 1. 라벨 추출 (label 문자열, labelIds 배열, labels 배열, content의 [라벨] 정규식 패턴 모두 지원)
+        // 1. 라벨 추출 (문자열, 배열, labelIds, labels 객체, content의 [라벨] 정규식 모두 안전하게 파싱)
         let extractedLabels: string[] = [];
         let rawContent = targetItem.content || '';
 
-        if (targetItem.label && typeof targetItem.label === 'string') {
-          extractedLabels = targetItem.label.split(',').map((l: string) => l.trim()).filter(Boolean);
-        } else if (Array.isArray(targetItem.labelIds) && targetItem.labelIds.length > 0) {
+        if (targetItem.label) {
+          if (typeof targetItem.label === 'string') {
+            extractedLabels = targetItem.label.split(',').map((l: string) => l.trim()).filter(Boolean);
+          } else if (Array.isArray(targetItem.label)) {
+            extractedLabels = targetItem.label.map((l: any) => (typeof l === 'string' ? l : String(l.name || l))).filter(Boolean);
+          }
+        }
+
+        if (extractedLabels.length === 0 && Array.isArray(targetItem.labelIds) && targetItem.labelIds.length > 0) {
           const found = eventLabels.filter(l => targetItem.labelIds!.includes(l.id));
           extractedLabels = found.map(f => f.name);
-        } else if (Array.isArray(targetItem.labels) && targetItem.labels.length > 0) {
+        }
+
+        if (extractedLabels.length === 0 && Array.isArray(targetItem.labels) && targetItem.labels.length > 0) {
           extractedLabels = targetItem.labels.map((l: any) => (typeof l === 'string' ? l : l.name)).filter(Boolean);
         }
 
@@ -92,7 +100,8 @@ export default function DetailEditModal({
         setLabels(extractedLabels);
         setImageUrl(targetItem.imageUrl || '');
 
-        // 2. 일정 속성 판단 (개별 일정에 명시된 값이 있으면 최우선, 없으면 부여된 라벨들의 속성, 둘 다 없으면 false)
+        // 2. 일정 속성 판단 (개별 일정에 명시된 값이 있으면 최우선, 없으면 부여된 라벨들의 속성)
+        // 단, 라벨이 아예 없는 일반 일정은 기본적으로 '달력' 속성을 켜야 합니다.
         const hasCalendarProp = extractedLabels.some(name => {
           const def = eventLabels.find(l => l.name === name);
           return def ? def.calendar !== false : false;
@@ -115,7 +124,7 @@ export default function DetailEditModal({
         });
 
         setItemCalendar(
-          targetItem.calendar !== undefined ? !!targetItem.calendar : hasCalendarProp
+          targetItem.calendar !== undefined ? !!targetItem.calendar : (extractedLabels.length > 0 ? hasCalendarProp : true)
         );
         setItemForward(
           targetItem.forward !== undefined ? !!targetItem.forward : hasForwardProp
