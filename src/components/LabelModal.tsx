@@ -484,13 +484,29 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                       key={lbl.id || `ev_key_${idx}`}
                       className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition-all text-xs gap-2 flex-wrap"
                     >
-                      <div className="flex items-center gap-2 min-w-[120px]">
+                      <div className="flex items-center gap-1.5 min-w-[120px]">
                         <span
                           className="px-2.5 py-1 rounded-md font-bold text-xs shadow-2xs border"
                           style={{ backgroundColor: style.bg, color: style.text, borderColor: style.border }}
                         >
                           {lbl.name}
                         </span>
+                        <select
+                          value={lbl.color}
+                          onChange={(e) => {
+                            const updated = [...eventLabels];
+                            updated[idx].color = e.target.value;
+                            setEventLabels(updated);
+                          }}
+                          className="px-1.5 py-1 bg-white border border-slate-200 rounded text-[15px] font-bold text-slate-700 focus:outline-none"
+                          title="색상 변경"
+                        >
+                          {Object.entries(COLOR_PALETTE).map(([key, val]) => (
+                            <option key={key} value={key}>
+                              {val.label}
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
                       {/* 5대 속성 체크박스 (달력, 수업X, 이월, 기간, 반복) */}
@@ -678,12 +694,30 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                       key={lbl.id || `j_key_${idx}`}
                       className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition-all text-xs"
                     >
-                      <span
-                        className="px-2.5 py-1 rounded-md font-bold text-xs shadow-2xs border"
-                        style={{ backgroundColor: style.bg, color: style.text, borderColor: style.border }}
-                      >
-                        {lbl.name}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="px-2.5 py-1 rounded-md font-bold text-xs shadow-2xs border"
+                          style={{ backgroundColor: style.bg, color: style.text, borderColor: style.border }}
+                        >
+                          {lbl.name}
+                        </span>
+                        <select
+                          value={lbl.color}
+                          onChange={(e) => {
+                            const updated = [...journalLabels];
+                            updated[idx].color = e.target.value;
+                            setJournalLabels(updated);
+                          }}
+                          className="px-1.5 py-1 bg-white border border-slate-200 rounded text-[15px] font-bold text-slate-700 focus:outline-none"
+                          title="색상 변경"
+                        >
+                          {Object.entries(COLOR_PALETTE).map(([key, val]) => (
+                            <option key={key} value={key}>
+                              {val.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <button
                         onClick={() => handleDeleteJournalLabel(lbl.id)}
                         className="text-slate-400 hover:text-red-500 font-black px-1.5 py-0.5 rounded transition-colors"
