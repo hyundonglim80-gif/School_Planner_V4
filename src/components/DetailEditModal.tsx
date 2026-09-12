@@ -1,11 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { useDayData } from '../hooks/useDayData';
+import { useDayData, type EventItem } from '../hooks/useDayData';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
 import { auth } from '../lib/firebase';
 import { uploadImage } from '../utils/uploadHelper';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
+import EventAlarmModal from './EventAlarmModal';
+
+function formatAlarmBadge(time?: string) {
+  if (!time) return null;
+  const d = new Date(time);
+  if (isNaN(d.getTime())) return null;
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const h = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${m}/${day} ${h}:${min}`;
+}
 
 export type DetailEditType = 'schedule' | 'event';
 
@@ -35,6 +47,7 @@ export default function DetailEditModal({
 
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [alarmModalOpen, setAlarmModalOpen] = useState(false);
 
   // Edit states
   const [subject, setSubject] = useState('');
@@ -55,6 +68,7 @@ export default function DetailEditModal({
     ? schedules[Number(itemId)]
     : eventList.find(e => String(e.id) === String(itemId));
   const currentLinkedItems = currentItem?.linkedItems ?? initialData?.linkedItems ?? [];
+  const currentEvent = type === 'event' ? (currentItem as EventItem | undefined) : undefined;
 
   useEffect(() => {
     if (isOpen && initialData) {
@@ -322,6 +336,19 @@ export default function DetailEditModal({
               )}
               {type === 'event' && (
                 <>
+                  <button
+                    type="button"
+                    onClick={() => setAlarmModalOpen(true)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                      currentEvent?.time
+                        ? currentEvent?.alarmTriggered
+                          ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                          : 'bg-blue-50 text-primary hover:bg-blue-100'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    ⏰ {currentEvent?.time ? formatAlarmBadge(currentEvent.time) : '알림 추가'}
+                  </button>
                   <button
                     type="button"
                     onClick={() => { openLinkerModal('event', dateStr, String(itemId)); onClose(); }}
@@ -628,6 +655,21 @@ export default function DetailEditModal({
           </div>
         )}
       </div>
+
+      {type === 'event' && alarmModalOpen && (
+        <EventAlarmModal
+          isOpen={true}
+          onClose={() => setAlarmModalOpen(false)}
+          dateStr={dateStr}
+          initialTime={currentEvent?.time}
+          onSave={async (time) => {
+            await updateEventItem(String(itemId), { time, alarmTriggered: false });
+          }}
+          onTurnOff={async () => {
+            await updateEventItem(String(itemId), { time: '', alarmTriggered: false });
+          }}
+        />
+      )}
     </div>
   );
 }
