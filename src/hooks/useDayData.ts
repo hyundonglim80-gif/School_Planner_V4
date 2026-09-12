@@ -28,6 +28,10 @@ export interface EventItem {
   period?: boolean;
   recur?: boolean;
   skip?: boolean;
+  // 일정 알림: "YYYY-MM-DDTHH:mm" 형식. 비어있으면 알림 꺼짐.
+  time?: string;
+  // 알림이 이미 한 번 울려서 확인 처리되었는지 여부 (time 값 자체는 보존)
+  alarmTriggered?: boolean;
 }
 
 export interface PeriodSchedule {
@@ -379,8 +383,10 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
               period: e.period,
               recur: e.recur,
               skip: e.skip,
+              time: e.time || undefined,
+              alarmTriggered: !!e.alarmTriggered,
             };
-          }).filter((e: EventItem) => 
+          }).filter((e: EventItem) =>
             (e.content && e.content.trim().length > 0) || 
             e.label || 
             (e.labelIds && e.labelIds.length > 0) ||
@@ -499,6 +505,8 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       ...(item.period !== undefined ? { period: item.period } : {}),
       ...(item.recur !== undefined ? { recur: item.recur } : {}),
       ...(item.skip !== undefined ? { skip: item.skip } : {}),
+      ...(item.time !== undefined ? { time: item.time } : {}),
+      ...(item.alarmTriggered !== undefined ? { alarmTriggered: item.alarmTriggered } : {}),
     }));
     await setDoc(eventDocRef, {
       eventText: textToSave,
@@ -589,6 +597,8 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
               period: e.period,
               recur: e.recur,
               skip: e.skip,
+              time: e.time || undefined,
+              alarmTriggered: !!e.alarmTriggered,
             }));
           } else if (data.eventText) {
             currentList = parseV3EventText(data.eventText);

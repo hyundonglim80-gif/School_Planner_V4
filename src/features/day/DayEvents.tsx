@@ -7,6 +7,7 @@ import { auth } from '../../lib/firebase';
 import { showToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
 import DetailEditModal from '../../components/DetailEditModal';
+import EventAlarmModal from '../../components/EventAlarmModal';
 
 interface DayEventsProps {
   events: EventItem[];
@@ -45,7 +46,19 @@ export default function DayEvents({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<{ dateStr: string; itemId: string; initialData: any } | null>(null);
+  const [alarmTarget, setAlarmTarget] = useState<EventItem | null>(null);
   const formattedDate = formatDateStr(new Date(currentDate));
+
+  const formatAlarmBadge = (time?: string) => {
+    if (!time) return null;
+    const d = new Date(time);
+    if (isNaN(d.getTime())) return null;
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const h = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${m}/${day} ${h}:${min}`;
+  };
 
   const getEventLabelInfo = (event: EventItem) => {
     let names: string[] = [];
@@ -414,6 +427,24 @@ export default function DayEvents({
                       );
                     })}
 
+                    {/* 일정 알림(⏰): 클릭하여 알림 시간 설정/변경. 설정되어 있으면 시각을 배지로 표시 */}
+                    {!isMultiSelectMode && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setAlarmTarget(event); }}
+                        title={event.time ? '클릭하여 알림 시간 변경' : '클릭하여 알림 시간 설정'}
+                        className={`inline-flex items-center align-middle mr-1.5 text-[15px] font-bold px-1.5 py-0.5 rounded-md border transition-colors cursor-pointer ${
+                          !event.time
+                            ? 'text-slate-300 border-transparent hover:text-slate-500 hover:bg-slate-100'
+                            : event.alarmTriggered
+                            ? 'text-slate-400 bg-slate-100 border-slate-200'
+                            : 'text-primary bg-blue-50 border-blue-200'
+                        }`}
+                      >
+                        ⏰{event.time ? ` ${formatAlarmBadge(event.time)}` : ''}
+                      </button>
+                    )}
+
                     {/* 본문 텍스트: 클릭 시 상세 확인 팝업, 더블클릭 시 빠른 인라인 수정 */}
                     <span
                       onClick={(e) => {
@@ -483,6 +514,21 @@ export default function DayEvents({
         dateStr={detailItem.dateStr}
         itemId={detailItem.itemId}
         initialData={detailItem.initialData}
+      />
+    )}
+
+    {alarmTarget && (
+      <EventAlarmModal
+        isOpen={true}
+        onClose={() => setAlarmTarget(null)}
+        dateStr={formattedDate}
+        initialTime={alarmTarget.time}
+        onSave={async (time) => {
+          if (onUpdateEvent) await onUpdateEvent(alarmTarget.id, { time, alarmTriggered: false });
+        }}
+        onTurnOff={async () => {
+          if (onUpdateEvent) await onUpdateEvent(alarmTarget.id, { time: '', alarmTriggered: false });
+        }}
       />
     )}
     </>

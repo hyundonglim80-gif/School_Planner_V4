@@ -26,3 +26,22 @@
     overscroll-behavior-y: none; /* 모바일에서 당겨서 새로고침 방지 */
   }
 }
+
+/* 일정 알림(EventAlarmPopup) 전용 점멸 애니메이션. V3의 화면 절반 이상을 채우는
+   대형 알람 팝업을 그대로 재현한다 - Tailwind 기본 animate-* 에는 없어 직접 정의. */
+@keyframes sp4-alarm-blink {
+  0% { background-color: rgba(0, 0, 0, 0.85); }
+  50% { background-color: rgba(127, 29, 29, 0.9); }
+  100% { background-color: rgba(0, 0, 0, 0.85); }
+}
+@keyframes sp4-alarm-content-blink {
+  0% { background-color: #ef4444; transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  50% { background-color: #fef08a; transform: scale(1.03); box-shadow: 0 0 80px 30px rgba(239, 68, 68, 0.9); }
+  100% { background-color: #ef4444; transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+}
+.sp4-alarm-backdrop {
+  animation: sp4-alarm-blink 0.6s infinite;
+}
+.sp4-alarm-content {
+  animation: sp4-alarm-content-blink 0.6s infinite;
+}
