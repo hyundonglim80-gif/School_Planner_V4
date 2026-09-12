@@ -4,6 +4,7 @@ import type { EvaluationItem } from '../hooks/useEvaluation';
 import { useRoster } from '../hooks/useRoster';
 import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../hooks/useVisualViewport';
 
 interface EvaluationModalProps {
   isOpen: boolean;
@@ -19,6 +20,8 @@ const DEFAULT_STEPS = ['우수', '보통', '노력요함', '미흡', '매우미�
 
 export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSource = 'schedule', defaultPeriod = 1, defaultSubject = '' }: EvaluationModalProps) {
   useBodyScrollLock(isOpen);
+
+  const vv = useVisualViewport(isOpen);
   const { selectedGroupId } = useAppStore();
   const { loadEvaluations, saveEvaluations, deleteEvaluation } = useEvaluation(selectedGroupId);
   const { rosterList: rosters } = useRoster();
@@ -163,8 +166,8 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }} onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-full flex flex-col border border-slate-200" onClick={e => e.stopPropagation()}>
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
@@ -182,7 +185,7 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4" data-scroll-lock>
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-4" data-scroll-lock>
           {/* 목록 모드 */}
           {viewMode === 'list' && (
             <div className="space-y-2">

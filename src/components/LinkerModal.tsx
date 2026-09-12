@@ -8,6 +8,7 @@ import { parseV3EventText } from '../hooks/useDayData';
 import { useLabels } from '../hooks/useLabels';
 import { addReverseLink } from '../utils/linkUtils';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../hooks/useVisualViewport';
 
 interface LinkerModalProps {
   isOpen: boolean;
@@ -60,6 +61,8 @@ export default function LinkerModal({
   const { selectedGroupId, linkerCallback } = useAppStore();
   const { eventLabels } = useLabels();
   useBodyScrollLock(isOpen);
+
+  const vv = useVisualViewport(isOpen);
 
   const [currentTab, setCurrentTab] = useState<'event' | 'schedule' | 'journal' | 'memo'>('event');
   const [selectedSourcePeriod, setSelectedSourcePeriod] = useState<number>(
@@ -615,11 +618,11 @@ export default function LinkerModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-[90vh] flex flex-col border border-slate-200 overflow-hidden"
+        className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-full flex flex-col border border-slate-200 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 모달 헤더 */}
@@ -635,7 +638,7 @@ export default function LinkerModal({
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 flex flex-col gap-4" data-scroll-lock>
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-4 flex flex-col gap-4" data-scroll-lock>
           {/* schedule_header인 경우 교시 선택 UI (V3 동일) */}
           {(sourceType === 'schedule_header' || sourceType === 'schedule') && (
             <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 flex items-center gap-3">
@@ -865,7 +868,7 @@ export default function LinkerModal({
                 </div>
               ) : (
                 <>
-                  <div className="h-[228px] overflow-y-auto divide-y divide-slate-100" data-scroll-lock>
+                  <div className="h-[228px] overflow-y-auto overscroll-contain divide-y divide-slate-100" data-scroll-lock>
                     {pagedItems.map((item: FetchedItem) => {
                       const isChecked = selectedLinks.some((l) => l.targetId === item.id);
                       return (

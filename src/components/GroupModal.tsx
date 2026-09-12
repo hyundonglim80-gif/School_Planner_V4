@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useGroups } from '../hooks/useGroups';
 import { auth } from '../lib/firebase';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../hooks/useVisualViewport';
 
 interface GroupModalProps {
   isOpen: boolean;
@@ -10,6 +11,8 @@ interface GroupModalProps {
 
 export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
   useBodyScrollLock(isOpen);
+
+  const vv = useVisualViewport(isOpen);
   const { groups, createGroup, joinGroup, leaveGroup, deleteGroup } = useGroups();
   const [activeTab, setActiveTab] = useState<'list' | 'create' | 'join'>('list');
   const [newGroupName, setNewGroupName] = useState('');
@@ -60,12 +63,12 @@ export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}>
       {/* 백드롭 */}
       <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={onClose} />
 
       {/* 모달 박스 */}
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-full">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
@@ -115,7 +118,7 @@ export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
         </div>
 
         {/* 탭 본문 */}
-        <div className="p-6 overflow-y-auto flex-1 min-h-0" data-scroll-lock>
+        <div className="p-6 overflow-y-auto overscroll-contain flex-1 min-h-0" data-scroll-lock>
           {activeTab === 'list' && (
             <div className="space-y-3">
               {groups.length > 0 ? (

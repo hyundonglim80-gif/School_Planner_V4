@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useDDay, calculateDDay } from '../hooks/useDDay';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../hooks/useVisualViewport';
 
 interface DDayModalProps {
   isOpen: boolean;
@@ -9,6 +10,8 @@ interface DDayModalProps {
 
 export default function DDayModal({ isOpen, onClose }: DDayModalProps) {
   useBodyScrollLock(isOpen);
+
+  const vv = useVisualViewport(isOpen);
   const { dDayList, addDDay, deleteDDay } = useDDay();
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
@@ -31,12 +34,12 @@ export default function DDayModal({ isOpen, onClose }: DDayModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}>
       {/* 백드롭 */}
       <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={onClose} />
 
       {/* 모달 창 */}
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-[85vh]">
+      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-full">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
@@ -52,7 +55,7 @@ export default function DDayModal({ isOpen, onClose }: DDayModalProps) {
         </div>
 
         {/* 본문 */}
-        <div className="p-6 overflow-y-auto flex-1 min-h-0 space-y-5" data-scroll-lock>
+        <div className="p-6 overflow-y-auto overscroll-contain flex-1 min-h-0 space-y-5" data-scroll-lock>
           {/* 새 D-Day 등록 폼 */}
           <form onSubmit={handleSubmit} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
             <div className="text-xs font-bold text-slate-700">새 D-Day 추가</div>

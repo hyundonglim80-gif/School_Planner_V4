@@ -66,35 +66,17 @@ function handleWheel(e: WheelEvent) {
   e.preventDefault();
 }
 
-let touchLastY = 0;
-
-function handleTouchStart(e: TouchEvent) {
-  touchLastY = e.touches[0]?.clientY ?? 0;
-}
-
-function handleTouchMove(e: TouchEvent) {
-  const currentY = e.touches[0]?.clientY ?? touchLastY;
-  const deltaY = touchLastY - currentY; // 손가락을 위로 밀면(스크롤 다운) 양수
-  touchLastY = currentY;
-
-  if (findScrollTarget(e.target, deltaY)) return;
-
-  const fallback = findFallbackScrollable(e.target, deltaY);
-  if (fallback) fallback.scrollTop += deltaY;
-
-  e.preventDefault();
-}
-
-// 팝업이 열려있는 동안 팝업 내부에서는 정상적으로 스크롤되게 하고,
-// 배경 페이지로 스크롤이 전달되는 것만 막는다.
+// 모바일 터치 스크롤/핀치 줌/패닝은 여기서 가로채지 않고 전부 브라우저 네이티브 동작에 맡긴다.
+// (예전에는 touchmove를 JS로 가로채 스크롤 대상을 직접 찾아 전달했으나, 이 로직이 오히려
+// 팝업 안에서 손가락으로 스크롤 자체가 안 되거나 핀치 줌이 막히는 문제를 일으켰다.)
+// 배경 페이지로 스크롤이 새어나가는 것(스크롤 체이닝)은 각 팝업의 오버레이와 스크롤 영역에
+// 적용된 CSS `overscroll-behavior: contain`(Tailwind: overscroll-contain)으로 막는다.
 export function useBodyScrollLock(isOpen: boolean) {
   useEffect(() => {
     if (!isOpen) return;
 
     if (lockCount === 0) {
       document.addEventListener('wheel', handleWheel, { passive: false });
-      document.addEventListener('touchstart', handleTouchStart, { passive: true });
-      document.addEventListener('touchmove', handleTouchMove, { passive: false });
     }
     lockCount++;
 
@@ -102,8 +84,6 @@ export function useBodyScrollLock(isOpen: boolean) {
       lockCount--;
       if (lockCount === 0) {
         document.removeEventListener('wheel', handleWheel);
-        document.removeEventListener('touchstart', handleTouchStart);
-        document.removeEventListener('touchmove', handleTouchMove);
       }
     };
   }, [isOpen]);

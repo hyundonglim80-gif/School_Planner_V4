@@ -1,5 +1,6 @@
 import React from 'react';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../hooks/useVisualViewport';
 
 interface HelpModalProps {
   isOpen: boolean;
@@ -8,13 +9,15 @@ interface HelpModalProps {
 
 export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
   useBodyScrollLock(isOpen);
+
+  const vv = useVisualViewport(isOpen);
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}>
       <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={onClose} />
 
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-[85vh]">
+      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-full">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
@@ -33,7 +36,7 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
         </div>
 
         {/* 본문 */}
-        <div className="p-6 overflow-y-auto flex-1 min-h-0 space-y-5 text-xs text-slate-700 leading-relaxed" data-scroll-lock>
+        <div className="p-6 overflow-y-auto overscroll-contain flex-1 min-h-0 space-y-5 text-xs text-slate-700 leading-relaxed" data-scroll-lock>
           {/* 주요 키보드 단축키 */}
           <div className="space-y-2">
             <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5">

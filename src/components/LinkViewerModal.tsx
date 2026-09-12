@@ -3,6 +3,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../hooks/useVisualViewport';
 
 interface LinkViewerModalProps {
   isOpen: boolean;
@@ -35,6 +36,8 @@ export default function LinkViewerModal({
   sourceFId,
 }: LinkViewerModalProps) {
   useBodyScrollLock(isOpen);
+
+  const vv = useVisualViewport(isOpen);
   const { selectedGroupId, setCurrentDate, setScope } = useAppStore();
   const [links, setLinks] = useState<NormalizedLink[]>([]);
   const [loading, setLoading] = useState(false);
@@ -425,11 +428,11 @@ export default function LinkViewerModal({
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col border border-slate-200 overflow-hidden"
+        className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-full flex flex-col border border-slate-200 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 모달 헤더 */}
@@ -446,7 +449,7 @@ export default function LinkViewerModal({
         </div>
 
         {/* 본문 링크 목록 */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 bg-slate-50/50 space-y-3" data-scroll-lock>
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-4 bg-slate-50/50 space-y-3" data-scroll-lock>
           {loading ? (
             <div className="text-center py-12 text-slate-400 flex flex-col items-center gap-2">
               <div className="w-6 h-6 border-2 border-slate-300 border-t-primary rounded-full animate-spin" />

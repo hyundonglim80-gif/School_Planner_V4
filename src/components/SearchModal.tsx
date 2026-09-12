@@ -7,6 +7,7 @@ import { useAppStore } from '../store/useAppStore';
 import { parseDateStr, formatDateStr } from '../lib/dateUtils';
 import { parseV3EventText } from '../hooks/useDayData';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../hooks/useVisualViewport';
 
 interface SearchResultItem {
   id: string;
@@ -34,6 +35,7 @@ const FILTER_OPTIONS = [
 
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   useBodyScrollLock(isOpen);
+  const vv = useVisualViewport(isOpen);
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [searching, setSearching] = useState(false);
@@ -261,10 +263,13 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4"
+      style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}
+    >
       <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={onClose} />
 
-      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-full">
         {/* 상단 검색바 */}
         <div className="p-4 border-b border-slate-100 flex items-center gap-3">
           <span className="text-xl">🔍</span>
@@ -346,7 +351,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
         </div>
 
         {/* 검색 결과 영역 */}
-        <div className="p-4 overflow-y-auto flex-1 min-h-0 space-y-2 bg-slate-50/50" data-scroll-lock>
+        <div className="p-4 overflow-y-auto overscroll-contain flex-1 min-h-0 space-y-2 bg-slate-50/50" data-scroll-lock>
           {searching ? (
             <div className="py-12 text-center text-slate-500 text-xs font-bold">
               <div className="w-8 h-8 border-2 border-slate-200 border-t-primary rounded-full animate-spin mx-auto mb-3" />

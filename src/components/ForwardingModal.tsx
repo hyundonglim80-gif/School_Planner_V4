@@ -3,6 +3,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../hooks/useVisualViewport';
 import DetailEditModal from './DetailEditModal';
 import { moveToTrash } from '../utils/trashHelper';
 
@@ -23,6 +24,8 @@ function formatDate(d: Date): string {
 
 export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProps) {
   useBodyScrollLock(isOpen);
+
+  const vv = useVisualViewport(isOpen);
   const { selectedGroupId } = useAppStore();
   const [incompleteEvents, setIncompleteEvents] = useState<ForwardEvent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -216,8 +219,8 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
 
   return (
     <>
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col border border-slate-200" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }} onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-full flex flex-col border border-slate-200" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h3 className="text-lg font-black text-slate-800">📤 미완료 일정 전달</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
@@ -230,7 +233,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-2" data-scroll-lock>
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-2" data-scroll-lock>
           {loading ? (
             <p className="text-center text-slate-400 text-xs py-8">스캔 중...</p>
           ) : incompleteEvents.length === 0 ? (

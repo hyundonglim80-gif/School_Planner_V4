@@ -3,6 +3,7 @@ import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../hooks/useVisualViewport';
 
 interface RecurringModalProps {
   isOpen: boolean;
@@ -25,6 +26,8 @@ function formatDate(d: Date): string {
 
 export default function RecurringModal({ isOpen, onClose, defaultContent = '', defaultLabelName = '', defaultStartDate }: RecurringModalProps) {
   useBodyScrollLock(isOpen);
+
+  const vv = useVisualViewport(isOpen);
   const { selectedGroupId } = useAppStore();
   const [content, setContent] = useState(defaultContent);
   const [labelName, setLabelName] = useState(defaultLabelName);
@@ -133,14 +136,14 @@ export default function RecurringModal({ isOpen, onClose, defaultContent = '', d
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col border border-slate-200" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }} onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-full flex flex-col border border-slate-200" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h3 className="text-lg font-black text-slate-800">🔄 반복 일정 생성</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4" data-scroll-lock>
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-4 space-y-4" data-scroll-lock>
           {/* 일정 내용 */}
           <div>
             <label className="text-xs font-bold text-slate-600 block mb-1">일정 내용</label>

@@ -7,6 +7,7 @@ import {
 } from '../hooks/useTimetableTemplate';
 import { formatDate } from '../lib/dateUtils';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../hooks/useVisualViewport';
 
 interface TimetableTemplateModalProps {
   isOpen: boolean;
@@ -23,6 +24,8 @@ const DAYS: { key: WeekDayKey; label: string; color: string }[] = [
 
 export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTemplateModalProps) {
   useBodyScrollLock(isOpen);
+
+  const vv = useVisualViewport(isOpen);
   const {
     templates,
     currentTemplateName,
@@ -246,8 +249,8 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fade-in backdrop-blur-xs">
-      <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}>
+      <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-full">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <div className="flex items-center gap-2">
@@ -296,7 +299,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
         </div>
 
         {/* 스크롤 컨텐츠 */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1 min-h-0" data-scroll-lock>
+        <div className="p-6 overflow-y-auto overscroll-contain space-y-5 flex-1 min-h-0" data-scroll-lock>
           {/* 1. 시간표 테이블 (교시 관리 포함) */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">

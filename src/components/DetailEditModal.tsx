@@ -5,6 +5,7 @@ import { useLabels } from '../hooks/useLabels';
 import { auth } from '../lib/firebase';
 import { uploadImage } from '../utils/uploadHelper';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../hooks/useVisualViewport';
 
 export type DetailEditType = 'schedule' | 'event';
 
@@ -26,6 +27,8 @@ export default function DetailEditModal({
   initialData,
 }: DetailEditModalProps) {
   useBodyScrollLock(isOpen);
+
+  const vv = useVisualViewport(isOpen);
   const { selectedGroupId, openLinkerModal, openLinkViewerModal, openEvaluationModal, openLabelModal } = useAppStore();
   const { updateEventItem, deleteEventItem, savePeriod, eventList, schedules } = useDayData(isOpen ? dateStr : '', selectedGroupId);
   const { eventLabels, getLabelColor } = useLabels();
@@ -251,8 +254,8 @@ export default function DetailEditModal({
   const title = type === 'schedule' ? `${itemId}교시 상세 정보` : '일정 상세 정보';
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}>
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-full shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <h2 className="text-lg font-black text-slate-800">{title}</h2>
@@ -286,7 +289,7 @@ export default function DetailEditModal({
         </div>
 
         {/* Content */}
-        <div className="p-5 flex-1 overflow-y-auto max-h-[70vh]" data-scroll-lock>
+        <div className="p-5 flex-1 min-h-0 overflow-y-auto overscroll-contain" data-scroll-lock>
           {/* Action Buttons */}
           {!isEditing && (
             <div className="flex flex-wrap gap-2 mb-5 pb-5 border-b border-slate-100">

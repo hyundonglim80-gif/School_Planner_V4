@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { DEFAULT_EVENT_LABELS, type EventLabel } from '../hooks/useLabels';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useGroups } from '../hooks/useGroups';
 import { scanForMissingLabels, pickRecoveryColor } from '../utils/labelRecovery';
 import { moveToTrash } from '../utils/trashHelper';
@@ -124,6 +125,8 @@ interface LabelModalProps {
 
 export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: LabelModalProps) {
   useBodyScrollLock(isOpen);
+
+  const vv = useVisualViewport(isOpen);
   const { groups } = useGroups();
   const [activeTab, setActiveTab] = useState<'event' | 'journal' | 'memo'>(initialTab);
   const [scanning, setScanning] = useState(false);
@@ -534,8 +537,8 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   };
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50 p-4 animate-fade-in backdrop-blur-xs">
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}>
+      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-full">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <div className="flex items-center gap-2">
@@ -585,7 +588,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
         </div>
 
         {/* 내용 영역 */}
-        <div className="p-6 overflow-y-auto space-y-4 flex-1 min-h-0" data-scroll-lock>
+        <div className="p-6 overflow-y-auto overscroll-contain space-y-4 flex-1 min-h-0" data-scroll-lock>
           {/* TAB 1: 일정 라벨 */}
           {activeTab === 'event' && (
             <div className="space-y-4">

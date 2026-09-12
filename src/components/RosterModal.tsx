@@ -4,6 +4,7 @@ import { db, auth } from '../lib/firebase';
 import { useRoster, type ClassRoster, type Student } from '../hooks/useRoster';
 import { downloadCSV, parseCSV } from '../utils/csvHelper';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../hooks/useVisualViewport';
 import { moveToTrash } from '../utils/trashHelper';
 
 interface RosterModalProps {
@@ -13,6 +14,8 @@ interface RosterModalProps {
 
 export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   useBodyScrollLock(isOpen);
+
+  const vv = useVisualViewport(isOpen);
   const { rosterList, saveRosterList } = useRoster();
 
   const [currentClasses, setCurrentClasses] = useState<ClassRoster[]>([]);
@@ -448,8 +451,8 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fade-in backdrop-blur-xs">
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}>
+      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-full">
         {/* 모달 상단 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <div className="flex items-center gap-2">
@@ -527,7 +530,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
         </div>
 
         {/* 메인 컨텐츠 영역 */}
-        <div className="p-6 overflow-y-auto space-y-4 flex-1 min-h-0" data-scroll-lock>
+        <div className="p-6 overflow-y-auto overscroll-contain space-y-4 flex-1 min-h-0" data-scroll-lock>
           {/* 학급 메타 정보 입력 */}
           <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
             <div>

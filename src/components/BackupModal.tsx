@@ -9,6 +9,7 @@ import { formatDate } from '../lib/dateUtils';
 import { exportToGoogleCalendar, importFromGoogleCalendar } from '../lib/googleSync';
 import { fetchHolidaysFromGovApi } from '../lib/govApi'; // API 훅 추가
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../hooks/useVisualViewport';
 
 interface BackupModalProps {
   isOpen: boolean;
@@ -20,6 +21,8 @@ type ExportTarget = 'calendar' | 'sheets' | 'csv' | 'json';
 
 export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
   useBodyScrollLock(isOpen);
+
+  const vv = useVisualViewport(isOpen);
   const { groups } = useGroups();
   // govApiKey 가져오기 추가
   const { scope: appScope, currentDate: appCurrentDate, govApiKey } = useAppStore();
@@ -552,8 +555,8 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fade-in backdrop-blur-xs">
-      <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}>
+      <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-full">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <div className="flex items-center gap-2">
@@ -572,7 +575,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         </div>
 
         {/* 컨텐츠 스크롤 영역 */}
-        <div className="p-6 overflow-y-auto space-y-4 flex-1 min-h-0 text-xs" data-scroll-lock>
+        <div className="p-6 overflow-y-auto overscroll-contain space-y-4 flex-1 min-h-0 text-xs" data-scroll-lock>
           {/* 1. 데이터 내보내기/가져오기 대상 채널 선택 (🔥 구글 캘린더 / 구글 시트 / 로컬 CSV) */}
           <div>
             <label className="block font-bold text-slate-800 mb-1.5 text-xs">1. 데이터 연동 대상</label>

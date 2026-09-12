@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../../hooks/useVisualViewport';
 
 export interface QuickLinkItem {
   id: string;
@@ -22,6 +23,8 @@ export default function QuickLinks() {
   const [newUrl, setNewUrl] = useState('');
   const [saving, setSaving] = useState(false);
   useBodyScrollLock(isModalOpen);
+
+  const vv = useVisualViewport(isModalOpen);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -124,8 +127,8 @@ export default function QuickLinks() {
 
       {/* 링크 설정 모달 */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fade-in backdrop-blur-xs">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}>
+          <div className="bg-white w-full max-w-md max-h-full rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50">
               <div className="flex items-center gap-2">
                 <span className="text-lg">⚙️</span>
@@ -139,7 +142,7 @@ export default function QuickLinks() {
               </button>
             </div>
 
-            <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto text-xs" data-scroll-lock>
+            <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain text-xs" data-scroll-lock>
               {/* 새 링크 추가 */}
               <div className="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
                 <span className="font-bold text-slate-700 block">+ 새 링크 추가</span>
@@ -171,7 +174,7 @@ export default function QuickLinks() {
               {/* 현재 링크 목록 */}
               <div className="space-y-2">
                 <span className="font-bold text-slate-700 block">등록된 링크 목록 ({links.length})</span>
-                <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1" data-scroll-lock>
+                <div className="space-y-1.5 max-h-52 overflow-y-auto overscroll-contain pr-1" data-scroll-lock>
                   {links.map((link) => (
                     <div
                       key={link.id}

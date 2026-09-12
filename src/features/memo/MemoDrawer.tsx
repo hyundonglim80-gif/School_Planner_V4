@@ -6,6 +6,7 @@ import { uploadImage, uploadFile } from '../../utils/uploadHelper';
 import { useAppStore } from '../../store/useAppStore';
 import { formatDateStr } from '../../lib/dateUtils';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../../hooks/useVisualViewport';
 
 const PRESET_LABELS = ['긴급', '중요', '업무', '아이디어', '수업', '개인', '기타'];
 
@@ -28,6 +29,7 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
   const { openLabelModal, isLabelModalOpen, openLinkerModal, currentDate } = useAppStore();
   const formattedDate = formatDateStr(new Date(currentDate));
   useBodyScrollLock(isOpen);
+  const vv = useVisualViewport(isOpen);
 
   const [content, setContent] = useState('');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
@@ -266,7 +268,10 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div
+      className="fixed inset-0 z-50 flex justify-end"
+      style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}
+    >
       <div
         className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300"
         onClick={onClose}
@@ -290,7 +295,7 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6" data-scroll-lock>
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-6" data-scroll-lock>
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-slate-600">
               메모 내용 <span className="text-red-500">*</span>
