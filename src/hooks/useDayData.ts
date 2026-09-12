@@ -530,6 +530,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       labelIds: options?.labelIds || (parsed && parsed.label ? [] : undefined),
       linkedItems: options?.linkedItems || [],
       attachments: options?.attachments || [],
+      time: options?.time || undefined,
     };
     
     const validList = [...eventList, newItem].filter((item) => 

@@ -42,11 +42,16 @@ export default function DayEvents({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [editLabel, setEditLabel] = useState<string | undefined>(undefined);
+  const [editAlarmTime, setEditAlarmTime] = useState('');
+  const [editAlarmDirty, setEditAlarmDirty] = useState(false);
+  const [editAlarmModalOpen, setEditAlarmModalOpen] = useState(false);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<{ dateStr: string; itemId: string; initialData: any } | null>(null);
   const [alarmTarget, setAlarmTarget] = useState<EventItem | null>(null);
+  const [newAlarmTime, setNewAlarmTime] = useState('');
+  const [newAlarmModalOpen, setNewAlarmModalOpen] = useState(false);
   const formattedDate = formatDateStr(new Date(currentDate));
 
   const formatAlarmBadge = (time?: string) => {
@@ -96,6 +101,8 @@ export default function DayEvents({
     setEditingId(event.id);
     setEditText(info.cleanContent);
     setEditLabel(info.names.length > 0 ? info.names.join(',') : undefined);
+    setEditAlarmTime(event.time || '');
+    setEditAlarmDirty(false);
   };
 
   const saveEditing = async (id: string) => {
@@ -108,6 +115,9 @@ export default function DayEvents({
       await onUpdateEvent(id, {
         content: editText.trim(),
         label: editLabel || undefined,
+        // 💡 알림을 실제로 건드린 경우에만 time/alarmTriggered를 갱신 (건드리지 않았다면
+        // 기존 알림 상태 - 특히 이미 확인 처리된 alarmTriggered - 를 그대로 보존한다)
+        ...(editAlarmDirty ? { time: editAlarmTime || '', alarmTriggered: false } : {}),
       });
     }
     setEditingId(null);
@@ -134,12 +144,14 @@ export default function DayEvents({
       await onAddEvent(newText.trim(), {
         label: labelStr,
         attachments: newAttachments,
-        linkedItems: newLinkedItems
+        linkedItems: newLinkedItems,
+        time: newAlarmTime || undefined,
       });
       setNewText('');
       setNewLabels([]);
       setNewAttachments([]);
       setNewLinkedItems([]);
+      setNewAlarmTime('');
     } finally {
       setSubmitting(false);
     }
@@ -268,21 +280,34 @@ export default function DayEvents({
             className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder-slate-400 transition-all"
             autoFocus
           />
-          <div className="flex justify-end gap-2">
+          <div className="flex items-center justify-between gap-2">
             <button
               type="button"
-              onClick={() => setIsFormOpen(false)}
-              className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-xl transition-colors"
+              onClick={() => setNewAlarmModalOpen(true)}
+              className={`px-2.5 py-1.5 text-xs font-bold rounded-xl border transition-colors ${
+                newAlarmTime
+                  ? 'text-primary bg-blue-50 border-blue-200 hover:bg-blue-100'
+                  : 'text-slate-500 bg-white border-slate-200 hover:bg-slate-100'
+              }`}
             >
-              취소
+              {newAlarmTime ? `⏰ ${formatAlarmBadge(newAlarmTime)}` : '⏰ 알림 추가'}
             </button>
-            <button
-              type="submit"
-              disabled={(!newText.trim() && newAttachments.length === 0) || submitting || uploadingFiles}
-              className="px-4 py-1.5 bg-primary hover:bg-blue-600 disabled:opacity-40 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-sm transition-all"
-            >
-              저장
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setIsFormOpen(false); setNewAlarmTime(''); }}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-xl transition-colors"
+              >
+                취소
+              </button>
+              <button
+                type="submit"
+                disabled={(!newText.trim() && newAttachments.length === 0) || submitting || uploadingFiles}
+                className="px-4 py-1.5 bg-primary hover:bg-blue-600 disabled:opacity-40 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-sm transition-all"
+              >
+                저장
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -318,6 +343,19 @@ export default function DayEvents({
                         </button>
                       );
                     })}
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setEditAlarmModalOpen(true)}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-lg border transition-colors ${
+                        editAlarmTime
+                          ? 'text-primary bg-blue-50 border-blue-200 hover:bg-blue-100'
+                          : 'text-slate-500 bg-white border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {editAlarmTime ? `⏰ ${formatAlarmBadge(editAlarmTime)}` : '⏰ 알림 추가'}
+                    </button>
                   </div>
                   <div className="flex items-center gap-2">
                     <input
@@ -427,21 +465,20 @@ export default function DayEvents({
                       );
                     })}
 
-                    {/* 일정 알림(⏰): 클릭하여 알림 시간 설정/변경. 설정되어 있으면 시각을 배지로 표시 */}
-                    {!isMultiSelectMode && (
+                    {/* 일정 알림(⏰): 알림이 설정된 일정에만 표시 (없는 일정까지 아이콘이 보이면
+                        전부 알림이 걸린 것처럼 헷갈리므로, 알림 추가는 새 일정/수정 폼의 버튼으로) */}
+                    {!isMultiSelectMode && event.time && (
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setAlarmTarget(event); }}
-                        title={event.time ? '클릭하여 알림 시간 변경' : '클릭하여 알림 시간 설정'}
+                        title="클릭하여 알림 시간 변경"
                         className={`inline-flex items-center align-middle mr-1.5 text-[15px] font-bold px-1.5 py-0.5 rounded-md border transition-colors cursor-pointer ${
-                          !event.time
-                            ? 'text-slate-300 border-transparent hover:text-slate-500 hover:bg-slate-100'
-                            : event.alarmTriggered
+                          event.alarmTriggered
                             ? 'text-slate-400 bg-slate-100 border-slate-200'
                             : 'text-primary bg-blue-50 border-blue-200'
                         }`}
                       >
-                        ⏰{event.time ? ` ${formatAlarmBadge(event.time)}` : ''}
+                        ⏰ {formatAlarmBadge(event.time)}
                       </button>
                     )}
 
@@ -529,6 +566,28 @@ export default function DayEvents({
         onTurnOff={async () => {
           if (onUpdateEvent) await onUpdateEvent(alarmTarget.id, { time: '', alarmTriggered: false });
         }}
+      />
+    )}
+
+    {newAlarmModalOpen && (
+      <EventAlarmModal
+        isOpen={true}
+        onClose={() => setNewAlarmModalOpen(false)}
+        dateStr={formattedDate}
+        initialTime={newAlarmTime}
+        onSave={(time) => setNewAlarmTime(time)}
+        onTurnOff={() => setNewAlarmTime('')}
+      />
+    )}
+
+    {editAlarmModalOpen && editingId && (
+      <EventAlarmModal
+        isOpen={true}
+        onClose={() => setEditAlarmModalOpen(false)}
+        dateStr={formattedDate}
+        initialTime={editAlarmTime}
+        onSave={(time) => { setEditAlarmTime(time); setEditAlarmDirty(true); }}
+        onTurnOff={() => { setEditAlarmTime(''); setEditAlarmDirty(true); }}
       />
     )}
     </>
