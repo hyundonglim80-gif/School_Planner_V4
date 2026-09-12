@@ -228,6 +228,7 @@ export default function DayJournal({
   };
 
   const [viewerImages, setViewerImages] = useState<ViewerImage[] | null>(null);
+  const [viewerIndex, setViewerIndex] = useState(0);
 
   const isImageAttachment = (att: Attachment) =>
     att.type === 'image' || /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(att.url || '');
@@ -244,6 +245,15 @@ export default function DayJournal({
 
   const getEntryFiles = (entry: JournalEntry): Attachment[] =>
     (entry.attachments || []).filter((att) => !isImageAttachment(att));
+
+  // 클릭한 썸네일부터 보여준다.
+  const openEntryViewer = (entry: JournalEntry, clickedUrl?: string) => {
+    const images = getEntryImages(entry);
+    if (images.length === 0) return;
+    const idx = clickedUrl ? images.findIndex((img) => img.url === clickedUrl) : 0;
+    setViewerIndex(idx >= 0 ? idx : 0);
+    setViewerImages(images);
+  };
 
   // 새 기록 작성 중 Ctrl+V: 하단 첨부 목록에 이미지로 추가
   const { handlePaste: handleNewPaste, pasting: pastingNew } = usePasteImageUpload((images) => {
@@ -605,10 +615,15 @@ export default function DayJournal({
                           <div className="flex flex-wrap gap-2 mb-2">
                             {entry.attachments.map((att, attIdx) => (
                               <div key={`${att.url}-${attIdx}`} className="relative">
-                                {att.type === 'image' ? (
-                                  <a href={att.url} target="_blank" rel="noreferrer" title="클릭하여 원본 보기">
+                                {isImageAttachment(att) ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openEntryViewer(entry, att.url)}
+                                    className="block cursor-pointer"
+                                    title="클릭하여 크게 보기"
+                                  >
                                     <img src={att.url} alt={att.name} className="h-24 w-auto rounded-lg border border-slate-200 object-cover" loading="lazy" />
-                                  </a>
+                                  </button>
                                 ) : (
                                   <span className="inline-block px-2 py-1 bg-slate-100 border border-slate-200 rounded-lg text-[15px] text-slate-600 truncate max-w-[150px]" title={att.name}>
                                     📎 {att.name}
@@ -713,11 +728,12 @@ export default function DayJournal({
                                 🔗 {linkCount}
                             </button>
                           )}
-                          {/* 첨부된 캡처 이미지: 클릭하면 팝업으로 바로 확인 */}
-                          {getEntryImages(entry).length > 0 && (
+                          {/* 접힌 상태에서는 썸네일이 안 보이므로 이때만 이미지 아이콘을 노출한다.
+                              (펼친 상태에서는 썸네일 자체가 표시 역할을 하므로 중복) */}
+                          {isCollapsedItem && getEntryImages(entry).length > 0 && (
                             <button
                               type="button"
-                              onClick={(e) => { e.stopPropagation(); setViewerImages(getEntryImages(entry)); }}
+                              onClick={(e) => { e.stopPropagation(); openEntryViewer(entry); }}
                               className="bg-indigo-50 text-indigo-700 text-[15px] px-1.5 py-0.5 rounded font-bold border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer"
                               title="첨부 이미지 보기"
                             >
@@ -784,17 +800,27 @@ export default function DayJournal({
                             {entry.content}
                           </p>
                           {entry.imageUrl && (
-                            <div className="mt-1 rounded-lg overflow-hidden border border-slate-200/60 bg-slate-50 inline-block max-w-fit">
+                            <div
+                              className="mt-1 rounded-lg overflow-hidden border border-slate-200/60 bg-slate-50 inline-block max-w-fit cursor-pointer"
+                              onClick={(e) => { e.stopPropagation(); openEntryViewer(entry, entry.imageUrl!); }}
+                              title="클릭하여 크게 보기"
+                            >
                               <img src={entry.imageUrl} alt="첨부 이미지" className="max-w-full h-auto object-cover max-h-48" loading="lazy" />
                             </div>
                           )}
                           {entry.attachments && entry.attachments.length > 0 && (
                             <div className="flex flex-wrap gap-2 mt-1">
                               {entry.attachments.map((att, attIdx) => (
-                                att.type === 'image' ? (
-                                  <a key={attIdx} href={att.url} target="_blank" rel="noreferrer" className="block w-16 h-16 rounded-lg overflow-hidden border border-slate-200 hover:shadow-sm transition-shadow">
+                                isImageAttachment(att) ? (
+                                  <button
+                                    key={attIdx}
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); openEntryViewer(entry, att.url); }}
+                                    className="block w-16 h-16 rounded-lg overflow-hidden border border-slate-200 hover:shadow-sm transition-shadow cursor-pointer"
+                                    title="클릭하여 크게 보기"
+                                  >
                                     <img src={att.url} alt={att.name} className="w-full h-full object-cover" loading="lazy" />
-                                  </a>
+                                  </button>
                                 ) : (
                                   <a key={attIdx} href={att.url} target="_blank" rel="noreferrer" className="block px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 truncate max-w-[150px] hover:bg-slate-100 transition-colors" title={att.name}>
                                     📎 {att.name}
@@ -833,6 +859,7 @@ export default function DayJournal({
         isOpen={!!viewerImages}
         onClose={() => setViewerImages(null)}
         images={viewerImages || []}
+        startIndex={viewerIndex}
       />
     </div>
   );

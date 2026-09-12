@@ -9,6 +9,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../../hooks/useModalLayer';
 import { usePasteImageUpload } from '../../hooks/usePasteImageUpload';
+import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
 
 const PRESET_LABELS = ['긴급', '중요', '업무', '아이디어', '수업', '개인', '기타'];
 
@@ -156,6 +157,17 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
+
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+
+  const viewerImages: ViewerImage[] = attachments
+    .filter((att) => {
+      const t = att?.type || '';
+      return (typeof t === 'string' && t.startsWith('image/')) ||
+        /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(att?.url || '');
+    })
+    .map((att) => ({ url: att.url, name: att.name }));
 
   // 캡처 이미지를 Ctrl+V 로 붙여넣으면 하단 첨부 목록에 이미지로 추가된다.
   // ⚠️ 훅은 반드시 아래 early return 위에서 호출해야 한다 (Rules of Hooks).
@@ -418,14 +430,23 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
                         key={`${att.url}-${idx}`}
                         className="relative bg-slate-50 border border-slate-200 rounded-xl overflow-hidden"
                       >
-                        <a href={att.url} target="_blank" rel="noopener noreferrer" title="클릭하여 원본 보기">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const i = viewerImages.findIndex((v) => v.url === att.url);
+                            setViewerIndex(i >= 0 ? i : 0);
+                            setViewerOpen(true);
+                          }}
+                          className="block w-full cursor-pointer"
+                          title="클릭하여 크게 보기"
+                        >
                           <img
                             src={att.url}
                             alt={att.name}
                             className="w-full max-h-64 object-contain bg-white"
                             loading="lazy"
                           />
-                        </a>
+                        </button>
                         <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 border-t border-slate-200">
                           <span className="text-[15px] text-slate-500 truncate" title={att.name}>
                             🖼️ {att.name}
@@ -543,6 +564,13 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
           </div>
         </div>
       </div>
+
+      <ImageViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        images={viewerImages}
+        startIndex={viewerIndex}
+      />
     </div>
   );
 }

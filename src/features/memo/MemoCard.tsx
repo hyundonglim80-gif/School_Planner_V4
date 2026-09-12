@@ -133,17 +133,6 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
                 🔗 {linkCount}
               </button>
             )}
-            {/* 첨부된 캡처 이미지: 클릭하면 팝업으로 바로 확인 */}
-            {viewerImages.length > 0 && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setViewerIndex(0); setViewerOpen(true); }}
-                className="bg-indigo-50 text-indigo-700 text-[15px] px-1.5 py-0.5 rounded font-bold border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer flex items-center gap-1"
-                title={`첨부 이미지 ${viewerImages.length}개 보기`}
-              >
-                🖼️ {viewerImages.length}
-              </button>
-            )}
           </div>
           <div className="flex items-center gap-1">
             <button
