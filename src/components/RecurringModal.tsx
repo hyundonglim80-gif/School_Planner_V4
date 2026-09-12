@@ -4,6 +4,7 @@ import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
+import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 
 interface RecurringModalProps {
   isOpen: boolean;
@@ -28,6 +29,8 @@ export default function RecurringModal({ isOpen, onClose, defaultContent = '', d
   useBodyScrollLock(isOpen);
 
   const vv = useVisualViewport(isOpen);
+
+  const zIndex = useModalLayer(isOpen, onClose);
   const { selectedGroupId } = useAppStore();
   const [content, setContent] = useState(defaultContent);
   const [labelName, setLabelName] = useState(defaultLabelName);
@@ -136,7 +139,7 @@ export default function RecurringModal({ isOpen, onClose, defaultContent = '', d
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }} onClick={onClose}>
+    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} onClick={closeAllModals}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-full flex flex-col border border-slate-200" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h3 className="text-lg font-black text-slate-800">🔄 반복 일정 생성</h3>

@@ -4,6 +4,7 @@ import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
+import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 import DetailEditModal from './DetailEditModal';
 import { moveToTrash } from '../utils/trashHelper';
 
@@ -26,6 +27,8 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
   useBodyScrollLock(isOpen);
 
   const vv = useVisualViewport(isOpen);
+
+  const zIndex = useModalLayer(isOpen, onClose);
   const { selectedGroupId } = useAppStore();
   const [incompleteEvents, setIncompleteEvents] = useState<ForwardEvent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -219,7 +222,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
 
   return (
     <>
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }} onClick={onClose}>
+    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} onClick={closeAllModals}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-full flex flex-col border border-slate-200" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h3 className="text-lg font-black text-slate-800">📤 미완료 일정 전달</h3>

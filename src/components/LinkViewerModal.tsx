@@ -4,6 +4,7 @@ import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
+import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 
 interface LinkViewerModalProps {
   isOpen: boolean;
@@ -38,6 +39,8 @@ export default function LinkViewerModal({
   useBodyScrollLock(isOpen);
 
   const vv = useVisualViewport(isOpen);
+
+  const zIndex = useModalLayer(isOpen, onClose);
   const { selectedGroupId, setCurrentDate, setScope } = useAppStore();
   const [links, setLinks] = useState<NormalizedLink[]>([]);
   const [loading, setLoading] = useState(false);
@@ -428,8 +431,8 @@ export default function LinkViewerModal({
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}
-      onClick={onClose}
+      className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
+      onClick={closeAllModals}
     >
       <div
         className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-full flex flex-col border border-slate-200 overflow-hidden"

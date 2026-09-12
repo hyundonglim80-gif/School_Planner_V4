@@ -10,6 +10,7 @@ import { exportToGoogleCalendar, importFromGoogleCalendar } from '../lib/googleS
 import { fetchHolidaysFromGovApi } from '../lib/govApi'; // API 훅 추가
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
+import { useModalLayer } from '../hooks/useModalLayer';
 
 interface BackupModalProps {
   isOpen: boolean;
@@ -23,6 +24,8 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
   useBodyScrollLock(isOpen);
 
   const vv = useVisualViewport(isOpen);
+
+  const zIndex = useModalLayer(isOpen, onClose);
   const { groups } = useGroups();
   // govApiKey 가져오기 추가
   const { scope: appScope, currentDate: appCurrentDate, govApiKey } = useAppStore();
@@ -555,7 +558,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}>
+    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}>
       <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-full">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">

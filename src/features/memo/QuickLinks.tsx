@@ -3,6 +3,7 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../../hooks/useVisualViewport';
+import { useModalLayer } from '../../hooks/useModalLayer';
 
 export interface QuickLinkItem {
   id: string;
@@ -25,6 +26,9 @@ export default function QuickLinks() {
   useBodyScrollLock(isModalOpen);
 
   const vv = useVisualViewport(isModalOpen);
+
+
+  const zIndex = useModalLayer(isModalOpen, () => setIsModalOpen(false));
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -127,7 +131,7 @@ export default function QuickLinks() {
 
       {/* 링크 설정 모달 */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}>
+        <div className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}>
           <div className="bg-white w-full max-w-md max-h-full rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50">
               <div className="flex items-center gap-2">

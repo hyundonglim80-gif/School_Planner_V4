@@ -6,6 +6,7 @@ import { auth } from '../lib/firebase';
 import { uploadImage } from '../utils/uploadHelper';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
+import { useModalLayer } from '../hooks/useModalLayer';
 import EventAlarmModal from './EventAlarmModal';
 
 function formatAlarmBadge(time?: string) {
@@ -41,6 +42,9 @@ export default function DetailEditModal({
   useBodyScrollLock(isOpen);
 
   const vv = useVisualViewport(isOpen);
+
+
+  const zIndex = useModalLayer(isOpen, onClose);
   const { selectedGroupId, openLinkerModal, openLinkViewerModal, openEvaluationModal, openLabelModal } = useAppStore();
   const { updateEventItem, deleteEventItem, savePeriod, eventList, schedules } = useDayData(isOpen ? dateStr : '', selectedGroupId);
   const { eventLabels, getLabelColor } = useLabels();
@@ -268,7 +272,7 @@ export default function DetailEditModal({
   const title = type === 'schedule' ? `${itemId}교시 상세 정보` : '일정 상세 정보';
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}>
+    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}>
       <div className="bg-white rounded-2xl w-full max-w-md max-h-full shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
@@ -311,14 +315,14 @@ export default function DetailEditModal({
                 <>
                   <button
                     type="button"
-                    onClick={() => { openEvaluationModal(dateStr, 'schedule', Number(itemId), subject); onClose(); }}
+                    onClick={() => openEvaluationModal(dateStr, 'schedule', Number(itemId), subject)}
                     className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     📊 조사표 추가
                   </button>
                   <button
                     type="button"
-                    onClick={() => { openLinkerModal('schedule', dateStr, undefined, Number(itemId)); onClose(); }}
+                    onClick={() => openLinkerModal('schedule', dateStr, undefined, Number(itemId))}
                     className="px-3 py-1.5 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     🔗 링크 추가
@@ -351,7 +355,7 @@ export default function DetailEditModal({
                   </button>
                   <button
                     type="button"
-                    onClick={() => { openLinkerModal('event', dateStr, String(itemId)); onClose(); }}
+                    onClick={() => openLinkerModal('event', dateStr, String(itemId))}
                     className="px-3 py-1.5 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     🔗 링크 추가

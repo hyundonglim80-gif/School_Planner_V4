@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
+import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 
 export interface EventAlarmModalProps {
   isOpen: boolean;
@@ -37,6 +38,7 @@ export default function EventAlarmModal({
 }: EventAlarmModalProps) {
   useBodyScrollLock(isOpen);
   const vv = useVisualViewport(isOpen);
+  const zIndex = useModalLayer(isOpen, onClose);
 
   const initialParts = (initialTime || '').split('T');
   const [dVal, setDVal] = useState(initialParts[0] || dateStr);
@@ -62,9 +64,9 @@ export default function EventAlarmModal({
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center overflow-y-auto p-4 bg-black/50 backdrop-blur-xs animate-fade-in"
-      style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}
-      onClick={onClose}
+      className="fixed inset-0 flex items-center justify-center overflow-y-auto p-4 bg-black/50 backdrop-blur-xs animate-fade-in"
+      style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
+      onClick={closeAllModals}
     >
       <div
         className="bg-white w-full max-w-sm max-h-full overflow-y-auto rounded-2xl shadow-2xl border border-slate-200 p-5"

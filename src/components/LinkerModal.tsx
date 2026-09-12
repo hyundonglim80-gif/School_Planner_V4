@@ -9,6 +9,7 @@ import { useLabels } from '../hooks/useLabels';
 import { addReverseLink } from '../utils/linkUtils';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
+import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 
 interface LinkerModalProps {
   isOpen: boolean;
@@ -63,6 +64,8 @@ export default function LinkerModal({
   useBodyScrollLock(isOpen);
 
   const vv = useVisualViewport(isOpen);
+
+  const zIndex = useModalLayer(isOpen, onClose);
 
   const [currentTab, setCurrentTab] = useState<'event' | 'schedule' | 'journal' | 'memo'>('event');
   const [selectedSourcePeriod, setSelectedSourcePeriod] = useState<number>(
@@ -618,8 +621,8 @@ export default function LinkerModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}
-      onClick={onClose}
+      className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
+      onClick={closeAllModals}
     >
       <div
         className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-full flex flex-col border border-slate-200 overflow-hidden"

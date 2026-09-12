@@ -8,6 +8,7 @@ import { parseDateStr, formatDateStr } from '../lib/dateUtils';
 import { parseV3EventText } from '../hooks/useDayData';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
+import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 
 interface SearchResultItem {
   id: string;
@@ -36,6 +37,8 @@ const FILTER_OPTIONS = [
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   useBodyScrollLock(isOpen);
   const vv = useVisualViewport(isOpen);
+
+  const zIndex = useModalLayer(isOpen, onClose);
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [searching, setSearching] = useState(false);
@@ -264,10 +267,10 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4"
-      style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}
+      className="fixed inset-0 flex items-center justify-center overflow-y-auto p-4"
+      style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
     >
-      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={onClose} />
+      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={closeAllModals} />
 
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-full">
         {/* 상단 검색바 */}

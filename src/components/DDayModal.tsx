@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useDDay, calculateDDay } from '../hooks/useDDay';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
+import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 
 interface DDayModalProps {
   isOpen: boolean;
@@ -12,6 +13,8 @@ export default function DDayModal({ isOpen, onClose }: DDayModalProps) {
   useBodyScrollLock(isOpen);
 
   const vv = useVisualViewport(isOpen);
+
+  const zIndex = useModalLayer(isOpen, onClose);
   const { dDayList, addDDay, deleteDDay } = useDDay();
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
@@ -34,9 +37,9 @@ export default function DDayModal({ isOpen, onClose }: DDayModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}>
+    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto p-4" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}>
       {/* 백드롭 */}
-      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={onClose} />
+      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={closeAllModals} />
 
       {/* 모달 창 */}
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-full">

@@ -6,6 +6,7 @@ import { useLabels } from '../hooks/useLabels';
 import { addReverseLink } from '../utils/linkUtils';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
+import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 
 interface QuickAddModalProps {
   isOpen: boolean;
@@ -17,6 +18,9 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
   useBodyScrollLock(isOpen);
 
   const vv = useVisualViewport(isOpen);
+
+
+  const zIndex = useModalLayer(isOpen, onClose);
   const { selectedGroupId, openLinkerModal } = useAppStore();
   const { eventLabels, getLabelColor } = useLabels();
 
@@ -99,7 +103,7 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }} onClick={onClose}>
+    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} onClick={closeAllModals}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-full overflow-y-auto overscroll-contain flex flex-col border border-slate-200 p-5" onClick={e => e.stopPropagation()} data-scroll-lock>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-black text-slate-800">새 일정 추가</h3>

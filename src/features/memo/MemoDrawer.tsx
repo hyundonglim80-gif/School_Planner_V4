@@ -7,6 +7,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { formatDateStr } from '../../lib/dateUtils';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../../hooks/useVisualViewport';
+import { useModalLayer, closeAllModals } from '../../hooks/useModalLayer';
 
 const PRESET_LABELS = ['긴급', '중요', '업무', '아이디어', '수업', '개인', '기타'];
 
@@ -30,6 +31,8 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
   const formattedDate = formatDateStr(new Date(currentDate));
   useBodyScrollLock(isOpen);
   const vv = useVisualViewport(isOpen);
+
+  const zIndex = useModalLayer(isOpen, onClose);
 
   const [content, setContent] = useState('');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
@@ -140,12 +143,10 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
     handleSubmitRef.current = () => handleSubmit();
   }, [content, selectedLabels, attachments, linkedItems]);
 
+  // 💡 Esc로 닫는 동작은 useModalLayer의 전역 규칙(열린 팝업 전부 닫기)에 맡긴다.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
-      if (e.key === 'Escape' && !isLabelModalOpen) {
-        onClose();
-      }
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         handleSubmitRef.current();
@@ -153,7 +154,7 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isLabelModalOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -269,12 +270,12 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
 
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-end"
-      style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height }}
+      className="fixed inset-0 flex justify-end"
+      style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
     >
       <div
         className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300"
-        onClick={onClose}
+        onClick={closeAllModals}
       />
 
       <div className="relative w-full max-w-lg bg-white h-full shadow-2xl z-10 flex flex-col transform transition-transform duration-300 ease-in-out">
