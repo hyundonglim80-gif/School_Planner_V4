@@ -7,6 +7,8 @@ import { DEFAULT_JOURNAL_LABELS, type JournalLabel } from '../../components/Labe
 import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { uploadImage, uploadFile } from '../../utils/uploadHelper';
+import { usePasteImageUpload } from '../../hooks/usePasteImageUpload';
+import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
 import type { Attachment } from '../../hooks/useDayData';
 import { showToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
@@ -225,6 +227,58 @@ export default function DayJournal({
     setEditImageUrl(entry.imageUrl || '');
   };
 
+  const [viewerImages, setViewerImages] = useState<ViewerImage[] | null>(null);
+
+  const isImageAttachment = (att: Attachment) =>
+    att.type === 'image' || /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(att.url || '');
+
+  // 기록에 붙은 이미지(구버전 imageUrl 포함)를 뷰어용 목록으로 모은다.
+  const getEntryImages = (entry: JournalEntry): ViewerImage[] => {
+    const list: ViewerImage[] = [];
+    if (entry.imageUrl) list.push({ url: entry.imageUrl, name: '첨부 이미지' });
+    (entry.attachments || []).forEach((att) => {
+      if (isImageAttachment(att)) list.push({ url: att.url, name: att.name });
+    });
+    return list;
+  };
+
+  const getEntryFiles = (entry: JournalEntry): Attachment[] =>
+    (entry.attachments || []).filter((att) => !isImageAttachment(att));
+
+  // 새 기록 작성 중 Ctrl+V: 하단 첨부 목록에 이미지로 추가
+  const { handlePaste: handleNewPaste, pasting: pastingNew } = usePasteImageUpload((images) => {
+    setIsFormOpen(true);
+    setNewAttachments(prev => [
+      ...prev,
+      ...images.map((img, i) => ({
+        id: `paste_${Date.now()}_${i}`,
+        name: img.name,
+        url: img.url,
+        type: 'image',
+        size: img.size,
+      })),
+    ]);
+  });
+
+  // 기존 기록 수정 중 Ctrl+V: 이미 저장된 기록이므로 첨부를 바로 반영한다.
+  const { handlePaste: handleEditPaste, pasting: pastingEdit } = usePasteImageUpload(async (images) => {
+    if (!editingId || !onUpdateJournal) return;
+    const targetEntry = journals.find(j => j.id === editingId);
+    if (!targetEntry) return;
+    await onUpdateJournal(editingId, {
+      attachments: [
+        ...(targetEntry.attachments || []),
+        ...images.map((img, i) => ({
+          id: `paste_${Date.now()}_${i}`,
+          name: img.name,
+          url: img.url,
+          type: 'image',
+          size: img.size,
+        })),
+      ],
+    });
+  });
+
   const saveEditing = async (id: string) => {
     if (uploadingFiles) return;
     if (!editContent.trim() && !editImageUrl) {
@@ -407,11 +461,15 @@ export default function DayJournal({
                   handleSubmit(e as any);
                 }
               }}
-              placeholder="기록 내용..."
+              onPaste={handleNewPaste}
+              placeholder="기록 내용... (캡처한 이미지는 Ctrl+V로 첨부)"
               rows={3}
               className="w-full p-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary resize-none placeholder-slate-400 leading-relaxed"
               autoFocus
             />
+            {pastingNew && (
+              <span className="text-xs font-bold text-primary">⏳ 붙여넣은 이미지 업로드 중...</span>
+            )}
 
             {/* 하단 옵션 */}
             <div className="flex flex-col gap-2">
@@ -525,15 +583,49 @@ export default function DayJournal({
                               saveEditing(entry.id);
                             }
                           }}
+                          onPaste={handleEditPaste}
+                          placeholder="캡처한 이미지는 Ctrl+V로 첨부할 수 있습니다."
                           rows={3}
                           className="w-full p-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary resize-none leading-relaxed"
                           autoFocus
                         />
-                        
+                        {pastingEdit && (
+                          <span className="text-xs font-bold text-primary">⏳ 붙여넣은 이미지 업로드 중...</span>
+                        )}
+
                         {editImageUrl && (
                           <div className="relative inline-block mb-2">
                             <img src={editImageUrl} alt="첨부 이미지" className="h-24 w-auto rounded-lg border border-slate-200 object-cover" />
                             <button type="button" onClick={() => setEditImageUrl('')} className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 text-xs">×</button>
+                          </div>
+                        )}
+
+                        {/* 첨부(붙여넣은 이미지 포함) 미리보기 - 수정 중에도 바로 확인/삭제 가능 */}
+                        {entry.attachments && entry.attachments.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {entry.attachments.map((att, attIdx) => (
+                              <div key={`${att.url}-${attIdx}`} className="relative">
+                                {att.type === 'image' ? (
+                                  <a href={att.url} target="_blank" rel="noreferrer" title="클릭하여 원본 보기">
+                                    <img src={att.url} alt={att.name} className="h-24 w-auto rounded-lg border border-slate-200 object-cover" loading="lazy" />
+                                  </a>
+                                ) : (
+                                  <span className="inline-block px-2 py-1 bg-slate-100 border border-slate-200 rounded-lg text-[15px] text-slate-600 truncate max-w-[150px]" title={att.name}>
+                                    📎 {att.name}
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => onUpdateJournal && onUpdateJournal(entry.id, {
+                                    attachments: (entry.attachments || []).filter((_, i) => i !== attIdx),
+                                  })}
+                                  className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 text-xs w-5 h-5 flex items-center justify-center"
+                                  title="첨부 삭제"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
                           </div>
                         )}
 
@@ -621,9 +713,20 @@ export default function DayJournal({
                                 🔗 {linkCount}
                             </button>
                           )}
-                          {entry.attachments && entry.attachments.length > 0 && (
+                          {/* 첨부된 캡처 이미지: 클릭하면 팝업으로 바로 확인 */}
+                          {getEntryImages(entry).length > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setViewerImages(getEntryImages(entry)); }}
+                              className="bg-indigo-50 text-indigo-700 text-[15px] px-1.5 py-0.5 rounded font-bold border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer"
+                              title="첨부 이미지 보기"
+                            >
+                              🖼️ {getEntryImages(entry).length}
+                            </button>
+                          )}
+                          {getEntryFiles(entry).length > 0 && (
                             <span className="bg-slate-100 text-slate-600 text-[15px] px-1.5 py-0.5 rounded font-bold border border-slate-200">
-                                📎 {entry.attachments.length}
+                                📎 {getEntryFiles(entry).length}
                             </span>
                           )}
                         </div>
@@ -724,6 +827,12 @@ export default function DayJournal({
         className="hidden"
         ref={itemFileInputRef}
         onChange={handleFileChange}
+      />
+
+      <ImageViewerModal
+        isOpen={!!viewerImages}
+        onClose={() => setViewerImages(null)}
+        images={viewerImages || []}
       />
     </div>
   );

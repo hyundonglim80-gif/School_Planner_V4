@@ -8,6 +8,7 @@ import { formatDateStr } from '../../lib/dateUtils';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../../hooks/useModalLayer';
+import { usePasteImageUpload } from '../../hooks/usePasteImageUpload';
 
 const PRESET_LABELS = ['긴급', '중요', '업무', '아이디어', '수업', '개인', '기타'];
 
@@ -155,6 +156,20 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
+
+  // 캡처 이미지를 Ctrl+V 로 붙여넣으면 하단 첨부 목록에 이미지로 추가된다.
+  // ⚠️ 훅은 반드시 아래 early return 위에서 호출해야 한다 (Rules of Hooks).
+  const { handlePaste, pasting } = usePasteImageUpload((images) => {
+    setAttachments((prev) => [
+      ...prev,
+      ...images.map((img) => ({
+        name: img.name,
+        url: img.url,
+        type: img.mimeType,
+        size: img.size,
+      })),
+    ]);
+  });
 
   if (!isOpen) return null;
 
@@ -312,7 +327,8 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
                   handleSubmit();
                 }
               }}
-              placeholder="자유롭게 생각을 기록해보세요..."
+              onPaste={handlePaste}
+              placeholder="자유롭게 생각을 기록해보세요... (캡처한 이미지는 Ctrl+V로 첨부)"
               className="w-full min-h-[120px] p-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none text-slate-800 leading-relaxed placeholder-slate-400 text-sm overflow-hidden"
             />
           </div>
@@ -359,6 +375,9 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
               <label className="block text-xs font-semibold text-slate-600">
                 첨부 및 링크 ({attachments.length + linkedItems.length}개)
               </label>
+              {pasting && (
+                <span className="text-xs font-bold text-primary">⏳ 붙여넣은 이미지 업로드 중...</span>
+              )}
             </div>
             
             <div className="flex gap-2">
@@ -392,21 +411,46 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
                     (typeof type === 'string' && type.startsWith('image/')) ||
                     (typeof url === 'string' && url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i));
 
+                  // 이미지는 내용을 바로 알아볼 수 있도록 큰 미리보기로 보여준다.
+                  if (isImage) {
+                    return (
+                      <div
+                        key={`${att.url}-${idx}`}
+                        className="relative bg-slate-50 border border-slate-200 rounded-xl overflow-hidden"
+                      >
+                        <a href={att.url} target="_blank" rel="noopener noreferrer" title="클릭하여 원본 보기">
+                          <img
+                            src={att.url}
+                            alt={att.name}
+                            className="w-full max-h-64 object-contain bg-white"
+                            loading="lazy"
+                          />
+                        </a>
+                        <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 border-t border-slate-200">
+                          <span className="text-[15px] text-slate-500 truncate" title={att.name}>
+                            🖼️ {att.name}
+                            {att.size ? ` · ${formatFileSize(att.size)}` : ''}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAttachment(idx)}
+                            className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0"
+                            title="이미지 삭제"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
                       key={`${att.url}-${idx}`}
                       className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl gap-2 hover:bg-slate-100/80 transition-colors"
                     >
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        {isImage ? (
-                          <img
-                            src={att.url}
-                            alt={att.name}
-                            className="w-9 h-9 object-cover rounded-lg border border-slate-200 shrink-0"
-                          />
-                        ) : (
-                          <span className="text-xl shrink-0">{getFileIcon(att)}</span>
-                        )}
+                        <span className="text-xl shrink-0">{getFileIcon(att)}</span>
                         <div className="min-w-0 flex-1">
                           <a
                             href={att.url}

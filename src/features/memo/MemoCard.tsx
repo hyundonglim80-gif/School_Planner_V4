@@ -5,6 +5,7 @@ import type { Memo } from '../../hooks/useMemos';
 import { renderFormattedText } from '../../lib/textUtils';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
+import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
 
 interface MemoCardProps {
   memo: Memo;
@@ -73,6 +74,16 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
     return normalizedAttachments.filter(isImageFile);
   }, [normalizedAttachments]);
 
+  const [viewerOpen, setViewerOpen] = React.useState(false);
+  const [viewerIndex, setViewerIndex] = React.useState(0);
+
+  // 첨부 이미지 + 구버전 단일 imageUrl 을 합쳐 뷰어에 넘긴다.
+  const viewerImages = React.useMemo<ViewerImage[]>(() => {
+    const list: ViewerImage[] = imageAttachments.map((a) => ({ url: a.url, name: a.name }));
+    if (list.length === 0 && memo.imageUrl) list.push({ url: memo.imageUrl, name: '첨부 이미지' });
+    return list;
+  }, [imageAttachments, memo.imageUrl]);
+
   const fileAttachments = React.useMemo(() => {
     return normalizedAttachments.filter((a) => !isImageFile(a));
   }, [normalizedAttachments]);
@@ -120,6 +131,17 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
                 title={`링크된 항목 ${linkCount}개`}
               >
                 🔗 {linkCount}
+              </button>
+            )}
+            {/* 첨부된 캡처 이미지: 클릭하면 팝업으로 바로 확인 */}
+            {viewerImages.length > 0 && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setViewerIndex(0); setViewerOpen(true); }}
+                className="bg-indigo-50 text-indigo-700 text-[15px] px-1.5 py-0.5 rounded font-bold border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer flex items-center gap-1"
+                title={`첨부 이미지 ${viewerImages.length}개 보기`}
+              >
+                🖼️ {viewerImages.length}
               </button>
             )}
           </div>
@@ -170,15 +192,15 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
             {imageAttachments.map((imgAtt, idx) => (
               <div
                 key={`${imgAtt.url}-${idx}`}
-                className="rounded-xl overflow-hidden border border-slate-100 bg-slate-50"
+                className="rounded-xl overflow-hidden border border-slate-100 bg-slate-50 cursor-pointer"
+                onClick={(e) => { e.stopPropagation(); setViewerIndex(idx); setViewerOpen(true); }}
+                title="클릭하여 크게 보기"
               >
-                <a href={imgAtt.url} target="_blank" rel="noopener noreferrer">
-                  <img
-                    src={imgAtt.url}
-                    alt={imgAtt.name || '첨부 이미지'}
-                    className="w-full max-h-48 object-cover hover:scale-102 transition-transform duration-200"
-                  />
-                </a>
+                <img
+                  src={imgAtt.url}
+                  alt={imgAtt.name || '첨부 이미지'}
+                  className="w-full max-h-48 object-cover hover:scale-102 transition-transform duration-200"
+                />
               </div>
             ))}
             {/* 2. 일반 파일 렌더링 */}
@@ -214,14 +236,16 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
             })}
           </div>
         ) : memo.imageUrl ? (
-          <div className="mb-3 rounded-xl overflow-hidden border border-slate-100 bg-slate-50">
-            <a href={memo.imageUrl} target="_blank" rel="noopener noreferrer">
-              <img
-                src={memo.imageUrl}
-                alt="첨부된 이미지"
-                className="w-full max-h-48 object-cover hover:scale-102 transition-transform duration-200"
-              />
-            </a>
+          <div
+            className="mb-3 rounded-xl overflow-hidden border border-slate-100 bg-slate-50 cursor-pointer"
+            onClick={(e) => { e.stopPropagation(); setViewerIndex(0); setViewerOpen(true); }}
+            title="클릭하여 크게 보기"
+          >
+            <img
+              src={memo.imageUrl}
+              alt="첨부된 이미지"
+              className="w-full max-h-48 object-cover hover:scale-102 transition-transform duration-200"
+            />
           </div>
         ) : null}
 
@@ -248,6 +272,13 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
           ))}
         </div>
       )}
+
+      <ImageViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        images={viewerImages}
+        startIndex={viewerIndex}
+      />
     </div>
   );
 }

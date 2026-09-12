@@ -450,7 +450,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           labelIds: j.labelIds || [],
           linkedItems: j.linkedItems || [],
           imageUrl: j.imageUrl || '',
-        })).filter((j: JournalEntry) => 
+          // 💡 attachments를 읽어오지 않아, 저장은 되는데 다시 불러오면 사라지고 있었다.
+          attachments: j.attachments || [],
+        })).filter((j: JournalEntry) =>
           (j.content && j.content.trim().length > 0) || 
           !!j.imageUrl ||
           j.label ||
