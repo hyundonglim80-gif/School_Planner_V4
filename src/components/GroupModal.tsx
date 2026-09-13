@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { showToast, showErrorToast } from '../utils/toast';
 import { useGroups } from '../hooks/useGroups';
 import { auth } from '../lib/firebase';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
@@ -164,9 +165,14 @@ export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
                       <div>
                         {isOwner ? (
                           <button
-                            onClick={() => {
-                              if (window.confirm(`'${group.name}' 그룹을 영구 삭제하시겠습니까?`)) {
-                                deleteGroup(group.id);
+                            onClick={async () => {
+                              if (!window.confirm(`'${group.name}' 그룹과 그 안의 모든 일정/수업/기록/메모를 영구 삭제합니다.
+되돌릴 수 없습니다. 계속하시겠습니까?`)) return;
+                              try {
+                                await deleteGroup(group.id);
+                                showToast('그룹을 삭제했습니다.');
+                              } catch (e) {
+                                showErrorToast('그룹 삭제에 실패했습니다. 다시 시도해 주세요.', e);
                               }
                             }}
                             className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-colors"

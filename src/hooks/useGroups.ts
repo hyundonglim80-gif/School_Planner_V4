@@ -13,6 +13,7 @@ import {
   arrayUnion,
   arrayRemove,
   getDocs,
+  writeBatch,
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 
@@ -23,6 +24,31 @@ import { db, auth } from '../lib/firebase';
 const INVITE_CODES = 'inviteCodes';
 
 const inviteCodeRef = (code: string) => doc(db, INVITE_CODES, code);
+
+// 그룹 문서 아래에 달린 하위 컬렉션들.
+// 💡 Firestore는 문서를 지워도 하위 컬렉션을 함께 지우지 않는다. 예전에는
+// 그룹 문서만 지워서 일정/수업/기록/메모가 접근할 방법도 지울 방법도 없이
+// 영영 남아 있었다. 그룹 문서를 지우기 전에 먼저 비운다.
+const GROUP_SUBCOLLECTIONS = ['events', 'schedules', 'journals', 'tasks', 'evaluations'];
+
+async function deleteGroupSubcollections(groupId: string) {
+  for (const colName of GROUP_SUBCOLLECTIONS) {
+    const snap = await getDocs(collection(db, 'groups', groupId, colName));
+    // 배치는 한 번에 500건까지만 처리할 수 있다
+    let batch = writeBatch(db);
+    let count = 0;
+    for (const d of snap.docs) {
+      batch.delete(d.ref);
+      count++;
+      if (count === 450) {
+        await batch.commit();
+        batch = writeBatch(db);
+        count = 0;
+      }
+    }
+    if (count > 0) await batch.commit();
+  }
+}
 
 // 이미 만들어진 그룹에도 매핑 문서를 만들어 준다(그룹장 접속 시 1회).
 const backfilledCodes = new Set<string>();
@@ -202,6 +228,10 @@ export function useGroups() {
     if (!group || group.ownerId !== user.uid) {
       throw new Error('그룹 삭제 권한이 없습니다.');
     }
+
+    // 하위 데이터를 먼저 비운다. 여기서 실패하면 그룹 문서는 남겨 두어
+    // 다시 시도할 수 있게 한다(그룹 문서를 먼저 지우면 접근 자체가 막힌다).
+    await deleteGroupSubcollections(groupId);
 
     await deleteDoc(doc(db, 'groups', groupId));
     if (group.inviteCode) {
