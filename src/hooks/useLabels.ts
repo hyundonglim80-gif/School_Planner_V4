@@ -1,6 +1,11 @@
 //src/hooks/useLabels.ts
-import { useState, useEffect } from 'react';
-import { doc } from 'firebase/firestore';
+import { useState, useEffect, useRef } from 'react';
+import { doc, setDoc } from 'firebase/firestore';
+import {
+  readLegacyEventLabels,
+  readLegacyJournalLabels,
+  readLegacyMemoLabels,
+} from '../lib/legacyLabels';
 import { subscribeDocWithServerFallback } from '../lib/firestoreSubscribe';
 import { db, auth } from '../lib/firebase';
 
@@ -51,10 +56,26 @@ export const DEFAULT_JOURNAL_LABELS: JournalLabel[] = [
   { id: 'j_4', name: '수업기록', color: 'purple' },
 ];
 
+// V3는 isSkip/isPeriod/isRecur/showInCalendar, V4는 skip/period/recur/calendar를 쓴다.
+// 어느 쪽으로 저장되어 있든 같게 읽는다.
+function normalizeEventLabel(l: any, i: number): EventLabel {
+  return {
+    id: l.id || `ev_${i}_${l.name || ''}`,
+    name: l.name || '',
+    color: l.color || 'blue',
+    calendar: l.calendar !== false && l.showInCalendar !== false,
+    skip: !!(l.skip || l.isSkip),
+    forward: !!(l.forward || l.isForward),
+    period: !!(l.period || l.isPeriod),
+    recur: !!(l.recur || l.isRecur),
+  };
+}
+
 export function useLabels() {
   const [eventLabels, setEventLabels] = useState<EventLabel[]>(DEFAULT_EVENT_LABELS);
   const [memoLabels, setMemoLabels] = useState<string[]>(DEFAULT_MEMO_LABELS);
   const [journalLabels, setJournalLabels] = useState<JournalLabel[]>(DEFAULT_JOURNAL_LABELS);
+  const migratedRef = useRef(false);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -67,46 +88,52 @@ export function useLabels() {
 
     const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
     const unsub = subscribeDocWithServerFallback(docRef, (data) => {
-      // [임시 진단] 라벨 칩 미표시 원인 추적용. 확인 후 제거할 것.
-      console.warn('[SP4 진단] 라벨 문서', {
-        문서있음: !!data,
-        필드: data ? Object.keys(data) : null,
-        eventLabels개수: Array.isArray(data?.eventLabels) ? data.eventLabels.length : null,
-        labels개수: Array.isArray(data?.labels) ? data.labels.length : null,
-        첫항목: data?.eventLabels?.[0] ?? data?.labels?.[0] ?? null,
-      });
-      if (data) {
-        const rawEvents = data.eventLabels || data.labels || DEFAULT_EVENT_LABELS;
-        setEventLabels(rawEvents.map((l: any, i: number) => ({
-          id: l.id || `ev_${i}_${l.name || ''}`,
-          name: l.name || '',
-          color: l.color || 'blue',
-          calendar: l.calendar !== false,
-          skip: !!l.skip,
-          forward: !!(l.forward || l.isForward),
-          period: !!l.period,
-          recur: !!l.recur,
-        })));
+      // Firestore에 라벨이 없으면 V3가 쓰던 localStorage 값을 쓴다.
+      const cloudEvents =
+        (Array.isArray(data?.eventLabels) && data!.eventLabels.length > 0 && data!.eventLabels) ||
+        (Array.isArray(data?.labels) && data!.labels.length > 0 && data!.labels) ||
+        null;
+      const legacyEvents = cloudEvents ? null : readLegacyEventLabels();
+      const rawEvents = cloudEvents || legacyEvents || DEFAULT_EVENT_LABELS;
 
-        if (Array.isArray(data.memoLabels) && data.memoLabels.length > 0) {
-          setMemoLabels(data.memoLabels.map((l: any) => (typeof l === 'string' ? l : l.name)));
-        } else {
-          setMemoLabels(DEFAULT_MEMO_LABELS);
-        }
+      setEventLabels(rawEvents.map(normalizeEventLabel));
 
-        if (Array.isArray(data.journalLabels) && data.journalLabels.length > 0) {
-          setJournalLabels(data.journalLabels.map((l: any, i: number) => ({
-            id: l.id || `j_${i}_${l.name || ''}`,
-            name: l.name || '',
-            color: l.color || 'green',
-          })));
-        } else {
-          setJournalLabels(DEFAULT_JOURNAL_LABELS);
-        }
-      } else {
-        setEventLabels(DEFAULT_EVENT_LABELS);
-        setMemoLabels(DEFAULT_MEMO_LABELS);
-        setJournalLabels(DEFAULT_JOURNAL_LABELS);
+      const cloudMemo =
+        Array.isArray(data?.memoLabels) && data!.memoLabels.length > 0 ? data!.memoLabels : null;
+      const legacyMemo = cloudMemo ? null : readLegacyMemoLabels();
+      const rawMemo = cloudMemo || legacyMemo;
+      setMemoLabels(
+        rawMemo
+          ? rawMemo.map((l: any) => (typeof l === 'string' ? l : l.name))
+          : DEFAULT_MEMO_LABELS
+      );
+
+      const cloudJournal =
+        Array.isArray(data?.journalLabels) && data!.journalLabels.length > 0
+          ? data!.journalLabels
+          : null;
+      const legacyJournal = cloudJournal ? null : readLegacyJournalLabels();
+      const rawJournal = cloudJournal || legacyJournal;
+      setJournalLabels(
+        rawJournal
+          ? rawJournal.map((l: any, i: number) => ({
+              id: l.id || `j_${i}_${l.name || ''}`,
+              name: l.name || '',
+              color: l.color || 'green',
+            }))
+          : DEFAULT_JOURNAL_LABELS
+      );
+
+      // localStorage에만 있던 라벨을 Firestore로 한 번 옮겨 두 앱이 같은 곳을 보게 한다
+      if (!migratedRef.current && (legacyEvents || legacyMemo || legacyJournal)) {
+        migratedRef.current = true;
+        const payload: Record<string, any> = { updatedAt: Date.now() };
+        if (legacyEvents) payload.eventLabels = legacyEvents;
+        if (legacyMemo) payload.memoLabels = legacyMemo;
+        if (legacyJournal) payload.journalLabels = legacyJournal;
+        setDoc(docRef, payload, { merge: true }).catch((e) =>
+          console.warn('라벨 이전 실패(로컬 값은 계속 사용됩니다):', e)
+        );
       }
     });
 
