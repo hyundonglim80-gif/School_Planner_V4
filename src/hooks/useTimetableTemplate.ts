@@ -3,6 +3,13 @@ import { doc, setDoc, getDocs, query, where, documentId, writeBatch, collection 
 import { subscribeDocWithServerFallback } from '../lib/firestoreSubscribe';
 import { db, auth } from '../lib/firebase';
 import { formatDate } from '../lib/dateUtils';
+import {
+  DEFAULT_SEMESTER_CONFIG,
+  getSemesterRanges,
+  isVacationDay,
+  shiftDate,
+  type SemesterConfig,
+} from '../lib/semester';
 import { moveToTrash } from '../utils/trashHelper';
 
 export type WeekDayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri';
@@ -11,13 +18,6 @@ export type WeekTimetable = Record<WeekDayKey, Record<number, string>>;
 export interface TimetableTemplateItem {
   names: string[];
   data: WeekTimetable;
-}
-
-export interface SemesterConfig {
-  sem1Start: string;
-  sem1End: string;
-  sem2Start: string;
-  sem2End: string;
 }
 
 const DEFAULT_NAMES = ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'];
@@ -30,12 +30,6 @@ const DEFAULT_DATA: WeekTimetable = {
   fri: {},
 };
 
-const DEFAULT_SEMESTER_CONFIG: SemesterConfig = {
-  sem1Start: `${new Date().getFullYear()}-03-02`,
-  sem1End: `${new Date().getFullYear()}-07-20`,
-  sem2Start: `${new Date().getFullYear()}-08-20`,
-  sem2End: `${new Date().getFullYear() + 1}-02-28`,
-};
 
 export function useTimetableTemplate() {
   const [templates, setTemplates] = useState<Record<string, TimetableTemplateItem>>({
@@ -65,7 +59,15 @@ export function useTimetableTemplate() {
           }
         }
         if (data.semesterConfig) {
-          setSemesterConfig(data.semesterConfig);
+          // 예전 문서에는 방학 필드가 없다. 기존 값은 그대로 두고 빈 칸만 기본값으로 채운다.
+          const conf = data.semesterConfig as SemesterConfig;
+          setSemesterConfig({
+            ...conf,
+            summerStart: conf.summerStart || DEFAULT_SEMESTER_CONFIG.summerStart,
+            summerEnd: conf.summerEnd || DEFAULT_SEMESTER_CONFIG.summerEnd,
+            winterStart: conf.winterStart || DEFAULT_SEMESTER_CONFIG.winterStart,
+            winterEnd: conf.winterEnd || DEFAULT_SEMESTER_CONFIG.winterEnd,
+          });
         }
       }
       setLoading(false);
@@ -157,10 +159,12 @@ export function useTimetableTemplate() {
         const dateStr = formatDate(cur);
         const dayName = days[dayIdx - 1];
 
+        // 방학이면 수업을 채우지 않는다
+        let isSkip = isVacationDay(dateStr, semesterConfig);
+
         // 공휴일 or 행사 중 'skip' 속성 체크
-        let isSkip = false;
         const eData = eventMap[dateStr];
-        if (eData) {
+        if (!isSkip && eData) {
           const list = eData.eventList || [];
           if (list.some((item: any) => item.skip || (item.text && item.text.includes('휴업')))) {
             isSkip = true;
@@ -200,7 +204,7 @@ export function useTimetableTemplate() {
 
     await Promise.all(batchPromises);
     return { appliedCount, skippedCount };
-  }, []);
+  }, [semesterConfig]);
 
   // 특정 요일의 템플릿 반환 (DaySchedule에서 빠른 채우기용)
   const getDayTemplate = useCallback((dayIdx: number): Record<number, string> => {
@@ -228,3 +232,7 @@ export function useTimetableTemplate() {
     getDayTemplate,
   };
 }
+
+// 다른 모듈이 기존 경로로 계속 가져다 쓸 수 있게 재수출한다
+export { getSemesterRanges, isVacationDay, shiftDate, DEFAULT_SEMESTER_CONFIG };
+export type { SemesterConfig };

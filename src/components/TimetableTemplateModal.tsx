@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { showToast } from '../utils/toast';
 import {
   useTimetableTemplate,
+  getSemesterRanges,
   type WeekDayKey,
   type WeekTimetable,
   type TimetableTemplateItem,
@@ -44,11 +45,11 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   const [editingTemplates, setEditingTemplates] = useState<Record<string, TimetableTemplateItem>>({});
   const [selectedTemplate, setSelectedTemplate] = useState<string>('1학기 시간표');
 
-  // 학기 날짜 로컬 상태
-  const [sem1Start, setSem1Start] = useState('');
-  const [sem1End, setSem1End] = useState('');
-  const [sem2Start, setSem2Start] = useState('');
-  const [sem2End, setSem2End] = useState('');
+  // 방학 기간 로컬 상태 (학기는 여기서 계산한다)
+  const [summerStart, setSummerStart] = useState('');
+  const [summerEnd, setSummerEnd] = useState('');
+  const [winterStart, setWinterStart] = useState('');
+  const [winterEnd, setWinterEnd] = useState('');
 
   // 캘린더 적용 기간 상태
   const [applyStart, setApplyStart] = useState('');
@@ -65,14 +66,15 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
       setSelectedTemplate(currentTemplateName || Object.keys(templates)[0]);
     }
 
-    setSem1Start(semesterConfig.sem1Start || '');
-    setSem1End(semesterConfig.sem1End || '');
-    setSem2Start(semesterConfig.sem2Start || '');
-    setSem2End(semesterConfig.sem2End || '');
+    setSummerStart(semesterConfig.summerStart || '');
+    setSummerEnd(semesterConfig.summerEnd || '');
+    setWinterStart(semesterConfig.winterStart || '');
+    setWinterEnd(semesterConfig.winterEnd || '');
 
-    // 기본 적용 기간을 1학기로 설정
-    setApplyStart(semesterConfig.sem1Start || formatDate(new Date()));
-    setApplyEnd(semesterConfig.sem1End || formatDate(new Date()));
+    // 기본 적용 기간을 1학기(계산값)로 설정
+    const ranges = getSemesterRanges(semesterConfig);
+    setApplyStart(ranges.sem1.start || formatDate(new Date()));
+    setApplyEnd(ranges.sem1.end || formatDate(new Date()));
   }, [isOpen, templates, currentTemplateName, semesterConfig]);
 
   if (!isOpen) return null;
@@ -176,27 +178,43 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
     setEditingTemplates(updated);
   };
 
-  // 학사일정(학기) 저장
+  // 방학 기간 저장 (학기는 여기서 계산된다)
   const handleSaveSemesterDates = async () => {
-    if (!sem1Start || !sem1End || !sem2Start || !sem2End) {
-      return alert('1학기와 2학기의 모든 날짜를 빠짐없이 입력해주세요.');
+    if (!summerStart || !summerEnd || !winterStart || !winterEnd) {
+      return alert('여름 방학과 겨울 방학의 시작일·종료일을 모두 입력해주세요.');
     }
-    const newConf = { sem1Start, sem1End, sem2Start, sem2End };
+    if (summerStart > summerEnd) return alert('여름 방학의 시작일이 종료일보다 늦습니다.');
+    if (winterStart > winterEnd) return alert('겨울 방학의 시작일이 종료일보다 늦습니다.');
+
+    const newConf = { ...semesterConfig, summerStart, summerEnd, winterStart, winterEnd };
     setSemesterConfig(newConf);
     await syncToCloud(editingTemplates, newConf);
-    alert('✅ 학사일정(학기 날짜)이 클라우드에 저장되었습니다.');
+    showToast('✅ 방학 기간이 저장되었습니다.');
   };
+
+  // 입력한 방학 기간으로 계산한 학기 (화면 표시 및 빠른 채우기에 사용)
+  const derivedRanges = getSemesterRanges({
+    ...semesterConfig,
+    summerStart,
+    summerEnd,
+    winterStart,
+    winterEnd,
+  });
 
   // 기간 빠른 채우기 버튼
   const handleFillApplyDates = (type: 'sem1' | 'sem2' | 'week') => {
     if (type === 'sem1') {
-      if (!sem1Start || !sem1End) return alert('1학기 시작일과 종료일을 먼저 지정해주세요.');
-      setApplyStart(sem1Start);
-      setApplyEnd(sem1End);
+      if (!derivedRanges.sem1.start || !derivedRanges.sem1.end) {
+        return alert('여름 방학 시작일을 먼저 지정해주세요. 1학기는 3월 1일부터 여름 방학 전날까지입니다.');
+      }
+      setApplyStart(derivedRanges.sem1.start);
+      setApplyEnd(derivedRanges.sem1.end);
     } else if (type === 'sem2') {
-      if (!sem2Start || !sem2End) return alert('2학기 시작일과 종료일을 먼저 지정해주세요.');
-      setApplyStart(sem2Start);
-      setApplyEnd(sem2End);
+      if (!derivedRanges.sem2.start || !derivedRanges.sem2.end) {
+        return alert('여름 방학 종료일과 겨울 방학 시작일을 먼저 지정해주세요.');
+      }
+      setApplyStart(derivedRanges.sem2.start);
+      setApplyEnd(derivedRanges.sem2.end);
     } else if (type === 'week') {
       const now = new Date();
       const day = now.getDay();
@@ -379,46 +397,67 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
                 onClick={handleSaveSemesterDates}
                 className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg transition-colors"
               >
-                학기 날짜 저장
+                방학 기간 저장
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
               <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-1.5">
-                <span className="font-bold text-blue-700">1학기 기간</span>
+                <span className="font-bold text-orange-700">☀️ 여름 방학 기간</span>
                 <div className="flex items-center gap-1.5">
                   <input
                     type="date"
-                    value={sem1Start}
-                    onChange={(e) => setSem1Start(e.target.value)}
+                    value={summerStart}
+                    onChange={(e) => setSummerStart(e.target.value)}
                     className="flex-1 border border-slate-200 rounded px-2 py-1 text-slate-700 font-bold"
                   />
                   <span>~</span>
                   <input
                     type="date"
-                    value={sem1End}
-                    onChange={(e) => setSem1End(e.target.value)}
+                    value={summerEnd}
+                    onChange={(e) => setSummerEnd(e.target.value)}
                     className="flex-1 border border-slate-200 rounded px-2 py-1 text-slate-700 font-bold"
                   />
                 </div>
               </div>
 
               <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-1.5">
-                <span className="font-bold text-indigo-700">2학기 기간</span>
+                <span className="font-bold text-sky-700">❄️ 겨울 방학 기간</span>
                 <div className="flex items-center gap-1.5">
                   <input
                     type="date"
-                    value={sem2Start}
-                    onChange={(e) => setSem2Start(e.target.value)}
+                    value={winterStart}
+                    onChange={(e) => setWinterStart(e.target.value)}
                     className="flex-1 border border-slate-200 rounded px-2 py-1 text-slate-700 font-bold"
                   />
                   <span>~</span>
                   <input
                     type="date"
-                    value={sem2End}
-                    onChange={(e) => setSem2End(e.target.value)}
+                    value={winterEnd}
+                    onChange={(e) => setWinterEnd(e.target.value)}
                     className="flex-1 border border-slate-200 rounded px-2 py-1 text-slate-700 font-bold"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* 방학 기간에서 계산된 학기 */}
+            <div className="mt-3 bg-white/70 border border-slate-200 rounded-lg px-3 py-2 text-[16.5px] text-slate-600 space-y-0.5">
+              <div>
+                <span className="font-bold text-blue-700">1학기</span>{' '}
+                {derivedRanges.sem1.start && derivedRanges.sem1.end
+                  ? `${derivedRanges.sem1.start} ~ ${derivedRanges.sem1.end}`
+                  : '여름 방학 시작일을 입력하면 계산됩니다'}
+                <span className="text-slate-400"> (3월 1일 ~ 여름 방학 전날)</span>
+              </div>
+              <div>
+                <span className="font-bold text-indigo-700">2학기</span>{' '}
+                {derivedRanges.sem2.start && derivedRanges.sem2.end
+                  ? `${derivedRanges.sem2.start} ~ ${derivedRanges.sem2.end}`
+                  : '여름 방학 종료일과 겨울 방학 시작일을 입력하면 계산됩니다'}
+                <span className="text-slate-400"> (여름 방학 다음 날 ~ 겨울 방학 전날)</span>
+              </div>
+              <div className="text-slate-500 pt-0.5">
+                방학 기간에는 시간표 수업이 채워지지 않습니다.
               </div>
             </div>
           </div>
@@ -431,7 +470,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
                   🚀 캘린더(하루/주간) 시간표 일괄 적용
                 </span>
                 <span className="text-[16.5px] text-emerald-700">
-                  지정한 기간의 모든 평일(월~금)에 현재 시간표를 채웁니다. (공휴일은 자동 제외)
+                  지정한 기간의 모든 평일(월~금)에 현재 시간표를 채웁니다. (방학·공휴일은 자동 제외)
                 </span>
               </div>
 
