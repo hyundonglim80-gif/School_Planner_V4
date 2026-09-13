@@ -46,7 +46,7 @@ export default function DayJournal({
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
-  const [editLabel, setEditLabel] = useState('기본');
+  const [editLabels, setEditLabels] = useState<string[]>([]);
   const [editImageUrl, setEditImageUrl] = useState('');
   const [journalLabels, setJournalLabels] = useState<JournalLabel[]>(DEFAULT_JOURNAL_LABELS);
 
@@ -155,6 +155,12 @@ export default function DayJournal({
     }
   };
 
+  const handleEditLabelToggle = (labelName: string) => {
+    setEditLabels((prev) =>
+      prev.includes(labelName) ? prev.filter((l) => l !== labelName) : [...prev, labelName]
+    );
+  };
+
   const handleLabelToggle = (labelName: string) => {
     setNewLabels(prev => 
       prev.includes(labelName) ? prev.filter(l => l !== labelName) : [...prev, labelName]
@@ -223,7 +229,14 @@ export default function DayJournal({
   const startEditing = (entry: JournalEntry) => {
     setEditingId(entry.id);
     setEditContent(entry.content);
-    setEditLabel(entry.label || '일반');
+    // 추가 폼과 같은 다중 선택. 기존 값은 labelIds 우선, 없으면 label 하나를 쓴다.
+    setEditLabels(
+      entry.labelIds && entry.labelIds.length > 0
+        ? entry.labelIds
+        : entry.label
+        ? [entry.label]
+        : []
+    );
     setEditImageUrl(entry.imageUrl || '');
   };
 
@@ -299,7 +312,8 @@ export default function DayJournal({
     if (onUpdateJournal) {
       await onUpdateJournal(id, {
         content: editContent.trim(),
-        label: editLabel,
+        label: editLabels.length > 0 ? editLabels[0] : '일반',
+        labelIds: editLabels,
         imageUrl: editImageUrl,
       });
     }
@@ -338,146 +352,187 @@ export default function DayJournal({
   const journalColumns = distributeJournals(filteredJournals);
   const editingEntry = editingId ? journals.find((j) => j.id === editingId) || null : null;
 
-  // 기록 수정 폼. 예전에는 4단 카드 그리드 안에서 그려져 칸이 좁았다.
-  // 추가 폼과 같이 전체 너비로 쓰도록 목록 위에서 따로 그린다.
+  // 기록 수정 폼. 새 기록 추가 폼과 같은 모양·같은 방식으로 맞춘다.
   const renderEditForm = (entry: JournalEntry) => (
-                      <div key={entry.id} className="w-full p-4 rounded-2xl border border-primary/50 bg-blue-50/30 flex flex-col gap-3 shadow-md">
-                        <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-xs font-semibold text-slate-500">라벨:</span>
-                            <button
-                              type="button"
-                              onClick={() => openLabelModal('journal')}
-                              className="text-xs text-primary hover:text-blue-700 font-bold flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
-                              title="더보기 - 통합 라벨 관리 열기"
-                            >
-                              <span>⚙️</span>
-                              <span>라벨 수정</span>
-                            </button>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {journalLabels.map((lbl) => (
-                              <button
-                                key={lbl.id}
-                                type="button"
-                                onClick={() => setEditLabel(lbl.name)}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                                  editLabel === lbl.name
-                                    ? 'bg-blue-600 text-white shadow-xs'
-                                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                                }`}
-                              >
-                                {lbl.name}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                        <textarea
-                          value={editContent}
-                          onChange={(e) => setEditContent(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Escape') setEditingId(null);
-                            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                              e.preventDefault();
-                              saveEditing(entry.id);
-                            }
-                          }}
-                          onPaste={handleEditPaste}
-                          placeholder="캡처한 이미지는 Ctrl+V로 첨부할 수 있습니다."
-                          rows={3}
-                          className="w-full p-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary resize-none leading-relaxed"
-                          autoFocus
-                        />
-                        {pastingEdit && (
-                          <span className="text-xs font-bold text-primary">⏳ 붙여넣은 이미지 업로드 중...</span>
-                        )}
+    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col gap-3">
+      {/* 라벨 선택 UI */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-xs font-semibold text-slate-500">라벨:</span>
+          <button
+            type="button"
+            onClick={() => openLabelModal('journal')}
+            className="text-xs text-primary hover:text-blue-700 font-bold flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+            title="더보기 - 통합 라벨 관리 열기"
+          >
+            <span>⚙️</span>
+            <span>라벨 수정</span>
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {journalLabels.map((lbl) => {
+            const isSelected = editLabels.includes(lbl.name);
+            return (
+              <button
+                key={lbl.id}
+                type="button"
+                onClick={() => handleEditLabelToggle(lbl.name)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                {lbl.name}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-                        {editImageUrl && (
-                          <div className="relative inline-block mb-2">
-                            <img src={editImageUrl} alt="첨부 이미지" className="h-24 w-auto rounded-lg border border-slate-200 object-cover" />
-                            <button type="button" onClick={() => setEditImageUrl('')} className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 text-xs">×</button>
-                          </div>
-                        )}
+      {/* 본문 입력 */}
+      <textarea
+        value={editContent}
+        onChange={(e) => setEditContent(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') setEditingId(null);
+          if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            saveEditing(entry.id);
+          }
+        }}
+        onPaste={handleEditPaste}
+        placeholder="기록 내용... (캡처한 이미지는 Ctrl+V로 첨부)"
+        rows={3}
+        className="w-full p-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary resize-none placeholder-slate-400 leading-relaxed"
+        autoFocus
+      />
+      {pastingEdit && (
+        <span className="text-xs font-bold text-primary">⏳ 붙여넣은 이미지 업로드 중...</span>
+      )}
 
-                        {/* 첨부(붙여넣은 이미지 포함) 미리보기 - 수정 중에도 바로 확인/삭제 가능 */}
-                        {entry.attachments && entry.attachments.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mb-2">
-                            {entry.attachments.map((att, attIdx) => (
-                              <div key={`${att.url}-${attIdx}`} className="relative">
-                                {isImageAttachment(att) ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => openEntryViewer(entry, att.url)}
-                                    className="block cursor-pointer"
-                                    title="클릭하여 크게 보기"
-                                  >
-                                    <img src={att.url} alt={att.name} className="h-24 w-auto rounded-lg border border-slate-200 object-cover" loading="lazy" />
-                                  </button>
-                                ) : (
-                                  <span className="inline-block px-2 py-1 bg-slate-100 border border-slate-200 rounded-lg text-[15px] text-slate-600 truncate max-w-[150px]" title={att.name}>
-                                    📎 {att.name}
-                                  </span>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => onUpdateJournal && onUpdateJournal(entry.id, {
-                                    attachments: (entry.attachments || []).filter((_, i) => i !== attIdx),
-                                  })}
-                                  className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 text-xs w-5 h-5 flex items-center justify-center"
-                                  title="첨부 삭제"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+      {/* 하단 옵션 */}
+      <div className="flex flex-col gap-2">
+        <div className="flex justify-between items-center gap-2">
+          {/* 첨부/링크 추가 - 이미지도 파일과 같은 형식(썸네일 + 파일)으로 붙는다 */}
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setUploadTargetId(entry.id);
+                itemFileInputRef.current?.click();
+              }}
+              disabled={uploadingFiles}
+              className="flex items-center gap-1 px-3 py-1.5 bg-slate-200/50 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-colors disabled:opacity-40"
+              title="이미지를 포함한 파일 첨부"
+            >
+              <span>📎</span>
+              <span>{uploadingFiles ? '업로드 중...' : '파일 추가'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => openLinkerModal('journal', formattedDate, entry.id)}
+              className="flex items-center gap-1 px-3 py-1.5 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded-xl text-xs font-bold transition-colors"
+              title="다른 항목과 연결"
+            >
+              <span>🔗</span>
+              <span>링크 추가</span>
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setEditingId(null)}
+              className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-xl transition-colors"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={() => saveEditing(entry.id)}
+              disabled={uploadingFiles}
+              className="px-4 py-1.5 bg-primary hover:bg-blue-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-40"
+            >
+              저장
+            </button>
+          </div>
+        </div>
 
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-1.5">
-                            {/* 이미지도 파일과 같은 형식(썸네일 + 파일)으로 첨부된다 */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setUploadTargetId(entry.id);
-                                itemFileInputRef.current?.click();
-                              }}
-                              disabled={uploadingFiles}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200/50 hover:bg-slate-200 text-slate-600 rounded-xl text-[16.5px] font-bold transition-colors disabled:opacity-40"
-                              title="이미지를 포함한 파일 첨부"
-                            >
-                              <span>📎</span>
-                              <span>{uploadingFiles ? '업로드 중...' : '파일 추가'}</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openLinkerModal('journal', formattedDate, entry.id)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded-xl text-[16.5px] font-bold transition-colors"
-                              title="다른 항목과 연결"
-                            >
-                              <span>🔗</span>
-                              <span>링크 추가</span>
-                            </button>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setEditingId(null)}
-                              className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-xl transition-colors"
-                            >
-                              취소
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => saveEditing(entry.id)}
-                              disabled={uploadingFiles}
-                              className="px-4 py-1.5 bg-primary hover:bg-blue-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
-                            >
-                              저장
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+        {/* 첨부파일 미리보기 */}
+        {((entry.attachments && entry.attachments.length > 0) || editImageUrl) && (
+          <div className="flex flex-wrap gap-2 mt-1">
+            {editImageUrl && (
+              <div className="relative group rounded-lg overflow-hidden border border-slate-200 bg-white">
+                <img src={editImageUrl} alt="첨부 이미지" className="h-16 w-16 object-cover" />
+                <button
+                  type="button"
+                  onClick={() => setEditImageUrl('')}
+                  className="absolute top-0.5 right-0.5 bg-black/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+            {(entry.attachments || []).map((att, attIdx) => (
+              <div key={`${att.url}-${attIdx}`} className="relative group rounded-lg overflow-hidden border border-slate-200 bg-white">
+                {isImageAttachment(att) ? (
+                  <img
+                    src={att.url}
+                    alt={att.name}
+                    className="h-16 w-16 object-cover cursor-pointer"
+                    loading="lazy"
+                    onClick={() => openEntryViewer(entry, att.url)}
+                  />
+                ) : (
+                  <div className="h-16 w-16 flex items-center justify-center bg-slate-100 text-[15px] text-slate-500 p-1 text-center truncate" title={att.name}>
+                    {att.name}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdateJournal &&
+                    onUpdateJournal(entry.id, {
+                      attachments: (entry.attachments || []).filter((_, i) => i !== attIdx),
+                    })
+                  }
+                  className="absolute top-0.5 right-0.5 bg-black/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="첨부 삭제"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 연결된 링크 */}
+        {entry.linkedItems && entry.linkedItems.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {entry.linkedItems.map((link: any, idx: number) => (
+              <div key={idx} className="flex items-center gap-1 bg-white border border-slate-200 pl-2 pr-1 py-1 rounded-md shadow-2xs">
+                <span className="text-[15px] font-bold text-slate-600 truncate max-w-[120px]">
+                  {link.title || link.text || '연결 항목'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdateJournal &&
+                    onUpdateJournal(entry.id, {
+                      linkedItems: (entry.linkedItems || []).filter((_: any, i: number) => i !== idx),
+                    })
+                  }
+                  className="text-slate-400 hover:text-red-500 p-0.5"
+                  title="링크 해제"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 
   return (
