@@ -7,7 +7,7 @@ import { useGroups } from '../hooks/useGroups';
 import { useAppStore } from '../store/useAppStore';
 import { eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
 import { formatDate } from '../lib/dateUtils';
-import { exportToGoogleCalendar, importFromGoogleCalendar } from '../lib/googleSync';
+import { exportToGoogleCalendar } from '../lib/googleSync';
 import { fetchHolidaysFromGovApi } from '../lib/govApi'; // API 훅 추가
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
