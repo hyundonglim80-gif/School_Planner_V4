@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { moveToTrash } from '../utils/trashHelper';
+import { showErrorToast } from '../utils/toast';
 
 export interface MemoAttachment {
   name: string;
@@ -66,7 +67,7 @@ export function useMemos(groupId: string | null = null) {
       setMemos(newMemos);
       setLoading(false);
     }, (error) => {
-      console.error('메모 불러오기 에러:', error);
+      showErrorToast('메모를 불러오지 못했습니다.', error);
       setLoading(false);
     });
 

@@ -5,6 +5,7 @@ import { db, auth } from '../lib/firebase';
 import { addReverseLink } from '../utils/linkUtils';
 import { moveToTrash } from '../utils/trashHelper';
 import { DEFAULT_EVENT_LABELS } from './useLabels';
+import { showErrorToast } from '../utils/toast';
 import { parseV3EventText, formatV3EventText, eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
 
 // 기존 import 경로 호환을 위해 재수출한다 (직렬화 구현은 lib/eventText.ts로 이동).
@@ -517,7 +518,11 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       (item.linkedItems && item.linkedItems.length > 0)
     );
     const v3EventList = validList.map((item, idx) => normalizeEventForWrite(item, idx, user));
-    await setDoc(eventDocRef, eventDocPayload(v3EventList), { merge: true });
+    try {
+      await setDoc(eventDocRef, eventDocPayload(v3EventList), { merge: true });
+    } catch (err) {
+      showErrorToast('일정 저장에 실패했습니다. 네트워크를 확인해 주세요.', err);
+    }
   }, [dateStr, groupId]);
 
   const addEventItem = useCallback(async (content: string, options?: Partial<EventItem>) => {
@@ -694,10 +699,14 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       }
     };
 
-    await setDoc(scheduleDocRef, {
-      periods: newSchedules,
-      updatedAt: Date.now()
-    }, { merge: true });
+    try {
+      await setDoc(scheduleDocRef, {
+        periods: newSchedules,
+        updatedAt: Date.now()
+      }, { merge: true });
+    } catch (err) {
+      showErrorToast('수업 저장에 실패했습니다. 네트워크를 확인해 주세요.', err);
+    }
   }, [dateStr, groupId, schedules]);
 
   const reorderPeriods = useCallback(async (sourcePeriod: number, targetPeriod: number, maxPeriods: number = 6) => {
@@ -727,10 +736,14 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     if (sourceData) newSchedules[targetPeriod] = sourceData;
     else newSchedules[targetPeriod] = { ...emptyPeriod };
     
-    await setDoc(scheduleDocRef, {
-      periods: newSchedules,
-      updatedAt: Date.now()
-    }, { merge: true });
+    try {
+      await setDoc(scheduleDocRef, {
+        periods: newSchedules,
+        updatedAt: Date.now()
+      }, { merge: true });
+    } catch (err) {
+      showErrorToast('교시 순서 변경에 실패했습니다.', err);
+    }
   }, [dateStr, groupId, schedules]);
 
   const addJournalEntry = useCallback(async (content: string, label: string = '', labelIds: string[] = [], imageUrl?: string, options?: Partial<JournalEntry>) => {
@@ -755,10 +768,15 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     
     const newJournals = [...journals, newEntry];
 
-    await setDoc(journalDocRef, {
-      entries: newJournals,
-      updatedAt: Date.now()
-    }, { merge: true });
+    try {
+      await setDoc(journalDocRef, {
+        entries: newJournals,
+        updatedAt: Date.now()
+      }, { merge: true });
+    } catch (err) {
+      showErrorToast('기록 저장에 실패했습니다. 네트워크를 확인해 주세요.', err);
+      return;
+    }
 
     if (newEntry.linkedItems && newEntry.linkedItems.length > 0) {
       const sourceMeta = {
@@ -797,10 +815,14 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const [moved] = newList.splice(sourceIndex, 1);
     newList.splice(targetIndex, 0, moved);
     
-    await setDoc(journalDocRef, {
-      entries: newList,
-      updatedAt: Date.now()
-    }, { merge: true });
+    try {
+      await setDoc(journalDocRef, {
+        entries: newList,
+        updatedAt: Date.now()
+      }, { merge: true });
+    } catch (err) {
+      showErrorToast('기록 순서 변경에 실패했습니다.', err);
+    }
   }, [dateStr, groupId, journals]);
 
   const deleteJournalEntry = useCallback(async (id: string) => {
@@ -829,10 +851,14 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
 
     const newJournals = journals.filter(j => j.id !== id);
 
-    await setDoc(journalDocRef, {
-      entries: newJournals,
-      updatedAt: Date.now()
-    }, { merge: true });
+    try {
+      await setDoc(journalDocRef, {
+        entries: newJournals,
+        updatedAt: Date.now()
+      }, { merge: true });
+    } catch (err) {
+      showErrorToast('기록 삭제에 실패했습니다.', err);
+    }
   }, [dateStr, groupId, journals]);
 
   const updateJournalEntry = useCallback(async (id: string, updates: { content?: string; label?: string; labelIds?: string[]; imageUrl?: string }) => {
@@ -873,10 +899,14 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       return;
     }
 
-    await setDoc(journalDocRef, {
-      entries: newJournals,
-      updatedAt: Date.now()
-    }, { merge: true });
+    try {
+      await setDoc(journalDocRef, {
+        entries: newJournals,
+        updatedAt: Date.now()
+      }, { merge: true });
+    } catch (err) {
+      showErrorToast('기록 수정에 실패했습니다.', err);
+    }
   }, [dateStr, groupId, journals, deleteJournalEntry]);
 
   // 내부적으로 위에서 정의한 전역 이월 함수를 호출하도록 변경

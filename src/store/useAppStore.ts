@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { formatV3EventText } from '../hooks/useDayData';
 import { moveToTrash } from '../utils/trashHelper';
+import { showErrorToast } from '../utils/toast';
 
 type Scope = 'day' | 'week' | 'month' | 'year' | 'memo';
 
@@ -245,7 +246,12 @@ export const useAppStore = create<AppState>()(
           }, { merge: true });
         });
 
-        await Promise.all(promises);
+        try {
+          await Promise.all(promises);
+        } catch (err) {
+          showErrorToast('선택한 일정을 수정하지 못했습니다.', err);
+          return;
+        }
         get().clearEventSelection();
       },
       bulkDeleteSelectedEvents: async () => {
@@ -297,7 +303,12 @@ export const useAppStore = create<AppState>()(
           }, { merge: true });
         });
 
-        await Promise.all(promises);
+        try {
+          await Promise.all(promises);
+        } catch (err) {
+          showErrorToast('선택한 일정을 삭제하지 못했습니다.', err);
+          return;
+        }
         get().clearEventSelection();
       },
 

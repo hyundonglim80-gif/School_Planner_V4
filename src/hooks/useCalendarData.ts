@@ -17,6 +17,7 @@ import {
 import { db, auth } from '../lib/firebase';
 import { type PeriodSchedule, type EventItem, runAutoForwarding } from './useDayData';
 import { eventDocPayload, readEventList } from '../lib/eventText';
+import { showErrorToast } from '../utils/toast';
 
 export interface DaySummary {
   eventText?: string;
@@ -245,7 +246,7 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
         await setDoc(eventDocRef, eventDocPayload(updatedList), { merge: true });
       }
     } catch (error) {
-      console.error('Toggle Event Snapshot Error:', error);
+      showErrorToast('완료 표시를 저장하지 못했습니다.', error);
     }
   };
 
