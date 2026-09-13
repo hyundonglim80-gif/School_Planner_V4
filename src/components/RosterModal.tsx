@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { showToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { useRoster, type ClassRoster, type Student } from '../hooks/useRoster';
 import { downloadCSV, parseCSV } from '../utils/csvHelper';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer } from '../hooks/useModalLayer';
+import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 import { moveToTrash } from '../utils/trashHelper';
 
 interface RosterModalProps {
@@ -445,8 +446,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       await trashRemovedRosterEntries();
       await saveRosterList(currentClasses);
       originalClassesRef.current = JSON.parse(JSON.stringify(currentClasses));
-      alert('✅ 학급 정보(명렬표 및 조사표 데이터)가 성공적으로 저장되었습니다.');
-      onClose();
+      showToast('✅ 학급 정보가 저장되었습니다.');
     } catch (e) {
       console.error('명렬표 저장 오류:', e);
       alert('명렬표 저장 중 오류가 발생했습니다.');
@@ -456,8 +456,8 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}>
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-full">
+    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} onClick={closeAllModals}>
+      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-full" onClick={(e) => e.stopPropagation()}>
         {/* 모달 상단 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <div className="flex items-center gap-2">

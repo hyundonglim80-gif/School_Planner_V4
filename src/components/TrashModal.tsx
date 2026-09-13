@@ -6,7 +6,7 @@ import { collectUploadUrls, deleteUnreferencedUploads } from '../utils/storageCl
 import { formatV3EventText } from '../hooks/useDayData';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer } from '../hooks/useModalLayer';
+import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 
 interface TrashModalProps {
   isOpen: boolean;
@@ -284,8 +284,8 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-full overflow-hidden animate-scale-in">
+    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} onClick={closeAllModals}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-full overflow-hidden animate-scale-in" onClick={(e) => e.stopPropagation()}>
         <div className="p-4 border-b flex justify-between items-center bg-slate-50">
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
             <span>🗑️</span> 휴지통

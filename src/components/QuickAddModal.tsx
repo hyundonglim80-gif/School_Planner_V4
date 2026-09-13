@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { showToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
 import { addReverseLink } from '../utils/linkUtils';
@@ -94,7 +95,7 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
       setText('');
       setSelectedLabels([]);
       setLinkedItems([]);
-      onClose();
+      showToast('✅ 일정이 추가되었습니다.');
     } catch (e: any) {
       console.error(e);
       alert('저장 중 오류: ' + e.message);

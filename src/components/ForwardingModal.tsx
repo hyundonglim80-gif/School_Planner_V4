@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { showToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
@@ -146,9 +147,8 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
         await setDoc(doc(db, colPath, dateStr), eventDocPayload(updated), { merge: true });
       }
 
-      alert(`✅ ${incompleteEvents.length}개의 일정이 오늘(${todayStr})로 전달되었습니다.`);
+      showToast(`✅ ${incompleteEvents.length}개의 일정을 오늘(${todayStr})로 전달했습니다.`);
       setIncompleteEvents([]);
-      onClose();
     } catch (e: any) {
       console.error(e);
       alert('전달 처리 중 오류: ' + e.message);

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { showToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { eventDocPayload, readEventList } from '../lib/eventText';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
@@ -130,8 +131,7 @@ export default function RecurringModal({ isOpen, onClose, defaultContent = '', d
       }
 
       await batch.commit();
-      alert(`✅ ${dates.length}개 날짜에 반복 일정이 생성되었습니다!`);
-      onClose();
+      showToast(`✅ ${dates.length}개 날짜에 반복 일정이 생성되었습니다.`);
     } catch (e: any) {
       console.error(e);
       alert('반복 일정 생성 중 오류가 발생했습니다: ' + e.message);

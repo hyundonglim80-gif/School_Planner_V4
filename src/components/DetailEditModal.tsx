@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { showToast } from '../utils/toast';
 import { useDayData, type EventItem } from '../hooks/useDayData';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
@@ -6,7 +7,7 @@ import { auth } from '../lib/firebase';
 import { uploadImage } from '../utils/uploadHelper';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer } from '../hooks/useModalLayer';
+import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 import EventAlarmModal from './EventAlarmModal';
 
 function formatAlarmBadge(time?: string) {
@@ -236,7 +237,7 @@ export default function DetailEditModal({
         });
       }
       setIsEditing(false);
-      onClose();
+      showToast('✅ 저장되었습니다.');
     } finally {
       setSaving(false);
     }
@@ -272,8 +273,8 @@ export default function DetailEditModal({
   const title = type === 'schedule' ? `${itemId}교시 상세 정보` : '일정 상세 정보';
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}>
-      <div className="bg-white rounded-2xl w-full max-w-md max-h-full shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} onClick={closeAllModals}>
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-full shadow-2xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <h2 className="text-lg font-black text-slate-800">{title}</h2>

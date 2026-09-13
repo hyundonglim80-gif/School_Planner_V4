@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { showToast } from '../../utils/toast';
 import type { Memo, MemoAttachment } from '../../hooks/useMemos';
 import { auth, db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -286,7 +287,7 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
         attachments,
         linkedItems,
       });
-      onClose();
+      showToast('✅ 메모가 저장되었습니다.');
     } catch (error) {
       console.error('메모 저장 에러:', error);
       alert('메모 저장에 실패했습니다.');

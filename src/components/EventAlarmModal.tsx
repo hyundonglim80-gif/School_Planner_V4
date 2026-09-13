@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { showToast } from '../utils/toast';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
@@ -54,7 +55,7 @@ export default function EventAlarmModal({
       return;
     }
     await onSave(`${dVal || dateStr}T${normalized}`);
-    onClose();
+    showToast('✅ 알림이 설정되었습니다.');
   };
 
   const handleTurnOff = async () => {

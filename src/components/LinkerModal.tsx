@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { doc, getDoc, setDoc, getDocs, collection, addDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { showToast } from '../utils/toast';
 import { eventDocPayload } from '../lib/eventText';
 import { useAppStore } from '../store/useAppStore';
 import { parseV3EventText } from '../hooks/useDayData';
@@ -580,8 +581,7 @@ export default function LinkerModal({
         await addReverseLink(targetLink, sourceMeta, activeFId);
       }
 
-      alert('✅ 데이터가 성공적으로 연결되었습니다.');
-      onClose();
+      showToast('✅ 데이터가 연결되었습니다.');
     } catch (e: any) {
       console.error('saveLinks error:', e);
       alert('연결 저장 중 오류가 발생했습니다: ' + e.message);

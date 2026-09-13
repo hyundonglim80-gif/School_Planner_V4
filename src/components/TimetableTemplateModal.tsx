@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { showToast } from '../utils/toast';
 import {
   useTimetableTemplate,
   type WeekDayKey,
@@ -8,7 +9,7 @@ import {
 import { formatDate } from '../lib/dateUtils';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer } from '../hooks/useModalLayer';
+import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 
 interface TimetableTemplateModalProps {
   isOpen: boolean;
@@ -226,8 +227,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
       await syncToCloud(editingTemplates);
 
       const res = await applyTimetableToCalendar(applyStart, applyEnd, gridData, periodNames);
-      alert(`✅ 시간표 덮어쓰기 완료!\n- 적용된 수업일: ${res.appliedCount}일\n- 제외된 날짜(휴일/공휴일 등): ${res.skippedCount}일`);
-      onClose();
+      showToast(`✅ 시간표 적용 완료 - 수업일 ${res.appliedCount}일, 제외 ${res.skippedCount}일`);
     } catch (e) {
       console.error('시간표 적용 오류:', e);
       alert('시간표 적용 중 오류가 발생했습니다.');
@@ -241,8 +241,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
     setSaving(true);
     try {
       await syncToCloud(editingTemplates);
-      alert('✅ 시간표 템플릿이 클라우드에 성공적으로 저장되었습니다.');
-      onClose();
+      showToast('✅ 시간표 템플릿이 클라우드에 저장되었습니다.');
     } catch (e) {
       console.error('템플릿 저장 오류:', e);
       alert('저장 중 오류가 발생했습니다.');
@@ -252,8 +251,8 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}>
-      <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-full">
+    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} onClick={closeAllModals}>
+      <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-full" onClick={(e) => e.stopPropagation()}>
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <div className="flex items-center gap-2">
