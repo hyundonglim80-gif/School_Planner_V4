@@ -1,6 +1,6 @@
 //src/hooks/useDayData.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { doc, onSnapshot, setDoc, getDoc, runTransaction } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, getDoc, getDocFromServer, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { addReverseLink } from '../utils/linkUtils';
 import { moveToTrash } from '../utils/trashHelper';
@@ -360,21 +360,15 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       기록: journalDocRef.path,
     });
 
-    const unsubEvent = onSnapshot(eventDocRef, (snap) => {
-      // [임시 진단] 일정이 표시되지 않는 원인 추적용. 원인 확인 후 제거할 것.
-      const _diag: any = snap.exists() ? snap.data() : null;
-      console.warn('[SP4 진단] 일정 스냅샷', {
-        경로: eventDocRef.path,
-        문서존재: snap.exists(),
-        캐시에서읽음: snap.metadata.fromCache,
-        미전송쓰기있음: snap.metadata.hasPendingWrites,
-        문서의필드: _diag ? Object.keys(_diag) : null,
-        eventList개수: Array.isArray(_diag?.eventList) ? _diag.eventList.length : null,
-        eventText길이: String(_diag?.eventText ?? '').length,
-      });
-
-      if (snap.exists()) {
-        const data = snap.data();
+    // 💡 오프라인 캐시가 "문서 없음"이라고 답하면 서버에 실제로 있는 데이터가
+    // 통째로 가려져 일정이 사라진 것처럼 보인다. 매핑을 함수로 빼서, 캐시 결과와
+    // 서버 재확인 결과 양쪽에서 같은 로직을 쓴다.
+    const applyEventData = (data: any | null) => {
+      if (!data) {
+        setEventText('');
+        setEventList([]);
+        return;
+      }
         const rawText = data.eventText || '';
         setEventText(rawText);
         if (Array.isArray(data.eventList) && data.eventList.length > 0) {
@@ -425,9 +419,29 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         } else {
           setEventList([]);
         }
-      } else {
-        setEventText('');
-        setEventList([]);
+    };
+
+    // 같은 날짜에서 서버 재확인은 한 번만 한다 (불필요한 읽기 방지)
+    let serverRecheckDone = false;
+
+    const unsubEvent = onSnapshot(eventDocRef, (snap) => {
+      if (snap.exists()) {
+        applyEventData(snap.data());
+        return;
+      }
+      applyEventData(null);
+      // 캐시에만 근거해 "문서 없음"으로 판단하지 않고 서버에 한 번 직접 물어본다.
+      // 오프라인이면 실패하므로 캐시 결과를 그대로 둔다.
+      if (snap.metadata.fromCache && !serverRecheckDone) {
+        serverRecheckDone = true;
+        getDocFromServer(eventDocRef)
+          .then((serverSnap) => {
+            console.warn('[SP4 진단] 서버 재확인', { 경로: eventDocRef.path, 서버에존재: serverSnap.exists() });
+            if (serverSnap.exists()) applyEventData(serverSnap.data());
+          })
+          .catch((err) => {
+            console.warn('[SP4 진단] 서버 재확인 실패(오프라인?)', err?.code || err);
+          });
       }
     }, (error) => {
       console.error('DayScreen Event Snapshot Error:', error);
