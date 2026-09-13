@@ -34,8 +34,7 @@ jobs:
         run: npm run lint
 
       - name: Test
-        # 원인 파악 전까지 배포를 막지 않는다. 대신 실패 내용을 주석으로 남긴다.
-        continue-on-error: true
+        # 실패하면 배포를 막는다. 실패 내용은 주석과 아티팩트로 남긴다.
         run: |
           set +e
           npm test 2>&1 | tee /tmp/test.log
