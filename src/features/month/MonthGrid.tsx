@@ -177,6 +177,18 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                            eventLabels.find((l) => ev.labelIds!.includes(l.name)))?.name || ''
                         : '');
                     const labelDef = labelName ? getLabel(labelName) : null;
+                    // [임시 진단] 확인 후 제거할 것.
+                    if ((window as any).__sp4LabelDiag !== dayObj.dateStr && ev.label) {
+                      (window as any).__sp4LabelDiag = dayObj.dateStr;
+                      console.warn('[SP4 진단] 라벨 해석', {
+                        날짜: dayObj.dateStr,
+                        'ev.label': ev.label,
+                        'ev.labelIds': ev.labelIds,
+                        계산된이름: labelName,
+                        라벨찾음: !!labelDef,
+                        등록된라벨: eventLabels.map((l) => l.name),
+                      });
+                    }
                     // 등록된 라벨인지 확인하여 삭제된 라벨 거르기
                     const isValidLabel = !!labelDef;
                     const labelColor = isValidLabel ? getLabelColor(labelName) : null;

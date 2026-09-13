@@ -67,6 +67,14 @@ export function useLabels() {
 
     const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
     const unsub = subscribeDocWithServerFallback(docRef, (data) => {
+      // [임시 진단] 라벨 칩 미표시 원인 추적용. 확인 후 제거할 것.
+      console.warn('[SP4 진단] 라벨 문서', {
+        문서있음: !!data,
+        필드: data ? Object.keys(data) : null,
+        eventLabels개수: Array.isArray(data?.eventLabels) ? data.eventLabels.length : null,
+        labels개수: Array.isArray(data?.labels) ? data.labels.length : null,
+        첫항목: data?.eventLabels?.[0] ?? data?.labels?.[0] ?? null,
+      });
       if (data) {
         const rawEvents = data.eventLabels || data.labels || DEFAULT_EVENT_LABELS;
         setEventLabels(rawEvents.map((l: any, i: number) => ({
