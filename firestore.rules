@@ -1,0 +1,74 @@
+rules_version = '2';
+
+// ┌──────────────────────────────────────────────────────────────────────┐
+// │ ⚠️ 이 파일은 "검토용 제안"입니다. 아직 배포되지 않았습니다.            │
+// │                                                                      │
+// │ 현재 운영 중인 규칙은 Firebase 콘솔에만 있습니다. 먼저 콘솔의         │
+// │ 현재 규칙과 아래 내용을 비교해 보시고, 맞다면 배포하세요.             │
+// │                                                                      │
+// │   Firebase 콘솔 → Firestore Database → 규칙                          │
+// │   또는  firebase deploy --only firestore:rules                       │
+// │                                                                      │
+// │ 배포 전 반드시 콘솔의 "규칙 플레이그라운드"로 시험해 보세요.          │
+// │ 잘못 배포하면 앱 전체가 권한 거부로 멈춥니다.                         │
+// │                                                                      │
+// │ V3와 V4가 같은 프로젝트(schoolplannerv3)를 공유하므로, 두 앱의        │
+// │ 접근 경로를 모두 만족해야 합니다.                                     │
+// └──────────────────────────────────────────────────────────────────────┘
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMember(groupId) {
+      return signedIn()
+        && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
+    }
+
+    // ── 개인 데이터 ────────────────────────────────────────────────────
+    // events / schedules / journals / tasks / settings / trash 전부 포함
+    match /users/{uid}/{document=**} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // ── 공유 그룹 ──────────────────────────────────────────────────────
+    match /groups/{groupId} {
+      // ⚠️ 알려진 취약점:
+      // 초대 코드로 참여하는 기능(joinGroup)이 groups 컬렉션 전체를
+      // inviteCode로 조회하기 때문에, 로그인한 사용자면 누구나 모든 그룹의
+      // 이름과 초대 코드를 읽을 수 있습니다.
+      //
+      // 제대로 막으려면 inviteCodes/{코드} → groupId 매핑 문서를 따로 두고
+      // 그 문서만 조회하도록 V3/V4 양쪽 joinGroup을 고쳐야 합니다.
+      // 그 전까지는 아래 read 규칙을 좁힐 수 없습니다.
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.members == [request.auth.uid];
+
+      // 그룹장은 무엇이든 수정 가능.
+      // 그 외에는 "자기 자신만" members에 넣거나 빼는 것(참여/탈퇴)만 허용한다.
+      allow update: if signedIn() && (
+        resource.data.ownerId == request.auth.uid
+        || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members'])
+          && (
+            request.resource.data.members == resource.data.members.concat([request.auth.uid])
+            || request.resource.data.members == resource.data.members.removeAll([request.auth.uid])
+          )
+        )
+      );
+
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
+    // 그룹의 일정/수업/기록/메모는 그룹 구성원만 접근
+    match /groups/{groupId}/{document=**} {
+      allow read, write: if isMember(groupId);
+    }
+  }
+}

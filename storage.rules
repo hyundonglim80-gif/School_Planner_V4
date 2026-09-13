@@ -1,0 +1,19 @@
+rules_version = '2';
+
+// ⚠️ 이 파일도 "검토용 제안"이며 아직 배포되지 않았습니다.
+//    Firebase 콘솔 → Storage → 규칙 에서 현재 규칙과 비교해 보세요.
+//
+// 업로드 경로는 uploadHelper.ts 기준으로 `{폴더}/{uid}/{타임스탬프}_{파일명}` 입니다.
+// (예: memo_images/abc123/1789.../capture.png)
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // 본인 폴더의 파일만 올리고 지울 수 있다.
+    // 읽기는 다운로드 URL을 그룹 구성원과 공유해야 하므로 로그인 사용자에게 허용한다.
+    match /{folder}/{uid}/{fileName} {
+      allow read: if request.auth != null;
+      allow write, delete: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
