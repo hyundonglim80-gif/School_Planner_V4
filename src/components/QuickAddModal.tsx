@@ -66,7 +66,10 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
         content: text.trim(), // V4 호환성을 위한 content
         text: text.trim(),    // 기존 코드 호환
         label: selectedLabels.length > 0 ? selectedLabels.join(',') : '',
-        labelIds: selectedLabels,
+        // labelIds에는 이름이 아니라 실제 라벨 ID를 넣어야 V3가 라벨을 찾을 수 있다
+        labelIds: selectedLabels
+          .map((n) => eventLabels.find((l) => l.name === n)?.id)
+          .filter((id): id is string => !!id),
         linkedItems,
         completed: false,
         createdAt: Date.now()
