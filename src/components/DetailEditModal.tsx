@@ -48,9 +48,8 @@ export default function DetailEditModal({
   const zIndex = useModalLayer(isOpen, onClose);
   const { selectedGroupId, openLinkerModal, openLinkViewerModal, openEvaluationModal, openLabelModal } = useAppStore();
   const { updateEventItem, deleteEventItem, savePeriod, eventList, schedules } = useDayData(isOpen ? dateStr : '', selectedGroupId);
-  const { eventLabels, getLabelColor } = useLabels();
+  const { eventLabels } = useLabels();
 
-  const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [alarmModalOpen, setAlarmModalOpen] = useState(false);
 
@@ -161,7 +160,6 @@ export default function DetailEditModal({
           targetItem.skip !== undefined ? !!targetItem.skip : hasSkipProp
         );
       }
-      setIsEditing(false); // Default to viewer mode for the modal
     }
   }, [isOpen, initialData, currentItem, type, eventLabels]);
 
@@ -236,7 +234,6 @@ export default function DetailEditModal({
           skip: itemSkip,
         });
       }
-      setIsEditing(false);
       showToast('✅ 저장되었습니다.');
     } finally {
       setSaving(false);
@@ -270,7 +267,7 @@ export default function DetailEditModal({
     }
   };
 
-  const title = type === 'schedule' ? `${itemId}교시 상세 정보` : '일정 상세 정보';
+  const title = type === 'schedule' ? `${itemId}교시 수정` : '일정 수정';
 
   return (
     <div className="fixed inset-0 flex items-center justify-center overflow-y-auto p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} onClick={closeAllModals}>
@@ -279,25 +276,6 @@ export default function DetailEditModal({
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <h2 className="text-lg font-black text-slate-800">{title}</h2>
           <div className="flex items-center gap-2">
-            {!isEditing && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(true)}
-                  className="px-3 py-1.5 text-xs font-bold text-white bg-primary rounded-lg hover:bg-blue-600 transition-colors cursor-pointer"
-                >
-                  ✏️ 수정
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={saving}
-                  className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors cursor-pointer"
-                >
-                  🗑️ 삭제
-                </button>
-              </>
-            )}
             <button
               onClick={onClose}
               className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 font-bold transition-colors cursor-pointer"
@@ -309,9 +287,8 @@ export default function DetailEditModal({
 
         {/* Content */}
         <div className="p-5 flex-1 min-h-0 overflow-y-auto overscroll-contain" data-scroll-lock>
-          {/* Action Buttons */}
-          {!isEditing && (
-            <div className="flex flex-wrap gap-2 mb-5 pb-5 border-b border-slate-100">
+          {/* Action Buttons - 편집 화면에서도 항상 보인다 */}
+          <div className="flex flex-wrap gap-2 mb-5 pb-5 border-b border-slate-100">
               {type === 'schedule' && (
                 <>
                   <button
@@ -373,9 +350,7 @@ export default function DetailEditModal({
                 </>
               )}
             </div>
-          )}
 
-          {isEditing ? (
             <div className="flex flex-col gap-4">
               {type === 'schedule' && (
                 <>
@@ -526,113 +501,10 @@ export default function DetailEditModal({
               </div>
 
             </div>
-          ) : (
-            <div className="flex flex-col gap-5 text-sm text-slate-700">
-              {type === 'schedule' && (
-                <>
-                  <div>
-                    <span className="text-xs font-bold text-slate-400 block mb-1">과목명</span>
-                    <p className="font-bold text-base">{subject || '미등록'}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-400 block mb-1">비고 / 준비물</span>
-                    <p className="font-semibold text-amber-600">{supplies || '없음'}</p>
-                  </div>
-                </>
-              )}
-              {type === 'event' && (
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-bold text-slate-400">라벨</span>
-                    <button
-                      type="button"
-                      onClick={() => openLabelModal('event')}
-                      className="text-[11px] text-primary hover:text-blue-700 font-bold flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-blue-50 transition-colors cursor-pointer"
-                      title="더보기 - 통합 라벨 관리 열기"
-                    >
-                      <span>⚙️</span>
-                      <span>라벨 수정</span>
-                    </button>
-                  </div>
-                  {labels.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {labels.map(l => {
-                        const color = getLabelColor(l);
-                        return (
-                          <span
-                            key={l}
-                            className="inline-block px-2.5 py-1 rounded-lg font-bold text-xs shadow-2xs"
-                            style={{
-                              backgroundColor: color.bg,
-                              color: color.text,
-                              border: `1px solid ${color.border}`,
-                            }}
-                          >
-                            {l}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-400">지정된 라벨 없음</p>
-                  )}
-                </div>
-              )}
-              {type === 'event' && (
-                <div>
-                  <span className="text-xs font-bold text-slate-400 block mb-1.5">일정 속성</span>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {itemCalendar && (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
-                        달력
-                      </span>
-                    )}
-                    {itemForward && (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
-                        이월
-                      </span>
-                    )}
-                    {itemPeriod && (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs">
-                        기간
-                      </span>
-                    )}
-                    {itemRecur && (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs">
-                        반복
-                      </span>
-                    )}
-                    {itemSkip && (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
-                        수업X
-                      </span>
-                    )}
-                    {!itemCalendar && !itemForward && !itemPeriod && !itemRecur && !itemSkip && (
-                      <span className="text-xs text-slate-400 font-medium">설정된 속성 없음</span>
-                    )}
-                  </div>
-                </div>
-              )}
-              <div>
-                <span className="text-xs font-bold text-slate-400 block mb-1">
-                  {type === 'schedule' ? '수업 메모' : '일정 내용'}
-                </span>
-                <p className="whitespace-pre-wrap leading-relaxed">{content || '내용 없음'}</p>
-              </div>
-              
-              {imageUrl && (
-                <div>
-                  <span className="text-xs font-bold text-slate-400 block mb-1">첨부 이미지</span>
-                  <img src={imageUrl} alt="첨부" className="max-h-48 rounded-xl border border-slate-200 object-contain" />
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Footer */}
-        {isEditing && (
-          <div className="px-5 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50">
+        <div className="px-5 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50">
             <button
               type="button"
               onClick={handleDelete}
@@ -643,7 +515,7 @@ export default function DetailEditModal({
             </button>
             <div className="flex gap-2">
               <button
-                onClick={() => setIsEditing(false)}
+                onClick={onClose}
                 disabled={saving}
                 className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors"
               >
@@ -658,7 +530,6 @@ export default function DetailEditModal({
               </button>
             </div>
           </div>
-        )}
       </div>
 
       {type === 'event' && alarmModalOpen && (
