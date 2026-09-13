@@ -350,14 +350,25 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       ? doc(db, 'groups', groupId, 'journals', dateStr)
       : doc(db, 'users', user.uid, 'journals', dateStr);
 
+    // [임시 진단] 일정이 표시되지 않는 원인 추적용. 원인 확인 후 제거할 것.
+    console.warn('[SP4 진단] 구독 경로', {
+      dateStr,
+      groupId,
+      uid: user.uid,
+      일정: eventDocRef.path,
+      수업: scheduleDocRef.path,
+      기록: journalDocRef.path,
+    });
+
     const unsubEvent = onSnapshot(eventDocRef, (snap) => {
       // [임시 진단] 일정이 표시되지 않는 원인 추적용. 원인 확인 후 제거할 것.
       const _diag: any = snap.exists() ? snap.data() : null;
-      console.log('[SP4 일정 진단]', {
+      console.warn('[SP4 진단] 일정 스냅샷', {
         경로: eventDocRef.path,
         문서존재: snap.exists(),
         캐시에서읽음: snap.metadata.fromCache,
         미전송쓰기있음: snap.metadata.hasPendingWrites,
+        문서의필드: _diag ? Object.keys(_diag) : null,
         eventList개수: Array.isArray(_diag?.eventList) ? _diag.eventList.length : null,
         eventText길이: String(_diag?.eventText ?? '').length,
       });
@@ -424,6 +435,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     });
 
     const unsubSchedule = onSnapshot(scheduleDocRef, (snap) => {
+      console.warn('[SP4 진단] 수업 스냅샷', { 경로: scheduleDocRef.path, 문서존재: snap.exists() });
       if (snap.exists()) {
         const data = snap.data();
         const rawPeriods = data.periods || {};
@@ -452,6 +464,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     });
 
     const unsubJournal = onSnapshot(journalDocRef, (snap) => {
+      console.warn('[SP4 진단] 기록 스냅샷', { 경로: journalDocRef.path, 문서존재: snap.exists() });
       if (snap.exists()) {
         const data = snap.data();
         const rawEntries = data.entries || [];

@@ -542,25 +542,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   src={user.photoURL} 
                   alt="Profile" 
                   className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border-2 border-white shadow-sm object-cover"
-                  title={`${user?.displayName || '사용자'} (${user?.email || '이메일 없음'})`}
+                  title={user?.displayName || '사용자'}
                 />
               ) : (
-                <div
-                  className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-xs font-bold text-slate-500 shadow-sm"
-                  title={`${user?.displayName || '사용자'} (${user?.email || '이메일 없음'})`}
-                >
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-xs font-bold text-slate-500 shadow-sm">
                   {(user?.displayName || '선').charAt(0)}
                 </div>
               )}
-              {/* V3와 V4는 Firebase 앱 이름이 달라 로그인 세션이 분리되어 있다.
-                  이름이 같은 계정이 여럿이면 서로 다른 계정에 로그인한 줄 모르고
-                  "데이터가 사라졌다"고 오인하게 되므로 이메일을 항상 보여준다. */}
-              <span
-                className="hidden md:inline text-[11px] text-slate-500 font-medium max-w-[180px] truncate"
-                title={user?.email || ''}
-              >
-                {user?.email || ''}
-              </span>
               <button
                 onClick={logout}
                 className="px-2 py-1 sm:px-3 sm:py-1.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-xl font-bold text-[15px] sm:text-xs transition-colors shrink-0 ml-1"
