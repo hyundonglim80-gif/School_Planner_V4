@@ -3,7 +3,7 @@ import type { JournalEntry } from '../../hooks/useDayData';
 import { renderFormattedText } from '../../lib/textUtils';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
-import { DEFAULT_JOURNAL_LABELS, type JournalLabel } from '../../components/LabelModal';
+import { DEFAULT_JOURNAL_LABELS, type JournalLabel } from '../../hooks/useLabels';
 import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { uploadImage, uploadFile } from '../../utils/uploadHelper';

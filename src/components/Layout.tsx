@@ -1,27 +1,29 @@
 //src/components/Layout.tsx
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { useAuth } from '../features/auth/useAuth';
 import { useAppStore } from '../store/useAppStore';
 import { useGroups } from '../hooks/useGroups';
 import { useDDay } from '../hooks/useDDay';
-import GroupModal from './GroupModal';
-import DDayModal from './DDayModal';
-import SearchModal from './SearchModal';
-import RosterModal from './RosterModal';
-import LabelModal from './LabelModal';
-import BackupModal from './BackupModal';
-import HelpModal from './HelpModal';
-import TimetableTemplateModal from './TimetableTemplateModal';
+// 모달은 처음 열 때 받아오면 충분하다. 전부 첫 화면 번들에 넣으면
+// 초기 로딩만 느려지므로, 열릴 때만 그려서 그때 청크를 내려받는다.
+const GroupModal = lazy(() => import('./GroupModal'));
+const DDayModal = lazy(() => import('./DDayModal'));
+const SearchModal = lazy(() => import('./SearchModal'));
+const RosterModal = lazy(() => import('./RosterModal'));
+const LabelModal = lazy(() => import('./LabelModal'));
+const BackupModal = lazy(() => import('./BackupModal'));
+const HelpModal = lazy(() => import('./HelpModal'));
+const TimetableTemplateModal = lazy(() => import('./TimetableTemplateModal'));
+const SettingsModal = lazy(() => import('./SettingsModal'));
+const EvaluationModal = lazy(() => import('./EvaluationModal'));
+const RecurringModal = lazy(() => import('./RecurringModal'));
+const ForwardingModal = lazy(() => import('./ForwardingModal'));
+const LinkerModal = lazy(() => import('./LinkerModal'));
+const LinkViewerModal = lazy(() => import('./LinkViewerModal'));
+const TrashModal = lazy(() => import('./TrashModal'));
 
-import SettingsModal from './SettingsModal';
-import EvaluationModal from './EvaluationModal';
-import RecurringModal from './RecurringModal';
-import ForwardingModal from './ForwardingModal';
-import LinkerModal from './LinkerModal';
-import LinkViewerModal from './LinkViewerModal';
 import MultiEventActionBar from './MultiEventActionBar';
-import TrashModal from './TrashModal';
 import MiniCalendarPicker from './MiniCalendarPicker';
 import { useGlobalGestures } from '../hooks/useGlobalGestures';
 
@@ -646,84 +648,91 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      {/* 모달 모음 */}
-      <GroupModal
-        isOpen={isGroupModalOpen}
-        onClose={() => setIsGroupModalOpen(false)}
-      />
+      {/* 모달 모음 - 열려 있을 때만 그려서 필요한 시점에 내려받는다 */}
+      <Suspense fallback={null}>
+        {isGroupModalOpen && (
+          <GroupModal isOpen onClose={() => setIsGroupModalOpen(false)} />
+        )}
 
-      <DDayModal
-        isOpen={isDDayModalOpen}
-        onClose={() => setIsDDayModalOpen(false)}
-      />
+        {isDDayModalOpen && (
+          <DDayModal isOpen onClose={() => setIsDDayModalOpen(false)} />
+        )}
 
-      <SearchModal
-        isOpen={isSearchModalOpen}
-        onClose={() => setIsSearchModalOpen(false)}
-      />
+        {isSearchModalOpen && (
+          <SearchModal isOpen onClose={() => setIsSearchModalOpen(false)} />
+        )}
 
-      <RosterModal
-        isOpen={isRosterModalOpen}
-        onClose={() => setIsRosterModalOpen(false)}
-      />
+        {isRosterModalOpen && (
+          <RosterModal isOpen onClose={() => setIsRosterModalOpen(false)} />
+        )}
 
-      <LabelModal
-        isOpen={isLabelModalOpen}
-        onClose={closeLabelModal}
-        initialTab={labelModalTab}
-      />
+        {isLabelModalOpen && (
+          <LabelModal isOpen onClose={closeLabelModal} initialTab={labelModalTab} />
+        )}
 
-      <BackupModal
-        isOpen={isBackupModalOpen}
-        onClose={() => setIsBackupModalOpen(false)}
-      />
+        {isBackupModalOpen && (
+          <BackupModal isOpen onClose={() => setIsBackupModalOpen(false)} />
+        )}
 
-      <HelpModal
-        isOpen={isHelpModalOpen}
-        onClose={() => setIsHelpModalOpen(false)}
-      />
-      <SettingsModal isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} />
-      
-      {/* Evaluation/Survey Modal */}
-      <EvaluationModal 
-        isOpen={isEvaluationModalOpen} 
-        onClose={closeEvaluationModal} 
-        dateStr={evalDateStr || currentDate} 
-        defaultSource={evalSource}
-        defaultPeriod={evalPeriod}
-        defaultSubject={evalSubject}
-      />
-      
-      <RecurringModal isOpen={isRecurringModalOpen} onClose={() => setIsRecurringModalOpen(false)} />
-      <ForwardingModal isOpen={isForwardingModalOpen} onClose={() => setIsForwardingModalOpen(false)} />
-      
-      {/* Linker Modal */}
-      <LinkerModal 
-        isOpen={isLinkerModalOpen} 
-        onClose={closeLinkerModal} 
-        sourceType={linkerSourceType || 'manual'} 
-        sourceDateStr={linkerSourceDateStr || currentDate} 
-        sourceId={linkerSourceId}
-        sourcePeriod={linkerSourcePeriod}
-        sourceFId={linkerSourceFId}
-      />
+        {isHelpModalOpen && (
+          <HelpModal isOpen onClose={() => setIsHelpModalOpen(false)} />
+        )}
 
-      <LinkViewerModal
-        isOpen={isLinkViewerModalOpen}
-        onClose={closeLinkViewerModal}
-        sourceType={linkViewerSourceType}
-        sourceDateStr={linkViewerSourceDateStr || currentDate}
-        sourceId={linkViewerSourceId}
-        sourcePeriod={linkViewerSourcePeriod}
-        sourceFId={linkViewerSourceFId}
-      />
+        {isSettingsModalOpen && (
+          <SettingsModal isOpen onClose={() => setIsSettingsModalOpen(false)} />
+        )}
 
-      <TrashModal isOpen={isTrashModalOpen} onClose={() => setTrashModalOpen(false)} />
+        {isEvaluationModalOpen && (
+          <EvaluationModal
+            isOpen
+            onClose={closeEvaluationModal}
+            dateStr={evalDateStr || currentDate}
+            defaultSource={evalSource}
+            defaultPeriod={evalPeriod}
+            defaultSubject={evalSubject}
+          />
+        )}
 
-      <TimetableTemplateModal
-        isOpen={isTimetableModalOpen}
-        onClose={() => setIsTimetableModalOpen(false)}
-      />
+        {isRecurringModalOpen && (
+          <RecurringModal isOpen onClose={() => setIsRecurringModalOpen(false)} />
+        )}
+
+        {isForwardingModalOpen && (
+          <ForwardingModal isOpen onClose={() => setIsForwardingModalOpen(false)} />
+        )}
+
+        {isLinkerModalOpen && (
+          <LinkerModal
+            isOpen
+            onClose={closeLinkerModal}
+            sourceType={linkerSourceType || 'manual'}
+            sourceDateStr={linkerSourceDateStr || currentDate}
+            sourceId={linkerSourceId}
+            sourcePeriod={linkerSourcePeriod}
+            sourceFId={linkerSourceFId}
+          />
+        )}
+
+        {isLinkViewerModalOpen && (
+          <LinkViewerModal
+            isOpen
+            onClose={closeLinkViewerModal}
+            sourceType={linkViewerSourceType}
+            sourceDateStr={linkViewerSourceDateStr || currentDate}
+            sourceId={linkViewerSourceId}
+            sourcePeriod={linkViewerSourcePeriod}
+            sourceFId={linkViewerSourceFId}
+          />
+        )}
+
+        {isTrashModalOpen && (
+          <TrashModal isOpen onClose={() => setTrashModalOpen(false)} />
+        )}
+
+        {isTimetableModalOpen && (
+          <TimetableTemplateModal isOpen onClose={() => setIsTimetableModalOpen(false)} />
+        )}
+      </Suspense>
 
       {/* 다중 선택 액션 바 */}
       <MultiEventActionBar />

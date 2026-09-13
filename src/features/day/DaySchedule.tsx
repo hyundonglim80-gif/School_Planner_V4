@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import type { PeriodSchedule } from '../../hooks/useDayData';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { useAppStore } from '../../store/useAppStore';
 import { parseDateStr } from '../../lib/dateUtils';
-import TimetableTemplateModal from '../../components/TimetableTemplateModal';
+const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
 
 interface DayScheduleProps {
   schedules: Record<number, PeriodSchedule>;
@@ -324,10 +324,11 @@ export default function DaySchedule({
       </div>
       )}
 
-      <TimetableTemplateModal
-        isOpen={isTemplateModalOpen}
-        onClose={() => setIsTemplateModalOpen(false)}
-      />
+      {isTemplateModalOpen && (
+        <Suspense fallback={null}>
+          <TimetableTemplateModal isOpen onClose={() => setIsTemplateModalOpen(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }
