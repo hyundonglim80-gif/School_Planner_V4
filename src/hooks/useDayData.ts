@@ -42,6 +42,13 @@ export interface EventItem {
   // V3 및 일부 모달이 쓰는 호환 필드
   text?: string;
   createdAt?: number;
+  // V3의 이월 사슬 메타데이터. V3는 원본을 원래 날짜에 남겨둔 채 사슬로 관리한다.
+  forwardChainId?: string;
+  originalDate?: string;
+  // V3가 항목에 함께 저장하는 값들
+  date?: string;
+  sharedGroupId?: string | null;
+  groupId?: string | null;
 }
 
 export interface PeriodSchedule {
@@ -80,7 +87,11 @@ function normalizeEventForWrite(
   const content = eventContentOf(item);
   const authorId = item.authorId || user.uid;
   const authorName = item.authorName || (authorId === user.uid ? (user.displayName || '') : '');
-  return {
+  const merged: Record<string, any> = {
+    // 💡 화이트리스트로만 저장하면 V3가 쓰는 forwardChainId/originalDate/date/
+    // sharedGroupId 같은 필드가 V4에서 저장할 때마다 사라져 V3의 이월 사슬이 깨진다.
+    // 모르는 필드는 그대로 넘기고 아래에서 V4가 관리하는 값만 덮어쓴다.
+    ...item,
     id: item.id || 'ev_' + Date.now().toString(36) + '_' + idx,
     content,
     text: content, // V3 및 백업 내보내기 호환
@@ -102,6 +113,11 @@ function normalizeEventForWrite(
     ...(item.alarmTriggered !== undefined ? { alarmTriggered: item.alarmTriggered } : {}),
     ...(item.forwardedFrom !== undefined ? { forwardedFrom: item.forwardedFrom } : {}),
   };
+  // Firestore는 undefined 값을 거부하므로 걷어낸다
+  for (const k of Object.keys(merged)) {
+    if (merged[k] === undefined) delete merged[k];
+  }
+  return merged;
 }
 
 // 💡 추가된 과거 일정을 이월하는 독립 함수 (전역 호출용)
@@ -180,6 +196,15 @@ async function doAutoForwarding(groupId: string | null) {
 
       for (const it of items) {
         if (it.completed || !it.content.trim()) {
+          remainingItems.push(it);
+          continue;
+        }
+
+        // 💡 V3는 forwardChainId/originalDate로 이월 사슬을 관리하며 원본을 원래
+        // 날짜에 남겨 둔다. V4가 같은 항목을 오늘로 옮기고 과거 날짜에서 지우면
+        // V3에서 멀쩡히 보이던 과거 일정이 V4에서만 사라진다. V3가 관리하는
+        // 항목은 V3에 맡기고 넘어간다.
+        if (it.forwardChainId || it.originalDate) {
           remainingItems.push(it);
           continue;
         }
@@ -340,6 +365,8 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
               content = match[2].trim();
             }
             return {
+              // V3가 붙인 필드(forwardChainId, originalDate 등)를 그대로 통과시킨다
+              ...e,
               id: e.id || 'ev_' + idx,
               content: content,
               completed: !!e.completed,
