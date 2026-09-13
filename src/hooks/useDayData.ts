@@ -201,15 +201,6 @@ async function doAutoForwarding(groupId: string | null) {
           continue;
         }
 
-        // 💡 V3는 forwardChainId/originalDate로 이월 사슬을 관리하며 원본을 원래
-        // 날짜에 남겨 둔다. V4가 같은 항목을 오늘로 옮기고 과거 날짜에서 지우면
-        // V3에서 멀쩡히 보이던 과거 일정이 V4에서만 사라진다. V3가 관리하는
-        // 항목은 V3에 맡기고 넘어간다.
-        if (it.forwardChainId || it.originalDate) {
-          remainingItems.push(it);
-          continue;
-        }
-
         let labelName = '';
         if (it.label) {
           labelName = it.label.split(',')[0].trim();
@@ -225,6 +216,15 @@ async function doAutoForwarding(groupId: string | null) {
           it.forward === true || (it.forward !== false && forwardLabelNames.includes(labelName));
 
         if (isForwardTarget) {
+          // 같은 사슬의 항목이 오늘 이미 완료되었으면 이월을 멈춘다.
+          const chainDone =
+            !!it.forwardChainId &&
+            todayEventList.some((e: any) => e.forwardChainId === it.forwardChainId && e.completed);
+          if (chainDone) {
+            remainingItems.push(it);
+            continue;
+          }
+
           // 오늘 목록에 같은 내용이 이미 있으면 이월 복사본을 만들지 않는다.
           const isDuplicate =
             todayEventList.some(e => eventContentOf(e) === eventContentOf(it)) ||
@@ -236,8 +236,23 @@ async function doAutoForwarding(groupId: string | null) {
             remainingItems.push(it);
             continue;
           }
+          // 💡 V3는 원본을 원래 날짜에 남겨 둔 채 사슬로 관리한다. V4만 과거
+          // 날짜에서 지우다 보니, 두 앱을 같이 쓰면 과거 일정이 V4에서만
+          // 사라져 보였다. V4도 원본을 남기고, V3와 같은 사슬 표시를 붙여
+          // 다음 번 이월에서 다시 집어가지 않게 한다.
+          const chainId =
+            it.forwardChainId || 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
+          const originalDate = it.originalDate || pDate;
+          // 이미 표시가 붙어 있으면 과거 문서를 다시 쓸 필요가 없다.
+          // (표시를 붙이는 첫 회에만 쓰기가 일어난다)
+          const alreadyMarked = !!it.forwardChainId && !!it.originalDate;
+          remainingItems.push(alreadyMarked ? it : { ...it, forwardChainId: chainId, originalDate });
+          if (!alreadyMarked) hasChanges = true;
+
           incompleteItems.push({
             id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5),
+            forwardChainId: chainId,
+            originalDate,
             content: it.content,
             completed: false,
             label: it.label,
@@ -253,7 +268,6 @@ async function doAutoForwarding(groupId: string | null) {
             authorId: it.authorId,
             authorName: it.authorName,
           });
-          hasChanges = true;
         } else {
           remainingItems.push(it);
         }
