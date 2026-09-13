@@ -351,6 +351,17 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       : doc(db, 'users', user.uid, 'journals', dateStr);
 
     const unsubEvent = onSnapshot(eventDocRef, (snap) => {
+      // [임시 진단] 일정이 표시되지 않는 원인 추적용. 원인 확인 후 제거할 것.
+      const _diag: any = snap.exists() ? snap.data() : null;
+      console.log('[SP4 일정 진단]', {
+        경로: eventDocRef.path,
+        문서존재: snap.exists(),
+        캐시에서읽음: snap.metadata.fromCache,
+        미전송쓰기있음: snap.metadata.hasPendingWrites,
+        eventList개수: Array.isArray(_diag?.eventList) ? _diag.eventList.length : null,
+        eventText길이: String(_diag?.eventText ?? '').length,
+      });
+
       if (snap.exists()) {
         const data = snap.data();
         const rawText = data.eventText || '';
