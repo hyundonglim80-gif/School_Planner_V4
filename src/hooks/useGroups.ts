@@ -6,6 +6,8 @@ import {
   onSnapshot,
   addDoc,
   doc,
+  setDoc,
+  getDoc,
   updateDoc,
   deleteDoc,
   arrayUnion,
@@ -13,6 +15,34 @@ import {
   getDocs,
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+
+// 💡 예전에는 초대 코드로 참여할 때 groups 컬렉션 전체를 inviteCode로 조회했다.
+// 그러려면 보안 규칙에서 groups 목록 조회를 열어야 하고, 그러면 로그인한
+// 사람 누구나 모든 그룹의 이름과 초대 코드를 읽을 수 있다.
+// 그래서 코드 -> 그룹 ID 매핑만 담은 문서를 따로 두고 그 한 건만 조회한다.
+const INVITE_CODES = 'inviteCodes';
+
+const inviteCodeRef = (code: string) => doc(db, INVITE_CODES, code);
+
+// 이미 만들어진 그룹에도 매핑 문서를 만들어 준다(그룹장 접속 시 1회).
+const backfilledCodes = new Set<string>();
+async function ensureInviteCodeDoc(group: GroupItem, uid: string) {
+  if (!group.inviteCode || group.ownerId !== uid) return;
+  if (backfilledCodes.has(group.inviteCode)) return;
+  backfilledCodes.add(group.inviteCode);
+  try {
+    const snap = await getDoc(inviteCodeRef(group.inviteCode));
+    if (!snap.exists()) {
+      await setDoc(inviteCodeRef(group.inviteCode), {
+        groupId: group.id,
+        ownerId: group.ownerId,
+        createdAt: Date.now(),
+      });
+    }
+  } catch (e) {
+    console.warn('초대 코드 매핑 생성 실패:', e);
+  }
+}
 
 export interface GroupItem {
   id: string;
@@ -52,6 +82,8 @@ export function useGroups() {
         });
         setGroups(list);
         setLoading(false);
+        // 기존 그룹의 초대 코드 매핑을 채운다 (실패해도 그룹 사용에는 지장 없음)
+        list.forEach((g) => ensureInviteCodeDoc(g, user.uid));
       },
       (error) => {
         console.error('그룹 로드 실패:', error);
@@ -78,7 +110,14 @@ export function useGroups() {
     if (!user) throw new Error('로그인이 필요합니다.');
     if (!name.trim()) throw new Error('그룹 이름을 입력해 주세요.');
 
-    const inviteCode = generateInviteCode();
+    // 이미 쓰이는 코드면 다시 뽑는다
+    let inviteCode = generateInviteCode();
+    for (let i = 0; i < 5; i++) {
+      const existing = await getDoc(inviteCodeRef(inviteCode));
+      if (!existing.exists()) break;
+      inviteCode = generateInviteCode();
+    }
+
     const newGroupData = {
       name: name.trim(),
       ownerId: user.uid,
@@ -89,6 +128,12 @@ export function useGroups() {
     };
 
     const docRef = await addDoc(collection(db, 'groups'), newGroupData);
+    await setDoc(inviteCodeRef(inviteCode), {
+      groupId: docRef.id,
+      ownerId: user.uid,
+      createdAt: Date.now(),
+    });
+    backfilledCodes.add(inviteCode);
     return { id: docRef.id, ...newGroupData };
   }, []);
 
@@ -99,25 +144,38 @@ export function useGroups() {
     const cleanCode = code.trim().toUpperCase();
     if (!cleanCode) throw new Error('초대 코드를 입력해 주세요.');
 
-    const q = query(collection(db, 'groups'), where('inviteCode', '==', cleanCode));
-    const snapshot = await getDocs(q);
+    // 코드 -> 그룹 ID 매핑 문서 한 건만 읽는다
+    let groupId: string | null = null;
+    const mapSnap = await getDoc(inviteCodeRef(cleanCode));
+    if (mapSnap.exists()) {
+      groupId = mapSnap.data().groupId || null;
+    } else {
+      // 매핑이 아직 없는 예전 그룹을 위한 폴백.
+      // 모든 그룹에 매핑이 생기면 이 경로는 지워도 된다.
+      const q = query(collection(db, 'groups'), where('inviteCode', '==', cleanCode));
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) groupId = snapshot.docs[0].id;
+    }
 
-    if (snapshot.empty) {
+    if (!groupId) {
       throw new Error('일치하는 초대 코드의 그룹을 찾을 수 없습니다.');
     }
 
-    const groupDoc = snapshot.docs[0];
-    const data = groupDoc.data() as GroupItem;
+    const groupSnap = await getDoc(doc(db, 'groups', groupId));
+    if (!groupSnap.exists()) {
+      throw new Error('삭제되었거나 존재하지 않는 그룹입니다.');
+    }
+    const data = groupSnap.data() as GroupItem;
 
     if (data.members && data.members.includes(user.uid)) {
       throw new Error('이미 참여 중인 그룹입니다.');
     }
 
-    await updateDoc(doc(db, 'groups', groupDoc.id), {
+    await updateDoc(doc(db, 'groups', groupId), {
       members: arrayUnion(user.uid),
     });
 
-    return { id: groupDoc.id, name: data.name };
+    return { id: groupId, name: data.name };
   }, []);
 
   // 그룹 탈퇴
@@ -146,6 +204,13 @@ export function useGroups() {
     }
 
     await deleteDoc(doc(db, 'groups', groupId));
+    if (group.inviteCode) {
+      try {
+        await deleteDoc(inviteCodeRef(group.inviteCode));
+      } catch (e) {
+        console.warn('초대 코드 매핑 삭제 실패:', e);
+      }
+    }
   }, [groups]);
 
   return {
