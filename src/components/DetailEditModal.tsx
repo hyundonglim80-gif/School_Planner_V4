@@ -3,8 +3,7 @@ import { showToast } from '../utils/toast';
 import { useDayData, type EventItem } from '../hooks/useDayData';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
-import { auth } from '../lib/firebase';
-import { uploadImage } from '../utils/uploadHelper';
+
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
@@ -59,7 +58,6 @@ export default function DetailEditModal({
   const [supplies, setSupplies] = useState('');
   const [labels, setLabels] = useState<string[]>([]);
   const [imageUrl, setImageUrl] = useState<string>('');
-  const [uploadingImage, setUploadingImage] = useState(false);
 
   // 개별 일정 속성 상태 (달력 / 이월 / 기간 / 반복 / 수업X)
   const [itemCalendar, setItemCalendar] = useState(true);
@@ -192,22 +190,6 @@ export default function DetailEditModal({
       }
       return next;
     });
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      setUploadingImage(true);
-      const url = await uploadImage(file, auth.currentUser?.uid || 'anonymous');
-      setImageUrl(url);
-    } catch (err) {
-      console.error('Image upload failed', err);
-      alert('이미지 업로드에 실패했습니다.');
-    } finally {
-      setUploadingImage(false);
-      if (e.target) e.target.value = '';
-    }
   };
 
   const handleSave = async () => {
@@ -475,29 +457,6 @@ export default function DetailEditModal({
                   rows={4}
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
                 />
-              </div>
-              
-              {/* Image Upload */}
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-2">첨부 이미지</label>
-                {imageUrl && (
-                  <div className="relative inline-block mb-3">
-                    <img src={imageUrl} alt="첨부" className="h-32 w-auto rounded-xl border border-slate-200 object-cover" />
-                    <button 
-                      type="button" 
-                      onClick={() => setImageUrl('')} 
-                      className="absolute -top-2 -right-2 bg-white rounded-full p-1 shadow-sm border border-slate-200 text-slate-500 hover:text-red-500 text-xs"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )}
-                <div>
-                  <label className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition-colors">
-                    <span>📷 {uploadingImage ? '업로드 중...' : '이미지 첨부'}</span>
-                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploadingImage} />
-                  </label>
-                </div>
               </div>
 
             </div>

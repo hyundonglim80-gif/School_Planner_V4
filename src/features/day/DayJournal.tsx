@@ -306,27 +306,6 @@ export default function DayJournal({
     setEditingId(null);
   };
 
-  const handleEditImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const user = auth.currentUser;
-    if (!user) {
-      alert('로그인이 필요합니다.');
-      return;
-    }
-
-    try {
-      setUploadingFiles(true);
-      const url = await uploadImage(file, user.uid);
-      setEditImageUrl(url);
-    } catch (error) {
-      alert('이미지 업로드에 실패했습니다.');
-    } finally {
-      setUploadingFiles(false);
-    }
-  };
-
   const [columnsCount, setColumnsCount] = useState(4);
 
   useEffect(() => {
@@ -483,7 +462,33 @@ export default function DayJournal({
 
             {/* 하단 옵션 */}
             <div className="flex flex-col gap-2">
-              <div className="flex justify-end items-center gap-2">
+              <div className="flex justify-between items-center gap-2">
+                {/* 첨부/링크 추가 - 이미지도 파일과 같은 형식(썸네일 + 파일)으로 붙는다 */}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUploadTargetId(null);
+                      itemFileInputRef.current?.click();
+                    }}
+                    disabled={uploadingFiles}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-slate-200/50 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-colors disabled:opacity-40"
+                    title="이미지를 포함한 파일 첨부"
+                  >
+                    <span>📎</span>
+                    <span>{uploadingFiles ? '업로드 중...' : '파일 추가'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openLinker}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded-xl text-xs font-bold transition-colors"
+                    title="다른 항목과 연결"
+                  >
+                    <span>🔗</span>
+                    <span>링크 추가</span>
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setIsFormOpen(false)}
@@ -498,6 +503,7 @@ export default function DayJournal({
                 >
                   등록
                 </button>
+                </div>
               </div>
 
               {/* 첨부파일 미리보기 */}
@@ -645,11 +651,31 @@ export default function DayJournal({
                         )}
 
                         <div className="flex justify-between items-center">
-                          <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200/50 hover:bg-slate-200 text-slate-600 rounded-xl text-[16.5px] font-bold transition-colors cursor-pointer">
-                            <span>📷</span>
-                            <span>{uploadingFiles ? '업로드 중...' : '이미지 추가'}</span>
-                            <input type="file" accept="image/*" onChange={handleEditImageUpload} className="hidden" disabled={uploadingFiles} />
-                          </label>
+                          <div className="flex items-center gap-1.5">
+                            {/* 이미지도 파일과 같은 형식(썸네일 + 파일)으로 첨부된다 */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setUploadTargetId(entry.id);
+                                itemFileInputRef.current?.click();
+                              }}
+                              disabled={uploadingFiles}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200/50 hover:bg-slate-200 text-slate-600 rounded-xl text-[16.5px] font-bold transition-colors disabled:opacity-40"
+                              title="이미지를 포함한 파일 첨부"
+                            >
+                              <span>📎</span>
+                              <span>{uploadingFiles ? '업로드 중...' : '파일 추가'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openLinkerModal('journal', formattedDate, entry.id)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded-xl text-[16.5px] font-bold transition-colors"
+                              title="다른 항목과 연결"
+                            >
+                              <span>🔗</span>
+                              <span>링크 추가</span>
+                            </button>
+                          </div>
                           <div className="flex gap-2">
                             <button
                               type="button"
