@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { formatDateStr } from '../lib/dateUtils';
@@ -85,8 +85,11 @@ export function useEventAlarms() {
       const ds = dateRef.current;
       try {
         const ref = eventDocRefFor(ds);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
+        // 이 함수는 20초마다 돈다. 읽고-고쳐-쓰기로 처리하면 사용자가 그때
+        // 편집 중이던 내용을 통째로 덮어쓸 수 있어 트랜잭션으로 감싼다.
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists()) return;
           const list: any[] = readEventList(snap.data());
           let changed = false;
           const updated = list.map((item) => {
@@ -97,9 +100,9 @@ export function useEventAlarms() {
             return item;
           });
           if (changed) {
-            await setDoc(ref, eventDocPayload(updated), { merge: true });
+            tx.set(ref, eventDocPayload(updated), { merge: true });
           }
-        }
+        });
       } catch (err) {
         console.error('알림 확인 처리 반영 실패:', err);
       }

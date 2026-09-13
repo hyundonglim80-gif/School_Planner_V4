@@ -327,6 +327,11 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 저장할 때 "내가 마지막으로 본 목록"을 기준선으로 삼아, 그 사이 다른 기기나
+  // V3에서 추가된 항목을 지우지 않도록 한다. state 대신 ref를 쓰는 이유는
+  // saveEventItems의 의존성이 목록이 바뀔 때마다 흔들리지 않게 하기 위함이다.
+  const eventBaselineRef = useRef<EventItem[]>([]);
+
   useEffect(() => {
     const user = auth.currentUser;
     if (!user || !dateStr) {
@@ -403,12 +408,16 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
             (e.linkedItems && e.linkedItems.length > 0)
           );
           setEventList(mapped);
+          eventBaselineRef.current = mapped;
         } else if (rawText) {
-          setEventList(parseV3EventText(rawText).filter((e: EventItem) => 
+          const parsed = parseV3EventText(rawText).filter((e: any) =>
             (e.content && e.content.trim().length > 0) || e.label
-          ));
+          ) as EventItem[];
+          setEventList(parsed);
+          eventBaselineRef.current = parsed;
         } else {
           setEventList([]);
+          eventBaselineRef.current = [];
         }
     };
 
@@ -517,9 +526,24 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       (item.attachments && item.attachments.length > 0) ||
       (item.linkedItems && item.linkedItems.length > 0)
     );
-    const v3EventList = validList.map((item, idx) => normalizeEventForWrite(item, idx, user));
+    // 예전에는 로컬 목록으로 문서를 통째로 덮어써서, 그 사이 다른 기기나 V3에서
+    // 추가된 일정이 통째로 사라졌다. 쓰기 직전 최신 목록을 다시 읽어 병합한다.
+    const baselineIds = new Set(eventBaselineRef.current.map((i) => String(i.id)));
+    const keptIds = new Set(validList.map((i) => String(i.id)));
     try {
-      await setDoc(eventDocRef, eventDocPayload(v3EventList), { merge: true });
+      await runTransaction(db, async (tx) => {
+        const freshSnap = await tx.get(eventDocRef);
+        const fresh: any[] = freshSnap.exists() ? readEventList(freshSnap.data()) : [];
+        // 내가 마지막으로 본 뒤에 남이 추가한 항목만 보존한다.
+        // (기준선에 있었는데 지금 없는 항목 = 내가 지운 것이므로 되살리지 않는다)
+        const addedByOthers = fresh.filter(
+          (f) => !baselineIds.has(String(f.id)) && !keptIds.has(String(f.id))
+        );
+        const merged = [...validList, ...addedByOthers].map((item: any, idx: number) =>
+          normalizeEventForWrite(item, idx, user)
+        );
+        tx.set(eventDocRef, eventDocPayload(merged), { merge: true });
+      });
     } catch (err) {
       showErrorToast('일정 저장에 실패했습니다. 네트워크를 확인해 주세요.', err);
     }
