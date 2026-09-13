@@ -5,6 +5,7 @@ import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
+import { splitHolidayEvents } from '../../lib/holiday';
 import DetailEditModal from '../../components/DetailEditModal';
 import { useState } from 'react';
 
@@ -54,11 +55,11 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
 
         const [, month, dateNum] = day.dateStr.split('-');
         
-        const holidayEvent = rawEvents.find((e: any) => e.label === '휴일' || e.labelIds?.includes('휴일'));
-        const holidayName = holidays[day.dateStr] || holidayEvent?.content;
+        // 공휴일 일정은 목록에서 빼고 빨간 이름으로만 보여준다
+        const { events, holidayName: holidayFromEvent } = splitHolidayEvents(rawEvents);
+        const holidayName = holidays[day.dateStr] || holidayFromEvent;
         const isHoliday = !!holidayName || day.dayName === '일';
         
-        const events = rawEvents.filter((e: any) => e.label !== '휴일' && !e.labelIds?.includes('휴일'));
 
         return (
           <div

@@ -6,6 +6,7 @@ import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
+import { splitHolidayEvents } from '../../lib/holiday';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import DetailEditModal from '../../components/DetailEditModal';
 import { useState } from 'react';
@@ -40,7 +41,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
     return days;
   }, [days, showWeekend]);
 
-  const { getLabelColor, getLabel } = useLabels();
+  const { getLabelColor, getLabel, eventLabels } = useLabels();
   const { holidays } = useGovHolidays();
   const { templates, currentTemplateName } = useTimetableTemplate();
   
@@ -74,11 +75,10 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
           
           const hasClasses = periodArray.some(p => schedules[p]?.subject?.trim() && schedules[p]?.subject?.toUpperCase() !== 'X');
           
-          const holidayEvent = rawEvents.find((e: any) => e.label === '휴일' || e.labelIds?.includes('휴일'));
-          const holidayName = dayObj.holidayName || holidays[dayObj.dateStr] || holidayEvent?.content;
+          // 공휴일 일정은 목록에서 빼고 날짜 옆 빨간 이름으로만 보여준다
+          const { events, holidayName: holidayFromEvent } = splitHolidayEvents(rawEvents);
+          const holidayName = dayObj.holidayName || holidays[dayObj.dateStr] || holidayFromEvent;
           const isHoliday = !!holidayName || dayObj.isSunday;
-          
-          const events = rawEvents.filter((e: any) => e.label !== '휴일' && !e.labelIds?.includes('휴일'));
 
           return (
             <div
@@ -168,11 +168,18 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                 {showEvents && (
                 <div className="space-y-1">
                   {events.slice(0, 3).map((ev) => {
-                    const hasLabel = !!ev.label;
-                    const labelDef = hasLabel ? getLabel(ev.label!) : null;
-                    // 💡 등록된 라벨인지 확인하여 삭제된 라벨 거르기
+                    // 💡 V3에서 만든 항목은 label(이름) 없이 labelIds만 갖는다.
+                    // 예전에는 label만 봐서 그런 일정에 라벨 칩이 붙지 않았다.
+                    const labelName =
+                      (ev.label ? String(ev.label).split(',')[0].trim() : '') ||
+                      (ev.labelIds && ev.labelIds.length > 0
+                        ? (eventLabels.find((l) => ev.labelIds!.includes(l.id)) ||
+                           eventLabels.find((l) => ev.labelIds!.includes(l.name)))?.name || ''
+                        : '');
+                    const labelDef = labelName ? getLabel(labelName) : null;
+                    // 등록된 라벨인지 확인하여 삭제된 라벨 거르기
                     const isValidLabel = !!labelDef;
-                    const labelColor = isValidLabel ? getLabelColor(ev.label!) : null;
+                    const labelColor = isValidLabel ? getLabelColor(labelName) : null;
                     const isForwardLabel = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
 
                     return (
@@ -224,7 +231,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                               border: '1px solid ' + (ev.completed ? '#e2e8f0' : labelColor.border)
                             }}
                           >
-                            {ev.label}
+                            {labelName}
                           </span>
                         )}
                         <span className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}>
