@@ -350,16 +350,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       ? doc(db, 'groups', groupId, 'journals', dateStr)
       : doc(db, 'users', user.uid, 'journals', dateStr);
 
-    // [임시 진단] 일정이 표시되지 않는 원인 추적용. 원인 확인 후 제거할 것.
-    console.warn('[SP4 진단] 구독 경로', {
-      dateStr,
-      groupId,
-      uid: user.uid,
-      일정: eventDocRef.path,
-      수업: scheduleDocRef.path,
-      기록: journalDocRef.path,
-    });
-
     // 💡 오프라인 캐시가 "문서 없음"이라고 답하면 서버에 실제로 있는 데이터가
     // 통째로 가려져 일정이 사라진 것처럼 보인다. 매핑을 함수로 빼서, 캐시 결과와
     // 서버 재확인 결과 양쪽에서 같은 로직을 쓴다.
@@ -436,12 +426,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         serverRecheckDone = true;
         getDocFromServer(eventDocRef)
           .then((serverSnap) => {
-            console.warn('[SP4 진단] 서버 재확인', { 경로: eventDocRef.path, 서버에존재: serverSnap.exists() });
             if (serverSnap.exists()) applyEventData(serverSnap.data());
           })
-          .catch((err) => {
-            console.warn('[SP4 진단] 서버 재확인 실패(오프라인?)', err?.code || err);
-          });
+          .catch(() => { /* 오프라인 등 - 캐시 결과를 유지한다 */ });
       }
     }, (error) => {
       console.error('DayScreen Event Snapshot Error:', error);
@@ -449,7 +436,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     });
 
     const unsubSchedule = onSnapshot(scheduleDocRef, (snap) => {
-      console.warn('[SP4 진단] 수업 스냅샷', { 경로: scheduleDocRef.path, 문서존재: snap.exists() });
       if (snap.exists()) {
         const data = snap.data();
         const rawPeriods = data.periods || {};
@@ -478,7 +464,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     });
 
     const unsubJournal = onSnapshot(journalDocRef, (snap) => {
-      console.warn('[SP4 진단] 기록 스냅샷', { 경로: journalDocRef.path, 문서존재: snap.exists() });
       if (snap.exists()) {
         const data = snap.data();
         const rawEntries = data.entries || [];
