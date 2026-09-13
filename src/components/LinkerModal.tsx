@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { doc, getDoc, setDoc, getDocs, collection, addDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { eventDocPayload } from '../lib/eventText';
 import { useAppStore } from '../store/useAppStore';
 import { parseV3EventText } from '../hooks/useDayData';
 import { useLabels } from '../hooks/useLabels';
@@ -373,7 +374,7 @@ export default function LinkerModal({
           completed: false,
           createdAt: Date.now()
         });
-        await setDoc(ref, { ...existing, eventList, updatedAt: Date.now() }, { merge: true });
+        await setDoc(ref, eventDocPayload(eventList), { merge: true });
         newItem = { id: newId, type: 'event', title: text, date: dStr, fId: activeFId };
         fetchDateRangeData();
       }
@@ -524,7 +525,7 @@ export default function LinkerModal({
             if (item) {
               item.linkedItems = item.linkedItems || [];
               updateTargetArray(item.linkedItems);
-              await setDoc(ref, { eventList: list, updatedAt: Date.now() }, { merge: true });
+              await setDoc(ref, eventDocPayload(list), { merge: true });
             }
           }
         }

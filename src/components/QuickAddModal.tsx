@@ -4,6 +4,7 @@ import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
 import { addReverseLink } from '../utils/linkUtils';
+import { eventDocPayload, readEventList } from '../lib/eventText';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
@@ -55,8 +56,7 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
       
       const ref = doc(db, colPath, dateStr);
       const snap = await getDoc(ref);
-      const existing = snap.exists() ? snap.data() : {};
-      const eventList = existing.eventList || [];
+      const eventList = snap.exists() ? readEventList(snap.data()) : [];
 
       // 고유 ID 생성
       const newId = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
@@ -72,7 +72,7 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
         createdAt: Date.now()
       });
 
-      await setDoc(ref, { ...existing, eventList, updatedAt: Date.now() }, { merge: true });
+      await setDoc(ref, eventDocPayload(eventList), { merge: true });
       
       // 리버스 링크(양방향 연결) 처리
       if (linkedItems.length > 0) {

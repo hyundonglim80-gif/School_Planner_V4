@@ -76,8 +76,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     enableScrollNav,
     setEnableScrollNav,
   } = useAppStore();
-  const { groups } = useGroups();
+  const { groups, loading: groupsLoading } = useGroups();
   const { primaryDDay } = useDDay();
+
+  // 💡 그룹을 탈퇴/삭제해도 selectedGroupId가 그 그룹을 계속 가리켰다. 이후 모든
+  // 읽기/쓰기가 권한 거부로 조용히 실패해서 화면에는 텅 빈 달력만 보였다.
+  useEffect(() => {
+    if (groupsLoading || !selectedGroupId) return;
+    if (!groups.some((g) => g.id === selectedGroupId)) {
+      setSelectedGroupId(null);
+    }
+  }, [groupsLoading, groups, selectedGroupId, setSelectedGroupId]);
 
   useGlobalGestures();
 

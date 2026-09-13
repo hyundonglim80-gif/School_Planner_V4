@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { useAppStore } from '../store/useAppStore';
 import { useRoster, type ClassRoster, type Student } from '../hooks/useRoster';
 import { downloadCSV, parseCSV } from '../utils/csvHelper';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
@@ -28,6 +29,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   const [showConfigInput, setShowConfigInput] = useState(false);
   const [configInputId, setConfigInputId] = useState('');
   const [loadingSheet, setLoadingSheet] = useState(false);
+  const googleAccessToken = useAppStore((st) => st.googleAccessToken);
   const [saving, setSaving] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   // 저장 시점에 삭제된 학급/학생을 찾아내기 위한, 모달을 연 시점의 원본 스냅샷
@@ -147,7 +149,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     }
 
     // V3 호환: Google Sheets API v4 + OAuth 토큰 방식 (CORS 문제 해결)
-    const token = sessionStorage.getItem('google_api_token');
+    const token = googleAccessToken || sessionStorage.getItem('google_api_token');
     if (!token) {
       alert('구글 로그인이 필요합니다.\n로그아웃 후 다시 로그인해주세요.');
       return;

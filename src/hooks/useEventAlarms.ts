@@ -3,6 +3,7 @@ import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { formatDateStr } from '../lib/dateUtils';
+import { eventDocPayload, readEventList } from '../lib/eventText';
 
 export interface RingingAlarm {
   id: string;
@@ -86,8 +87,7 @@ export function useEventAlarms() {
         const ref = eventDocRefFor(ds);
         const snap = await getDoc(ref);
         if (snap.exists()) {
-          const data = snap.data();
-          const list: any[] = Array.isArray(data.eventList) ? data.eventList : [];
+          const list: any[] = readEventList(snap.data());
           let changed = false;
           const updated = list.map((item) => {
             if (toTrigger.some((t) => t.id === item.id)) {
@@ -97,7 +97,7 @@ export function useEventAlarms() {
             return item;
           });
           if (changed) {
-            await setDoc(ref, { eventList: updated, updatedAt: Date.now() }, { merge: true });
+            await setDoc(ref, eventDocPayload(updated), { merge: true });
           }
         }
       } catch (err) {

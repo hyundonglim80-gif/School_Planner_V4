@@ -5,6 +5,10 @@ import { db, auth } from '../lib/firebase';
 import { addReverseLink } from '../utils/linkUtils';
 import { moveToTrash } from '../utils/trashHelper';
 import { DEFAULT_EVENT_LABELS } from './useLabels';
+import { parseV3EventText, formatV3EventText, eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
+
+// 기존 import 경로 호환을 위해 재수출한다 (직렬화 구현은 lib/eventText.ts로 이동).
+export { parseV3EventText, formatV3EventText };
 
 export interface Attachment {
   id?: string;
@@ -32,6 +36,12 @@ export interface EventItem {
   time?: string;
   // 알림이 이미 한 번 울려서 확인 처리되었는지 여부 (time 값 자체는 보존)
   alarmTriggered?: boolean;
+  // 공동 작업 그룹에서 누가 만든 항목인지. 저장할 때 덮어쓰지 말고 보존해야 한다.
+  authorId?: string;
+  authorName?: string;
+  // V3 및 일부 모달이 쓰는 호환 필드
+  text?: string;
+  createdAt?: number;
 }
 
 export interface PeriodSchedule {
@@ -55,49 +65,66 @@ export interface JournalEntry {
   attachments?: Attachment[];
 }
 
-export function parseV3EventText(rawText: string): EventItem[] {
-  if (!rawText || !rawText.trim()) return [];
-  const lines = rawText.split('\n');
-  const list: EventItem[] = [];
-  lines.forEach((line, idx) => {
-    let t = line.trim();
-    if (!t) return;
-    let completed = false;
-    if (t.startsWith('[v]') || t.startsWith('[V]')) {
-      completed = true;
-      t = t.substring(3).trim();
-    }
-    let label = '';
-    const labelMatch = t.match(/^\[(.*?)\]\s*(.*)$/);
-    let content = t;
-    if (labelMatch) {
-      label = labelMatch[1].trim();
-      content = labelMatch[2].trim();
-    }
-    const contentStr = content || t;
-    const contentHash = Math.abs(contentStr.split('').reduce((acc, char) => ((acc << 5) - acc) + char.charCodeAt(0), 0)).toString(36);
-    list.push({
-      id: 'ev_t_' + idx + '_' + contentHash,
-      content: contentStr,
-      completed,
-      label: label || undefined,
-    });
-  });
-  return list;
-}
-
-export function formatV3EventText(items: EventItem[]): string {
-  return items
-    .map((item) => {
-      const checkPrefix = item.completed ? '[v] ' : '';
-      const labelPrefix = item.label ? `[${item.label}] ` : '';
-      return `${checkPrefix}${labelPrefix}${item.content}`;
-    })
-    .join('\n');
+// 일정 항목 하나를 Firestore에 저장할 형태로 정규화한다.
+//
+// 💡 authorId/authorName을 현재 사용자로 덮어쓰면 안 된다. 예전에는 저장할 때마다
+// 그 날짜의 "모든" 항목에 저장자의 uid/이름을 찍어서, 공유 그룹에서 다른 사람이 만든
+// 일정의 작성자가 마지막에 손댄 사람으로 전부 바뀌었다.
+// 💡 attachments/text/createdAt도 예전에는 이 매핑에서 빠져 있어, 첨부파일이 저장
+// 직후 사라지고 백업 내보내기(text 필드를 읽음)가 빈 값으로 나갔다.
+function normalizeEventForWrite(
+  item: any,
+  idx: number,
+  user: { uid: string; displayName: string | null }
+) {
+  const content = eventContentOf(item);
+  const authorId = item.authorId || user.uid;
+  const authorName = item.authorName || (authorId === user.uid ? (user.displayName || '') : '');
+  return {
+    id: item.id || 'ev_' + Date.now().toString(36) + '_' + idx,
+    content,
+    text: content, // V3 및 백업 내보내기 호환
+    completed: !!item.completed,
+    authorId,
+    authorName,
+    label: item.label || '',
+    labelIds: item.labelIds || [],
+    linkedItems: item.linkedItems || [],
+    attachments: item.attachments || [],
+    imageUrl: item.imageUrl || '',
+    createdAt: item.createdAt || Date.now(),
+    ...(item.calendar !== undefined ? { calendar: item.calendar } : {}),
+    ...(item.forward !== undefined ? { forward: item.forward } : {}),
+    ...(item.period !== undefined ? { period: item.period } : {}),
+    ...(item.recur !== undefined ? { recur: item.recur } : {}),
+    ...(item.skip !== undefined ? { skip: item.skip } : {}),
+    ...(item.time !== undefined ? { time: item.time } : {}),
+    ...(item.alarmTriggered !== undefined ? { alarmTriggered: item.alarmTriggered } : {}),
+    ...(item.forwardedFrom !== undefined ? { forwardedFrom: item.forwardedFrom } : {}),
+  };
 }
 
 // 💡 추가된 과거 일정을 이월하는 독립 함수 (전역 호출용)
-export async function runAutoForwarding(groupId: string | null) {
+//
+// 앱 시작, 그룹 변경, 일정 추가/수정, 달력 스냅샷 등 여러 곳에서 호출된다.
+// 월간 뷰는 날짜별로 리스너를 걸기 때문에 최초 로드에 수십 번이 동시에 들어오는데,
+// 그대로 두면 같은 문서를 서로 덮어써서 방금 이월된 일정이 사라진다.
+// 대상(개인/그룹)별로 실행 중인 작업이 있으면 그 Promise를 그대로 돌려준다.
+const forwardingInFlight = new Map<string, Promise<number>>();
+
+export function runAutoForwarding(groupId: string | null): Promise<number> {
+  const key = groupId || 'personal';
+  const running = forwardingInFlight.get(key);
+  if (running) return running;
+
+  const task = doAutoForwarding(groupId).finally(() => {
+    forwardingInFlight.delete(key);
+  });
+  forwardingInFlight.set(key, task);
+  return task;
+}
+
+async function doAutoForwarding(groupId: string | null) {
   const user = auth.currentUser;
   if (!user) return 0;
   
@@ -134,12 +161,7 @@ export async function runAutoForwarding(groupId: string | null) {
   const todaySnap = await getDoc(todayDocRef);
   let todayEventList: EventItem[] = [];
   if (todaySnap.exists()) {
-    const data = todaySnap.data();
-    if (Array.isArray(data.eventList) && data.eventList.length > 0) {
-      todayEventList = data.eventList;
-    } else if (data.eventText) {
-      todayEventList = parseV3EventText(data.eventText);
-    }
+    todayEventList = readEventList(todaySnap.data()) as EventItem[];
   }
 
   const incompleteItems: EventItem[] = [];
@@ -151,13 +173,7 @@ export async function runAutoForwarding(groupId: string | null) {
       : doc(db, 'users', user.uid, 'events', pDate);
     const snap = await getDoc(docRef);
     if (snap.exists()) {
-      const data = snap.data();
-      let items: EventItem[] = [];
-      if (Array.isArray(data.eventList) && data.eventList.length > 0) {
-        items = data.eventList;
-      } else if (data.eventText) {
-        items = parseV3EventText(data.eventText);
-      }
+      const items: EventItem[] = readEventList(snap.data()) as EventItem[];
       
       let hasChanges = false;
       const remainingItems: EventItem[] = [];
@@ -183,41 +199,34 @@ export async function runAutoForwarding(groupId: string | null) {
           it.forward === true || (it.forward !== false && forwardLabelNames.includes(labelName));
 
         if (isForwardTarget) {
-          // 이월 복사본 생성 (오늘자 중복 체크)
+          // 오늘 목록에 같은 내용이 이미 있으면 이월 복사본을 만들지 않는다.
           const isDuplicate =
-            todayEventList.some(e => e.content === it.content) || incompleteItems.some(e => e.content === it.content);
-          if (!isDuplicate) {
-            incompleteItems.push({
-              id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5),
-              content: it.content,
-              completed: false,
-              label: it.label,
-              labelIds: it.labelIds,
-              linkedItems: it.linkedItems || [],
-              attachments: it.attachments || [],
-              imageUrl: it.imageUrl,
-              calendar: it.calendar,
-              forward: it.forward,
-              period: it.period,
-              recur: it.recur,
-              skip: it.skip,
-            });
-          } else {
-            // 💡 이미 오늘 목록에 같은 내용이 있어 이월 복사본을 만들지 않는 경우,
-            // 과거 원본을 그냥 지우지 않고 휴지통으로 보내 데이터 유실을 방지한다.
-            try {
-              await moveToTrash({
-                id: String((it as any).id || pDate),
-                type: 'event',
-                originalDateStr: pDate,
-                fId: groupId || 'personal',
-                content: it.content,
-                data: it,
-              });
-            } catch (trashErr) {
-              console.error('이월 중복 항목 휴지통 이동 실패:', trashErr);
-            }
+            todayEventList.some(e => eventContentOf(e) === eventContentOf(it)) ||
+            incompleteItems.some(e => eventContentOf(e) === eventContentOf(it));
+          if (isDuplicate) {
+            // 💡 내용이 같다고 다른 날짜의 원본을 지우면 안 된다. 예전에는 휴지통으로
+            // 보냈는데, 사용자 입장에선 과거 일정이 예고 없이 사라지는 것으로 보였고
+            // 이월이 돌 때마다 같은 항목이 휴지통에 계속 쌓였다. 원본은 그대로 둔다.
+            remainingItems.push(it);
+            continue;
           }
+          incompleteItems.push({
+            id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5),
+            content: it.content,
+            completed: false,
+            label: it.label,
+            labelIds: it.labelIds,
+            linkedItems: it.linkedItems || [],
+            attachments: it.attachments || [],
+            imageUrl: it.imageUrl,
+            calendar: it.calendar,
+            forward: it.forward,
+            period: it.period,
+            recur: it.recur,
+            skip: it.skip,
+            authorId: it.authorId,
+            authorName: it.authorName,
+          });
           hasChanges = true;
         } else {
           remainingItems.push(it);
@@ -237,42 +246,17 @@ export async function runAutoForwarding(groupId: string | null) {
     // 통째로 사라질 수 있어, 트랜잭션으로 쓰기 직전 최신 상태를 다시 읽어 병합한다.
     await runTransaction(db, async (tx) => {
       const freshSnap = await tx.get(todayDocRef);
-      let freshList: EventItem[] = [];
-      if (freshSnap.exists()) {
-        const freshData = freshSnap.data();
-        if (Array.isArray(freshData.eventList) && freshData.eventList.length > 0) {
-          freshList = freshData.eventList;
-        } else if (freshData.eventText) {
-          freshList = parseV3EventText(freshData.eventText);
-        }
-      }
+      const freshList: EventItem[] = freshSnap.exists()
+        ? (readEventList(freshSnap.data()) as EventItem[])
+        : [];
       // 트랜잭션 재시도 등으로 이미 반영되어 있을 수 있으니 중복 추가 방지
       const toAdd = incompleteItems.filter(
-        (ni) => !freshList.some((fi: any) => fi.content === ni.content)
+        (ni) => !freshList.some((fi: any) => eventContentOf(fi) === eventContentOf(ni))
       );
-      const mergedList = [...freshList, ...toAdd];
-      const textToSaveToday = formatV3EventText(mergedList);
-      const v3EventListToday = mergedList.map((item: any, idx: number) => ({
-        id: item.id || 'ev_' + Date.now().toString(36) + '_' + idx,
-        content: item.content || '',
-        completed: !!item.completed,
-        authorId: item.authorId || user.uid,
-        authorName: item.authorName || user.displayName || '',
-        label: item.label || '',
-        labelIds: item.labelIds || [],
-        linkedItems: item.linkedItems || [],
-        imageUrl: item.imageUrl || '',
-        ...(item.calendar !== undefined ? { calendar: item.calendar } : {}),
-        ...(item.forward !== undefined ? { forward: item.forward } : {}),
-        ...(item.period !== undefined ? { period: item.period } : {}),
-        ...(item.recur !== undefined ? { recur: item.recur } : {}),
-        ...(item.skip !== undefined ? { skip: item.skip } : {}),
-      }));
-      tx.set(todayDocRef, {
-        eventText: textToSaveToday,
-        eventList: v3EventListToday,
-        updatedAt: Date.now()
-      }, { merge: true });
+      const mergedList = [...freshList, ...toAdd].map((item: any, idx: number) =>
+        normalizeEventForWrite(item, idx, user)
+      );
+      tx.set(todayDocRef, eventDocPayload(mergedList), { merge: true });
     });
 
     // 2. 이월된 항목의 링크 타겟 업데이트
@@ -291,37 +275,22 @@ export async function runAutoForwarding(groupId: string | null) {
       }
     }
 
-    // 3. 어제(과거) 문서에서 항목 삭제
-    for (const update of pastUpdates) {
-      const pDocRef = groupId
-        ? doc(db, 'groups', groupId, 'events', update.pDate)
-        : doc(db, 'users', user.uid, 'events', update.pDate);
-      
-      const textToSave = formatV3EventText(update.updatedList);
-      const v3EventList = update.updatedList.map((item, idx) => ({
-        id: item.id || 'ev_' + Date.now().toString(36) + '_' + idx,
-        content: item.content || '',
-        completed: !!item.completed,
-        authorId: user.uid,
-        authorName: user.displayName || '',
-        label: item.label || '',
-        labelIds: item.labelIds || [],
-        linkedItems: item.linkedItems || [],
-        imageUrl: item.imageUrl || '',
-        ...(item.calendar !== undefined ? { calendar: item.calendar } : {}),
-        ...(item.forward !== undefined ? { forward: item.forward } : {}),
-        ...(item.period !== undefined ? { period: item.period } : {}),
-        ...(item.recur !== undefined ? { recur: item.recur } : {}),
-        ...(item.skip !== undefined ? { skip: item.skip } : {}),
-      }));
-      
-      await setDoc(pDocRef, {
-        eventText: textToSave,
-        eventList: v3EventList,
-        updatedAt: Date.now()
-      }, { merge: true });
-    }
   }
+
+  // 3. 과거 문서에서 이월된 항목 제거.
+  // 💡 예전에는 이 블록이 incompleteItems.length > 0 안에 있어서, 이월 대상이 전부
+  // 중복 처리된 경우 과거 문서가 영원히 정리되지 않았다.
+  for (const update of pastUpdates) {
+    const pDocRef = groupId
+      ? doc(db, 'groups', groupId, 'events', update.pDate)
+      : doc(db, 'users', user.uid, 'events', update.pDate);
+
+    const v3EventList = update.updatedList.map((item, idx) =>
+      normalizeEventForWrite(item, idx, user)
+    );
+    await setDoc(pDocRef, eventDocPayload(v3EventList), { merge: true });
+  }
+
   return incompleteItems.length;
 }
 
@@ -385,6 +354,12 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
               skip: e.skip,
               time: e.time || undefined,
               alarmTriggered: !!e.alarmTriggered,
+              // 💡 예전에는 attachments를 읽지 않아, 첨부한 파일이 저장은 되어도
+              // 다시 불러오면 사라졌다 (기록(journal) 쪽과 같은 문제였다).
+              attachments: e.attachments || [],
+              authorId: e.authorId,
+              authorName: e.authorName,
+              createdAt: e.createdAt,
             };
           }).filter((e: EventItem) =>
             (e.content && e.content.trim().length > 0) || 
@@ -491,30 +466,8 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       (item.attachments && item.attachments.length > 0) ||
       (item.linkedItems && item.linkedItems.length > 0)
     );
-    const textToSave = formatV3EventText(validList);
-    const v3EventList = validList.map(item => ({
-      id: item.id,
-      content: item.content,
-      completed: !!item.completed,
-      authorId: user.uid,
-      authorName: user.displayName || '',
-      label: item.label || '',
-      labelIds: item.labelIds || [],
-      linkedItems: item.linkedItems || [],
-      imageUrl: item.imageUrl || '',
-      ...(item.calendar !== undefined ? { calendar: item.calendar } : {}),
-      ...(item.forward !== undefined ? { forward: item.forward } : {}),
-      ...(item.period !== undefined ? { period: item.period } : {}),
-      ...(item.recur !== undefined ? { recur: item.recur } : {}),
-      ...(item.skip !== undefined ? { skip: item.skip } : {}),
-      ...(item.time !== undefined ? { time: item.time } : {}),
-      ...(item.alarmTriggered !== undefined ? { alarmTriggered: item.alarmTriggered } : {}),
-    }));
-    await setDoc(eventDocRef, {
-      eventText: textToSave,
-      eventList: v3EventList,
-      updatedAt: Date.now()
-    }, { merge: true });
+    const v3EventList = validList.map((item, idx) => normalizeEventForWrite(item, idx, user));
+    await setDoc(eventDocRef, eventDocPayload(v3EventList), { merge: true });
   }, [dateStr, groupId]);
 
   const addEventItem = useCallback(async (content: string, options?: Partial<EventItem>) => {
@@ -602,6 +555,10 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
               skip: e.skip,
               time: e.time || undefined,
               alarmTriggered: !!e.alarmTriggered,
+              attachments: e.attachments || [],
+              authorId: e.authorId,
+              authorName: e.authorName,
+              createdAt: e.createdAt,
             }));
           } else if (data.eventText) {
             currentList = parseV3EventText(data.eventText);

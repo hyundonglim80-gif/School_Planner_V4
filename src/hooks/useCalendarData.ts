@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { doc, onSnapshot, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { parseV3EventText, formatV3EventText, type PeriodSchedule, type EventItem, runAutoForwarding } from './useDayData';
+import { type PeriodSchedule, type EventItem, runAutoForwarding } from './useDayData';
+import { eventDocPayload, readEventList } from '../lib/eventText';
 
 export interface DaySummary {
   eventText?: string;
@@ -44,21 +45,17 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
         if (snap.exists()) {
           const data = snap.data();
           const rawText = data.eventText || '';
-          let list: EventItem[] = [];
-          if (Array.isArray(data.eventList) && data.eventList.length > 0) {
-            list = data.eventList
-              .map((e: any, idx: number) => ({
-                id: e.id || 'ev_' + idx,
-                content: e.content || '',
-                completed: !!e.completed,
-                label: e.label || undefined,
-                labelIds: e.labelIds || undefined,
-                linkedItems: e.linkedItems || [],
-              }))
-              .filter((e: EventItem) => e.content && e.content.trim().length > 0);
-          } else if (rawText) {
-            list = parseV3EventText(rawText).filter((e: EventItem) => e.content && e.content.trim().length > 0);
-          }
+          const list: EventItem[] = readEventList(data)
+            .map((e: any, idx: number) => ({
+              id: e.id || 'ev_' + idx,
+              content: e.content || e.text || '',
+              completed: !!e.completed,
+              label: e.label || undefined,
+              labelIds: e.labelIds || undefined,
+              linkedItems: e.linkedItems || [],
+              attachments: e.attachments || [],
+            }))
+            .filter((e: EventItem) => e.content && e.content.trim().length > 0);
 
           currentMap[dStr] = {
             ...currentMap[dStr],
@@ -142,19 +139,9 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
     try {
       const snap = await getDoc(eventDocRef);
       if (snap.exists()) {
-        const data = snap.data();
-        let list = data.eventList || [];
-        if (list.length === 0 && data.eventText) {
-          list = parseV3EventText(data.eventText);
-        }
+        const list = readEventList(snap.data());
         const updatedList = list.map((item: any) => item.id === eventId ? { ...item, completed: !item.completed } : item);
-        const textToSave = formatV3EventText(updatedList);
-        
-        await setDoc(eventDocRef, {
-          eventList: updatedList,
-          eventText: textToSave,
-          updatedAt: Date.now()
-        }, { merge: true });
+        await setDoc(eventDocRef, eventDocPayload(updatedList), { merge: true });
       }
     } catch (error) {
       console.error('Toggle Event Snapshot Error:', error);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { eventDocPayload } from '../lib/eventText';
 import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
@@ -262,7 +263,7 @@ export default function LinkViewerModal({
           const item = list.find((e: any) => String(e.id) === String(link.targetId));
           if (item) {
             item.content = newVal;
-            await setDoc(ref, { eventList: list, updatedAt: Date.now() }, { merge: true });
+            await setDoc(ref, eventDocPayload(list), { merge: true });
           }
         }
       } else if (link.targetType === 'journal') {
@@ -348,7 +349,7 @@ export default function LinkViewerModal({
             item.linkedItems = item.linkedItems.filter(
               (l: any) => String(l.targetId || l.id) !== String(targetIdToRemove)
             );
-            await setDoc(ref, { eventList: list, updatedAt: Date.now() }, { merge: true });
+            await setDoc(ref, eventDocPayload(list), { merge: true });
           }
         }
       } else if (type === 'journal') {

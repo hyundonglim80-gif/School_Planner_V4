@@ -7,6 +7,7 @@ import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 import DetailEditModal from './DetailEditModal';
 import { moveToTrash } from '../utils/trashHelper';
+import { eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
 
 interface ForwardingModalProps {
   isOpen: boolean;
@@ -17,6 +18,9 @@ interface ForwardEvent {
   dateStr: string;
   event: any;
   eventIdx: number;
+  // 💡 배열 인덱스는 안정적인 참조가 아니다. 스캔 이후 이월 로직 등이 목록을 바꾸면
+  // 인덱스가 밀려서 엉뚱한 일정이 삭제/완료 처리됐다. ID가 있으면 ID로 찾는다.
+  eventId: string | null;
 }
 
 function formatDate(d: Date): string {
@@ -36,7 +40,17 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
   const [completingKeys, setCompletingKeys] = useState<Set<string>>(new Set());
   const [detailItem, setDetailItem] = useState<{ dateStr: string; itemId: string; initialData: any } | null>(null);
 
-  const itemKey = (item: ForwardEvent) => `${item.dateStr}_${item.eventIdx}`;
+  const itemKey = (item: ForwardEvent) => `${item.dateStr}_${item.eventId ?? item.eventIdx}`;
+
+  const isSameItem = (a: ForwardEvent, b: ForwardEvent) =>
+    a.dateStr === b.dateStr && itemKey(a) === itemKey(b);
+
+  // 저장된 최신 목록에서 이 항목의 현재 위치를 찾는다.
+  // ID가 있는데 목록에 없다면 이미 사라진 항목이므로, 인덱스로 추측하지 않고 -1을 준다.
+  const findIndexFor = (list: any[], item: ForwardEvent): number => {
+    if (item.eventId) return list.findIndex((e: any) => String(e?.id) === item.eventId);
+    return item.eventIdx < list.length ? item.eventIdx : -1;
+  };
 
   useEffect(() => {
     if (isOpen) scanIncompleteEvents();
@@ -62,15 +76,14 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
           : `users/${uid}/events`;
         const snap = await getDoc(doc(db, colPath, dateStr));
         if (snap.exists()) {
-          const data = snap.data();
-          const eventList = data.eventList || [];
+          const eventList = readEventList(snap.data());
           eventList.forEach((ev: any, idx: number) => {
             // '전달' 또는 'forward' 라벨이 있고 미완료인 일정
             const hasForwardLabel = (ev.labelIds || []).some((l: string) =>
               ['전달', 'forward', '미완료'].includes(l.toLowerCase())
             );
             if (hasForwardLabel && !ev.completed) {
-              incomplete.push({ dateStr, event: ev, eventIdx: idx });
+              incomplete.push({ dateStr, event: ev, eventIdx: idx, eventId: ev.id ? String(ev.id) : null });
             }
           });
         }
@@ -87,9 +100,9 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
     if (incompleteEvents.length === 0) return alert('전달할 미완료 일정이 없습니다.');
     if (!confirm(`${incompleteEvents.length}개의 미완료 일정을 오늘 날짜로 전달하시겠습니까?`)) return;
 
-    setProcessing(true);
     const uid = auth.currentUser?.uid;
     if (!uid) return;
+    setProcessing(true);
 
     try {
       const todayStr = formatDate(new Date());
@@ -99,37 +112,38 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
 
       // 오늘 일정 로드
       const todaySnap = await getDoc(doc(db, colPath, todayStr));
-      const todayData = todaySnap.exists() ? todaySnap.data() : {};
-      const todayEvents = todayData.eventList || [];
+      const todayEvents = todaySnap.exists() ? readEventList(todaySnap.data()) : [];
 
-      // 원본에서 제거 및 오늘로 이동
-      const processedDates = new Set<string>();
+      // 목록에 잡힌 항목만 오늘로 복사하고, 제거 대상으로 날짜별로 묶어둔다
+      const byDate: Record<string, ForwardEvent[]> = {};
       for (const item of incompleteEvents) {
-        // 오늘 일정에 추가
         todayEvents.push({
           ...item.event,
           id: 'fwd_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
           forwardedFrom: item.dateStr,
         });
-        processedDates.add(item.dateStr);
+        if (!byDate[item.dateStr]) byDate[item.dateStr] = [];
+        byDate[item.dateStr].push(item);
       }
 
-      // 오늘 일정 저장
-      await setDoc(doc(db, colPath, todayStr), { ...todayData, eventList: todayEvents, updatedAt: Date.now() }, { merge: true });
+      // 오늘 일정 저장 (eventText도 함께 갱신해야 읽기 폴백이 옛 내용을 되살리지 않는다)
+      await setDoc(doc(db, colPath, todayStr), eventDocPayload(todayEvents), { merge: true });
 
-      // 원본 날짜에서 전달된 일정 제거
-      for (const dateStr of processedDates) {
+      // 원본 날짜에서 제거.
+      // 💡 예전에는 조건에 맞는 "모든" 항목을 다시 걸러서 지웠기 때문에, 스캔 이후에
+      // 추가된 일정이 오늘로 옮겨지지도, 휴지통에 가지도 않고 그냥 사라졌다.
+      for (const dateStr of Object.keys(byDate)) {
         const snap = await getDoc(doc(db, colPath, dateStr));
-        if (snap.exists()) {
-          const data = snap.data();
-          const eventList = (data.eventList || []).filter((ev: any) => {
-            const hasForwardLabel = (ev.labelIds || []).some((l: string) =>
-              ['전달', 'forward', '미완료'].includes(l.toLowerCase())
-            );
-            return !(hasForwardLabel && !ev.completed);
-          });
-          await setDoc(doc(db, colPath, dateStr), { ...data, eventList, updatedAt: Date.now() }, { merge: true });
+        if (!snap.exists()) continue;
+        const list = readEventList(snap.data());
+        const removeIdx = new Set<number>();
+        for (const item of byDate[dateStr]) {
+          const idx = findIndexFor(list, item);
+          if (idx >= 0) removeIdx.add(idx);
         }
+        if (removeIdx.size === 0) continue;
+        const updated = list.filter((_: any, i: number) => !removeIdx.has(i));
+        await setDoc(doc(db, colPath, dateStr), eventDocPayload(updated), { merge: true });
       }
 
       alert(`✅ ${incompleteEvents.length}개의 일정이 오늘(${todayStr})로 전달되었습니다.`);
@@ -144,7 +158,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
   };
 
   const handleDeleteForwarded = async (item: ForwardEvent) => {
-    if (!confirm(`"${item.event.text}" 일정을 삭제하시겠습니까?`)) return;
+    if (!confirm(`"${eventContentOf(item.event)}" 일정을 삭제하시겠습니까?`)) return;
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
@@ -154,27 +168,30 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
         : `users/${uid}/events`;
       const snap = await getDoc(doc(db, colPath, item.dateStr));
       if (snap.exists()) {
-        const data = snap.data();
-        const eventList = data.eventList || [];
-        const itemToDelete = eventList[item.eventIdx];
-        if (itemToDelete) {
-          try {
-            await moveToTrash({
-              id: String(itemToDelete.id ?? item.eventIdx),
-              type: 'event',
-              originalDateStr: item.dateStr,
-              fId: selectedGroupId || 'personal',
-              content: itemToDelete.text || itemToDelete.content || item.event.text,
-              data: itemToDelete,
-            });
-          } catch (trashErr) {
-            console.error('휴지통 이동 실패:', trashErr);
-          }
+        const eventList = readEventList(snap.data());
+        const idx = findIndexFor(eventList, item);
+        if (idx < 0) {
+          alert('이미 변경되었거나 삭제된 일정입니다. 목록을 다시 스캔합니다.');
+          await scanIncompleteEvents();
+          return;
         }
-        const updatedList = eventList.filter((_: any, i: number) => i !== item.eventIdx);
-        await setDoc(doc(db, colPath, item.dateStr), { ...data, eventList: updatedList, updatedAt: Date.now() }, { merge: true });
+        const itemToDelete: any = eventList[idx];
+        try {
+          await moveToTrash({
+            id: String(itemToDelete.id ?? item.eventIdx),
+            type: 'event',
+            originalDateStr: item.dateStr,
+            fId: selectedGroupId || 'personal',
+            content: eventContentOf(itemToDelete) || eventContentOf(item.event),
+            data: itemToDelete,
+          });
+        } catch (trashErr) {
+          console.error('휴지통 이동 실패:', trashErr);
+        }
+        const updatedList = eventList.filter((_: any, i: number) => i !== idx);
+        await setDoc(doc(db, colPath, item.dateStr), eventDocPayload(updatedList), { merge: true });
       }
-      setIncompleteEvents(prev => prev.filter(e => !(e.dateStr === item.dateStr && e.eventIdx === item.eventIdx)));
+      setIncompleteEvents(prev => prev.filter(e => !isSameItem(e, item)));
     } catch (e: any) {
       alert('삭제 중 오류: ' + e.message);
     }
@@ -193,15 +210,15 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
         : `users/${uid}/events`;
       const snap = await getDoc(doc(db, colPath, item.dateStr));
       if (snap.exists()) {
-        const data = snap.data();
-        const eventList = data.eventList || [];
-        if (eventList[item.eventIdx]) {
-          eventList[item.eventIdx] = { ...eventList[item.eventIdx], completed: true };
-          await setDoc(doc(db, colPath, item.dateStr), { ...data, eventList, updatedAt: Date.now() }, { merge: true });
+        const eventList = readEventList(snap.data());
+        const idx = findIndexFor(eventList, item);
+        if (idx >= 0) {
+          eventList[idx] = { ...eventList[idx], completed: true };
+          await setDoc(doc(db, colPath, item.dateStr), eventDocPayload(eventList), { merge: true });
         }
       }
       setTimeout(() => {
-        setIncompleteEvents(prev => prev.filter(e => !(e.dateStr === item.dateStr && e.eventIdx === item.eventIdx)));
+        setIncompleteEvents(prev => prev.filter(e => !isSameItem(e, item)));
         setCompletingKeys(prev => {
           const next = new Set(prev);
           next.delete(key);
@@ -251,7 +268,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
                 const isCompleting = completingKeys.has(itemKey(item));
                 return (
                   <div
-                    key={idx}
+                    key={`${itemKey(item)}_${idx}`}
                     className={`flex items-center justify-between p-3 border rounded-xl transition-colors duration-300 ${
                       isCompleting ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
                     }`}
@@ -264,7 +281,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
                     >
                       <p className={`text-sm font-bold truncate transition-colors ${isCompleting ? 'text-emerald-600 line-through' : 'text-slate-800'}`}>
                         {isCompleting && <span className="mr-1">✅</span>}
-                        {item.event.text}
+                        {eventContentOf(item.event)}
                       </p>
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         <span className="text-xs text-slate-400">{item.dateStr}</span>

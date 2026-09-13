@@ -5,6 +5,7 @@ import { collection, getDocs, doc, setDoc, query, where, documentId, getDoc } fr
 import { db, auth } from '../lib/firebase';
 import { useGroups } from '../hooks/useGroups';
 import { useAppStore } from '../store/useAppStore';
+import { eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
 import { formatDate } from '../lib/dateUtils';
 import { exportToGoogleCalendar, importFromGoogleCalendar } from '../lib/googleSync';
 import { fetchHolidaysFromGovApi } from '../lib/govApi'; // API 훅 추가
@@ -28,7 +29,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
   const zIndex = useModalLayer(isOpen, onClose);
   const { groups } = useGroups();
   // govApiKey 가져오기 추가
-  const { scope: appScope, currentDate: appCurrentDate, govApiKey } = useAppStore();
+  const { scope: appScope, currentDate: appCurrentDate, govApiKey, googleAccessToken } = useAppStore();
 
   // 1. 개인 or 그룹 선택
   const [selectedScope, setSelectedScope] = useState<'personal' | string>('personal');
@@ -62,8 +63,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         const hName = fetchedHolidays[dateStr];
         const ref = doc(db, 'users', user.uid, 'events', dateStr);
         const snap = await getDoc(ref);
-        const existing = snap.exists() ? snap.data() : {};
-        const eventList = existing.eventList || [];
+        const eventList = snap.exists() ? readEventList(snap.data()) : [];
 
         // 중복 방지: 이미 같은 공휴일 라벨이나 이름이 있으면 추가하지 않음
         if (!eventList.some((e: any) => e.content === hName || e.label === '공휴일' || e.labelIds?.includes('공휴일'))) {
@@ -76,7 +76,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
             completed: false,
             createdAt: Date.now()
           });
-          await setDoc(ref, { ...existing, eventList, updatedAt: Date.now() }, { merge: true });
+          await setDoc(ref, eventDocPayload(eventList), { merge: true });
           count++;
         }
       }
@@ -268,7 +268,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
     try {
       // 1. 구글 캘린더 동기화
       if (exportTarget === 'calendar') {
-        const token = sessionStorage.getItem('google_api_token');
+        const token = googleAccessToken || sessionStorage.getItem('google_api_token');
         if (!token) {
           setProcessing(false);
           return alert('구글 로그인이 필요합니다. 로그아웃 후 다시 로그인해주세요.');
@@ -288,7 +288,8 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
             const data = d.data();
             const list = data.eventList || [];
             list.forEach((item: any) => {
-              eventsToExport.push({ dateStr: d.id, text: item.text });
+              const text = eventContentOf(item);
+              if (text) eventsToExport.push({ dateStr: d.id, text });
             });
             if (data.eventText) {
               eventsToExport.push({ dateStr: d.id, text: data.eventText });

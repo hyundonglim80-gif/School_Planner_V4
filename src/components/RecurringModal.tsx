@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
+import { eventDocPayload, readEventList } from '../lib/eventText';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
@@ -111,18 +112,21 @@ export default function RecurringModal({ isOpen, onClose, defaultContent = '', d
           : `users/${uid}/events`;
         const ref = doc(db, colPath, dateStr);
         const snap = await getDoc(ref);
-        const existing = snap.exists() ? snap.data() : {};
-        const eventList = existing.eventList || [];
+        const eventList = snap.exists() ? readEventList(snap.data()) : [];
 
+        // 💡 예전에는 text만 쓰고 content를 빼먹어서, 읽기 쪽 필터(content가 비면 제외)에
+        // 걸려 반복 일정이 저장은 되지만 화면에 아예 나타나지 않았다.
         eventList.push({
           id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+          content: content.trim(),
           text: content.trim(),
+          label: labelName || '',
           labelIds: labelName ? [labelName] : [],
           completed: false,
           createdAt: Date.now()
         });
 
-        batch.set(ref, { ...existing, eventList, updatedAt: Date.now() }, { merge: true });
+        batch.set(ref, eventDocPayload(eventList), { merge: true });
       }
 
       await batch.commit();
