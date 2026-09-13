@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, getDocs, orderBy, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { completeRestoreFromTrash, deleteFromTrash, type TrashItem } from '../utils/trashHelper';
+import { collectUploadUrls, deleteUnreferencedUploads } from '../utils/storageCleanup';
 import { formatV3EventText } from '../hooks/useDayData';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
@@ -182,7 +183,14 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
 
     setActionLoadingId(item.id);
     try {
+      // 문서를 지우기 전에 첨부 URL을 모아 둔다
+      const uploadUrls = collectUploadUrls(item.data);
       await deleteFromTrash(item.id);
+      // 살아 있는 곳에서 더 이상 쓰지 않는 파일만 Storage에서 정리한다
+      const uid = auth.currentUser?.uid;
+      if (uid && uploadUrls.length > 0) {
+        deleteUnreferencedUploads(uploadUrls, uid).catch(console.warn);
+      }
       setTrashItems(prev => prev.filter(t => t.id !== item.id));
       setSelectedIds(prev => {
         if (!prev.has(item.id)) return prev;
@@ -250,13 +258,21 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
     const targets = trashItems.filter(t => selectedIds.has(t.id));
     const deletedIds: string[] = [];
 
+    const uploadUrls: string[] = [];
     for (const item of targets) {
       try {
+        uploadUrls.push(...collectUploadUrls(item.data));
         await deleteFromTrash(item.id);
         deletedIds.push(item.id);
       } catch (err) {
         console.error('일괄 삭제 실패:', item.id, err);
       }
+    }
+
+    // 참조 스캔은 항목 수와 무관하게 한 번만 돈다
+    const uid = auth.currentUser?.uid;
+    if (uid && uploadUrls.length > 0) {
+      deleteUnreferencedUploads(uploadUrls, uid).catch(console.warn);
     }
 
     setTrashItems(prev => prev.filter(t => !deletedIds.includes(t.id)));
