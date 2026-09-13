@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
+import { subscribeDocWithServerFallback } from '../lib/firestoreSubscribe';
 import { db, auth } from '../lib/firebase';
 import { moveToTrash } from '../utils/trashHelper';
 
@@ -41,9 +42,8 @@ export function useDDay() {
     setLoading(true);
     const prefDocRef = doc(db, 'users', user.uid, 'settings', 'preferences');
 
-    const unsubscribe = onSnapshot(prefDocRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
+    const unsubscribe = subscribeDocWithServerFallback(prefDocRef, (data) => {
+      if (data) {
         setDDayList(data.dDayList || []);
       } else {
         setDDayList([]);

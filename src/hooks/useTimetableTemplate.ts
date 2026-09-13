@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { doc, onSnapshot, setDoc, getDocs, query, where, documentId, writeBatch, collection } from 'firebase/firestore';
+import { doc, setDoc, getDocs, query, where, documentId, writeBatch, collection } from 'firebase/firestore';
+import { subscribeDocWithServerFallback } from '../lib/firestoreSubscribe';
 import { db, auth } from '../lib/firebase';
 import { formatDate } from '../lib/dateUtils';
 import { moveToTrash } from '../utils/trashHelper';
@@ -55,9 +56,8 @@ export function useTimetableTemplate() {
     setLoading(true);
     const docRef = doc(db, 'users', user.uid, 'settings', 'timetable_v5');
 
-    const unsubscribe = onSnapshot(docRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
+    const unsubscribe = subscribeDocWithServerFallback(docRef, (data) => {
+      if (data) {
         if (data.templates && typeof data.templates === 'object' && Object.keys(data.templates).length > 0) {
           setTemplates(data.templates);
           if (!data.templates[currentTemplateName]) {

@@ -236,18 +236,12 @@ async function doAutoForwarding(groupId: string | null) {
             remainingItems.push(it);
             continue;
           }
-          // 💡 V3는 원본을 원래 날짜에 남겨 둔 채 사슬로 관리한다. V4만 과거
-          // 날짜에서 지우다 보니, 두 앱을 같이 쓰면 과거 일정이 V4에서만
-          // 사라져 보였다. V4도 원본을 남기고, V3와 같은 사슬 표시를 붙여
-          // 다음 번 이월에서 다시 집어가지 않게 한다.
+          // 이월된 일정은 지난 날짜에 남기지 않는다 (오늘로 옮긴다).
+          // remainingItems에 넣지 않으므로 과거 문서에서 빠진다.
           const chainId =
             it.forwardChainId || 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
           const originalDate = it.originalDate || pDate;
-          // 이미 표시가 붙어 있으면 과거 문서를 다시 쓸 필요가 없다.
-          // (표시를 붙이는 첫 회에만 쓰기가 일어난다)
-          const alreadyMarked = !!it.forwardChainId && !!it.originalDate;
-          remainingItems.push(alreadyMarked ? it : { ...it, forwardChainId: chainId, originalDate });
-          if (!alreadyMarked) hasChanges = true;
+          hasChanges = true;
 
           incompleteItems.push({
             id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5),

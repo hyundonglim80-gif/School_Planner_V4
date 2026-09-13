@@ -1,6 +1,7 @@
 //src/hooks/useLabels.ts
 import { useState, useEffect } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
+import { subscribeDocWithServerFallback } from '../lib/firestoreSubscribe';
 import { db, auth } from '../lib/firebase';
 
 export interface EventLabel {
@@ -65,9 +66,8 @@ export function useLabels() {
     }
 
     const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
-    const unsub = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
+    const unsub = subscribeDocWithServerFallback(docRef, (data) => {
+      if (data) {
         const rawEvents = data.eventLabels || data.labels || DEFAULT_EVENT_LABELS;
         setEventLabels(rawEvents.map((l: any, i: number) => ({
           id: l.id || `ev_${i}_${l.name || ''}`,

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { subscribeDocWithServerFallback } from '../lib/firestoreSubscribe';
 import { db, auth } from '../lib/firebase';
 
 export interface Student {
@@ -32,9 +33,8 @@ export function useRoster() {
     setLoading(true);
     const rosterDocRef = doc(db, 'users', user.uid, 'settings', 'rosters');
 
-    const unsubscribe = onSnapshot(rosterDocRef, async (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
+    const unsubscribe = subscribeDocWithServerFallback(rosterDocRef, async (data) => {
+      if (data) {
         let list: any[] = data.classList || data.rosters || data.list || [];
         
         // 정규화: V3의 num, number 호환
