@@ -80,8 +80,9 @@ export default function MultiEventActionBar() {
     }
   };
 
+  // bottom-20은 좁은 화면에서 하단 탭바 위로 올려 겹치지 않게 하기 위한 값이다.
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
+    <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
       {/* 라벨 선택 팝오버 */}
       {isLabelOpen && (
         <div

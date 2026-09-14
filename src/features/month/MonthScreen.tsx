@@ -3,12 +3,15 @@ import { useAppStore } from '../../store/useAppStore';
 import { getMonthCalendarDays, parseDateStr } from '../../lib/dateUtils';
 import { useCalendarData } from '../../hooks/useCalendarData';
 import MonthGrid from './MonthGrid';
+import MonthAgenda from './MonthAgenda';
 import QuickAddModal from '../../components/QuickAddModal';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { useState } from 'react';
 
 export default function MonthScreen() {
   const { currentDate, setCurrentDate, setScope, selectedGroupId, showWeekend } = useAppStore();
   const [quickAddDate, setQuickAddDate] = useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   const curDateObj = useMemo(() => new Date(currentDate), [currentDate]);
   const year = curDateObj.getFullYear();
@@ -50,6 +53,17 @@ export default function MonthScreen() {
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-primary" />
           <p className="text-xs text-slate-400 font-medium">데이터를 불러오는 중...</p>
         </div>
+      ) : isMobile ? (
+        // 좁은 화면에서 7열 격자는 한 칸이 50px 남짓이라 제목이 거의 안 보인다.
+        <MonthAgenda
+          onQuickAdd={(date) => setQuickAddDate(date)}
+          days={calendarDays}
+          dataMap={dataMap}
+          onSelectDate={handleSelectDate}
+          showWeekend={showWeekend}
+          onToggleEvent={toggleEventItem}
+          onDeleteEvent={deleteEventItem}
+        />
       ) : (
         <MonthGrid
           onQuickAdd={(date) => setQuickAddDate(date)}

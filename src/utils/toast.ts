@@ -7,7 +7,8 @@ export function showToast(message: string, duration: number = 2500, type: 'info'
   if (!toastContainer) {
     toastContainer = document.createElement('div');
     toastContainer.id = 'sp4-toast-container';
-    toastContainer.className = 'fixed bottom-8 left-1/2 -translate-x-1/2 z-[999999] pointer-events-none flex flex-col items-center gap-2 transition-all duration-300';
+    // 좁은 화면에서는 하단 탭바 위로 올린다 (bottom-24 -> sm 이상에서 bottom-8)
+    toastContainer.className = 'fixed bottom-24 sm:bottom-8 left-1/2 -translate-x-1/2 z-[999999] pointer-events-none flex flex-col items-center gap-2 transition-all duration-300 px-4 max-w-full';
     document.body.appendChild(toastContainer);
   }
 

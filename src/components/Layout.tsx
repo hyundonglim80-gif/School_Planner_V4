@@ -25,7 +25,9 @@ const TrashModal = lazy(() => import('./TrashModal'));
 
 import MultiEventActionBar from './MultiEventActionBar';
 import MiniCalendarPicker from './MiniCalendarPicker';
+import MobileTabBar from './MobileTabBar';
 import { useGlobalGestures } from '../hooks/useGlobalGestures';
+import { showToast } from '../utils/toast';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user } = useAuth();
@@ -357,24 +359,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 )}
               </button>
 
-              {/* 구글 캘린더 연동 버튼 */}
+              {/* 캘린더·휴지통은 좁은 화면에서 ⋮ 메뉴로 내린다 */}
               <button
-                onClick={() => { alert('구글 캘린더 연동 기능이 준비 중입니다.'); }}
-                className="p-1 sm:px-2.5 sm:py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 rounded-md sm:rounded-xl text-[15px] sm:text-xs font-bold transition-all flex items-center gap-0 sm:gap-1 shadow-2xs shrink-0"
+                onClick={() => { showToast('구글 캘린더 연동 기능이 준비 중입니다.'); }}
+                className="hidden sm:flex px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 rounded-xl text-xs font-bold transition-all items-center gap-1 shadow-2xs shrink-0"
                 title="구글 캘린더 연동"
               >
                 <span>📅</span>
-                <span className="hidden sm:inline">캘린더</span>
+                <span>캘린더</span>
               </button>
 
-              {/* 휴지통 버튼 */}
               <button
                 onClick={() => setTrashModalOpen(true)}
-                className="p-1 sm:px-2.5 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md sm:rounded-xl text-[15px] sm:text-xs font-bold transition-all flex items-center gap-0 sm:gap-1 shadow-2xs shrink-0"
+                className="hidden sm:flex px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all items-center gap-1 shadow-2xs shrink-0"
                 title="휴지통"
               >
                 <span>🗑️</span>
-                <span className="hidden sm:inline">휴지통</span>
+                <span>휴지통</span>
               </button>
             </div>
 
@@ -393,13 +394,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </kbd>
             </button>
 
-            {/* 스코프 탭 버튼 그룹 */}
-            <div className="flex bg-slate-100 p-0.5 sm:p-1 rounded-md sm:rounded-xl gap-0 sm:gap-1 shrink-0 overflow-hidden">
+            {/* 스코프 탭 버튼 그룹 - 좁은 화면에서는 하단 탭바(MobileTabBar)가 대신한다 */}
+            <div className="hidden sm:flex bg-slate-100 p-1 rounded-xl gap-1 shrink-0 overflow-hidden">
               {scopes.map((s) => (
                 <button
                   key={s.id}
                   onClick={() => setScope(s.id)}
-                  className={`px-1 py-1 sm:px-3 sm:py-1.5 text-[15px] sm:text-xs font-bold rounded-sm sm:rounded-lg transition-all tracking-tighter sm:tracking-normal ${
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
                     scope === s.id
                       ? 'bg-white text-primary shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
@@ -445,8 +446,36 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </button>
 
               {isMoreMenuOpen && (
-                <div className="absolute right-0 top-10 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-fade-in text-xs">
-                  
+                <div className="absolute right-0 top-10 w-56 max-h-[70vh] overflow-y-auto bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-fade-in text-xs">
+
+                  {/* 좁은 화면에서 상단에 둘 자리가 없어 내려온 항목들 */}
+                  <div className="sm:hidden border-b border-slate-200 pb-1 mb-1">
+                    <button
+                      onClick={() => { setIsMoreMenuOpen(false); setTrashModalOpen(true); }}
+                      className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
+                    >
+                      <span>🗑️</span> 휴지통
+                    </button>
+                    <button
+                      onClick={() => { setIsMoreMenuOpen(false); setShowWeekend(!showWeekend); }}
+                      className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
+                    >
+                      <span>🈺</span> {showWeekend ? '주말 숨기기' : '주말 보기'}
+                    </button>
+                    <button
+                      onClick={() => { setIsMoreMenuOpen(false); setShowClass(!showClass); }}
+                      className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
+                    >
+                      <span>⏰</span> {showClass ? '수업 숨기기' : '수업 보이기'}
+                    </button>
+                    <button
+                      onClick={() => { setIsMoreMenuOpen(false); logout(); }}
+                      className="w-full px-4 py-2.5 text-left font-bold text-red-600 hover:bg-red-50 flex items-center gap-2"
+                    >
+                      <span>🚪</span> 로그아웃
+                    </button>
+                  </div>
+
                   {/* 💡 스크롤 설정 추가된 부분 */}
                   <label className="w-full px-4 py-2.5 flex items-center justify-between font-bold text-slate-700 hover:bg-slate-50 cursor-pointer border-b border-dashed border-slate-100">
                     <div className="flex items-center gap-2">
@@ -555,9 +584,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   {(user?.displayName || '선').charAt(0)}
                 </div>
               )}
+              {/* 로그아웃은 좁은 화면에서 ⋮ 메뉴로 내린다 */}
               <button
                 onClick={logout}
-                className="px-2 py-1 sm:px-3 sm:py-1.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-xl font-bold text-[15px] sm:text-xs transition-colors shrink-0 ml-1"
+                className="hidden sm:block px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-xl font-bold text-xs transition-colors shrink-0 ml-1"
               >
                 로그아웃
               </button>
@@ -591,9 +621,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   </button>
                 </div>
               )}
+              {/* 좁은 화면에서는 날짜 이동만 남기고 두 토글은 ⋮ 메뉴로 내린다 */}
               <button
                 onClick={() => setShowWeekend(!showWeekend)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border shadow-2xs ${
+                className={`hidden sm:block px-2.5 py-1 rounded-lg text-xs font-bold transition-all border shadow-2xs ${
                   showWeekend
                     ? 'bg-blue-50 text-blue-700 border-blue-200'
                     : 'bg-slate-100 text-slate-500 border-slate-200'
@@ -604,7 +635,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </button>
               <button
                 onClick={() => setShowClass(!showClass)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border shadow-2xs ${
+                className={`hidden sm:block px-2.5 py-1 rounded-lg text-xs font-bold transition-all border shadow-2xs ${
                   showClass
                     ? 'bg-blue-100 text-blue-700 border-blue-200'
                     : 'bg-slate-100 text-slate-500 border-slate-200'
@@ -615,7 +646,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* 중앙 날짜 네비게이션 (가운데 정렬, 왼쪽 이전, 오른쪽 다음, 날짜 클릭 시 오늘) */}
-            <div className="flex items-center justify-center gap-2 sm:gap-4 flex-1 min-w-[200px]">
+            <div className="flex items-center justify-center gap-3 sm:gap-4 flex-1 min-w-0">
               <button
                 onClick={handlePrevDate}
                 className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs sm:text-sm transition-all shadow-2xs cursor-pointer"
@@ -648,9 +679,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
       </header>
 
-      <main className="p-3 sm:p-5 max-w-7xl mx-auto">
+      {/* 하단 탭바에 내용이 가리지 않도록 아래 여백을 둔다 */}
+      <main className="px-3 py-3 sm:p-5 max-w-7xl mx-auto pb-24 sm:pb-5">
         {children}
       </main>
+
+      <MobileTabBar />
 
       {/* 모달 모음 - 열려 있을 때만 그려서 필요한 시점에 내려받는다 */}
       <Suspense fallback={null}>
