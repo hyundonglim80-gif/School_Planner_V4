@@ -7,6 +7,7 @@ import { moveToTrash } from '../utils/trashHelper';
 import { DEFAULT_EVENT_LABELS } from './useLabels';
 import { showErrorToast } from '../utils/toast';
 import { parseV3EventText, formatV3EventText, eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
+import { pastDateStrings } from '../lib/forwarding';
 
 // 기존 import 경로 호환을 위해 재수출한다 (직렬화 구현은 lib/eventText.ts로 이동).
 export { parseV3EventText, formatV3EventText };
@@ -148,15 +149,7 @@ async function doAutoForwarding(groupId: string | null) {
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   
-  const pastDates: string[] = [];
-  for (let i = 1; i <= 14; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    pastDates.push(`${y}-${m}-${day}`);
-  }
+  const pastDates = pastDateStrings(now);
   
   const settingsRef = doc(db, 'users', user.uid, 'settings', 'labels');
   const settingsSnap = await getDoc(settingsRef);

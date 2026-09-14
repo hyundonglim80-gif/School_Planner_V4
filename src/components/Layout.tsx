@@ -170,6 +170,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     requestAnimationFrame(() => scrollToToday());
   };
 
+  // 화면에 무엇을 보여줄지 정하는 토글. 상단 줄과 ⋮ 메뉴가 같은 정의를 쓴다.
+  // showEvents는 값과 화면 연결은 되어 있었는데 누르는 자리가 없어서 늘 켜짐이었다.
+  const viewToggles = [
+    { key: 'weekend', label: '주말', on: showWeekend, set: setShowWeekend, hint: 'Shift + ↑/↓' },
+    { key: 'events', label: '일정', on: showEvents, set: setShowEvents, hint: '' },
+    { key: 'class', label: '수업', on: showClass, set: setShowClass, hint: 'Alt + ↑/↓' },
+  ];
+
   // 키보드 단축키 핸들러 (ESC, /, Ctrl+화살표, Ctrl+Space, Shift+화살표, Shift+1~5 등)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -480,18 +488,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     >
                       <span>🗑️</span> 휴지통
                     </button>
-                    <button
-                      onClick={() => { setIsMoreMenuOpen(false); setShowWeekend(!showWeekend); }}
-                      className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
-                    >
-                      <span>🈺</span> {showWeekend ? '주말 숨기기' : '주말 보기'}
-                    </button>
-                    <button
-                      onClick={() => { setIsMoreMenuOpen(false); setShowClass(!showClass); }}
-                      className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
-                    >
-                      <span>⏰</span> {showClass ? '수업 숨기기' : '수업 보이기'}
-                    </button>
+                    {/* 표시 토글 - 상단 줄과 같은 정의를 쓰고, 켜짐/꺼짐을 같은 모양으로 보여준다 */}
+                    <div className="px-4 py-2.5 flex items-center gap-2">
+                      <span className="font-bold text-slate-700 shrink-0">표시</span>
+                      <div className="flex items-center gap-1.5 ml-auto">
+                        {viewToggles.map((t) => (
+                          <button
+                            key={t.key}
+                            onClick={() => t.set(!t.on)}
+                            aria-pressed={t.on}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all ${
+                              t.on
+                                ? 'bg-primary text-white border-primary'
+                                : 'bg-white text-slate-400 border-slate-200 line-through decoration-slate-300'
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <button
                       onClick={() => { setIsMoreMenuOpen(false); logout(); }}
                       className="w-full px-4 py-2.5 text-left font-bold text-red-600 hover:bg-red-50 flex items-center gap-2"
@@ -645,29 +661,25 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   </button>
                 </div>
               )}
-              {/* 좁은 화면에서는 날짜 이동만 남기고 두 토글은 ⋮ 메뉴로 내린다 */}
-              <button
-                onClick={() => setShowWeekend(!showWeekend)}
-                className={`hidden sm:block px-2.5 py-1 rounded-lg text-xs font-bold transition-all border shadow-2xs ${
-                  showWeekend
-                    ? 'bg-blue-50 text-blue-700 border-blue-200'
-                    : 'bg-slate-100 text-slate-500 border-slate-200'
-                }`}
-                title="단축키: Shift + ↑/↓"
-              >
-                {showWeekend ? '주말 숨기기' : '주말 보기'}
-              </button>
-              <button
-                onClick={() => setShowClass(!showClass)}
-                className={`hidden sm:block px-2.5 py-1 rounded-lg text-xs font-bold transition-all border shadow-2xs ${
-                  showClass
-                    ? 'bg-blue-100 text-blue-700 border-blue-200'
-                    : 'bg-slate-100 text-slate-500 border-slate-200'
-                }`}
-                title="단축키: Alt + ↑/↓"
-              >
-                {showClass ? '수업 숨기기' : '수업 보이기'}
-              </button>
+              {/* 표시 토글 - 켜짐/꺼짐이 한눈에 구분되게 채움 vs 흐림으로 나눈다.
+                  좁은 화면에서는 날짜 이동만 남기고 ⋮ 메뉴로 내린다. */}
+              <div className="hidden sm:flex items-center gap-1.5">
+                {viewToggles.map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => t.set(!t.on)}
+                    aria-pressed={t.on}
+                    title={`${t.label} ${t.on ? '숨기기' : '보이기'}${t.hint ? ` (단축키: ${t.hint})` : ''}`}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${
+                      t.on
+                        ? 'bg-primary text-white border-primary shadow-xs'
+                        : 'bg-white text-slate-400 border-slate-200 line-through decoration-slate-300'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* 중앙 날짜 네비게이션 (가운데 정렬, 왼쪽 이전, 오른쪽 다음, 날짜 클릭 시 오늘) */}

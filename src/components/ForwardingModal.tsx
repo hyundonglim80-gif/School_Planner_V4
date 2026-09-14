@@ -7,6 +7,7 @@ import ModalShell, { ModalCloseButton } from './ModalShell';
 import DetailEditModal from './DetailEditModal';
 import { moveToTrash } from '../utils/trashHelper';
 import { eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
+import { FORWARD_LOOKBACK_DAYS, pastDateStrings } from '../lib/forwarding';
 
 interface ForwardingModalProps {
   isOpen: boolean;
@@ -58,12 +59,8 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
     const today = new Date();
     const incomplete: ForwardEvent[] = [];
 
-    // 지난 7일간 스캔
-    for (let i = 1; i <= 7; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dateStr = formatDate(d);
-
+    // 훑는 기간은 자동 이월과 같은 값을 쓴다 (lib/forwarding)
+    for (const dateStr of pastDateStrings(today)) {
       try {
         const colPath = selectedGroupId && selectedGroupId !== 'personal'
           ? `groups/${selectedGroupId}/events`
@@ -255,7 +252,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
         <div className="px-5 py-3">
           <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-800">
             <strong>안내:</strong> '전달' 라벨이 있는 미완료 일정을 오늘 날짜로 자동 이동합니다.<br />
-            지난 7일간의 미완료 일정을 스캔합니다.
+            지난 {FORWARD_LOOKBACK_DAYS}일간의 미완료 일정을 스캔합니다.
           </div>
         </div>
 
