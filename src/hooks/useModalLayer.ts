@@ -32,6 +32,15 @@ function syncEscapeListener() {
   }
 }
 
+/**
+ * 지금 팝업이 하나라도 열려 있는지.
+ * 화면 안의 수정 섹션을 "바깥 클릭"으로 닫을 때, 그 섹션에서 띄운 팝업(알림/링크/
+ * 라벨/조사표)은 DOM상 섹션 밖에 그려지므로 그 클릭까지 바깥으로 세면 안 된다.
+ */
+export function isAnyModalOpen(): boolean {
+  return stack.length > 0;
+}
+
 export function closeAllModals() {
   const snapshot = [...stack].reverse();
   stack = [];

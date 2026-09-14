@@ -8,6 +8,7 @@ import { eventDocPayload } from '../lib/eventText';
 import { useAppStore } from '../store/useAppStore';
 import { parseV3EventText } from '../hooks/useDayData';
 import { useLabels } from '../hooks/useLabels';
+import { resolveEventLabelNames } from '../lib/eventLabels';
 import { addReverseLink } from '../utils/linkUtils';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
@@ -39,6 +40,8 @@ interface FetchedItem {
   title: string;
   fId: string;
   labelIds?: string[];
+  /** 일정/기록은 라벨 이름을 label에도 들고 있다 (콤마로 이은 목록일 수 있다) */
+  label?: string;
   period?: string | number;
 }
 
@@ -62,7 +65,7 @@ export default function LinkerModal({
   sourceFId,
 }: LinkerModalProps) {
   const { selectedGroupId, linkerCallback } = useAppStore();
-  const { eventLabels } = useLabels();
+  const { eventLabels, journalLabels, memoLabels } = useLabels();
   useBodyScrollLock(isOpen);
 
   const vv = useVisualViewport(isOpen);
@@ -93,7 +96,9 @@ export default function LinkerModal({
   const [customStart, setCustomStart] = useState(sourceDateStr);
   const [customEnd, setCustomEnd] = useState(sourceDateStr);
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>([]); // 빈 배열이면 '전체'
+  // 라벨 필터는 탭마다 라벨 종류가 다르므로 "이름"으로 고른다. 종류별로 ID 체계가
+  // 달라서(일정 ev_*, 기록 j_*, 메모는 이름만) ID로 비교하면 탭을 바꿀 때 어긋난다.
+  const [selectedLabelNames, setSelectedLabelNames] = useState<string[]>([]); // 빈 배열이면 '전체'
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
   const [loading, setLoading] = useState(false);
@@ -174,6 +179,8 @@ export default function LinkerModal({
             title: text,
             date: created,
             fId: 'personal',
+            // 메모 라벨은 이름을 그대로 저장한다
+            labelIds: data.labels || [],
           });
         }
       });
@@ -192,6 +199,7 @@ export default function LinkerModal({
               title: text,
               date: created,
               fId: selectedGroupId,
+              labelIds: data.labels || [],
             });
           }
         });
@@ -248,6 +256,8 @@ export default function LinkerModal({
                     date: dStr,
                     fId: colFId,
                     labelIds: e.labelIds || [],
+                    // 라벨 필터가 label(콤마로 이은 이름)도 봐야 한다
+                    label: e.label,
                   });
                 }
               });
@@ -270,6 +280,7 @@ export default function LinkerModal({
                   date: dStr,
                   fId: colFId,
                   labelIds: j.labelIds || [],
+                  label: j.label,
                 });
               }
             });
@@ -301,7 +312,7 @@ export default function LinkerModal({
       setDateRange('1week');
       setCurrentPage(1);
       setSearchKeyword('');
-      setSelectedLabelIds([]);
+      setSelectedLabelNames([]);
       setNewItemText('');
       setSelectedSourcePeriod(sourcePeriod ? Number(sourcePeriod) : 1);
       setScheduleDate(sourceDateStr || formatDateStr(new Date()));
@@ -446,12 +457,12 @@ export default function LinkerModal({
   };
 
   // 라벨 토글
-  const toggleLabel = (labelId: string) => {
-    if (labelId === 'all') {
-      setSelectedLabelIds([]);
+  const toggleLabel = (labelName: string) => {
+    if (labelName === 'all') {
+      setSelectedLabelNames([]);
     } else {
-      setSelectedLabelIds((prev) =>
-        prev.includes(labelId) ? prev.filter((id) => id !== labelId) : [...prev, labelId]
+      setSelectedLabelNames((prev) =>
+        prev.includes(labelName) ? prev.filter((n) => n !== labelName) : [...prev, labelName]
       );
     }
     setCurrentPage(1);
@@ -590,6 +601,32 @@ export default function LinkerModal({
 
   if (!isOpen) return null;
 
+  // 지금 탭에서 고를 수 있는 라벨. 탭에 맞는 종류를 보여준다.
+  const tabLabelNames: string[] =
+    currentTab === 'event'
+      ? eventLabels.map((l) => l.name)
+      : currentTab === 'journal'
+      ? journalLabels.map((l) => l.name)
+      : currentTab === 'memo'
+      ? memoLabels
+      : [];
+
+  // 항목이 들고 있는 라벨을 이름으로 풀어낸다. 저장 형태가 종류마다 다르다.
+  const itemLabelNames = (item: FetchedItem): string[] => {
+    if (currentTab === 'event') return resolveEventLabelNames({ ...item, content: item.title }, eventLabels);
+    const keys = [...((item as any).labelIds || []), ...((item as any).label ? [(item as any).label] : [])];
+    if (currentTab === 'journal') {
+      const names: string[] = [];
+      for (const key of keys.map((k: any) => String(k ?? '').trim())) {
+        const found = journalLabels.find((l) => l.id === key || l.name === key);
+        if (found && !names.includes(found.name)) names.push(found.name);
+      }
+      return names;
+    }
+    // 메모는 이름을 그대로 저장한다
+    return keys.map((k: any) => String(k ?? '').trim()).filter(Boolean);
+  };
+
   // 현재 탭의 데이터 필터링 (라벨 + 검색어)
   const currentList: FetchedItem[] = currentTab === 'schedule' ? [] : tabItems[currentTab] || [];
   const filteredList = currentList.filter((item: FetchedItem) => {
@@ -600,11 +637,10 @@ export default function LinkerModal({
         return false;
       }
     }
-    // 2. 라벨 필터 (일정, 기록)
-    if (selectedLabelIds.length > 0 && (currentTab === 'event' || currentTab === 'journal')) {
-      if (!item.labelIds || !item.labelIds.some((id: string) => selectedLabelIds.includes(id))) {
-        return false;
-      }
+    // 2. 라벨 필터 (탭에 맞는 라벨 이름으로 비교)
+    if (selectedLabelNames.length > 0) {
+      const names = itemLabelNames(item);
+      if (!names.some((n) => selectedLabelNames.includes(n))) return false;
     }
     // 3. 키워드 검색
     if (searchKeyword.trim()) {
@@ -617,8 +653,6 @@ export default function LinkerModal({
   const clampedPage = Math.min(Math.max(1, currentPage), totalPages);
   const startIndex = (clampedPage - 1) * itemsPerPage;
   const pagedItems = filteredList.slice(startIndex, startIndex + itemsPerPage);
-
-  const labels = eventLabels;
 
   return (
     <div
@@ -675,6 +709,9 @@ export default function LinkerModal({
                   setCurrentTab(tab.key);
                   setCurrentPage(1);
                   setNewItemText(''); // 탭 전환 시 생성 텍스트 초기화
+                  // 탭마다 라벨 종류가 다르므로 고른 필터는 비운다.
+                  // 안 그러면 다른 종류의 라벨이 걸린 채로 목록이 전부 비어 보인다.
+                  setSelectedLabelNames([]);
                 }}
                 className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
                   currentTab === tab.key
@@ -784,34 +821,34 @@ export default function LinkerModal({
                 )}
               </div>
 
-              {/* 라벨 칩 필터 (일정, 기록 탭) */}
-              {(currentTab === 'event' || currentTab === 'journal') && labels.length > 0 && (
+              {/* 라벨 칩 필터 - 탭(일정/기록/메모)에 맞는 라벨을 보여준다 */}
+              {tabLabelNames.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   <button
                     type="button"
                     onClick={() => toggleLabel('all')}
                     className={`px-2.5 py-1 rounded-full text-[16.5px] font-bold border transition-colors ${
-                      selectedLabelIds.length === 0
+                      selectedLabelNames.length === 0
                         ? 'bg-blue-600 text-white border-blue-600'
                         : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
                     }`}
                   >
                     전체
                   </button>
-                  {labels.map((l: any) => {
-                    const isSelected = selectedLabelIds.includes(l.id);
+                  {tabLabelNames.map((name) => {
+                    const isSelected = selectedLabelNames.includes(name);
                     return (
                       <button
-                        key={l.id}
+                        key={name}
                         type="button"
-                        onClick={() => toggleLabel(l.id)}
+                        onClick={() => toggleLabel(name)}
                         className={`px-2.5 py-1 rounded-full text-[16.5px] font-bold border transition-colors ${
                           isSelected
                             ? 'bg-blue-600 text-white border-blue-600'
                             : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
                         }`}
                       >
-                        {l.name}
+                        {name}
                       </button>
                     );
                   })}

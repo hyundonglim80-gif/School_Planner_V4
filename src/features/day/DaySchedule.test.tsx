@@ -57,3 +57,34 @@ describe('DaySchedule - 교시 항목 수정', () => {
     expect(data).toMatchObject({ subject: '국어', memo: '받아쓰기', supplies: '공책' });
   });
 });
+
+describe('DaySchedule - 상단 링크 버튼 제거 / 바깥 클릭으로 닫기', () => {
+  it("상단에 '+ 링크' 버튼이 없다 (교시마다 링크 아이콘이 있으므로)", () => {
+    renderSchedule();
+    expect(screen.queryByText('+ 링크')).toBeNull();
+  });
+
+  it('페이지의 다른 곳을 누르면 수정 섹션이 닫힌다', async () => {
+    const user = userEvent.setup();
+    renderSchedule();
+
+    await user.click(screen.getByText('국어'));
+    await screen.findByDisplayValue('국어');
+
+    await user.click(document.body);
+
+    expect(screen.queryByDisplayValue('국어')).toBeNull();
+  });
+
+  it('수정 섹션 안을 누르면 닫히지 않는다', async () => {
+    const user = userEvent.setup();
+    renderSchedule();
+
+    await user.click(screen.getByText('국어'));
+    const box = await screen.findByDisplayValue('국어');
+
+    await user.click(box);
+
+    expect(screen.getByDisplayValue('국어')).toBeInTheDocument();
+  });
+});

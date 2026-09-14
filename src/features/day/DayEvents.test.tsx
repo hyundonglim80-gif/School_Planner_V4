@@ -175,3 +175,44 @@ describe("DayEvents - 새 일정 추가 폼도 '일정 수정'과 같은 구성"
     expect((within(propBox).getAllByRole('checkbox')[1] as HTMLInputElement).checked).toBe(true);
   });
 });
+
+describe('DayEvents - 바깥 클릭으로 수정 섹션 닫기', () => {
+  it('페이지의 다른 곳을 누르면 수정 섹션이 닫힌다', async () => {
+    const user = userEvent.setup();
+    renderEvents();
+
+    await user.click(screen.getByText('교직원 회의'));
+    await screen.findByDisplayValue('교직원 회의');
+
+    // 섹션 바깥(문서 본문)을 누른다
+    await user.click(document.body);
+
+    expect(screen.queryByDisplayValue('교직원 회의')).toBeNull();
+  });
+
+  it('수정 섹션 안을 누르면 닫히지 않는다', async () => {
+    const user = userEvent.setup();
+    renderEvents();
+
+    await user.click(screen.getByText('교직원 회의'));
+    const box = await screen.findByDisplayValue('교직원 회의');
+
+    await user.click(box);
+
+    expect(screen.getByDisplayValue('교직원 회의')).toBeInTheDocument();
+  });
+
+  it('저장하지 않고 닫히므로 수정 내용은 반영되지 않는다', async () => {
+    const user = userEvent.setup();
+    const { props } = renderEvents();
+
+    await user.click(screen.getByText('교직원 회의'));
+    const box = await screen.findByDisplayValue('교직원 회의');
+    await user.type(box, ' 추가');
+
+    await user.click(document.body);
+
+    expect(screen.queryByDisplayValue(/교직원 회의 추가/)).toBeNull();
+    expect(props.onUpdateEvent).not.toHaveBeenCalled();
+  });
+});

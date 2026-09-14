@@ -4,6 +4,7 @@ import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { useAppStore } from '../../store/useAppStore';
 import { parseDateStr } from '../../lib/dateUtils';
 import AutoTextarea from '../../components/AutoTextarea';
+import { useClickOutside } from '../../hooks/useClickOutside';
 import { showToast } from '../../utils/toast';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
 
@@ -75,6 +76,9 @@ export default function DaySchedule({
     setEditSupplies('');
   };
 
+  // 페이지의 다른 곳을 누르면 '닫기'와 같게 수정 섹션을 닫는다
+  const editRef = useClickOutside<HTMLDivElement>(editingPeriod !== null, handleCancel);
+
   const handleApplyTemplate = async () => {
     if (!dateStr) return;
     const dateObj = parseDateStr(dateStr);
@@ -129,16 +133,6 @@ export default function DaySchedule({
           </button>
           <span className="text-xl">⏰</span>
           <h3 className="text-base font-extrabold text-slate-800">수업</h3>
-          <div className="flex items-center gap-1 ml-2">
-            <button
-              type="button"
-              onClick={() => dateStr && openLinkerModal('schedule_header', dateStr)}
-              className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-300 rounded text-xs font-bold hover:bg-amber-100 transition-colors cursor-pointer"
-              title="해당 일자 교시와 데이터를 연결합니다."
-            >
-              + 링크
-            </button>
-          </div>
         </div>
 
         {!isCollapsed && (
@@ -165,6 +159,7 @@ export default function DaySchedule({
             return (
               <div
                 key={period}
+                ref={editRef}
                 className="p-4 rounded-xl border-2 border-primary bg-blue-50/20 shadow-xs flex flex-col gap-2"
               >
                 <div className="flex items-center justify-between">

@@ -7,6 +7,7 @@ import { auth } from '../../lib/firebase';
 import { showToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
 import { resolveEventLabelNames, eventDisplayContent } from '../../lib/eventLabels';
+import { useClickOutside } from '../../hooks/useClickOutside';
 import EventAlarmModal from '../../components/EventAlarmModal';
 import AutoTextarea from '../../components/AutoTextarea';
 import EventItemActions from '../../components/EventItemActions';
@@ -60,6 +61,9 @@ export default function DayEvents({
   const [editPeriod, setEditPeriod] = useState(false);
   const [editRecur, setEditRecur] = useState(false);
   const [editSkip, setEditSkip] = useState(false);
+
+  // 페이지의 다른 곳을 누르면 '닫기'와 같게 수정 섹션을 닫는다
+  const editRef = useClickOutside<HTMLDivElement>(editingId !== null, () => setEditingId(null));
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -457,6 +461,7 @@ export default function DayEvents({
               return (
                 <div
                   key={event.id}
+                  ref={editRef}
                   className="p-3.5 rounded-xl border border-primary/50 bg-blue-50/30 flex flex-col gap-3 shadow-xs transition-all"
                 >
                   {/* 버튼 줄 - '일정 수정' 팝업과 같은 구성 */}
