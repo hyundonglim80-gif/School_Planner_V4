@@ -54,7 +54,7 @@ const isImageFile = (att: NormalizedAttachment): boolean => {
 };
 
 export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: MemoCardProps) {
-  const { openLinkerModal, openLinkViewerModal } = useAppStore();
+  const { openLinkViewerModal } = useAppStore();
   const { memoLabels } = useLabels();
 
   const isCompleted = !!memo.completed;
@@ -93,14 +93,14 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
 
   return (
     <div
-      onDoubleClick={(e) => { 
+      onClick={(e) => {
         e.stopPropagation();
-        if (onEdit) onEdit(memo); 
+        if (onEdit) onEdit(memo);
       }}
       className={`bg-white rounded-2xl p-4 transition-all duration-200 border flex flex-col group shadow-sm hover:shadow-md hover:border-slate-300 cursor-pointer ${
         isCompleted ? 'bg-slate-50 border-slate-200 opacity-70' : 'border-slate-200/80'
       }`}
-      title="더블클릭하여 수정"
+      title="클릭하여 수정"
     >
       <div>
         {/* 상단 액션 바 */}
@@ -109,6 +109,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
             <input
               type="checkbox"
               checked={isCompleted}
+              onClick={(e) => e.stopPropagation()}
               onChange={() => onToggleComplete?.(memo)}
               className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 accent-primary cursor-pointer"
             />
@@ -134,23 +135,16 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
               </button>
             )}
           </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                openLinkerModal('memo', memoDateStr, memo.firestoreId, undefined, undefined, memo.groupId || 'personal');
-              }}
-              className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg text-xs font-semibold transition-all cursor-pointer"
-              title="링크 추가"
-            >
-              🔗
-            </button>
+          {/* 링크 추가는 수정 배너 안에 있으므로 여기서는 수정/삭제만 노출한다 */}
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             {onEdit && (
               <button
                 type="button"
-                onClick={() => onEdit(memo)}
-                className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(memo);
+                }}
+                className="p-1 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg text-xs font-semibold transition-all cursor-pointer"
                 title="메모 수정"
               >
                 ✏️
@@ -208,6 +202,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
                   target="_blank"
                   rel="noopener noreferrer"
                   download
+                  onClick={(e) => e.stopPropagation()}
                   className="flex items-center gap-2 p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-xl transition-all group/file text-xs"
                 >
                   <span className="text-base shrink-0">{icon}</span>

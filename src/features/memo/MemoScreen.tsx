@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useMemos } from '../../hooks/useMemos';
-import type { Memo, MemoAttachment } from '../../hooks/useMemos';
+import type { Memo } from '../../hooks/useMemos';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
 import MemoCard from './MemoCard';
-import MemoDrawer from './MemoDrawer';
+import EntryDrawer, { type EntryDraft } from '../../components/EntryDrawer';
 
 export default function MemoScreen() {
   const { selectedGroupId } = useAppStore();
@@ -58,17 +58,11 @@ export default function MemoScreen() {
     setIsDrawerOpen(true);
   };
 
-  const handleSaveMemo = async (data: {
-    content: string;
-    labels: string[];
-    imageUrl?: string;
-    attachments?: MemoAttachment[];
-    linkedItems?: any[];
-  }) => {
+  const handleSaveMemo = async (draft: EntryDraft) => {
     if (editingMemo) {
-      await updateMemo(editingMemo.firestoreId, data);
+      await updateMemo(editingMemo.firestoreId, draft);
     } else {
-      await addMemo(data);
+      await addMemo(draft);
     }
   };
 
@@ -246,16 +240,18 @@ export default function MemoScreen() {
         </div>
       )}
 
-      {/* 새 메모 / 수정 (Drawer) 모달 */}
-      <MemoDrawer
+      {/* 새 메모 / 수정 - 기록과 같은 오른쪽 배너를 쓴다 */}
+      <EntryDrawer
         isOpen={isDrawerOpen}
         onClose={() => {
           setIsDrawerOpen(false);
           setEditingMemo(null);
         }}
+        kind="memo"
+        entry={editingMemo}
+        labelOptions={memoLabels}
         onSave={handleSaveMemo}
-        onDelete={deleteMemo}
-        editingMemo={editingMemo}
+        onDelete={editingMemo ? () => deleteMemo(editingMemo.firestoreId) : undefined}
         defaultLabel={currentFilter}
       />
     </div>

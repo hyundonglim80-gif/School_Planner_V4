@@ -1,54 +1,141 @@
+// src/components/EntryDrawer.tsx
+// 메모와 기록이 같은 오른쪽 배너(드로어)를 쓴다. 두 화면이 각자 입력 폼을 들고
+// 있으면 단축키·첨부·라벨 동작이 조금씩 어긋나므로 한 곳에서만 만든다.
 import React, { useState, useEffect, useRef } from 'react';
-import { showToast } from '../../utils/toast';
-import type { Memo, MemoAttachment } from '../../hooks/useMemos';
-import { auth } from '../../lib/firebase';
-import { uploadImage, uploadFile } from '../../utils/uploadHelper';
-import { useLabels } from '../../hooks/useLabels';
-import { useAppStore } from '../../store/useAppStore';
-import { formatDateStr } from '../../lib/dateUtils';
-import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../../hooks/useModalLayer';
-import { usePasteImageUpload } from '../../hooks/usePasteImageUpload';
-import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
+import { showToast } from '../utils/toast';
+import { auth } from '../lib/firebase';
+import { uploadImage, uploadFile } from '../utils/uploadHelper';
+import { useAppStore } from '../store/useAppStore';
+import { formatDateStr } from '../lib/dateUtils';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useVisualViewport } from '../hooks/useVisualViewport';
+import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import { usePasteImageUpload } from '../hooks/usePasteImageUpload';
+import ImageViewerModal, { type ViewerImage } from './ImageViewerModal';
 
-const PRESET_LABELS = ['긴급', '중요', '업무', '아이디어', '수업', '개인', '기타'];
+export type EntryKind = 'memo' | 'journal';
 
-interface MemoDrawerProps {
+export interface EntryAttachment {
+  id?: string;
+  name: string;
+  url: string;
+  type?: string;
+  size?: number;
+}
+
+/** 드로어가 수정 대상으로 받는 값. 메모와 기록의 필드 이름 차이를 모두 받아들인다. */
+export interface EntrySource {
+  content?: string;
+  text?: string;
+  labels?: string[];
+  labelIds?: string[];
+  label?: string;
+  imageUrl?: string;
+  attachments?: unknown[];
+  linkedItems?: any[];
+}
+
+/** 저장 버튼을 눌렀을 때 화면으로 돌려주는 값. */
+export interface EntryDraft {
+  content: string;
+  labels: string[];
+  attachments: EntryAttachment[];
+  linkedItems: any[];
+  imageUrl?: string;
+}
+
+interface EntryDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: {
-    content: string;
-    labels: string[];
-    imageUrl?: string;
-    attachments?: MemoAttachment[];
-    linkedItems?: any[];
-  }) => Promise<void>;
-  editingMemo?: Memo | null;
-  onDelete?: (firestoreId: string) => Promise<void>;
+  kind: EntryKind;
+  /** 수정 대상. null이면 새로 작성하는 경우다. */
+  entry: EntrySource | null;
+  labelOptions: string[];
+  onSave: (draft: EntryDraft) => Promise<void>;
+  onDelete?: () => Promise<void>;
+  /** 새로 작성할 때 미리 골라둘 라벨 */
   defaultLabel?: string;
 }
 
-export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDelete, defaultLabel }: MemoDrawerProps) {
-  const { openLabelModal, isLabelModalOpen, openLinkerModal, currentDate } = useAppStore();
+const KIND_TEXT: Record<EntryKind, { noun: string; contentLabel: string; placeholder: string }> = {
+  memo: {
+    noun: '메모',
+    contentLabel: '메모 내용',
+    placeholder: '자유롭게 생각을 기록해보세요... (캡처한 이미지는 Ctrl+V로 첨부)',
+  },
+  journal: {
+    noun: '기록',
+    contentLabel: '기록 내용',
+    placeholder: '오늘 있었던 일을 기록해보세요... (캡처한 이미지는 Ctrl+V로 첨부)',
+  },
+};
+
+const isImageAttachment = (att: EntryAttachment) => {
+  const type = att?.type || '';
+  // 기록은 type에 'image'를, 메모는 'image/png' 같은 MIME 타입을 저장한다.
+  if (type === 'image' || type.startsWith('image/')) return true;
+  return /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(att?.url || '');
+};
+
+const normalizeAttachments = (raw: unknown[] | undefined, legacyImageUrl?: string): EntryAttachment[] => {
+  const list: EntryAttachment[] = [];
+  for (const item of raw || []) {
+    if (!item) continue;
+    if (typeof item === 'string') {
+      const url = item.trim();
+      if (!url) continue;
+      list.push({ name: url.split('/').pop()?.split('?')[0] || '파일', url, type: '' });
+      continue;
+    }
+    const obj = item as any;
+    const url = obj.url || obj.downloadUrl || obj.fileUrl || '';
+    if (!url || typeof url !== 'string') continue;
+    list.push({
+      id: typeof obj.id === 'string' ? obj.id : undefined,
+      name: obj.name || url.split('/').pop()?.split('?')[0] || '파일',
+      url,
+      type: typeof obj.type === 'string' ? obj.type : undefined,
+      size: typeof obj.size === 'number' ? obj.size : undefined,
+    });
+  }
+  // 첨부 목록이 없던 구버전 항목은 imageUrl 한 장만 갖고 있다.
+  if (list.length === 0 && legacyImageUrl) {
+    list.push({ name: '이미지', url: legacyImageUrl, type: 'image' });
+  }
+  return list;
+};
+
+const sourceLabels = (entry: EntrySource): string[] => {
+  if (entry.labels && entry.labels.length > 0) return entry.labels;
+  if (entry.labelIds && entry.labelIds.length > 0) return entry.labelIds;
+  return entry.label ? [entry.label] : [];
+};
+
+export default function EntryDrawer({
+  isOpen,
+  onClose,
+  kind,
+  entry,
+  labelOptions,
+  onSave,
+  onDelete,
+  defaultLabel,
+}: EntryDrawerProps) {
+  const { openLabelModal, openLinkerModal, currentDate } = useAppStore();
   const formattedDate = formatDateStr(new Date(currentDate));
+  const text = KIND_TEXT[kind];
+
   useBodyScrollLock(isOpen);
   const vv = useVisualViewport(isOpen);
-
   const zIndex = useModalLayer(isOpen, onClose);
 
   const [content, setContent] = useState('');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
-  const [attachments, setAttachments] = useState<MemoAttachment[]>([]);
+  const [attachments, setAttachments] = useState<EntryAttachment[]>([]);
   const [linkedItems, setLinkedItems] = useState<any[]>([]);
-  
+
   const [saving, setSaving] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
-  // 라벨은 useLabels 한 곳에서만 읽는다. 여기서 직접 Firestore를 읽으면
-  // V3가 localStorage에만 남긴 라벨과 오프라인 캐시 보정을 놓쳐,
-  // 사용자 메모 라벨이 기본값으로 되돌아간다.
-  const { memoLabels } = useLabels();
-  const presetLabels = memoLabels.length > 0 ? memoLabels : PRESET_LABELS;
 
   const handleSubmitRef = useRef<() => void>(() => {});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -69,54 +156,18 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
   }, [content, isOpen]);
 
   useEffect(() => {
-    if (editingMemo) {
-      setContent(editingMemo.content || editingMemo.text || '');
-      setSelectedLabels(editingMemo.labels || []);
-      setLinkedItems(editingMemo.linkedItems || []);
-      
-      let initialAttachments: MemoAttachment[] = [];
-      if (editingMemo.attachments && Array.isArray(editingMemo.attachments)) {
-        const parsedList: MemoAttachment[] = [];
-        for (const item of editingMemo.attachments) {
-          if (!item) continue;
-          const raw = item as any;
-          if (typeof raw === 'string') {
-            const url = raw.trim();
-            if (url) {
-              const name = url.split('/').pop()?.split('?')[0] || '파일';
-              parsedList.push({ name, url, type: '' });
-            }
-          } else {
-            const url = raw.url || raw.downloadUrl || raw.fileUrl || '';
-            if (url && typeof url === 'string') {
-              const name = raw.name || url.split('/').pop()?.split('?')[0] || '파일';
-              parsedList.push({
-                name,
-                url,
-                type: typeof raw.type === 'string' ? raw.type : undefined,
-                size: typeof raw.size === 'number' ? raw.size : undefined,
-              });
-            }
-          }
-        }
-        initialAttachments = parsedList;
-      } else if (editingMemo.imageUrl) {
-        initialAttachments = [
-          {
-            name: '이미지',
-            url: editingMemo.imageUrl,
-            type: 'image/jpeg',
-          },
-        ];
-      }
-      setAttachments(initialAttachments);
+    if (entry) {
+      setContent(entry.content || entry.text || '');
+      setSelectedLabels(sourceLabels(entry));
+      setLinkedItems(entry.linkedItems || []);
+      setAttachments(normalizeAttachments(entry.attachments, entry.imageUrl));
     } else {
       setContent('');
       setSelectedLabels(defaultLabel && defaultLabel !== '전체' ? [defaultLabel] : []);
       setAttachments([]);
       setLinkedItems([]);
     }
-  }, [editingMemo, isOpen, defaultLabel]);
+  }, [entry, isOpen, defaultLabel]);
 
   useEffect(() => {
     handleSubmitRef.current = () => handleSubmit();
@@ -139,35 +190,34 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
   const [viewerIndex, setViewerIndex] = useState(0);
 
   const viewerImages: ViewerImage[] = attachments
-    .filter((att) => {
-      const t = att?.type || '';
-      return (typeof t === 'string' && t.startsWith('image/')) ||
-        /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(att?.url || '');
-    })
+    .filter(isImageAttachment)
     .map((att) => ({ url: att.url, name: att.name }));
 
-  // 캡처 이미지를 Ctrl+V 로 붙여넣으면 하단 첨부 목록에 이미지로 추가된다.
+  // 첨부는 두 화면이 서로 다른 모양으로 저장해 왔다. 기록은 type에 'image'/'file'과
+  // id를, 메모는 MIME 타입을 쓴다. 저장된 형태를 바꾸지 않도록 여기서 맞춰준다.
+  const makeAttachment = (name: string, url: string, mimeType: string, size?: number, seq = 0): EntryAttachment => {
+    const isImage = mimeType.startsWith('image/');
+    if (kind === 'journal') {
+      return { id: `file_${Date.now()}_${seq}`, name, url, type: isImage ? 'image' : 'file', size };
+    }
+    return { name, url, type: mimeType || 'application/octet-stream', size };
+  };
+
+  // 캡처 이미지를 Ctrl+V로 붙여넣으면 하단 첨부 목록에 이미지로 추가된다.
   // ⚠️ 훅은 반드시 아래 early return 위에서 호출해야 한다 (Rules of Hooks).
   const { handlePaste, pasting } = usePasteImageUpload((images) => {
     setAttachments((prev) => [
       ...prev,
-      ...images.map((img) => ({
-        name: img.name,
-        url: img.url,
-        type: img.mimeType,
-        size: img.size,
-      })),
+      ...images.map((img, i) => makeAttachment(img.name, img.url, img.mimeType || 'image/png', img.size, i)),
     ]);
   });
 
   if (!isOpen) return null;
 
   const toggleLabel = (label: string) => {
-    if (selectedLabels.includes(label)) {
-      setSelectedLabels(selectedLabels.filter((l) => l !== label));
-    } else {
-      setSelectedLabels([...selectedLabels, label]);
-    }
+    setSelectedLabels((prev) =>
+      prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]
+    );
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -182,23 +232,15 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
 
     try {
       setUploadingFiles(true);
-      const newAttachments: MemoAttachment[] = [];
+      const uploaded: EntryAttachment[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        let url = '';
-        if (file.type.startsWith('image/')) {
-          url = await uploadImage(file, user.uid);
-        } else {
-          url = await uploadFile(file, user.uid);
-        }
-        newAttachments.push({
-          name: file.name,
-          url,
-          type: file.type || 'application/octet-stream',
-          size: file.size,
-        });
+        const url = file.type.startsWith('image/')
+          ? await uploadImage(file, user.uid)
+          : await uploadFile(file, user.uid);
+        uploaded.push(makeAttachment(file.name, url, file.type, file.size, i));
       }
-      setAttachments((prev) => [...prev, ...newAttachments]);
+      setAttachments((prev) => [...prev, ...uploaded]);
     } catch (error) {
       console.error('파일 업로드 에러:', error);
       alert('파일 업로드에 실패했습니다.');
@@ -219,58 +261,51 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const getFileIcon = (att: MemoAttachment) => {
-    const url = att?.url || '';
+  const getFileIcon = (att: EntryAttachment) => {
     const name = att?.name || '';
     const type = att?.type || '';
-
-    if (type.startsWith('image/') || (typeof url === 'string' && url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i))) {
-      return '🖼️';
-    }
-    if (type.includes('pdf') || (typeof name === 'string' && name.endsWith('.pdf'))) return '📄';
-    if (typeof name === 'string' && name.match(/\.(doc|docx|hwp|hwpx|txt)$/i)) return '📝';
-    if (typeof name === 'string' && name.match(/\.(xls|xlsx|csv)$/i)) return '📊';
-    if (typeof name === 'string' && name.match(/\.(zip|7z|tar|gz|rar)$/i)) return '🗜️';
+    if (isImageAttachment(att)) return '🖼️';
+    if (type.includes('pdf') || name.endsWith('.pdf')) return '📄';
+    if (name.match(/\.(doc|docx|hwp|hwpx|txt)$/i)) return '📝';
+    if (name.match(/\.(xls|xlsx|csv)$/i)) return '📊';
+    if (name.match(/\.(zip|7z|tar|gz|rar)$/i)) return '🗜️';
     return '📁';
   };
 
   const openLinker = () => {
     openLinkerModal('manual', formattedDate, undefined, undefined, (links) => {
-      setLinkedItems(prev => [...prev, ...links]);
+      setLinkedItems((prev) => [...prev, ...links]);
     });
   };
 
   const handleRemoveLink = (index: number) => {
-    setLinkedItems(prev => prev.filter((_, i) => i !== index));
+    setLinkedItems((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!content.trim()) return;
+    if (!content.trim() && attachments.length === 0) return;
 
     try {
       setSaving(true);
-      const firstImage = attachments.find(
-        (a) =>
-          (a?.type && typeof a.type === 'string' && a.type.startsWith('image/')) ||
-          (a?.url && typeof a.url === 'string' && a.url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i))
-      )?.url;
-
       await onSave({
         content: content.trim(),
         labels: selectedLabels,
-        imageUrl: firstImage || undefined,
         attachments,
         linkedItems,
+        imageUrl: attachments.find(isImageAttachment)?.url,
       });
-      showToast('✅ 메모가 저장되었습니다.');
+      showToast(`✅ ${text.noun}이(가) 저장되었습니다.`);
+      onClose();
     } catch (error) {
-      console.error('메모 저장 에러:', error);
-      alert('메모 저장에 실패했습니다.');
+      console.error(`${text.noun} 저장 에러:`, error);
+      alert(`${text.noun} 저장에 실패했습니다.`);
     } finally {
       setSaving(false);
     }
   };
+
+  const isEditing = !!entry;
 
   return (
     <div
@@ -286,11 +321,9 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div>
             <h3 className="text-lg font-bold text-slate-800">
-              {editingMemo ? '메모 수정' : '새 메모'}
+              {isEditing ? `${text.noun} 수정` : `새 ${text.noun}`}
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              빠른 저장 단축키: Ctrl + Enter
-            </p>
+            <p className="text-xs text-slate-400 mt-0.5">빠른 저장 단축키: Ctrl + S</p>
           </div>
           <button
             onClick={onClose}
@@ -303,21 +336,15 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-6" data-scroll-lock>
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-slate-600">
-              메모 내용 <span className="text-red-500">*</span>
+              {text.contentLabel} <span className="text-red-500">*</span>
             </label>
             <textarea
               ref={textareaRef}
               autoFocus
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              onKeyDown={(e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                  e.preventDefault();
-                  handleSubmit();
-                }
-              }}
               onPaste={handlePaste}
-              placeholder="자유롭게 생각을 기록해보세요... (캡처한 이미지는 Ctrl+V로 첨부)"
+              placeholder={text.placeholder}
               className="w-full min-h-[120px] p-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none text-slate-800 leading-relaxed placeholder-slate-400 text-sm overflow-hidden"
             />
           </div>
@@ -329,7 +356,7 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
               </label>
               <button
                 type="button"
-                onClick={() => openLabelModal('memo')}
+                onClick={() => openLabelModal(kind)}
                 className="text-xs text-primary hover:text-blue-700 font-bold flex items-center gap-1.5 px-2 py-0.5 rounded-md hover:bg-blue-50 transition-colors cursor-pointer"
                 title="더보기 - 통합 라벨 관리 열기"
               >
@@ -338,7 +365,7 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
               </button>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {presetLabels.map((label) => {
+              {labelOptions.map((label) => {
                 const isSelected = selectedLabels.includes(label);
                 return (
                   <button
@@ -368,7 +395,7 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
                 <span className="text-xs font-bold text-primary">⏳ 붙여넣은 이미지 업로드 중...</span>
               )}
             </div>
-            
+
             <div className="flex gap-2">
               <label className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer border border-dashed border-slate-300 shadow-2xs">
                 <span>{uploadingFiles ? '⏳' : '📎'}</span>
@@ -394,14 +421,8 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
             {attachments.length > 0 && (
               <div className="space-y-2 pt-1">
                 {attachments.map((att, idx) => {
-                  const url = att?.url || '';
-                  const type = att?.type || '';
-                  const isImage =
-                    (typeof type === 'string' && type.startsWith('image/')) ||
-                    (typeof url === 'string' && url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i));
-
                   // 이미지는 내용을 바로 알아볼 수 있도록 큰 미리보기로 보여준다.
-                  if (isImage) {
+                  if (isImageAttachment(att)) {
                     return (
                       <div
                         key={`${att.url}-${idx}`}
@@ -483,14 +504,23 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
             {linkedItems.length > 0 && (
               <div className="space-y-2 pt-1">
                 {linkedItems.map((link, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-2.5 bg-yellow-50 border border-yellow-200 rounded-xl gap-2 hover:bg-yellow-100 transition-colors w-full">
-                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <span className="text-base shrink-0">🔗</span>
-                        <span className="text-xs font-bold text-yellow-800 truncate block">{link.title || link.text || '연결된 항목'}</span>
-                     </div>
-                     <button type="button" onClick={() => handleRemoveLink(idx)} className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0">
-                       ✕
-                     </button>
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-2.5 bg-yellow-50 border border-yellow-200 rounded-xl gap-2 hover:bg-yellow-100 transition-colors w-full"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <span className="text-base shrink-0">🔗</span>
+                      <span className="text-xs font-bold text-yellow-800 truncate block">
+                        {link.title || link.text || '연결된 항목'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveLink(idx)}
+                      className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0"
+                    >
+                      ✕
+                    </button>
                   </div>
                 ))}
               </div>
@@ -499,21 +529,23 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
         </div>
 
         <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50">
-          {editingMemo && onDelete ? (
-             <button
-               type="button"
-               onClick={async () => {
-                 if (window.confirm('정말 삭제하시겠습니까?')) {
-                   await onDelete(editingMemo.firestoreId);
-                   onClose();
-                 }
-               }}
-               className="px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-100 rounded-xl transition-colors cursor-pointer"
-             >
-               삭제
-             </button>
-          ) : <div></div>}
-          
+          {isEditing && onDelete ? (
+            <button
+              type="button"
+              onClick={async () => {
+                if (window.confirm('정말 삭제하시겠습니까?')) {
+                  await onDelete();
+                  onClose();
+                }
+              }}
+              className="px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-100 rounded-xl transition-colors cursor-pointer"
+            >
+              삭제
+            </button>
+          ) : (
+            <div></div>
+          )}
+
           <div className="flex gap-2">
             <button
               type="button"
@@ -526,7 +558,7 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
             <button
               type="button"
               onClick={() => handleSubmit()}
-              disabled={saving || uploadingFiles || !content.trim()}
+              disabled={saving || uploadingFiles || (!content.trim() && attachments.length === 0)}
               className="px-5 py-2 text-sm font-bold text-white bg-primary hover:bg-blue-600 rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
             >
               {saving ? (
@@ -535,7 +567,7 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
                   <span>저장 중...</span>
                 </>
               ) : (
-                <span>{editingMemo ? '수정 완료 (Ctrl+S)' : '저장하기 (Ctrl+S)'}</span>
+                <span>{isEditing ? '수정 완료 (Ctrl+S)' : '저장하기 (Ctrl+S)'}</span>
               )}
             </button>
           </div>
