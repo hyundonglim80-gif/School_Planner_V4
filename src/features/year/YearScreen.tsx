@@ -263,6 +263,7 @@ export default function YearScreen() {
                       return (
                         <div
                           key={dObj.dateStr}
+                          data-today={isTodayEvent ? 'true' : undefined}
                           className={`flex flex-col gap-1.5 p-2 -mx-2 rounded-xl border-b border-dashed border-slate-200 last:border-0 ${DAY_CELL_BG[tone]} ${isTodayEvent ? 'ring-1 ring-primary/40 border-solid' : ''}`}
                         >
                           <div className="flex items-center justify-between">

@@ -91,3 +91,19 @@ describe('MonthAgenda - 휴대폰 월간 목록', () => {
     expect(within(row).getByTitle('일정 삭제')).toBeInTheDocument();
   });
 });
+
+describe('MonthAgenda - 오늘 칸 표시', () => {
+  it('오늘 날짜 칸에 data-today 표시가 붙는다', () => {
+    const today = [
+      { dateStr: '2026-09-03', day: 3, month: 9, year: 2026, isCurrentMonth: true, isToday: true, isSunday: false, isSaturday: false },
+    ];
+    const { container } = renderAgenda({ days: today, dataMap: {} });
+    // 상단 날짜를 눌렀을 때 이 칸으로 스크롤한다
+    expect(container.querySelectorAll('[data-today="true"]')).toHaveLength(1);
+  });
+
+  it('오늘이 아닌 칸에는 표시가 없다', () => {
+    const { container } = renderAgenda();
+    expect(container.querySelectorAll('[data-today="true"]')).toHaveLength(0);
+  });
+});

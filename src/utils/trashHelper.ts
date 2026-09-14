@@ -6,6 +6,8 @@ export interface TrashItem {
   type: 'event' | 'journal' | 'memo' | 'schedule' | 'dday' | 'eval' | 'roster' | 'label' | 'template'; // Type of item
   deletedAt: number; // Timestamp of deletion
   originalDateStr?: string; // The date string it belonged to (e.g., '2026-09-07')
+  /** V3가 읽는 이름. originalDateStr와 같은 값을 함께 쓴다. */
+  dateStr?: string;
   fId?: string; // The group/folder ID it belonged to
   content?: string; // The content or text of the item
   data: any; // The full original data object to restore
@@ -30,6 +32,10 @@ export async function moveToTrash(item: Omit<TrashItem, 'deletedAt'>) {
     ...item,
     id: trashId, // Store under a unique trash ID to avoid conflicts if same item is deleted multiple times
     deletedAt: Date.now(),
+    fId: item.fId || 'personal',
+    // 💡 V3는 같은 문서를 dateStr 이라는 이름으로 읽는다. 두 이름에 같이 써야
+    // V4에서 지운 항목이 V3 휴지통에도 보인다.
+    dateStr: item.originalDateStr || '',
   };
 
   // Firestore throws an error if any field (even nested) is undefined.

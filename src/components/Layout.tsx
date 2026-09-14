@@ -148,8 +148,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const handlePrevDate = () => navigatePrevDate();
   const handleNextDate = () => navigateNextDate();
 
+  // 💡 날짜만 오늘로 바꾸면, 이미 이번 달/주를 보고 있을 때는 아무 일도 안 일어난 것처럼
+  // 보인다. V3처럼 오늘 칸을 화면 안으로 끌어와 보여준다.
+  // 다른 달로 넘어가는 경우에는 새로 그려진 뒤에 찾아야 해서 몇 번 더 시도한다.
+  const scrollToToday = (tries = 6) => {
+    const el = document.querySelector('[data-today="true"]') as HTMLElement | null;
+    // 접혀 있는 달 안에 있으면(offsetParent가 없다) 스크롤해도 소용이 없다
+    if (el && el.offsetParent !== null) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (tries > 0) {
+      requestAnimationFrame(() => scrollToToday(tries - 1));
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   const handleTodayClick = () => {
     useAppStore.getState().setCurrentDate(new Date());
+    requestAnimationFrame(() => scrollToToday());
   };
 
   // 키보드 단축키 핸들러 (ESC, /, Ctrl+화살표, Ctrl+Space, Shift+화살표, Shift+1~5 등)

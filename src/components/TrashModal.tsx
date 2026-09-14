@@ -69,7 +69,9 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
     const user = auth.currentUser;
     if (!user) return;
 
-    const { type, originalDateStr, fId, data } = item;
+    // 💡 V3는 같은 문서를 dateStr 이라는 이름으로 쓴다. 둘 다 받아준다.
+    const { type, fId, data } = item;
+    const originalDateStr = item.originalDateStr || (item as any).dateStr;
     const isGroup = fId && fId !== 'personal';
 
     if (type === 'memo') {
@@ -352,7 +354,7 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
                       <span className="font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
                         {TYPE_LABELS[item.type] || item.type}
                       </span>
-                      <span>{item.originalDateStr || '날짜 없음'}</span>
+                      <span>{item.originalDateStr || (item as any).dateStr || '날짜 없음'}</span>
                       <span>•</span>
                       <span>{new Date(item.deletedAt).toLocaleString()} 삭제됨</span>
                     </div>

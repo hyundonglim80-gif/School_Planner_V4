@@ -84,6 +84,7 @@ export default function MonthAgenda({
           return (
             <div
               key={dayObj.dateStr}
+              data-today={dayObj.isToday ? 'true' : undefined}
               className={`rounded-xl border bg-white overflow-hidden ${
                 dayObj.isToday ? 'border-primary ring-1 ring-primary/30' : 'border-slate-200/80'
               }`}
