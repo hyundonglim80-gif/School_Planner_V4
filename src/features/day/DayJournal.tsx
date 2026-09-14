@@ -44,38 +44,34 @@ export default function DayJournal({
   const [currentFilter, setCurrentFilter] = useState('전체');
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // 💡 라벨이 삭제된 경우 빈 문자열('')을 반환하도록 수정
-  const getLabelName = (entry: JournalEntry) => {
-    if (entry.labelIds && entry.labelIds.length > 0) {
-      // 💡 ID뿐만 아니라 Name으로도 매칭되도록 유연하게 수정
-      const firstLabel = entry.labelIds[0];
-      const found = journalLabels.find(l => l.id === firstLabel || l.name === firstLabel);
-      if (found) return found.name;
-      return ''; // 삭제된 라벨 숨김
+  // 기록에 저장된 라벨을 등록된 라벨 목록에서 찾는다.
+  //
+  // 기록 항목은 라벨을 이름으로도, ID로도 들고 있다(V3/V4, 추가 폼/배너가 서로 달랐다).
+  // 게다가 ID가 없는 라벨에는 useLabels가 `j_<순번>_<이름>` 식으로 자리 번호를 섞어
+  // ID를 만들어 준다. 그래서 라벨 순서가 바뀌면 예전에 저장된 ID는 더 이상 맞지 않는다.
+  // 예전에는 label이 'j_'로 시작하면 ID로만 찾아서, 이런 항목은 라벨 칩이 사라지고
+  // 필터에도 걸리지 않았다. 이름과 ID를 모두, labelIds와 label을 모두 훑는다.
+  const resolveLabelNames = (entry: JournalEntry): string[] => {
+    const keys = [...(entry.labelIds || []), ...(entry.label ? [entry.label] : [])];
+    const names: string[] = [];
+    for (const key of keys) {
+      if (!key) continue;
+      const found = journalLabels.find((l) => l.id === key || l.name === key);
+      if (found && !names.includes(found.name)) names.push(found.name);
     }
-    if (entry.label && entry.label.startsWith('j_')) {
-      const found = journalLabels.find(l => l.id === entry.label);
-      if (found) return found.name;
-      return ''; // 삭제된 라벨 숨김
-    }
-    const found = journalLabels.find(l => l.name === entry.label);
-    if (found) return found.name;
-    return ''; // 삭제된 라벨 숨김
+    return names;
   };
 
+  const resolveLabel = (entry: JournalEntry) => {
+    const name = resolveLabelNames(entry)[0];
+    return name ? journalLabels.find((l) => l.name === name) || null : null;
+  };
+
+  // 등록된 라벨을 찾지 못하면(설정에서 지운 라벨 등) 칩을 숨긴다.
+  const getLabelName = (entry: JournalEntry) => resolveLabel(entry)?.name || '';
+
   const getLabelColorClass = (entry: JournalEntry) => {
-    let color = 'gray';
-    if (entry.labelIds && entry.labelIds.length > 0) {
-      const firstLabel = entry.labelIds[0];
-      const found = journalLabels.find(l => l.id === firstLabel || l.name === firstLabel);
-      if (found) color = found.color;
-    } else if (entry.label && entry.label.startsWith('j_')) {
-      const found = journalLabels.find(l => l.id === entry.label);
-      if (found) color = found.color;
-    } else {
-      const found = journalLabels.find(l => l.name === entry.label);
-      if (found) color = found.color;
-    }
+    const color = resolveLabel(entry)?.color || 'gray';
 
     const map: Record<string, string> = {
       blue: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -128,8 +124,19 @@ export default function DayJournal({
     setDrawerOpen(true);
   };
 
+  // 배너의 라벨 칩은 이름으로 비교한다. ID로 저장된 라벨을 그대로 넘기면 선택 표시가
+  // 안 되고, 그 상태로 저장하면 라벨이 지워진다. 이름으로 바꿔서 넘긴다.
+  const drawerEntry = editingEntry
+    ? (() => {
+        const names = resolveLabelNames(editingEntry);
+        return { ...editingEntry, labels: names, labelIds: names, label: names[0] || '' };
+      })()
+    : null;
+
   const handleSaveEntry = async (draft: EntryDraft) => {
-    const mainLabel = draft.labels.length > 0 ? draft.labels[0] : '일반';
+    // 라벨을 고르지 않았으면 빈 값으로 둔다. 예전에는 '일반'을 넣었는데, 등록된
+    // 라벨 어디에도 없는 이름이라 칩도 안 뜨고 어떤 필터에도 걸리지 않았다.
+    const mainLabel = draft.labels.length > 0 ? draft.labels[0] : '';
     const attachments: Attachment[] = draft.attachments.map((att) => ({
       id: att.id,
       name: att.name,
@@ -435,7 +442,7 @@ export default function DayJournal({
           setEditingEntry(null);
         }}
         kind="journal"
-        entry={editingEntry}
+        entry={drawerEntry}
         labelOptions={journalLabels.map((lbl) => lbl.name)}
         onSave={handleSaveEntry}
         onDelete={
