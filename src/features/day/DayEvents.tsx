@@ -90,10 +90,6 @@ export default function DayEvents({
     };
   };
 
-  // 라벨이 붙어 있어 라벨 칩 클릭으로 완료 처리할 수 있는 일정들
-  const completableEvents = events.filter((e) => getEventLabelInfo(e).names.length > 0);
-  const completedCount = completableEvents.filter((e) => e.completed).length;
-
   // 라벨에 딸린 기본 속성. 개별 일정에 값이 없으면 이걸로 판단한다.
   const labelPropOf = (names: string[], pick: (def: any) => boolean) =>
     names.some((name) => {
@@ -303,11 +299,6 @@ export default function DayEvents({
           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
             {events.length}
           </span>
-          {completableEvents.length > 0 && (
-            <span className="text-xs font-bold text-primary ml-1">
-              ({completedCount}/{completableEvents.length} 완료)
-            </span>
-          )}
         </div>
         
         {!isCollapsed && !isFormOpen && (
