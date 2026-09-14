@@ -27,7 +27,7 @@ export default function EventItemActions({ onEdit, onDelete, floating = false }:
           e.stopPropagation();
           onEdit();
         }}
-        className="px-1 text-[13.5px] leading-none text-slate-400 hover:text-primary cursor-pointer"
+        className="px-1 text-[10px] leading-none text-slate-400 hover:text-primary cursor-pointer"
         title="일정 수정"
       >
         ✏️
@@ -39,7 +39,7 @@ export default function EventItemActions({ onEdit, onDelete, floating = false }:
           e.stopPropagation();
           onDelete();
         }}
-        className="px-1 text-[13.5px] leading-none text-slate-400 hover:text-red-500 cursor-pointer"
+        className="px-1 text-[10px] leading-none text-slate-400 hover:text-red-500 cursor-pointer"
         title="일정 삭제"
       >
         🗑️

@@ -901,14 +901,14 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                           <button
                             disabled={idx === 0}
                             onClick={() => handleMoveJournalLabel(idx, 'up')}
-                            className={`text-[15px] px-1 rounded ${idx === 0 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
+                            className={`text-[11px] px-1 rounded ${idx === 0 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
                           >
                             ▲
                           </button>
                           <button
                             disabled={idx === journalLabels.length - 1}
                             onClick={() => handleMoveJournalLabel(idx, 'down')}
-                            className={`text-[15px] px-1 rounded ${idx === journalLabels.length - 1 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
+                            className={`text-[11px] px-1 rounded ${idx === journalLabels.length - 1 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
                           >
                             ▼
                           </button>
@@ -991,14 +991,14 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                           <button
                             disabled={idx === 0}
                             onClick={() => handleMoveMemoLabel(idx, 'up')}
-                            className={`text-[15px] px-1 rounded ${idx === 0 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
+                            className={`text-[11px] px-1 rounded ${idx === 0 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
                           >
                             ▲
                           </button>
                           <button
                             disabled={idx === memoLabels.length - 1}
                             onClick={() => handleMoveMemoLabel(idx, 'down')}
-                            className={`text-[15px] px-1 rounded ${idx === memoLabels.length - 1 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
+                            className={`text-[11px] px-1 rounded ${idx === memoLabels.length - 1 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
                           >
                             ▼
                           </button>

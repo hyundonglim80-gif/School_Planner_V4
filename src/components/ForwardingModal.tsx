@@ -295,7 +295,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
                               e.stopPropagation();
                               handleToggleComplete(item);
                             }}
-                            className="text-[16.5px] px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-600 hover:bg-emerald-100 hover:text-emerald-700 font-bold transition-colors disabled:opacity-60 cursor-pointer"
+                            className="text-[11px] px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-600 hover:bg-emerald-100 hover:text-emerald-700 font-bold transition-colors disabled:opacity-60 cursor-pointer"
                           >
                             {labelId}
                           </button>

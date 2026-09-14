@@ -463,7 +463,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
             </div>
 
             {/* 방학 기간에서 계산된 학기 */}
-            <div className="mt-3 bg-white/70 border border-slate-200 rounded-lg px-3 py-2 text-[16.5px] text-slate-600 space-y-0.5">
+            <div className="mt-3 bg-white/70 border border-slate-200 rounded-lg px-3 py-2 text-[11px] text-slate-600 space-y-0.5">
               <div>
                 <span className="font-bold text-blue-700">1학기</span>{' '}
                 {derivedRanges.sem1.start && derivedRanges.sem1.end
@@ -491,7 +491,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
                 <span className="text-xs font-extrabold text-emerald-900 block">
                   🚀 캘린더(하루/주간) 시간표 일괄 적용
                 </span>
-                <span className="text-[16.5px] text-emerald-700">
+                <span className="text-[11px] text-emerald-700">
                   지정한 기간의 모든 평일(월~금)에 현재 시간표를 채웁니다. (방학·공휴일은 자동 제외)
                 </span>
               </div>
@@ -499,19 +499,19 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => handleFillApplyDates('sem1')}
-                  className="px-2 py-1 bg-white hover:bg-emerald-100 text-emerald-800 text-[16.5px] font-bold rounded border border-emerald-300"
+                  className="px-2 py-1 bg-white hover:bg-emerald-100 text-emerald-800 text-[11px] font-bold rounded border border-emerald-300"
                 >
                   1학기 기간 채우기
                 </button>
                 <button
                   onClick={() => handleFillApplyDates('sem2')}
-                  className="px-2 py-1 bg-white hover:bg-emerald-100 text-emerald-800 text-[16.5px] font-bold rounded border border-emerald-300"
+                  className="px-2 py-1 bg-white hover:bg-emerald-100 text-emerald-800 text-[11px] font-bold rounded border border-emerald-300"
                 >
                   2학기 기간 채우기
                 </button>
                 <button
                   onClick={() => handleFillApplyDates('week')}
-                  className="px-2 py-1 bg-white hover:bg-emerald-100 text-emerald-800 text-[16.5px] font-bold rounded border border-emerald-300"
+                  className="px-2 py-1 bg-white hover:bg-emerald-100 text-emerald-800 text-[11px] font-bold rounded border border-emerald-300"
                 >
                   이번 주 기간 채우기
                 </button>

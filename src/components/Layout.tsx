@@ -350,7 +350,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {/* D-Day 뱃지 버튼 */}
               <button
                 onClick={() => setIsDDayModalOpen(true)}
-                className="p-1 sm:px-2.5 sm:py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-md sm:rounded-xl text-[15px] sm:text-xs font-bold transition-all flex items-center gap-0 sm:gap-1 shadow-2xs shrink-0"
+                className="p-1 sm:px-2.5 sm:py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-md sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-0 sm:gap-1 shadow-2xs shrink-0"
                 title="학사 D-Day 관리"
               >
                 <span>⏳</span>
@@ -393,12 +393,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {/* 통합 검색 버튼 */}
             <button
               onClick={() => setIsSearchModalOpen(true)}
-              className="p-1 sm:px-2.5 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md sm:rounded-xl text-[15px] sm:text-xs font-bold transition-all flex items-center gap-0 sm:gap-1 shrink-0"
+              className="p-1 sm:px-2.5 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-0 sm:gap-1 shrink-0"
               title="통합 검색 (단축키: Ctrl+F 또는 /)"
             >
               <span>🔍</span>
               <span className="hidden sm:inline">검색</span>
-              <kbd className="hidden md:inline px-1 py-0.2 bg-white rounded text-[15px] text-slate-400 font-mono shadow-2xs">
+              <kbd className="hidden md:inline px-1 py-0.2 bg-white rounded text-[11px] text-slate-400 font-mono shadow-2xs">
                 Ctrl+F
               </kbd>
             </button>
@@ -423,11 +423,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {/* 그룹 선택 셀렉트 */}
             {groups.length > 0 && (
               <div className="flex items-center gap-0.5 sm:gap-1.5 bg-slate-50 border border-slate-200 rounded-md sm:rounded-xl px-1 sm:px-2.5 py-1 shrink-0 min-w-0">
-                <span className="text-[15px] sm:text-xs shrink-0">📂</span>
+                <span className="text-[11px] sm:text-xs shrink-0">📂</span>
                 <select
                   value={selectedGroupId || ''}
                   onChange={(e) => setSelectedGroupId(e.target.value ? e.target.value : null)}
-                  className="bg-transparent text-[15px] sm:text-xs font-bold text-slate-700 focus:outline-none cursor-pointer pr-1 w-12 sm:w-auto truncate tracking-tighter"
+                  className="bg-transparent text-[11px] sm:text-xs font-bold text-slate-700 focus:outline-none cursor-pointer pr-1 w-12 sm:w-auto truncate tracking-tighter"
                 >
                   <option value="">🔒 개인 공간</option>
                   {groups.map((g) => (
