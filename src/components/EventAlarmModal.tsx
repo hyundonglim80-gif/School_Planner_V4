@@ -65,7 +65,7 @@ export default function EventAlarmModal({
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center overflow-y-auto p-4 bg-black/50 backdrop-blur-xs animate-fade-in"
+      className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-black/50 backdrop-blur-xs animate-fade-in"
       style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
       onClick={closeAllModals}
     >
@@ -114,7 +114,7 @@ export default function EventAlarmModal({
               onClick={onClose}
               className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer"
             >
-              취소
+              닫기
             </button>
             <button
               type="button"

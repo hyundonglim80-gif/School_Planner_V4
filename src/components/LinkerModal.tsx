@@ -656,7 +656,7 @@ export default function LinkerModal({
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
+      className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
       onClick={closeAllModals}
     >
       <div

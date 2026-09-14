@@ -67,7 +67,7 @@ export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto p-4" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}>
+    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}>
       {/* 백드롭 */}
       <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={closeAllModals} />
 

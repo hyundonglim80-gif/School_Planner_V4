@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, runTransaction } from 'firebase/firestore';
 import { subscribeDocWithServerFallback } from '../lib/firestoreSubscribe';
 import { db, auth } from '../lib/firebase';
 import { moveToTrash } from '../utils/trashHelper';
+import { showToast, showErrorToast } from '../utils/toast';
 
 export interface DDayItem {
   id: string;
@@ -63,6 +64,32 @@ export function useDDay() {
     await setDoc(prefDocRef, patch, { merge: true });
   }, []);
 
+  // 💡 목록을 로컬 상태로 만들어 덮어쓰면 안 된다. 구독이 값을 주기 전이거나
+  // 오프라인 캐시가 "문서 없음"이라고 답한 순간에는 dDayList가 빈 배열인데,
+  // 그때 D-Day를 하나 추가하면 dDayList에 그 하나만 남아 기존 것이 전부 사라졌다.
+  // 쓰기 직전 서버 값을 다시 읽어 그 위에서 고친다.
+  const mutateDDays = useCallback(
+    async (
+      mutate: (list: DDayItem[], selected: string | null) => { list: DDayItem[]; selected: string | null }
+    ) => {
+      const user = auth.currentUser;
+      if (!user) return;
+      const prefDocRef = doc(db, 'users', user.uid, 'settings', 'preferences');
+      try {
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(prefDocRef);
+          const data = snap.exists() ? snap.data() : {};
+          const current: DDayItem[] = Array.isArray(data.dDayList) ? data.dDayList : [];
+          const next = mutate(current, data.selectedDDayId ?? null);
+          tx.set(prefDocRef, { dDayList: next.list, selectedDDayId: next.selected }, { merge: true });
+        });
+      } catch (e) {
+        showErrorToast('D-Day 저장에 실패했습니다. 네트워크를 확인해 주세요.', e);
+      }
+    },
+    []
+  );
+
   const addDDay = useCallback(async (title: string, date: string) => {
     if (!title.trim() || !date) return;
     const newItem: DDayItem = {
@@ -70,36 +97,43 @@ export function useDDay() {
       title: title.trim(),
       date,
     };
-    const newList = [...dDayList, newItem];
-    // 아직 고른 게 없으면 방금 추가한 것을 선택해 둔다 (V3와 같은 동작)
-    const nextSelected = selectedDDayId ?? newItem.id;
-    await savePref({ dDayList: newList, selectedDDayId: nextSelected });
-  }, [dDayList, selectedDDayId, savePref]);
+    await mutateDDays((list, selected) => ({
+      list: [...list, newItem],
+      // 아직 고른 게 없으면 방금 추가한 것을 선택해 둔다 (V3와 같은 동작)
+      selected: selected ?? newItem.id,
+    }));
+    showToast('✅ D-Day를 추가했습니다.');
+  }, [mutateDDays]);
 
   const selectDDay = useCallback(async (id: string | null) => {
+    // 단일 값이라 병합 저장으로 충분하다
     await savePref({ selectedDDayId: id });
   }, [savePref]);
 
   const deleteDDay = useCallback(async (id: string) => {
-    const target = dDayList.find((d) => d.id === id);
-    if (target) {
+    let removed: DDayItem | undefined;
+    await mutateDDays((list, selected) => {
+      removed = list.find((d) => d.id === id);
+      return {
+        list: list.filter((d) => d.id !== id),
+        selected: selected === id ? null : selected,
+      };
+    });
+
+    if (removed) {
       try {
         await moveToTrash({
-          id: target.id,
+          id: removed.id,
           type: 'dday',
-          content: target.title,
-          data: target,
+          content: removed.title,
+          data: removed,
         });
       } catch (err) {
         console.error('D-Day 휴지통 이동 실패:', err);
       }
     }
-    const newList = dDayList.filter((d) => d.id !== id);
-    await savePref({
-      dDayList: newList,
-      selectedDDayId: selectedDDayId === id ? null : selectedDDayId,
-    });
-  }, [dDayList, selectedDDayId, savePref]);
+    showToast('🗑️ D-Day를 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+  }, [mutateDDays]);
 
   // 사용자가 고른 D-Day. 고른 게 없으면 가장 가까운 미래의 D-Day를 보여준다.
   const primaryDDay = useMemo(() => {

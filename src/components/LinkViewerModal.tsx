@@ -432,7 +432,7 @@ export default function LinkViewerModal({
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
+      className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
       onClick={closeAllModals}
     >
       <div
@@ -548,7 +548,7 @@ export default function LinkViewerModal({
                           onClick={() => setEditModeTargetId(null)}
                           className="px-3 py-1.5 text-xs bg-slate-100 text-slate-600 rounded-lg font-bold hover:bg-slate-200 transition-colors"
                         >
-                          취소
+                          닫기
                         </button>
                         <button
                           type="button"
