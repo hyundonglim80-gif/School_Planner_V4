@@ -50,7 +50,10 @@ export function useEvaluation(groupId?: string | null) {
     try {
       const snap = await getDoc(ref);
       if (snap.exists()) {
-        return snap.data().list || [];
+        // 💡 V3는 같은 문서를 evalList 라는 이름으로 읽고 쓴다. V4가 list만 보던 탓에
+        // V3에서 만든 조사표가 V4에 하나도 안 보였다(그 반대도 마찬가지).
+        const data = snap.data();
+        return data.list || data.evalList || [];
       }
       return [];
     } catch (e) {
@@ -65,7 +68,8 @@ export function useEvaluation(groupId?: string | null) {
     const ref = getDocRef(dateStr);
     if (!ref) return;
     try {
-      await setDoc(ref, { list, updatedAt: Date.now() }, { merge: true });
+      // 두 이름에 같이 쓴다. 한쪽만 쓰면 다른 앱이 옛 목록을 계속 보게 된다.
+      await setDoc(ref, { list, evalList: list, updatedAt: Date.now() }, { merge: true });
     } catch (e) {
       console.error('saveEvaluations error:', e);
       throw e;

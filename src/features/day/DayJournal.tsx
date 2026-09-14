@@ -137,6 +137,12 @@ export default function DayJournal({
     // 라벨을 고르지 않았으면 빈 값으로 둔다. 예전에는 '일반'을 넣었는데, 등록된
     // 라벨 어디에도 없는 이름이라 칩도 안 뜨고 어떤 필터에도 걸리지 않았다.
     const mainLabel = draft.labels.length > 0 ? draft.labels[0] : '';
+    // 💡 labelIds는 "ID"로 저장한다. V3는 기록의 labelIds를 ID로만 찾아서(이름으로는
+    // 안 찾는다) 이름을 넣으면 V3에서 라벨 칩이 하나도 안 보인다.
+    // label(이름)은 그대로 두어 V3의 폴백과 V4의 해석이 모두 통하게 한다.
+    const labelIds = draft.labels
+      .map((name) => journalLabels.find((l) => l.name === name)?.id)
+      .filter((id): id is string => !!id);
     const attachments: Attachment[] = draft.attachments.map((att) => ({
       id: att.id,
       name: att.name,
@@ -149,7 +155,7 @@ export default function DayJournal({
       await onUpdateJournal(editingEntry.id, {
         content: draft.content,
         label: mainLabel,
-        labelIds: draft.labels,
+        labelIds,
         // 배너가 구버전 imageUrl을 첨부 목록으로 옮겨 담으므로, 여기서 비워야
         // 같은 이미지가 본문과 첨부에 두 번 그려지지 않는다.
         imageUrl: '',
@@ -157,7 +163,7 @@ export default function DayJournal({
         linkedItems: draft.linkedItems,
       });
     } else {
-      const newId = await onAddJournal(draft.content, mainLabel, draft.labels, undefined, {
+      const newId = await onAddJournal(draft.content, mainLabel, labelIds, undefined, {
         attachments,
         linkedItems: draft.linkedItems,
       });
@@ -169,7 +175,7 @@ export default function DayJournal({
           content: draft.content,
           createdAt: Date.now(),
           label: mainLabel,
-          labelIds: draft.labels,
+          labelIds,
           imageUrl: '',
           attachments,
           linkedItems: draft.linkedItems,
