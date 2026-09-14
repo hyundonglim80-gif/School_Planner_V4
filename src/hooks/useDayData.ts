@@ -573,8 +573,15 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       linkedItems: options?.linkedItems || [],
       attachments: options?.attachments || [],
       time: options?.time || undefined,
+      // 추가 폼에서도 개별 속성을 고를 수 있다. 예전에는 여기서 빠뜨려서, 새로 만든
+      // 일정은 라벨에서 유추한 속성만 갖고 폼에서 고친 값은 버려졌다.
+      ...(options?.calendar !== undefined ? { calendar: options.calendar } : {}),
+      ...(options?.forward !== undefined ? { forward: options.forward } : {}),
+      ...(options?.period !== undefined ? { period: options.period } : {}),
+      ...(options?.recur !== undefined ? { recur: options.recur } : {}),
+      ...(options?.skip !== undefined ? { skip: options.skip } : {}),
     };
-    
+
     const validList = [...eventList, newItem].filter((item) => 
       (item.content && item.content.trim().length > 0) || 
       item.label || 

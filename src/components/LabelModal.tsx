@@ -1,5 +1,6 @@
 //src/components/LabelModal.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { DEFAULT_EVENT_LABELS, normalizeEventLabel, type EventLabel } from '../hooks/useLabels';
@@ -13,7 +14,9 @@ import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 import { useGroups } from '../hooks/useGroups';
 import { scanForMissingLabels, pickRecoveryColor } from '../utils/labelRecovery';
+import { applyLabelRenames, diffLabelNames } from '../utils/labelRename';
 import { moveToTrash } from '../utils/trashHelper';
+import { showToast, showErrorToast } from '../utils/toast';
 
 interface MemoLabel {
   id: string;
@@ -63,22 +66,51 @@ function ColorPickerDropdown({
   onChange: (color: string) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const wrapRef = React.useRef<HTMLDivElement>(null);
+  const listRef = React.useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const activeStyle = COLOR_PALETTE[color] || COLOR_PALETTE.blue;
+
+  const PANEL_HEIGHT = 300; // 색상 9개 + 여백. 아래로 펼 자리가 있는지 판단할 때만 쓴다.
+
+  // 라벨 목록은 세로 스크롤되는 상자 안에 있다. 드롭다운을 absolute로 두면 그 상자의
+  // overflow에 잘려서, z-index를 아무리 올려도 아래쪽이 보이지 않는다.
+  // 그래서 body로 빼내(portal) 화면 기준(fixed)으로 띄운다.
+  const updatePosition = useCallback(() => {
+    const btn = wrapRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const openUpward = rect.bottom + PANEL_HEIGHT > window.innerHeight && rect.top > PANEL_HEIGHT;
+    setPos({
+      top: openUpward ? Math.max(8, rect.top - PANEL_HEIGHT - 6) : rect.bottom + 6,
+      left: Math.min(rect.left, Math.max(8, window.innerWidth - 140)),
+    });
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
+    updatePosition();
+
     const handleOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
+      const target = e.target as Node;
+      if (wrapRef.current?.contains(target) || listRef.current?.contains(target)) return;
+      setIsOpen(false);
     };
+    const close = () => setIsOpen(false);
+
     document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, [isOpen]);
+    // 스크롤하면 버튼이 움직이므로 붙어 있던 자리가 어긋난다. 그냥 닫는다.
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [isOpen, updatePosition]);
 
   return (
-    <div className="relative inline-block shrink-0" ref={dropdownRef}>
+    <div className="relative inline-block shrink-0" ref={wrapRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -92,33 +124,39 @@ function ColorPickerDropdown({
         <span className="text-[9px] text-slate-400 font-black leading-none select-none">▼</span>
       </button>
 
-      {isOpen && (
-        <div className="absolute left-0 top-full mt-1.5 z-50 bg-white border border-slate-200 rounded-xl shadow-xl p-1.5 min-w-[120px] flex flex-col gap-0.5 animate-fade-in">
-          {Object.entries(COLOR_PALETTE).map(([key, val]) => {
-            const isSelected = key === color;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => {
-                  onChange(key);
-                  setIsOpen(false);
-                }}
-                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all text-left cursor-pointer ${
-                  isSelected ? 'bg-slate-100 text-slate-900 font-black' : 'hover:bg-slate-50 text-slate-700'
-                }`}
-              >
-                <span
-                  className="w-4 h-4 rounded-full border shadow-2xs shrink-0"
-                  style={{ backgroundColor: val.bg, borderColor: val.border }}
-                />
-                <span>{val.label}</span>
-                {isSelected && <span className="ml-auto text-blue-600 text-xs font-bold">✓</span>}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {isOpen &&
+        createPortal(
+          <div
+            ref={listRef}
+            style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 100000 }}
+            className="bg-white border border-slate-200 rounded-xl shadow-2xl p-1.5 min-w-[130px] flex flex-col gap-0.5 animate-fade-in"
+          >
+            {Object.entries(COLOR_PALETTE).map(([key, val]) => {
+              const isSelected = key === color;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    onChange(key);
+                    setIsOpen(false);
+                  }}
+                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all text-left cursor-pointer ${
+                    isSelected ? 'bg-slate-100 text-slate-900 font-black' : 'hover:bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  <span
+                    className="w-4 h-4 rounded-full border shadow-2xs shrink-0"
+                    style={{ backgroundColor: val.bg, borderColor: val.border }}
+                  />
+                  <span>{val.label}</span>
+                  {isSelected && <span className="ml-auto text-blue-600 text-xs font-bold">✓</span>}
+                </button>
+              );
+            })}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
@@ -166,6 +204,8 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   const [newJournalColor, setNewJournalColor] = useState('green');
 
   const [saving, setSaving] = useState(false);
+  // 이름이 바뀐 라벨을 기존 항목에 반영하는 중 (저장보다 오래 걸릴 수 있다)
+  const [renaming, setRenaming] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   // 💡 불러오기가 실제로 성공하기 전까지는 저장을 막아서, 로드 실패 시
   // 화면 표시용으로 채운 기본값이 실수로 클라우드에 덮어써지는 것을 방지한다.
@@ -413,6 +453,14 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     try {
       await trashRemovedLabels();
 
+      // 이름이 바뀐 라벨을 먼저 추려둔다. 저장된 항목들은 라벨을 "이름"으로 들고
+      // 있어서, 이름만 바꾸고 두면 그 항목들의 라벨 칩이 사라진다.
+      const renames = {
+        event: diffLabelNames(originalEventLabelsRef.current, eventLabels),
+        journal: diffLabelNames(originalJournalLabelsRef.current, journalLabels),
+        memo: diffLabelNames(originalMemoLabelsRef.current, memoLabels),
+      };
+
       const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
       const payload = {
         eventLabels,
@@ -427,12 +475,29 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
       originalJournalLabelsRef.current = journalLabels;
       originalMemoLabelsRef.current = memoLabels;
 
+      const renameCount = renames.event.length + renames.journal.length + renames.memo.length;
+      if (renameCount > 0) {
+        setRenaming(true);
+        try {
+          const applied = await applyLabelRenames(
+            user.uid,
+            groups.map((g) => g.id),
+            renames
+          );
+          const touched = applied.events + applied.journals + applied.memos;
+          if (touched > 0) {
+            showToast(`✅ 바뀐 라벨 이름을 기존 항목 ${touched}건에 반영했습니다.`);
+          }
+        } finally {
+          setRenaming(false);
+        }
+      }
+
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
       // alert는 삭제하고 우측 하단 체크 표시로만 남김. 모달은 수동 닫기.
     } catch (e) {
-      console.error('라벨 저장 오류:', e);
-      alert('라벨 저장 중 오류가 발생했습니다.');
+      showErrorToast('라벨 저장 중 오류가 발생했습니다.', e);
     } finally {
       setSaving(false);
     }
@@ -1033,7 +1098,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
             title={!labelsLoaded ? '라벨 정보를 불러오는 중에는 저장할 수 없습니다' : undefined}
             className="px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
           >
-            <span>💾</span> {saving ? '저장 중...' : '클라우드 저장'}
+            <span>💾</span> {renaming ? '이름 반영 중...' : saving ? '저장 중...' : '클라우드 저장'}
           </button>
         </div>
       </div>

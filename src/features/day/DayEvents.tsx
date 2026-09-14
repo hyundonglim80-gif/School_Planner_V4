@@ -31,6 +31,12 @@ export default function DayEvents({
 }: DayEventsProps) {
   const [newText, setNewText] = useState('');
   const [newLabels, setNewLabels] = useState<string[]>([]);
+  // 새 일정의 개별 속성 (달력 / 이월 / 기간 / 반복 / 수업X)
+  const [newCalendar, setNewCalendar] = useState(true);
+  const [newForward, setNewForward] = useState(false);
+  const [newPeriod, setNewPeriod] = useState(false);
+  const [newRecur, setNewRecur] = useState(false);
+  const [newSkip, setNewSkip] = useState(false);
   const [newAttachments, setNewAttachments] = useState<Attachment[]>([]);
   const [newLinkedItems, setNewLinkedItems] = useState<any[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
@@ -206,21 +212,51 @@ export default function DayEvents({
         attachments: newAttachments,
         linkedItems: newLinkedItems,
         time: newAlarmTime || undefined,
+        calendar: newCalendar,
+        forward: newForward,
+        period: newPeriod,
+        recur: newRecur,
+        skip: newSkip,
       });
       setNewText('');
       setNewLabels([]);
       setNewAttachments([]);
       setNewLinkedItems([]);
       setNewAlarmTime('');
+      setNewCalendar(true);
+      setNewForward(false);
+      setNewPeriod(false);
+      setNewRecur(false);
+      setNewSkip(false);
     } finally {
       setSubmitting(false);
     }
   };
 
+  // 수정 폼과 같이, 라벨을 새로 고르면 그 라벨의 기본 속성을 그대로 따라간다.
   const handleLabelToggle = (labelName: string) => {
-    setNewLabels(prev => 
-      prev.includes(labelName) ? prev.filter(l => l !== labelName) : [...prev, labelName]
-    );
+    setNewLabels(prev => {
+      if (prev.includes(labelName)) {
+        const next = prev.filter(l => l !== labelName);
+        if (next.length === 0) {
+          setNewCalendar(false);
+          setNewForward(false);
+          setNewPeriod(false);
+          setNewRecur(false);
+          setNewSkip(false);
+        }
+        return next;
+      }
+      const def = eventLabels.find((l) => l.name === labelName);
+      if (def) {
+        setNewCalendar(def.calendar !== false);
+        setNewForward(!!(def.forward || (def as any).isForward));
+        setNewPeriod(!!def.period);
+        setNewRecur(!!def.recur);
+        setNewSkip(!!def.skip);
+      }
+      return [...prev, labelName];
+    });
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -301,76 +337,137 @@ export default function DayEvents({
 
       {!isCollapsed && (
         <>
+      {/* 새 일정 추가 - '일정 수정'과 같은 구성으로 맞춘다 */}
       {isFormOpen && (
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4 flex flex-col gap-2">
-        <div className="flex flex-wrap gap-1.5">
-          {eventLabels.map(l => {
-            const color = getLabelColor(l.name);
-            const isSelected = newLabels.includes(l.name);
-            return (
-              <button
-                key={l.id}
-                type="button"
-                onClick={() => handleLabelToggle(l.name)}
-                className={`px-2 py-1 text-xs font-bold rounded-lg transition-all border ${isSelected ? 'ring-2 ring-primary ring-offset-1 shadow-xs' : 'opacity-70 hover:opacity-100'}`}
-                style={{
-                  backgroundColor: color.bg,
-                  color: color.text,
-                  borderColor: color.border
-                }}
-              >
-                {l.name}
-              </button>
-            );
-          })}
-        </div>
-        
-        <form onSubmit={handleSubmit} className="flex flex-col gap-2 relative">
-          <input
-            type="text"
-            value={newText}
-            onChange={(e) => setNewText(e.target.value)}
-            onKeyDown={(e) => {
-              if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                e.preventDefault();
-                handleSubmit(e as any);
-              }
-            }}
-            placeholder="새로운 일정을 추가하세요..."
-            className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder-slate-400 transition-all"
-            autoFocus
-          />
-          <div className="flex items-center justify-between gap-2">
+        <form
+          onSubmit={handleSubmit}
+          className="p-3.5 mb-4 rounded-xl border border-primary/50 bg-blue-50/30 flex flex-col gap-3 shadow-xs"
+        >
+          {/* 버튼 줄 */}
+          <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
               onClick={() => setNewAlarmModalOpen(true)}
-              className={`px-2.5 py-1.5 text-xs font-bold rounded-xl border transition-colors ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
                 newAlarmTime
-                  ? 'text-primary bg-blue-50 border-blue-200 hover:bg-blue-100'
-                  : 'text-slate-500 bg-white border-slate-200 hover:bg-slate-100'
+                  ? 'text-primary bg-blue-50 hover:bg-blue-100'
+                  : 'text-slate-600 bg-slate-100 hover:bg-slate-200'
               }`}
             >
-              {newAlarmTime ? `⏰ ${formatAlarmBadge(newAlarmTime)}` : '⏰ 알림 추가'}
+              ⏰ {newAlarmTime ? formatAlarmBadge(newAlarmTime) : '알림 추가'}
             </button>
-            <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={openLinker}
+              className="px-3 py-1.5 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              🔗 링크 추가
+            </button>
+            {newLinkedItems.length > 0 && (
+              <span className="px-3 py-1.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                📑 연결된 링크 ({newLinkedItems.length})
+              </span>
+            )}
+          </div>
+
+          {/* 라벨 (다중 선택 가능) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-bold text-slate-500">라벨 (다중 선택 가능)</span>
               <button
                 type="button"
-                onClick={() => { setIsFormOpen(false); setNewAlarmTime(''); }}
-                className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-xl transition-colors"
+                onClick={() => openLabelModal('event')}
+                className="text-xs text-primary hover:text-blue-700 font-bold flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                title="더보기 - 통합 라벨 관리 열기"
               >
-                취소
-              </button>
-              <button
-                type="submit"
-                disabled={(!newText.trim() && newAttachments.length === 0) || submitting || uploadingFiles}
-                className="px-4 py-1.5 bg-primary hover:bg-blue-600 disabled:opacity-40 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-sm transition-all"
-              >
-                저장
+                <span>⚙️</span>
+                <span>라벨 수정</span>
               </button>
             </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {eventLabels.map((l) => {
+                const isSelected = newLabels.includes(l.name);
+                const c = getLabelColor(l.name);
+                return (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => handleLabelToggle(l.name)}
+                    className={`px-2.5 py-1 text-[16.5px] font-bold rounded-lg transition-all border ${isSelected ? 'ring-2 ring-primary ring-offset-1 shadow-xs' : 'opacity-70 hover:opacity-100 bg-white text-slate-600 border-slate-200'}`}
+                    style={isSelected ? { backgroundColor: c.bg, color: c.text, borderColor: c.border } : {}}
+                  >
+                    {l.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 개별 일정 맞춤 5대 속성 */}
+          <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1.5">
+            <span className="block text-xs font-bold text-slate-600">
+              속성 설정 <span className="text-[11px] font-normal text-slate-400">(개별 일정 맞춤 조정)</span>
+            </span>
+            <div className="flex items-center gap-3.5 pt-0.5 text-xs font-medium text-slate-700 flex-wrap">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="월간/년간 달력에 표시">
+                <input type="checkbox" checked={newCalendar} onChange={(e) => setNewCalendar(e.target.checked)} className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
+                <span className="font-semibold text-[12.5px]">달력</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="미완료 시 다음 날로 자동 이월">
+                <input type="checkbox" checked={newForward} onChange={(e) => setNewForward(e.target.checked)} className="rounded text-emerald-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
+                <span className="font-semibold text-[12.5px]">이월</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="연속 기간 등록">
+                <input type="checkbox" checked={newPeriod} onChange={(e) => setNewPeriod(e.target.checked)} className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
+                <span className="font-semibold text-[12.5px]">기간</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="매주/매월 반복">
+                <input type="checkbox" checked={newRecur} onChange={(e) => setNewRecur(e.target.checked)} className="rounded text-purple-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
+                <span className="font-semibold text-[12.5px]">반복</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="지정 날짜의 수업 과목 비움">
+                <input type="checkbox" checked={newSkip} onChange={(e) => setNewSkip(e.target.checked)} className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
+                <span className="font-semibold text-[12.5px]">수업X</span>
+              </label>
+            </div>
+          </div>
+
+          {/* 일정 내용 */}
+          <div>
+            <span className="block text-xs font-bold text-slate-500 mb-1">일정 내용</span>
+            <AutoTextarea
+              value={newText}
+              onChange={(e) => setNewText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setIsFormOpen(false);
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                  e.preventDefault();
+                  handleSubmit(e as any);
+                }
+              }}
+              placeholder="새로운 일정을 입력하세요..."
+              className="w-full min-h-[72px] px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder-slate-400"
+              autoFocus
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => { setIsFormOpen(false); setNewAlarmTime(''); }}
+              className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 transition-colors"
+            >
+              닫기
+            </button>
+            <button
+              type="submit"
+              disabled={(!newText.trim() && newAttachments.length === 0) || submitting || uploadingFiles}
+              className="px-4 py-1.5 bg-primary hover:bg-blue-600 disabled:opacity-40 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+            >
+              저장
+            </button>
           </div>
         </form>
-      </div>
       )}
 
       <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[160px]">

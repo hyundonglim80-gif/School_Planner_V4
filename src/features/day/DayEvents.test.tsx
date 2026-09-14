@@ -103,3 +103,75 @@ describe('DayEvents - 항목 자리에서 바로 수정', () => {
     confirmSpy.mockRestore();
   });
 });
+
+describe("DayEvents - 새 일정 추가 폼도 '일정 수정'과 같은 구성", () => {
+  const openAddForm = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole('button', { name: /새 일정/ }));
+  };
+
+  it('버튼 줄·라벨·5대 속성·내용·닫기/저장이 모두 있다', async () => {
+    const user = userEvent.setup();
+    renderEvents({ events: [] });
+
+    await openAddForm(user);
+
+    expect(screen.getByRole('button', { name: /알림 추가/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /링크 추가/ })).toBeInTheDocument();
+    expect(screen.getByText('라벨 (다중 선택 가능)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /라벨 수정/ })).toBeInTheDocument();
+
+    const propBox = screen.getByText('속성 설정').closest('div')!;
+    for (const name of ['달력', '이월', '기간', '반복', '수업X']) {
+      expect(within(propBox).getByText(name)).toBeInTheDocument();
+    }
+    expect(within(propBox).getAllByRole('checkbox')).toHaveLength(5);
+
+    expect(screen.getByText('일정 내용')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '닫기' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '저장' })).toBeInTheDocument();
+  });
+
+  it('내용 입력칸이 여러 줄로 늘어나는 입력칸이다', async () => {
+    const user = userEvent.setup();
+    renderEvents({ events: [] });
+
+    await openAddForm(user);
+
+    const box = screen.getByPlaceholderText(/새로운 일정/);
+    expect(box.tagName).toBe('TEXTAREA');
+  });
+
+  it('저장하면 고른 속성까지 함께 넘긴다', async () => {
+    const user = userEvent.setup();
+    const { props } = renderEvents({ events: [] });
+
+    await openAddForm(user);
+    await user.type(screen.getByPlaceholderText(/새로운 일정/), '교내 행사');
+
+    const propBox = screen.getByText('속성 설정').closest('div')!;
+    await user.click(within(propBox).getAllByRole('checkbox')[1]); // 이월 켜기
+
+    await user.click(screen.getByRole('button', { name: '저장' }));
+
+    expect(props.onAddEvent).toHaveBeenCalledTimes(1);
+    const [content, options] = (props.onAddEvent as any).mock.calls[0];
+    expect(content).toBe('교내 행사');
+    expect(options).toMatchObject({ forward: true, calendar: true });
+  });
+
+  it('라벨을 고르면 그 라벨의 기본 속성을 따라간다', async () => {
+    const user = userEvent.setup();
+    renderEvents({ events: [] });
+
+    await openAddForm(user);
+
+    // 기본 라벨 '이월'은 forward 속성이 켜져 있다
+    const labelChips = screen
+      .getAllByRole('button')
+      .filter((b) => b.className.includes('rounded-lg') && b.textContent === '이월');
+    await user.click(labelChips[0]);
+
+    const propBox = screen.getByText('속성 설정').closest('div')!;
+    expect((within(propBox).getAllByRole('checkbox')[1] as HTMLInputElement).checked).toBe(true);
+  });
+});
