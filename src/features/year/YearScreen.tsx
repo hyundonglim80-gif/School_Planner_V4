@@ -12,6 +12,7 @@ import { parseV3EventText, formatV3EventText, runAutoForwarding } from '../../ho
 import { eventDocPayload, readEventList } from '../../lib/eventText';
 import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import { dayToneOf, DAY_CELL_BG, DAY_NUMBER_COLOR } from '../../lib/holiday';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { moveToTrash } from '../../utils/trashHelper';
 import { showToast, showErrorToast } from '../../utils/toast';
 import DetailEditModal from '../../components/DetailEditModal';
@@ -26,6 +27,13 @@ export default function YearScreen() {
   const [schedulesMap, setSchedulesMap] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [quickAddDate, setQuickAddDate] = useState<string | null>(null);
+  const isMobile = useIsMobile();
+  // 휴대폰에서 월 카드 접기/펼치기. 기본값은 "이번 달만 펼침"이라 값이 없으면
+  // 이번 달인지로 판단하고, 사용자가 누른 달만 여기에 기록한다.
+  const [collapsedMonths, setCollapsedMonths] = useState<Record<string, boolean>>({});
+  const toggleMonth = (key: string, defaultCollapsed: boolean) => {
+    setCollapsedMonths((prev) => ({ ...prev, [key]: !(prev[key] ?? defaultCollapsed) }));
+  };
 
   const [detailModal, setDetailModal] = useState<{
     isOpen: boolean;
@@ -198,22 +206,38 @@ export default function YearScreen() {
             });
 
             const isCurrentMonthCard = mInfo.year === new Date().getFullYear() && mInfo.month === new Date().getMonth() + 1;
+            const monthKey = `${mInfo.year}-${mInfo.month}`;
+            // 휴대폰에서는 12개월이 한 줄로 쌓여 끝없이 스크롤된다. 이번 달만 펼치고
+            // 나머지는 접어서, 머리글만 훑다가 필요한 달을 눌러 펼치게 한다.
+            const isOpen = !isMobile || (collapsedMonths[monthKey] ?? !isCurrentMonthCard) === false;
 
             return (
               <div
-                key={`${mInfo.year}-${mInfo.month}`}
-                className={`bg-white rounded-2xl border shadow-sm p-5 flex flex-col transition-all ${
+                key={monthKey}
+                className={`bg-white rounded-2xl border shadow-sm p-4 sm:p-5 flex flex-col transition-all ${
                   isCurrentMonthCard ? 'border-primary ring-2 ring-primary/10' : 'border-slate-200/80 hover:shadow-md'
                 }`}
               >
-                <div className="text-center font-black text-blue-800 text-lg mb-4 pb-2 border-b-2 border-blue-100 flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => isMobile && toggleMonth(monthKey, !isCurrentMonthCard)}
+                  className={`text-center font-black text-blue-800 text-lg flex items-center justify-center gap-2 ${
+                    isOpen ? 'mb-4 pb-2 border-b-2 border-blue-100' : ''
+                  } ${isMobile ? 'cursor-pointer' : 'cursor-default'}`}
+                >
+                  {isMobile && <span className="text-xs text-slate-400">{isOpen ? '▼' : '▶'}</span>}
                   <span>{mInfo.label}</span>
                   <span className="text-[11px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-lg">
                     {mInfo.semester}학기
                   </span>
-                </div>
+                  {!isOpen && (
+                    <span className="text-[11px] font-bold text-slate-400">
+                      {activeDays.length > 0 ? `${activeDays.length}일` : '비어 있음'}
+                    </span>
+                  )}
+                </button>
 
-                <div className="flex flex-col gap-3 flex-1">
+                <div className={`flex flex-col gap-3 flex-1 ${isOpen ? '' : 'hidden'}`}>
                   {activeDays.length > 0 ? (
                     activeDays.map(dObj => {
                       const dayOfWeekNum = dObj.dateObj.getDay();
@@ -258,7 +282,32 @@ export default function YearScreen() {
                           </div>
 
                           <div className="flex flex-col gap-2">
-                            {showClass && hasClasses && (
+                            {/* 휴대폰에서는 6칸을 고정으로 나누면 한 칸이 56px도 안 되어 과목명이 잘린다.
+                                채워진 교시만 칩으로 보여주고 줄바꿈한다. */}
+                            {showClass && hasClasses && isMobile && (
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {periodArray.map((p) => {
+                                  const item = sch[p];
+                                  const text = item?.subject?.trim() || '';
+                                  if (!text || text.toUpperCase() === 'X') return null;
+                                  return (
+                                    <button
+                                      key={p}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDetailModal({ isOpen: true, type: 'schedule', dateStr: dObj.dateStr, itemId: p, initialData: item });
+                                      }}
+                                      className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 text-[11px] font-bold"
+                                    >
+                                      <span className="text-[10px] text-emerald-500">{p}</span>
+                                      <span className="max-w-[90px] truncate">{text}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {showClass && hasClasses && !isMobile && (
                               <div className="flex flex-nowrap gap-[1px] w-full mt-0.5">
                                 {periodArray.map((p) => {
                                   const item = sch[p];
