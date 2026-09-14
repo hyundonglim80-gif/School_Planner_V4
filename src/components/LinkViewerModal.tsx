@@ -7,6 +7,7 @@ import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 import AutoTextarea from './AutoTextarea';
+import { showToast, showErrorToast } from '../utils/toast';
 
 interface LinkViewerModalProps {
   isOpen: boolean;
@@ -231,7 +232,7 @@ export default function LinkViewerModal({
       }
       setScope('day');
     } else {
-      alert('이동할 수 없는 항목입니다.');
+      showToast('이동할 수 없는 항목입니다.');
     }
   };
 
@@ -239,7 +240,7 @@ export default function LinkViewerModal({
   const handleSaveEdit = async (link: NormalizedLink) => {
     const newVal = editText.trim();
     if (!newVal) {
-      alert('내용을 입력해주세요.');
+      showToast('내용을 입력해주세요.');
       return;
     }
 
@@ -310,10 +311,9 @@ export default function LinkViewerModal({
       );
       setEditModeTargetId(null);
       setEditText('');
-      alert('✅ 수정된 내용이 저장되었습니다.');
+      showToast('✅ 수정한 내용을 저장했습니다.');
     } catch (e: any) {
-      console.error(e);
-      alert('저장에 실패했습니다: ' + e.message);
+      showErrorToast('저장에 실패했습니다: ' + e.message, e);
     } finally {
       setSavingEdit(false);
     }
@@ -422,10 +422,9 @@ export default function LinkViewerModal({
       await removeLinkFromSide(link.targetType, link.targetDate, actualTargetId, link.targetPeriod, link.targetFId, actualSourceId);
 
       setLinks((prev) => prev.filter((l) => l.targetId !== link.targetId));
-      alert('✅ 연결이 정상적으로 해제되었습니다.');
+      showToast('✅ 연결을 해제했습니다.');
     } catch (e: any) {
-      console.error(e);
-      alert('연결 해제 중 오류가 발생했습니다.');
+      showErrorToast('연결 해제 중 오류가 발생했습니다.', e);
     }
   };
 

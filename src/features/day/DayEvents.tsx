@@ -6,8 +6,8 @@ import { uploadFile, uploadImage } from '../../utils/uploadHelper';
 import { auth } from '../../lib/firebase';
 import { showToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
-import DetailEditModal from '../../components/DetailEditModal';
 import EventAlarmModal from '../../components/EventAlarmModal';
+import AutoTextarea from '../../components/AutoTextarea';
 import EventItemActions from '../../components/EventItemActions';
 
 interface DayEventsProps {
@@ -37,7 +37,7 @@ export default function DayEvents({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const { openLinkerModal, openLinkViewerModal, currentDate, isMultiSelectMode, selectedEventIds, toggleEventSelection, googleAccessToken } = useAppStore();
+  const { openLinkerModal, openLinkViewerModal, openLabelModal, currentDate, isMultiSelectMode, selectedEventIds, toggleEventSelection } = useAppStore();
   const { eventLabels, getLabelColor, getLabel } = useLabels();
   
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -47,9 +47,15 @@ export default function DayEvents({
   const [editAlarmDirty, setEditAlarmDirty] = useState(false);
   const [editAlarmModalOpen, setEditAlarmModalOpen] = useState(false);
 
+  // 개별 일정 속성 (달력 / 이월 / 기간 / 반복 / 수업X)
+  const [editCalendar, setEditCalendar] = useState(true);
+  const [editForward, setEditForward] = useState(false);
+  const [editPeriod, setEditPeriod] = useState(false);
+  const [editRecur, setEditRecur] = useState(false);
+  const [editSkip, setEditSkip] = useState(false);
+
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [detailItem, setDetailItem] = useState<{ dateStr: string; itemId: string; initialData: any } | null>(null);
   const [alarmTarget, setAlarmTarget] = useState<EventItem | null>(null);
   const [newAlarmTime, setNewAlarmTime] = useState('');
   const [newAlarmModalOpen, setNewAlarmModalOpen] = useState(false);
@@ -97,6 +103,13 @@ export default function DayEvents({
   const completableEvents = events.filter((e) => getEventLabelInfo(e).names.length > 0);
   const completedCount = completableEvents.filter((e) => e.completed).length;
 
+  // 라벨에 딸린 기본 속성. 개별 일정에 값이 없으면 이걸로 판단한다.
+  const labelPropOf = (names: string[], pick: (def: any) => boolean) =>
+    names.some((name) => {
+      const def = eventLabels.find((l) => l.name === name);
+      return def ? pick(def) : false;
+    });
+
   const startEditing = (event: EventItem) => {
     const info = getEventLabelInfo(event);
     setEditingId(event.id);
@@ -104,35 +117,81 @@ export default function DayEvents({
     setEditLabel(info.names.length > 0 ? info.names.join(',') : undefined);
     setEditAlarmTime(event.time || '');
     setEditAlarmDirty(false);
+
+    // 라벨이 아예 없는 일반 일정은 기본적으로 '달력' 속성을 켠다.
+    setEditCalendar(
+      event.calendar !== undefined
+        ? !!event.calendar
+        : info.names.length > 0
+        ? labelPropOf(info.names, (d) => d.calendar !== false)
+        : true
+    );
+    setEditForward(
+      event.forward !== undefined ? !!event.forward : labelPropOf(info.names, (d) => !!(d.forward || d.isForward))
+    );
+    setEditPeriod(event.period !== undefined ? !!event.period : labelPropOf(info.names, (d) => !!d.period));
+    setEditRecur(event.recur !== undefined ? !!event.recur : labelPropOf(info.names, (d) => !!d.recur));
+    setEditSkip(event.skip !== undefined ? !!event.skip : labelPropOf(info.names, (d) => !!d.skip));
   };
 
   const saveEditing = async (id: string) => {
     if (!editText.trim()) {
       await onDeleteEvent(id);
       setEditingId(null);
+      showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
       return;
     }
     if (onUpdateEvent) {
       await onUpdateEvent(id, {
         content: editText.trim(),
         label: editLabel || undefined,
+        calendar: editCalendar,
+        forward: editForward,
+        period: editPeriod,
+        recur: editRecur,
+        skip: editSkip,
         // 💡 알림을 실제로 건드린 경우에만 time/alarmTriggered를 갱신 (건드리지 않았다면
         // 기존 알림 상태 - 특히 이미 확인 처리된 alarmTriggered - 를 그대로 보존한다)
         ...(editAlarmDirty ? { time: editAlarmTime || '', alarmTriggered: false } : {}),
       });
     }
     setEditingId(null);
+    showToast('✅ 일정을 저장했습니다.');
+  };
+
+  const deleteEditing = async (id: string) => {
+    await onDeleteEvent(id);
+    setEditingId(null);
+    showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
   };
 
   const handleEditLabelToggle = (labelName: string) => {
     setEditLabel(prev => {
       const currentLabels = prev ? prev.split(',').filter(Boolean) : [];
-      if (currentLabels.includes(labelName)) {
-        const next = currentLabels.filter(l => l !== labelName);
-        return next.length > 0 ? next.join(',') : undefined;
-      } else {
+      const willSelect = !currentLabels.includes(labelName);
+
+      // 라벨을 새로 고르면 그 라벨의 기본 속성을 그대로 따라간다 ('일정 수정' 팝업과 동일)
+      if (willSelect) {
+        const def = eventLabels.find((l) => l.name === labelName);
+        if (def) {
+          setEditCalendar(def.calendar !== false);
+          setEditForward(!!(def.forward || (def as any).isForward));
+          setEditPeriod(!!def.period);
+          setEditRecur(!!def.recur);
+          setEditSkip(!!def.skip);
+        }
         return [...currentLabels, labelName].join(',');
       }
+
+      const next = currentLabels.filter(l => l !== labelName);
+      if (next.length === 0) {
+        setEditCalendar(false);
+        setEditForward(false);
+        setEditPeriod(false);
+        setEditRecur(false);
+        setEditSkip(false);
+      }
+      return next.length > 0 ? next.join(',') : undefined;
     });
   };
 
@@ -327,67 +386,141 @@ export default function DayEvents({
                   key={event.id}
                   className="p-3.5 rounded-xl border border-primary/50 bg-blue-50/30 flex flex-col gap-3 shadow-xs transition-all"
                 >
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs font-semibold text-slate-500 mr-1">라벨:</span>
-                    {eventLabels.map((l) => {
-                      const isSelected = currentEditLabels.includes(l.name);
-                      const c = getLabelColor(l.name);
-                      return (
-                        <button
-                          key={l.id}
-                          type="button"
-                          onClick={() => handleEditLabelToggle(l.name)}
-                          className={`px-2.5 py-1 text-[16.5px] font-bold rounded-lg transition-all border ${isSelected ? 'ring-2 ring-primary ring-offset-1 shadow-xs' : 'opacity-70 hover:opacity-100 bg-white text-slate-600 border-slate-200'}`}
-                          style={isSelected ? { backgroundColor: c.bg, color: c.text, borderColor: c.border } : {}}
-                        >
-                          {l.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div>
+                  {/* 버튼 줄 - '일정 수정' 팝업과 같은 구성 */}
+                  <div className="flex flex-wrap gap-1.5">
                     <button
                       type="button"
                       onClick={() => setEditAlarmModalOpen(true)}
-                      className={`px-2.5 py-1 text-xs font-bold rounded-lg border transition-colors ${
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
                         editAlarmTime
-                          ? 'text-primary bg-blue-50 border-blue-200 hover:bg-blue-100'
-                          : 'text-slate-500 bg-white border-slate-200 hover:bg-slate-100'
+                          ? 'text-primary bg-blue-50 hover:bg-blue-100'
+                          : 'text-slate-600 bg-slate-100 hover:bg-slate-200'
                       }`}
                     >
-                      {editAlarmTime ? `⏰ ${formatAlarmBadge(editAlarmTime)}` : '⏰ 알림 추가'}
+                      ⏰ {editAlarmTime ? formatAlarmBadge(editAlarmTime) : '알림 추가'}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => openLinkerModal('event', formattedDate, event.id)}
+                      className="px-3 py-1.5 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      🔗 링크 추가
+                    </button>
+                    {(event.linkedItems || []).length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => openLinkViewerModal('event', formattedDate, event.id)}
+                        className="px-3 py-1.5 bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        📑 연결된 링크 ({(event.linkedItems || []).length})
+                      </button>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
+
+                  {/* 라벨 (다중 선택 가능) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-bold text-slate-500">라벨 (다중 선택 가능)</span>
+                      <button
+                        type="button"
+                        onClick={() => openLabelModal('event')}
+                        className="text-xs text-primary hover:text-blue-700 font-bold flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                        title="더보기 - 통합 라벨 관리 열기"
+                      >
+                        <span>⚙️</span>
+                        <span>라벨 수정</span>
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {eventLabels.map((l) => {
+                        const isSelected = currentEditLabels.includes(l.name);
+                        const c = getLabelColor(l.name);
+                        return (
+                          <button
+                            key={l.id}
+                            type="button"
+                            onClick={() => handleEditLabelToggle(l.name)}
+                            className={`px-2.5 py-1 text-[16.5px] font-bold rounded-lg transition-all border ${isSelected ? 'ring-2 ring-primary ring-offset-1 shadow-xs' : 'opacity-70 hover:opacity-100 bg-white text-slate-600 border-slate-200'}`}
+                            style={isSelected ? { backgroundColor: c.bg, color: c.text, borderColor: c.border } : {}}
+                          >
+                            {l.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 개별 일정 맞춤 5대 속성 */}
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1.5">
+                    <span className="block text-xs font-bold text-slate-600">
+                      속성 설정 <span className="text-[11px] font-normal text-slate-400">(개별 일정 맞춤 조정)</span>
+                    </span>
+                    <div className="flex items-center gap-3.5 pt-0.5 text-xs font-medium text-slate-700 flex-wrap">
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="월간/년간 달력에 표시">
+                        <input type="checkbox" checked={editCalendar} onChange={(e) => setEditCalendar(e.target.checked)} className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
+                        <span className="font-semibold text-[12.5px]">달력</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="미완료 시 다음 날로 자동 이월">
+                        <input type="checkbox" checked={editForward} onChange={(e) => setEditForward(e.target.checked)} className="rounded text-emerald-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
+                        <span className="font-semibold text-[12.5px]">이월</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="연속 기간 등록">
+                        <input type="checkbox" checked={editPeriod} onChange={(e) => setEditPeriod(e.target.checked)} className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
+                        <span className="font-semibold text-[12.5px]">기간</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="매주/매월 반복">
+                        <input type="checkbox" checked={editRecur} onChange={(e) => setEditRecur(e.target.checked)} className="rounded text-purple-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
+                        <span className="font-semibold text-[12.5px]">반복</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="지정 날짜의 수업 과목 비움">
+                        <input type="checkbox" checked={editSkip} onChange={(e) => setEditSkip(e.target.checked)} className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
+                        <span className="font-semibold text-[12.5px]">수업X</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* 일정 내용 */}
+                  <div>
+                    <span className="block text-xs font-bold text-slate-500 mb-1">일정 내용</span>
+                    <AutoTextarea
                       value={editText}
                       onChange={(e) => setEditText(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') saveEditing(event.id);
                         if (e.key === 'Escape') setEditingId(null);
                         if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                           e.preventDefault();
                           saveEditing(event.id);
                         }
                       }}
-                      className="flex-1 px-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                      className="w-full min-h-[72px] px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                       autoFocus
                     />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
                     <button
                       type="button"
-                      onClick={() => saveEditing(event.id)}
-                      className="px-2.5 py-1.5 bg-primary text-white text-xs font-bold rounded-lg hover:bg-blue-600 transition-colors shrink-0"
+                      onClick={() => deleteEditing(event.id)}
+                      className="px-3 py-1.5 text-xs font-bold text-red-500 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
                     >
-                      저장
+                      삭제
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingId(null)}
-                      className="px-2 py-1.5 bg-slate-100 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-200 transition-colors shrink-0"
-                    >
-                      취소
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(null)}
+                        className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 transition-colors"
+                      >
+                        닫기
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => saveEditing(event.id)}
+                        className="px-4 py-1.5 bg-primary text-white text-xs font-bold rounded-xl hover:bg-blue-600 transition-colors shadow-xs"
+                      >
+                        저장 완료
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -398,9 +531,11 @@ export default function DayEvents({
                 key={event.id}
                 onClick={() => {
                   if (isMultiSelectMode) toggleEventSelection(event.id, formattedDate);
+                  else startEditing(event);
                 }}
-                className={`group flex items-start justify-between p-3 rounded-xl border transition-all ${
-                  isMultiSelectMode ? 'cursor-pointer hover:bg-slate-50' : ''
+                title={isMultiSelectMode ? '' : '클릭하여 수정'}
+                className={`group flex items-start justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                  isMultiSelectMode ? 'hover:bg-slate-50' : ''
                 } ${
                   selectedEventIds.includes(event.id)
                     ? 'border-primary ring-1 ring-primary bg-primary/5'
@@ -483,17 +618,11 @@ export default function DayEvents({
                       </button>
                     )}
 
-                    {/* 본문 텍스트: 클릭 시 상세 확인 팝업, 더블클릭 시 빠른 인라인 수정 */}
+                    {/* 본문 텍스트: 항목을 클릭하면 이 자리에서 바로 수정한다 */}
                     <span
-                      onClick={(e) => {
-                        if (isMultiSelectMode) return;
-                        setDetailItem({ dateStr: formattedDate, itemId: event.id, initialData: event });
-                      }}
-                      onDoubleClick={() => !isMultiSelectMode && startEditing(event)}
-                      className={`inline align-middle ${!isMultiSelectMode ? 'cursor-pointer' : ''} ${
+                      className={`inline align-middle ${
                         event.completed ? 'line-through text-slate-400' : ''
                       }`}
-                      title={isMultiSelectMode ? '' : '클릭하여 상세 보기 (더블클릭하여 빠른 수정)'}
                     >
                       {info.cleanContent}
                     </span>
@@ -515,11 +644,11 @@ export default function DayEvents({
                       <div className="flex flex-wrap gap-1 mt-1.5 block">
                         {event.attachments.map((att, idx) => (
                           att.type === 'image' ? (
-                            <a key={idx} href={att.url} target="_blank" rel="noreferrer" className="block w-8 h-8 rounded overflow-hidden border border-slate-200">
+                            <a key={idx} href={att.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="block w-8 h-8 rounded overflow-hidden border border-slate-200">
                               <img src={att.url} alt={att.name} className="w-full h-full object-cover" />
                             </a>
                           ) : (
-                            <a key={idx} href={att.url} target="_blank" rel="noreferrer" className="block px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[13.5px] text-slate-500 truncate max-w-[80px]" title={att.name}>
+                            <a key={idx} href={att.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="block px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[13.5px] text-slate-500 truncate max-w-[80px]" title={att.name}>
                               📎 {att.name}
                             </a>
                           )
@@ -531,8 +660,8 @@ export default function DayEvents({
 
                 {!isMultiSelectMode && (
                   <EventItemActions
-                    onEdit={() => setDetailItem({ dateStr: formattedDate, itemId: event.id, initialData: event })}
-                    onDelete={() => onDeleteEvent(event.id)}
+                    onEdit={() => startEditing(event)}
+                    onDelete={() => deleteEditing(event.id)}
                   />
                 )}
               </div>
@@ -549,17 +678,6 @@ export default function DayEvents({
         </>
       )}
     </div>
-
-    {detailItem && (
-      <DetailEditModal
-        isOpen={true}
-        onClose={() => setDetailItem(null)}
-        type="event"
-        dateStr={detailItem.dateStr}
-        itemId={detailItem.itemId}
-        initialData={detailItem.initialData}
-      />
-    )}
 
     {alarmTarget && (
       <EventAlarmModal

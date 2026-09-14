@@ -5,6 +5,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
 import MemoCard from './MemoCard';
 import EntryDrawer, { type EntryDraft } from '../../components/EntryDrawer';
+import { showToast } from '../../utils/toast';
 
 export default function MemoScreen() {
   const { selectedGroupId } = useAppStore();
@@ -251,7 +252,14 @@ export default function MemoScreen() {
         entry={editingMemo}
         labelOptions={memoLabels}
         onSave={handleSaveMemo}
-        onDelete={editingMemo ? () => deleteMemo(editingMemo.firestoreId) : undefined}
+        onDelete={
+          editingMemo
+            ? async () => {
+                await deleteMemo(editingMemo.firestoreId);
+                showToast('🗑️ 메모를 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+              }
+            : undefined
+        }
         defaultLabel={currentFilter}
       />
     </div>

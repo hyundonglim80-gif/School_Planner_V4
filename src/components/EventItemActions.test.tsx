@@ -32,19 +32,32 @@ describe('EventItemActions', () => {
     expect(onItemClick).not.toHaveBeenCalled();
   });
 
-  it('삭제는 확인을 받은 뒤에만 지운다', async () => {
+  // 확인창을 띄우지 않는다. 되돌릴 수 있다는 안내는 삭제 후 토스트로 나간다.
+  it('삭제는 확인창 없이 바로 지운다', async () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const confirmSpy = vi.spyOn(window, 'confirm');
 
     render(<EventItemActions onEdit={vi.fn()} onDelete={onDelete} />);
 
     await user.click(screen.getByTitle('일정 삭제'));
-    expect(confirmSpy).toHaveBeenCalled();
-    expect(onDelete).not.toHaveBeenCalled();
 
-    confirmSpy.mockReturnValue(true);
-    await user.click(screen.getByTitle('일정 삭제'));
     expect(onDelete).toHaveBeenCalledTimes(1);
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it('삭제 아이콘도 항목 클릭으로 번지지 않는다', async () => {
+    const user = userEvent.setup();
+    const onItemClick = vi.fn();
+
+    render(
+      <div onClick={onItemClick}>
+        <EventItemActions onEdit={vi.fn()} onDelete={vi.fn()} />
+      </div>
+    );
+
+    await user.click(screen.getByTitle('일정 삭제'));
+
+    expect(onItemClick).not.toHaveBeenCalled();
   });
 });

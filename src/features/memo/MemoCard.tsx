@@ -5,6 +5,7 @@ import type { Memo } from '../../hooks/useMemos';
 import { renderFormattedText } from '../../lib/textUtils';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
+import { showToast } from '../../utils/toast';
 import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
 
 interface MemoCardProps {
@@ -155,9 +156,8 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (window.confirm('정말 삭제하시겠습니까?')) {
-                    onDelete(memo.firestoreId);
-                  }
+                  onDelete(memo.firestoreId);
+                  showToast('🗑️ 메모를 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
                 }}
                 className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold transition-all cursor-pointer"
                 title="삭제"

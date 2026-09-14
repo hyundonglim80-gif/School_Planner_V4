@@ -355,9 +355,8 @@ export default function DayJournal({
                             type="button"
                             onClick={async (e) => {
                               e.stopPropagation();
-                              if (!window.confirm('정말 삭제하시겠습니까?')) return;
                               await onDeleteJournal(entry.id);
-                              showToast('기록이 삭제되었습니다 (휴지통 보관)');
+                              showToast('🗑️ 기록을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
                             }}
                             className="text-slate-400 hover:text-red-500 p-1 rounded-md text-xs transition-colors cursor-pointer"
                             title="기록 삭제"
@@ -443,7 +442,7 @@ export default function DayJournal({
           editingEntry
             ? async () => {
                 await onDeleteJournal(editingEntry.id);
-                showToast('기록이 삭제되었습니다 (휴지통 보관)');
+                showToast('🗑️ 기록을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
               }
             : undefined
         }

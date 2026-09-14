@@ -4,6 +4,7 @@ import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { useAppStore } from '../../store/useAppStore';
 import { parseDateStr } from '../../lib/dateUtils';
 import AutoTextarea from '../../components/AutoTextarea';
+import { showToast } from '../../utils/toast';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
 
 interface DayScheduleProps {
@@ -61,6 +62,7 @@ export default function DaySchedule({
         linkedItems: current.linkedItems,
       });
       setEditingPeriod(null);
+      showToast(`✅ ${period}교시 수업 내용을 저장했습니다.`);
     } finally {
       setSaving(false);
     }
@@ -79,7 +81,7 @@ export default function DaySchedule({
     const dayOfWeek = dateObj.getDay();
 
     if (dayOfWeek === 0 || dayOfWeek === 6) {
-      alert('주말에는 적용할 기본 시간표가 없습니다.');
+      showToast('주말에는 적용할 기본 시간표가 없습니다.');
       return;
     }
 
@@ -175,7 +177,7 @@ export default function DaySchedule({
                       disabled={saving}
                       className="px-2.5 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-200/60 rounded-lg transition-colors"
                     >
-                      취소
+                      닫기
                     </button>
                     <button
                       onClick={() => handleSave(period)}
@@ -185,6 +187,33 @@ export default function DaySchedule({
                       {saving ? '저장 중...' : '저장'}
                     </button>
                   </div>
+                </div>
+
+                {/* 링크·조사표는 팝업을 열지 않고도 이 자리에서 바로 붙일 수 있어야 한다 */}
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => dateStr && openLinkerModal('schedule', dateStr, undefined, period)}
+                    className="px-3 py-1.5 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    🔗 링크 추가
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => dateStr && openEvaluationModal(dateStr, 'schedule', period, editSubject)}
+                    className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    📊 조사표 추가
+                  </button>
+                  {linkCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => dateStr && openLinkViewerModal('schedule', dateStr, String(period), period)}
+                      className="px-3 py-1.5 bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      📑 연결된 링크 ({linkCount})
+                    </button>
+                  )}
                 </div>
                 <div 
                   className="grid grid-cols-3 gap-2"
@@ -231,7 +260,9 @@ export default function DaySchedule({
           return (
             <div
               key={period}
-              className="group p-3.5 rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[80px] hover:border-primary/50 hover:bg-slate-50/50"
+              onClick={() => startEdit(period)}
+              title="클릭하여 수정"
+              className="group p-3.5 rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[80px] hover:border-primary/50 hover:bg-slate-50/50 cursor-pointer"
             >
               <div className="flex gap-3 h-full items-stretch">
                 <div className="flex flex-col items-center justify-center gap-1 shrink-0 px-1">
@@ -252,10 +283,7 @@ export default function DaySchedule({
                     ▼
                   </button>
                 </div>
-                <div 
-                  className="flex-1 flex flex-col"
-                  onDoubleClick={(e) => { e.stopPropagation(); startEdit(period); }}
-                >
+                <div className="flex-1 flex flex-col">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold border ${colorClass}`}>

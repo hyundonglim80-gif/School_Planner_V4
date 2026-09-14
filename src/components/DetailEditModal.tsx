@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { showToast } from '../utils/toast';
+import { showToast, showErrorToast } from '../utils/toast';
 import { useDayData, type EventItem } from '../hooks/useDayData';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
@@ -223,30 +223,29 @@ export default function DetailEditModal({
     }
   };
 
+  // 확인창 대신 바로 지우고, 되돌릴 수 있다는 안내를 토스트로 알린다.
   const handleDelete = async () => {
-    const confirmMsg = type === 'schedule' ? '이 교시의 수업 내용을 삭제하시겠습니까?' : '이 일정을 삭제하시겠습니까?';
-    if (window.confirm(confirmMsg)) {
-      try {
-        setSaving(true);
-        if (type === 'schedule') {
-          await savePeriod(Number(itemId), {
-            subject: '',
-            content: '',
-            memo: '',
-            supplies: '',
-            imageUrl: '',
-            linkedItems: [],
-          });
-        } else {
-          await deleteEventItem(String(itemId), initialData);
-        }
-        onClose();
-      } catch (err) {
-        console.error('Delete failed', err);
-        alert('삭제에 실패했습니다.');
-      } finally {
-        setSaving(false);
+    try {
+      setSaving(true);
+      if (type === 'schedule') {
+        await savePeriod(Number(itemId), {
+          subject: '',
+          content: '',
+          memo: '',
+          supplies: '',
+          imageUrl: '',
+          linkedItems: [],
+        });
+        showToast(`🗑️ ${itemId}교시 수업 내용을 비웠습니다.`);
+      } else {
+        await deleteEventItem(String(itemId), initialData);
+        showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
       }
+      onClose();
+    } catch (err) {
+      showErrorToast('삭제에 실패했습니다.', err);
+    } finally {
+      setSaving(false);
     }
   };
 

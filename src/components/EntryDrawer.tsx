@@ -2,7 +2,7 @@
 // 메모와 기록이 같은 오른쪽 배너(드로어)를 쓴다. 두 화면이 각자 입력 폼을 들고
 // 있으면 단축키·첨부·라벨 동작이 조금씩 어긋나므로 한 곳에서만 만든다.
 import React, { useState, useEffect, useRef } from 'react';
-import { showToast } from '../utils/toast';
+import { showToast, showErrorToast } from '../utils/toast';
 import { auth } from '../lib/firebase';
 import { uploadImage, uploadFile } from '../utils/uploadHelper';
 import { useAppStore } from '../store/useAppStore';
@@ -280,11 +280,10 @@ export default function EntryDrawer({
         linkedItems,
         imageUrl: attachments.find(isImageAttachment)?.url,
       });
-      showToast(`✅ ${text.noun}이(가) 저장되었습니다.`);
+      showToast(`✅ ${text.noun}을(를) 저장했습니다.`);
       onClose();
     } catch (error) {
-      console.error(`${text.noun} 저장 에러:`, error);
-      alert(`${text.noun} 저장에 실패했습니다.`);
+      showErrorToast(`${text.noun} 저장에 실패했습니다.`, error);
     } finally {
       setSaving(false);
     }
@@ -517,10 +516,8 @@ export default function EntryDrawer({
             <button
               type="button"
               onClick={async () => {
-                if (window.confirm('정말 삭제하시겠습니까?')) {
-                  await onDelete();
-                  onClose();
-                }
+                await onDelete();
+                onClose();
               }}
               className="px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-100 rounded-xl transition-colors cursor-pointer"
             >

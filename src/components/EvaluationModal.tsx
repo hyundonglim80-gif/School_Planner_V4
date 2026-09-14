@@ -6,6 +6,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import { showToast } from '../utils/toast';
 
 interface EvaluationModalProps {
   isOpen: boolean;
@@ -137,16 +138,16 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
     await saveEvaluations(currentEval.dateStr, updatedList);
     setEvalList(updatedList);
     setCurrentEval(updatedEval);
-    alert('✅ 저장되었습니다.');
+    showToast('✅ 조사표를 저장했습니다.');
   };
 
   const handleDelete = async () => {
     if (!currentEval) return;
-    if (!confirm('정말 이 조사표를 삭제하시겠습니까?')) return;
     const remaining = await deleteEvaluation(currentEval.dateStr, currentEval.id);
     setEvalList(remaining);
     setCurrentEval(null);
     setViewMode(remaining.length > 0 ? 'list' : 'create');
+    showToast('🗑️ 조사표를 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
   };
 
   const updateRecord = (sNum: number, field: string, value: any) => {

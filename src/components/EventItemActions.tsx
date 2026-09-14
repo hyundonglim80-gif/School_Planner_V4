@@ -32,11 +32,12 @@ export default function EventItemActions({ onEdit, onDelete, floating = false }:
       >
         ✏️
       </button>
+      {/* 확인창 없이 바로 지운다. 휴지통에서 되돌릴 수 있다는 안내는 토스트로 나간다. */}
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          if (window.confirm('이 일정을 삭제하시겠습니까?')) onDelete();
+          onDelete();
         }}
         className="px-1 text-[13.5px] leading-none text-slate-400 hover:text-red-500 cursor-pointer"
         title="일정 삭제"

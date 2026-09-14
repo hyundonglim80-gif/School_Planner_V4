@@ -17,7 +17,7 @@ import {
 import { db, auth } from '../lib/firebase';
 import { type PeriodSchedule, type EventItem, runAutoForwarding } from './useDayData';
 import { eventDocPayload, readEventList } from '../lib/eventText';
-import { showErrorToast } from '../utils/toast';
+import { showErrorToast, showToast } from '../utils/toast';
 import { moveToTrash } from '../utils/trashHelper';
 
 export interface DaySummary {
@@ -281,6 +281,7 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
           console.error('Failed to move to trash:', err);
         }
       }
+      showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
     } catch (error) {
       showErrorToast('일정을 삭제하지 못했습니다.', error);
     }

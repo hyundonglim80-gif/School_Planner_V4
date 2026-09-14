@@ -11,6 +11,7 @@ import { getAcademicYear, getAcademicMonths, parseDateStr, formatDateStr } from 
 import { parseV3EventText, formatV3EventText, runAutoForwarding } from '../../hooks/useDayData';
 import { eventDocPayload, readEventList } from '../../lib/eventText';
 import { moveToTrash } from '../../utils/trashHelper';
+import { showToast, showErrorToast } from '../../utils/toast';
 import DetailEditModal from '../../components/DetailEditModal';
 import EventItemActions from '../../components/EventItemActions';
 import QuickAddModal from '../../components/QuickAddModal';
@@ -160,9 +161,9 @@ export default function YearScreen() {
           console.error('Failed to move to trash:', err);
         }
       }
+      showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
     } catch (err) {
-      console.error('Delete event error:', err);
-      alert('일정을 삭제하지 못했습니다.');
+      showErrorToast('일정을 삭제하지 못했습니다.', err);
     }
   };
 
