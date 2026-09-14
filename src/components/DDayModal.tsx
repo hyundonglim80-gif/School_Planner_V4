@@ -104,7 +104,7 @@ export default function DDayModal({ isOpen, onClose }: DDayModalProps) {
                           {isSelected && <span className="text-primary">★ </span>}
                           {item.title}
                         </span>
-                        <span className="block text-[11px] text-slate-400">{item.date}</span>
+                        <span className="block text-xs text-slate-400">{item.date}</span>
                       </span>
                     </button>
 

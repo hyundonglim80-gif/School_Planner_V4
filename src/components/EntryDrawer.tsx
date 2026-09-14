@@ -429,7 +429,7 @@ export default function EntryDrawer({
                           />
                         </button>
                         <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 border-t border-slate-200">
-                          <span className="text-[11px] text-slate-500 truncate" title={att.name}>
+                          <span className="text-xs text-slate-500 truncate" title={att.name}>
                             🖼️ {att.name}
                             {att.size ? ` · ${formatFileSize(att.size)}` : ''}
                           </span>
@@ -464,7 +464,7 @@ export default function EntryDrawer({
                             {att.name}
                           </a>
                           {att.size && (
-                            <span className="text-[11px] text-slate-400 block">
+                            <span className="text-xs text-slate-400 block">
                               {formatFileSize(att.size)}
                             </span>
                           )}

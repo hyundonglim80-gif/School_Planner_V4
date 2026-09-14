@@ -34,7 +34,7 @@ export default function MobileTabBar() {
               <span className={`text-lg leading-none ${isActive ? '' : 'opacity-60 grayscale'}`}>
                 {tab.icon}
               </span>
-              <span className="text-[11px] font-bold leading-none">{tab.label}</span>
+              <span className="text-xs font-bold leading-none">{tab.label}</span>
             </button>
           );
         })}

@@ -121,7 +121,7 @@ function ColorPickerDropdown({
           className="w-5 h-5 rounded-full border shadow-2xs shrink-0"
           style={{ backgroundColor: activeStyle.bg, borderColor: activeStyle.border }}
         />
-        <span className="text-[9px] text-slate-400 font-black leading-none select-none">▼</span>
+        <span className="text-2xs text-slate-400 font-black leading-none select-none">▼</span>
       </button>
 
       {isOpen &&
@@ -685,14 +685,14 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                           <button
                             disabled={idx === 0}
                             onClick={() => handleMoveEventLabel(idx, 'up')}
-                            className={`text-[12px] px-0.5 rounded leading-none ${idx === 0 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
+                            className={`text-xs px-0.5 rounded leading-none ${idx === 0 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
                           >
                             ▲
                           </button>
                           <button
                             disabled={idx === eventLabels.length - 1}
                             onClick={() => handleMoveEventLabel(idx, 'down')}
-                            className={`text-[12px] px-0.5 rounded leading-none ${idx === eventLabels.length - 1 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
+                            className={`text-xs px-0.5 rounded leading-none ${idx === eventLabels.length - 1 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
                           >
                             ▼
                           </button>
@@ -730,7 +730,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             }}
                             className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                           />
-                          <span className="font-semibold text-[12.5px]">달력</span>
+                          <span className="font-semibold text-xs">달력</span>
                         </label>
 
                         <label className="flex items-center gap-1 cursor-pointer select-none hover:text-slate-900" title="미완료 시 다음 날로 자동 이월">
@@ -744,7 +744,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             }}
                             className="rounded text-emerald-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                           />
-                          <span className="font-semibold text-[12.5px]">이월</span>
+                          <span className="font-semibold text-xs">이월</span>
                         </label>
 
                         <label className="flex items-center gap-1 cursor-pointer select-none hover:text-slate-900" title="연속 기간 등록">
@@ -758,7 +758,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             }}
                             className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                           />
-                          <span className="font-semibold text-[12.5px]">기간</span>
+                          <span className="font-semibold text-xs">기간</span>
                         </label>
 
                         <label className="flex items-center gap-1 cursor-pointer select-none hover:text-slate-900" title="매주/매월 반복">
@@ -772,7 +772,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             }}
                             className="rounded text-purple-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                           />
-                          <span className="font-semibold text-[12.5px]">반복</span>
+                          <span className="font-semibold text-xs">반복</span>
                         </label>
 
                         <label className="flex items-center gap-1 cursor-pointer select-none hover:text-slate-900" title="지정 날짜의 수업 과목 비움">
@@ -786,7 +786,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             }}
                             className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                           />
-                          <span className="font-semibold text-[12.5px]">수업X</span>
+                          <span className="font-semibold text-xs">수업X</span>
                         </label>
                       </div>
 
@@ -835,7 +835,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                       onChange={(e) => setNewEventCalendar(e.target.checked)}
                       className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                     />
-                    <span className="font-semibold text-[12.5px]">달력</span>
+                    <span className="font-semibold text-xs">달력</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900">
                     <input
@@ -844,7 +844,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                       onChange={(e) => setNewEventForward(e.target.checked)}
                       className="rounded text-emerald-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                     />
-                    <span className="font-semibold text-[12.5px]">이월</span>
+                    <span className="font-semibold text-xs">이월</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900">
                     <input
@@ -853,7 +853,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                       onChange={(e) => setNewEventPeriod(e.target.checked)}
                       className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                     />
-                    <span className="font-semibold text-[12.5px]">기간</span>
+                    <span className="font-semibold text-xs">기간</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900">
                     <input
@@ -862,7 +862,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                       onChange={(e) => setNewEventRecur(e.target.checked)}
                       className="rounded text-purple-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                     />
-                    <span className="font-semibold text-[12.5px]">반복</span>
+                    <span className="font-semibold text-xs">반복</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900">
                     <input
@@ -871,7 +871,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                       onChange={(e) => setNewEventSkip(e.target.checked)}
                       className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                     />
-                    <span className="font-semibold text-[12.5px]">수업X</span>
+                    <span className="font-semibold text-xs">수업X</span>
                   </label>
                 </div>
               </div>
@@ -901,14 +901,14 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                           <button
                             disabled={idx === 0}
                             onClick={() => handleMoveJournalLabel(idx, 'up')}
-                            className={`text-[11px] px-1 rounded ${idx === 0 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
+                            className={`text-xs px-1 rounded ${idx === 0 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
                           >
                             ▲
                           </button>
                           <button
                             disabled={idx === journalLabels.length - 1}
                             onClick={() => handleMoveJournalLabel(idx, 'down')}
-                            className={`text-[11px] px-1 rounded ${idx === journalLabels.length - 1 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
+                            className={`text-xs px-1 rounded ${idx === journalLabels.length - 1 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
                           >
                             ▼
                           </button>
@@ -991,14 +991,14 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                           <button
                             disabled={idx === 0}
                             onClick={() => handleMoveMemoLabel(idx, 'up')}
-                            className={`text-[11px] px-1 rounded ${idx === 0 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
+                            className={`text-xs px-1 rounded ${idx === 0 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
                           >
                             ▲
                           </button>
                           <button
                             disabled={idx === memoLabels.length - 1}
                             onClick={() => handleMoveMemoLabel(idx, 'down')}
-                            className={`text-[11px] px-1 rounded ${idx === memoLabels.length - 1 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
+                            className={`text-xs px-1 rounded ${idx === memoLabels.length - 1 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
                           >
                             ▼
                           </button>

@@ -395,7 +395,7 @@ export default function DetailEditModal({
                   {/* 💡 개별 일정 맞춤 5대 속성 체크박스 */}
                   <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1.5">
                     <label className="block text-xs font-bold text-slate-600">
-                      속성 설정 <span className="text-[11px] font-normal text-slate-400">(개별 일정 맞춤 조정)</span>
+                      속성 설정 <span className="text-xs font-normal text-slate-400">(개별 일정 맞춤 조정)</span>
                     </label>
                     <div className="flex items-center gap-3.5 pt-0.5 text-xs font-medium text-slate-700 flex-wrap">
                       <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="월간/년간 달력에 표시">
@@ -405,7 +405,7 @@ export default function DetailEditModal({
                           onChange={(e) => setItemCalendar(e.target.checked)}
                           className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                         />
-                        <span className="font-semibold text-[12.5px]">달력</span>
+                        <span className="font-semibold text-xs">달력</span>
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="미완료 시 다음 날로 자동 이월">
                         <input
@@ -414,7 +414,7 @@ export default function DetailEditModal({
                           onChange={(e) => setItemForward(e.target.checked)}
                           className="rounded text-emerald-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                         />
-                        <span className="font-semibold text-[12.5px]">이월</span>
+                        <span className="font-semibold text-xs">이월</span>
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="연속 기간 등록">
                         <input
@@ -423,7 +423,7 @@ export default function DetailEditModal({
                           onChange={(e) => setItemPeriod(e.target.checked)}
                           className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                         />
-                        <span className="font-semibold text-[12.5px]">기간</span>
+                        <span className="font-semibold text-xs">기간</span>
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="매주/매월 반복">
                         <input
@@ -432,7 +432,7 @@ export default function DetailEditModal({
                           onChange={(e) => setItemRecur(e.target.checked)}
                           className="rounded text-purple-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                         />
-                        <span className="font-semibold text-[12.5px]">반복</span>
+                        <span className="font-semibold text-xs">반복</span>
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="지정 날짜의 수업 과목 비움">
                         <input
@@ -441,7 +441,7 @@ export default function DetailEditModal({
                           onChange={(e) => setItemSkip(e.target.checked)}
                           className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                         />
-                        <span className="font-semibold text-[12.5px]">수업X</span>
+                        <span className="font-semibold text-xs">수업X</span>
                       </label>
                     </div>
                   </div>

@@ -7,10 +7,16 @@
   --color-bg-card: #ffffff;
   --color-bg-hover: #f1f5f9;
 
-  /* 전체 글자 크기를 기존 대비 150%로 확대 (모바일 가독성 개선) */
-  --text-xs: 1.125rem;
-  --text-sm: 1.3125rem;
-  --text-base: 1.5rem;
+  /* 전체 글자 크기를 기존 대비 150%로 확대 (모바일 가독성 개선)
+   *
+   * ⚠️ 그래서 text-[11px] 처럼 px를 직접 쓰면 안 된다. 직접 쓴 값은 150%가 적용되지
+   * 않아서 이름 있는 단계(text-xs = 18px)와 나란히 두면 글자 크기가 튄다.
+   * 화면 글자 크기는 아래 이름만 쓴다. 규칙은 lib/typeScale.ts에 적어두었다. */
+  --text-2xs: 1rem;        /* 16px - 달력 칸처럼 가장 밀집한 곳 */
+  --text-2xs--line-height: 1.35;
+  --text-xs: 1.125rem;     /* 18px - 보조 정보 (시간·개수·라벨 칩) */
+  --text-sm: 1.3125rem;    /* 21px - 본문 */
+  --text-base: 1.5rem;     /* 24px - 섹션 제목 */
   --text-lg: 1.6875rem;
   --text-xl: 1.875rem;
   --text-2xl: 2.25rem;

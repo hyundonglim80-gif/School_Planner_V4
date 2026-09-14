@@ -114,7 +114,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
               onChange={() => onToggleComplete?.(memo)}
               className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 accent-primary cursor-pointer"
             />
-            <span className="text-[11px] text-slate-400">
+            <span className="text-xs text-slate-400">
               {new Date(memo.createdAt).toLocaleDateString('ko-KR', {
                 month: 'short',
                 day: 'numeric',
@@ -129,7 +129,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
                   e.stopPropagation();
                   openLinkViewerModal('memo', memoDateStr, memo.firestoreId, undefined, memo.groupId || 'personal');
                 }}
-                className="bg-yellow-100 text-yellow-800 text-[11px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 transition-colors cursor-pointer flex items-center gap-1"
+                className="bg-yellow-100 text-yellow-800 text-xs px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 transition-colors cursor-pointer flex items-center gap-1"
                 title={`링크된 항목 ${linkCount}개`}
               >
                 🔗 {linkCount}
@@ -212,7 +212,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
                   >
                     {name}
                   </span>
-                  <span className="text-[11px] text-slate-400 shrink-0 font-medium group-hover/file:text-primary">
+                  <span className="text-xs text-slate-400 shrink-0 font-medium group-hover/file:text-primary">
                     다운로드
                   </span>
                 </a>

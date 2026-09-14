@@ -14,6 +14,7 @@ import {
   WEEKDAY_HEADER_COLOR,
 } from '../../lib/holiday';
 import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
+import { BODY_TEXT } from '../../lib/typeScale';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import DetailEditModal from '../../components/DetailEditModal';
 import EventItemActions from '../../components/EventItemActions';
@@ -110,7 +111,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                       {dayObj.day}
                     </span>
                     {holidayName && (
-                      <span className="text-[11px] font-bold text-red-600 truncate max-w-[65px]">
+                      <span className="text-xs font-bold text-red-600 truncate max-w-[65px]">
                         {holidayName}
                       </span>
                     )}
@@ -134,11 +135,11 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                       const text = item?.subject?.trim() || '';
                       
                       if (text && text.toUpperCase() !== 'X') {
-                        let fontSize = "text-[11px]";
+                        let fontSize = "text-xs";
                         let tracking = "tracking-normal";
-                        if (text.length >= 5) { fontSize = "text-[10.5px]"; tracking = "tracking-tighter"; }
-                        else if (text.length === 4) { fontSize = "text-[10px]"; tracking = "tracking-tighter"; }
-                        else if (text.length === 3) { fontSize = "text-[11px]"; tracking = "tracking-tight"; }
+                        if (text.length >= 5) { fontSize = "text-2xs"; tracking = "tracking-tighter"; }
+                        else if (text.length === 4) { fontSize = "text-2xs"; tracking = "tracking-tighter"; }
+                        else if (text.length === 3) { fontSize = "text-xs"; tracking = "tracking-tight"; }
 
                         return (
                           <div
@@ -196,7 +197,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                             });
                           }
                         }}
-                        className={`group relative px-1.5 py-0.5 rounded text-[11px] font-medium leading-tight transition-all border block hover:shadow-sm cursor-pointer break-words ${
+                        className={`group relative px-1.5 py-0.5 rounded ${BODY_TEXT.month} font-medium leading-tight transition-all border block hover:shadow-sm cursor-pointer break-words ${
                           selectedEventIds.includes(ev.id)
                             ? 'bg-primary/10 border border-primary text-primary'
                             : ev.completed
@@ -221,7 +222,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                               onToggleEvent(dayObj.dateStr, ev.id);
                             }}
                             title={forwardLabel ? '클릭하여 완료 처리 (이월 정지)' : '클릭하여 완료 처리'}
-                            className="inline-block align-middle mr-1 text-[10px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap cursor-pointer"
+                            className="inline-block align-middle mr-1 text-2xs font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap cursor-pointer"
                             style={{
                               backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
                               color: ev.completed ? '#94a3b8' : labelColor.text,
@@ -242,7 +243,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                               e.stopPropagation();
                               openLinkViewerModal('event', dayObj.dateStr, ev.id);
                             }}
-                            className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[10px] px-1 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 cursor-pointer"
+                            className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-2xs px-1 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 cursor-pointer"
                             title={`링크된 항목 ${(ev.linkedItems || []).length}개`}
                           >
                             🔗 {(ev.linkedItems || []).length}
@@ -268,7 +269,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                     );
                   })}
                   {events.length > 3 && (
-                    <div className="text-[11px] font-bold text-slate-400 pl-1">
+                    <div className="text-xs font-bold text-slate-400 pl-1">
                       +{events.length - 3}개
                     </div>
                   )}

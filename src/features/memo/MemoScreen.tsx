@@ -134,7 +134,7 @@ export default function MemoScreen() {
               >
                 <span>{hideCompleted ? '👀' : '🙈'}</span>
                 <span>{hideCompleted ? '완료 보기' : '완료 숨기기'}</span>
-                <span className="text-[11px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded-full font-black">
+                <span className="text-xs bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded-full font-black">
                   {completedMemos.length}
                 </span>
               </button>

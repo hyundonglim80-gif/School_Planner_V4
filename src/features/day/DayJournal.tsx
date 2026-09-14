@@ -298,7 +298,7 @@ export default function DayJournal({
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); toggleCollapse(entry.id); }}
-                            className="text-slate-400 hover:text-primary transition-colors p-0.5 text-[11px] cursor-pointer"
+                            className="text-slate-400 hover:text-primary transition-colors p-0.5 text-xs cursor-pointer"
                           >
                             {isCollapsedItem ? '▶' : '▼'}
                           </button>
@@ -309,7 +309,7 @@ export default function DayJournal({
                               type="button"
                               onClick={(e) => { e.stopPropagation(); if (origIdx > 0 && onReorderJournals) onReorderJournals(origIdx, origIdx - 1); }}
                               disabled={origIdx <= 0}
-                              className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-[11px] cursor-pointer"
+                              className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-xs cursor-pointer"
                             >
                               ▲
                             </button>
@@ -317,7 +317,7 @@ export default function DayJournal({
                               type="button"
                               onClick={(e) => { e.stopPropagation(); if (origIdx < journals.length - 1 && onReorderJournals) onReorderJournals(origIdx, origIdx + 1); }}
                               disabled={origIdx >= journals.length - 1}
-                              className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-[11px] cursor-pointer"
+                              className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-xs cursor-pointer"
                             >
                               ▼
                             </button>
@@ -325,12 +325,12 @@ export default function DayJournal({
 
                           {/* 💡 라벨이 삭제되지 않고 남아있을 때만 뱃지 표시 */}
                           {getLabelName(entry) && (
-                            <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${getLabelColorClass(entry)}`}>
+                            <span className={`px-2 py-0.5 rounded-md text-xs font-bold border ${getLabelColorClass(entry)}`}>
                               {getLabelName(entry)}
                             </span>
                           )}
 
-                          <span className="text-[11px] text-slate-400">
+                          <span className="text-xs text-slate-400">
                             {new Date(entry.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
                           </span>
 
@@ -338,7 +338,7 @@ export default function DayJournal({
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); openLinkViewerModal('journal', formattedDate, entry.id); }}
-                              className="bg-yellow-100 text-yellow-800 text-[11px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 cursor-pointer"
+                              className="bg-yellow-100 text-yellow-800 text-xs px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 cursor-pointer"
                             >
                                 🔗 {linkCount}
                             </button>
@@ -349,14 +349,14 @@ export default function DayJournal({
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); openEntryViewer(entry); }}
-                              className="bg-indigo-50 text-indigo-700 text-[11px] px-1.5 py-0.5 rounded font-bold border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer"
+                              className="bg-indigo-50 text-indigo-700 text-xs px-1.5 py-0.5 rounded font-bold border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer"
                               title="첨부 이미지 보기"
                             >
                               🖼️ {getEntryImages(entry).length}
                             </button>
                           )}
                           {getEntryFiles(entry).length > 0 && (
-                            <span className="bg-slate-100 text-slate-600 text-[11px] px-1.5 py-0.5 rounded font-bold border border-slate-200">
+                            <span className="bg-slate-100 text-slate-600 text-xs px-1.5 py-0.5 rounded font-bold border border-slate-200">
                                 📎 {getEntryFiles(entry).length}
                             </span>
                           )}

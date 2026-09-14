@@ -116,7 +116,7 @@ export default function MonthAgenda({
                 </button>
 
                 {visibleEvents.length > 0 && (
-                  <span className="shrink-0 text-[11px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                  <span className="shrink-0 text-xs font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">
                     {visibleEvents.length}
                   </span>
                 )}
@@ -144,7 +144,7 @@ export default function MonthAgenda({
                           }
                           className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-bold"
                         >
-                          <span className="text-[10px] text-emerald-500">{period}</span>
+                          <span className="text-2xs text-emerald-500">{period}</span>
                           <span className="max-w-[90px] truncate">{item!.subject!.trim()}</span>
                         </button>
                       ))}
@@ -192,7 +192,7 @@ export default function MonthAgenda({
                                 onToggleEvent(dayObj.dateStr, ev.id);
                               }}
                               title={forwardLabel ? '눌러서 완료 처리 (이월 정지)' : '눌러서 완료 처리'}
-                              className="inline-block align-middle mr-1.5 text-[11px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
+                              className="inline-block align-middle mr-1.5 text-xs font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
                               style={{
                                 backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
                                 color: ev.completed ? '#94a3b8' : labelColor.text,
@@ -212,7 +212,7 @@ export default function MonthAgenda({
                                 e.stopPropagation();
                                 openLinkViewerModal('event', dayObj.dateStr, ev.id);
                               }}
-                              className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[11px] px-1 py-0.5 rounded font-bold border border-yellow-300"
+                              className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-xs px-1 py-0.5 rounded font-bold border border-yellow-300"
                             >
                               🔗 {linkCount}
                             </button>

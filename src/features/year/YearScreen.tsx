@@ -13,6 +13,7 @@ import { eventDocPayload, readEventList } from '../../lib/eventText';
 import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import { dayToneOf, DAY_CELL_BG, DAY_NUMBER_COLOR } from '../../lib/holiday';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { BODY_TEXT, SECTION_TITLE } from '../../lib/typeScale';
 import { moveToTrash } from '../../utils/trashHelper';
 import { showToast, showErrorToast } from '../../utils/toast';
 import DetailEditModal from '../../components/DetailEditModal';
@@ -221,17 +222,17 @@ export default function YearScreen() {
                 <button
                   type="button"
                   onClick={() => isMobile && toggleMonth(monthKey, !isCurrentMonthCard)}
-                  className={`text-center font-black text-blue-800 text-lg flex items-center justify-center gap-2 ${
+                  className={`text-center font-black text-blue-800 ${SECTION_TITLE} flex items-center justify-center gap-2 ${
                     isOpen ? 'mb-4 pb-2 border-b-2 border-blue-100' : ''
                   } ${isMobile ? 'cursor-pointer' : 'cursor-default'}`}
                 >
                   {isMobile && <span className="text-xs text-slate-400">{isOpen ? '▼' : '▶'}</span>}
                   <span>{mInfo.label}</span>
-                  <span className="text-[11px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-lg">
+                  <span className="text-xs font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-lg">
                     {mInfo.semester}학기
                   </span>
                   {!isOpen && (
-                    <span className="text-[11px] font-bold text-slate-400">
+                    <span className="text-xs font-bold text-slate-400">
                       {activeDays.length > 0 ? `${activeDays.length}일` : '비어 있음'}
                     </span>
                   )}
@@ -270,8 +271,8 @@ export default function YearScreen() {
                               onClick={() => handleDateClick(dObj.dateStr)}
                             >
                               <span>{dObj.day}일 ({dayOfWeek})</span>
-                              {isTodayEvent && <span className="text-[11px] bg-blue-600 text-white px-1.5 py-0.5 rounded-full ml-1">오늘</span>}
-                              {holidayName && <span className="text-[11px] text-red-500 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md ml-1">{holidayName}</span>}
+                              {isTodayEvent && <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full ml-1">오늘</span>}
+                              {holidayName && <span className="text-xs text-red-500 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md ml-1">{holidayName}</span>}
                             </div>
                             <button
                               onClick={(e) => { e.stopPropagation(); setQuickAddDate(dObj.dateStr); }}
@@ -298,9 +299,9 @@ export default function YearScreen() {
                                         e.stopPropagation();
                                         setDetailModal({ isOpen: true, type: 'schedule', dateStr: dObj.dateStr, itemId: p, initialData: item });
                                       }}
-                                      className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 text-[11px] font-bold"
+                                      className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 text-xs font-bold"
                                     >
-                                      <span className="text-[10px] text-emerald-500">{p}</span>
+                                      <span className="text-2xs text-emerald-500">{p}</span>
                                       <span className="max-w-[90px] truncate">{text}</span>
                                     </button>
                                   );
@@ -313,11 +314,11 @@ export default function YearScreen() {
                                   const item = sch[p];
                                   const text = item?.subject?.trim() || '';
                                   if (text && text.toUpperCase() !== 'X') {
-                                    let fontSize = "text-[11px]";
+                                    let fontSize = "text-xs";
                                     let tracking = "tracking-normal";
-                                    if (text.length >= 5) { fontSize = "text-[10.5px]"; tracking = "tracking-tighter"; }
-                                    else if (text.length === 4) { fontSize = "text-[10px]"; tracking = "tracking-tighter"; }
-                                    else if (text.length === 3) { fontSize = "text-[11px]"; tracking = "tracking-tight"; }
+                                    if (text.length >= 5) { fontSize = "text-2xs"; tracking = "tracking-tighter"; }
+                                    else if (text.length === 4) { fontSize = "text-2xs"; tracking = "tracking-tighter"; }
+                                    else if (text.length === 3) { fontSize = "text-xs"; tracking = "tracking-tight"; }
 
                                     return (
                                       <div
@@ -358,7 +359,7 @@ export default function YearScreen() {
                                           setDetailModal({ isOpen: true, type: 'event', dateStr: dObj.dateStr, itemId: ev.id, initialData: ev });
                                         }
                                       }}
-                                      className={`group relative px-1.5 py-1 rounded-lg text-xs leading-snug transition-all border block hover:shadow-sm cursor-pointer break-words ${
+                                      className={`group relative px-1.5 py-1 rounded-lg ${BODY_TEXT.month} leading-snug transition-all border block hover:shadow-sm cursor-pointer break-words ${
                                         selectedEventIds.includes(ev.id)
                                           ? 'bg-primary/10 border-primary text-primary'
                                           : ev.completed
@@ -379,7 +380,7 @@ export default function YearScreen() {
                                             handleToggleEvent(dObj.dateStr, ev.id);
                                           }}
                                           title={forwardLabel ? '클릭하여 완료 처리 (이월 정지)' : '클릭하여 완료 처리'}
-                                          className="inline-block align-middle mr-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap cursor-pointer"
+                                          className="inline-block align-middle mr-1.5 text-2xs font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap cursor-pointer"
                                           style={{
                                             backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
                                             color: ev.completed ? '#94a3b8' : labelColor.text,
@@ -400,7 +401,7 @@ export default function YearScreen() {
                                             e.stopPropagation();
                                             openLinkViewerModal('event', dObj.dateStr, ev.id);
                                           }}
-                                          className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[10px] px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
+                                          className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-2xs px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
                                           title={`링크된 항목 ${(ev.linkedItems || []).length}개`}
                                         >
                                           🔗 {(ev.linkedItems || []).length}

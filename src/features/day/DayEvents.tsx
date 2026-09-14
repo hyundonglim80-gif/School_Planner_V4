@@ -373,7 +373,7 @@ export default function DayEvents({
                     key={l.id}
                     type="button"
                     onClick={() => handleLabelToggle(l.name)}
-                    className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all border ${isSelected ? 'ring-2 ring-primary ring-offset-1 shadow-xs' : 'opacity-70 hover:opacity-100 bg-white text-slate-600 border-slate-200'}`}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all border ${isSelected ? 'ring-2 ring-primary ring-offset-1 shadow-xs' : 'opacity-70 hover:opacity-100 bg-white text-slate-600 border-slate-200'}`}
                     style={isSelected ? { backgroundColor: c.bg, color: c.text, borderColor: c.border } : {}}
                   >
                     {l.name}
@@ -386,28 +386,28 @@ export default function DayEvents({
           {/* 개별 일정 맞춤 5대 속성 */}
           <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1.5">
             <span className="block text-xs font-bold text-slate-600">
-              속성 설정 <span className="text-[11px] font-normal text-slate-400">(개별 일정 맞춤 조정)</span>
+              속성 설정 <span className="text-xs font-normal text-slate-400">(개별 일정 맞춤 조정)</span>
             </span>
             <div className="flex items-center gap-3.5 pt-0.5 text-xs font-medium text-slate-700 flex-wrap">
               <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="월간/년간 달력에 표시">
                 <input type="checkbox" checked={newCalendar} onChange={(e) => setNewCalendar(e.target.checked)} className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
-                <span className="font-semibold text-[12.5px]">달력</span>
+                <span className="font-semibold text-xs">달력</span>
               </label>
               <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="미완료 시 다음 날로 자동 이월">
                 <input type="checkbox" checked={newForward} onChange={(e) => setNewForward(e.target.checked)} className="rounded text-emerald-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
-                <span className="font-semibold text-[12.5px]">이월</span>
+                <span className="font-semibold text-xs">이월</span>
               </label>
               <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="연속 기간 등록">
                 <input type="checkbox" checked={newPeriod} onChange={(e) => setNewPeriod(e.target.checked)} className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
-                <span className="font-semibold text-[12.5px]">기간</span>
+                <span className="font-semibold text-xs">기간</span>
               </label>
               <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="매주/매월 반복">
                 <input type="checkbox" checked={newRecur} onChange={(e) => setNewRecur(e.target.checked)} className="rounded text-purple-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
-                <span className="font-semibold text-[12.5px]">반복</span>
+                <span className="font-semibold text-xs">반복</span>
               </label>
               <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="지정 날짜의 수업 과목 비움">
                 <input type="checkbox" checked={newSkip} onChange={(e) => setNewSkip(e.target.checked)} className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
-                <span className="font-semibold text-[12.5px]">수업X</span>
+                <span className="font-semibold text-xs">수업X</span>
               </label>
             </div>
           </div>
@@ -518,7 +518,7 @@ export default function DayEvents({
                             key={l.id}
                             type="button"
                             onClick={() => handleEditLabelToggle(l.name)}
-                            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all border ${isSelected ? 'ring-2 ring-primary ring-offset-1 shadow-xs' : 'opacity-70 hover:opacity-100 bg-white text-slate-600 border-slate-200'}`}
+                            className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all border ${isSelected ? 'ring-2 ring-primary ring-offset-1 shadow-xs' : 'opacity-70 hover:opacity-100 bg-white text-slate-600 border-slate-200'}`}
                             style={isSelected ? { backgroundColor: c.bg, color: c.text, borderColor: c.border } : {}}
                           >
                             {l.name}
@@ -531,28 +531,28 @@ export default function DayEvents({
                   {/* 개별 일정 맞춤 5대 속성 */}
                   <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1.5">
                     <span className="block text-xs font-bold text-slate-600">
-                      속성 설정 <span className="text-[11px] font-normal text-slate-400">(개별 일정 맞춤 조정)</span>
+                      속성 설정 <span className="text-xs font-normal text-slate-400">(개별 일정 맞춤 조정)</span>
                     </span>
                     <div className="flex items-center gap-3.5 pt-0.5 text-xs font-medium text-slate-700 flex-wrap">
                       <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="월간/년간 달력에 표시">
                         <input type="checkbox" checked={editCalendar} onChange={(e) => setEditCalendar(e.target.checked)} className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
-                        <span className="font-semibold text-[12.5px]">달력</span>
+                        <span className="font-semibold text-xs">달력</span>
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="미완료 시 다음 날로 자동 이월">
                         <input type="checkbox" checked={editForward} onChange={(e) => setEditForward(e.target.checked)} className="rounded text-emerald-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
-                        <span className="font-semibold text-[12.5px]">이월</span>
+                        <span className="font-semibold text-xs">이월</span>
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="연속 기간 등록">
                         <input type="checkbox" checked={editPeriod} onChange={(e) => setEditPeriod(e.target.checked)} className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
-                        <span className="font-semibold text-[12.5px]">기간</span>
+                        <span className="font-semibold text-xs">기간</span>
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="매주/매월 반복">
                         <input type="checkbox" checked={editRecur} onChange={(e) => setEditRecur(e.target.checked)} className="rounded text-purple-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
-                        <span className="font-semibold text-[12.5px]">반복</span>
+                        <span className="font-semibold text-xs">반복</span>
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="지정 날짜의 수업 과목 비움">
                         <input type="checkbox" checked={editSkip} onChange={(e) => setEditSkip(e.target.checked)} className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
-                        <span className="font-semibold text-[12.5px]">수업X</span>
+                        <span className="font-semibold text-xs">수업X</span>
                       </label>
                     </div>
                   </div>
@@ -667,7 +667,7 @@ export default function DayEvents({
                             if (!isMultiSelectMode) onToggleEvent(event.id);
                           }}
                           title={isMultiSelectMode ? '' : (isForward ? '클릭하여 완료 처리 (이월 정지)' : '클릭하여 완료 처리')}
-                          className={`inline-block align-middle mr-1.5 text-[11px] font-bold px-2 py-0.5 rounded-md shadow-2xs whitespace-nowrap ${isMultiSelectMode ? '' : 'cursor-pointer'}`}
+                          className={`inline-block align-middle mr-1.5 text-xs font-bold px-2 py-0.5 rounded-md shadow-2xs whitespace-nowrap ${isMultiSelectMode ? '' : 'cursor-pointer'}`}
                           style={{
                             backgroundColor: event.completed ? '#f1f5f9' : color.bg,
                             color: event.completed ? '#94a3b8' : color.text,
@@ -686,7 +686,7 @@ export default function DayEvents({
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setAlarmTarget(event); }}
                         title="클릭하여 알림 시간 변경"
-                        className={`inline-flex items-center align-middle mr-1.5 text-[11px] font-bold px-1.5 py-0.5 rounded-md border transition-colors cursor-pointer ${
+                        className={`inline-flex items-center align-middle mr-1.5 text-xs font-bold px-1.5 py-0.5 rounded-md border transition-colors cursor-pointer ${
                           event.alarmTriggered
                             ? 'text-slate-400 bg-slate-100 border-slate-200'
                             : 'text-primary bg-blue-50 border-blue-200'
@@ -710,7 +710,7 @@ export default function DayEvents({
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); openLinkViewerModal('event', formattedDate, event.id); }}
-                        className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-[11px] px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 transition-colors cursor-pointer items-center gap-1"
+                        className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-xs px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 transition-colors cursor-pointer items-center gap-1"
                         title={`링크된 항목 ${event.linkedItems.length}개`}
                       >
                         🔗 {event.linkedItems.length}
@@ -726,7 +726,7 @@ export default function DayEvents({
                               <img src={att.url} alt={att.name} className="w-full h-full object-cover" />
                             </a>
                           ) : (
-                            <a key={idx} href={att.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="block px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[10px] text-slate-500 truncate max-w-[80px]" title={att.name}>
+                            <a key={idx} href={att.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="block px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-2xs text-slate-500 truncate max-w-[80px]" title={att.name}>
                               📎 {att.name}
                             </a>
                           )
