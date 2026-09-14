@@ -255,6 +255,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // 수업 보이기/숨기기 토글: Alt + ↑ 또는 Alt + ↓
+      if (e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault();
+        const currentShow = useAppStore.getState().showClass;
+        setShowClass(!currentShow);
+        return;
+      }
+
       // 이전 날짜: Ctrl + ← (또는 Cmd + ←)
       if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowLeft') {
         e.preventDefault();
@@ -280,6 +288,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     setShowWeekend,
+    setShowClass,
     setScope,
     isForwardingModalOpen,
     closeLinkerModal,
@@ -640,6 +649,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     ? 'bg-blue-100 text-blue-700 border-blue-200'
                     : 'bg-slate-100 text-slate-500 border-slate-200'
                 }`}
+                title="단축키: Alt + ↑/↓"
               >
                 {showClass ? '수업 숨기기' : '수업 보이기'}
               </button>
