@@ -221,9 +221,9 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
   };
 
   // 일괄 복원/삭제: 같은 날짜 문서를 여러 항목이 동시에 건드릴 수 있어 순차 처리한다(동시 처리 시 서로 덮어쓰는 경쟁 조건 방지)
+  // 복원은 지우는 일이 아니므로 묻지 않는다. (다시 지우면 되돌아간다)
   const handleBulkRestore = async () => {
     if (selectedIds.size === 0 || bulkProcessing) return;
-    if (!window.confirm(`선택한 ${selectedIds.size}개 항목을 복원하시겠습니까?`)) return;
 
     setBulkProcessing(true);
     const targets = trashItems.filter(t => selectedIds.has(t.id));

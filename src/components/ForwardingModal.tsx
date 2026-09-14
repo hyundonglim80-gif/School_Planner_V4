@@ -150,8 +150,8 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
     }
   };
 
+  // 한 건 삭제는 묻지 않는다. 휴지통으로 가므로 되돌릴 수 있고, 그 안내는 토스트로 나간다.
   const handleDeleteForwarded = async (item: ForwardEvent) => {
-    if (!confirm(`"${eventContentOf(item.event)}" 일정을 삭제하시겠습니까?`)) return;
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
@@ -185,6 +185,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
         await setDoc(doc(db, colPath, item.dateStr), eventDocPayload(updatedList), { merge: true });
       }
       setIncompleteEvents(prev => prev.filter(e => !isSameItem(e, item)));
+      showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
     } catch (e: any) {
       showErrorToast('삭제 중 오류: ' + e.message);
     }

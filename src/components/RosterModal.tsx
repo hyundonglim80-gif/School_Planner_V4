@@ -373,11 +373,11 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   const handleRemoveStudent = (idx: number) => {
     const student = students[idx];
     const name = student.name === '000' || !student.name ? `${student.num}번` : student.name;
-    if (confirm(`'${name}' 학생을 명단에서 삭제하시겠습니까?\n(이미 평가나 일지 기록이 있다면 '전출' 처리를 권장합니다.)`)) {
-      const updated = [...currentClasses];
-      updated[currentIndex].students = students.filter((_, i) => i !== idx);
-      setCurrentClasses(updated);
-    }
+    // 한 명 삭제는 묻지 않는다. 저장할 때 휴지통으로 가므로 되돌릴 수 있다.
+    const updated = [...currentClasses];
+    updated[currentIndex].students = students.filter((_, i) => i !== idx);
+    setCurrentClasses(updated);
+    showToast(`🗑️ '${name}' 학생을 지웠습니다. 저장하면 휴지통으로 갑니다.`);
   };
 
   // 학생 전체 삭제

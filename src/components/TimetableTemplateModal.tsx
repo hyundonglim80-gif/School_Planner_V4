@@ -132,14 +132,15 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
       showToast('최소 1개의 시간표 템플릿은 남아있어야 합니다.');
       return;
     }
-    if (confirm(`현재 표시된 [${selectedTemplate}] 시간표를 삭제하시겠습니까?`)) {
-      const updated = { ...editingTemplates };
-      delete updated[selectedTemplate];
-      const remainingName = Object.keys(updated)[0];
-      setEditingTemplates(updated);
-      setSelectedTemplate(remainingName);
-      setCurrentTemplateName(remainingName);
-    }
+    // 한 건 삭제는 묻지 않는다. 저장할 때 휴지통으로 가므로 되돌릴 수 있다.
+    const removed = selectedTemplate;
+    const updated = { ...editingTemplates };
+    delete updated[removed];
+    const remainingName = Object.keys(updated)[0];
+    setEditingTemplates(updated);
+    setSelectedTemplate(remainingName);
+    setCurrentTemplateName(remainingName);
+    showToast(`🗑️ [${removed}] 시간표를 지웠습니다. 저장하면 휴지통으로 갑니다.`);
   };
 
   // 교시명 수정
