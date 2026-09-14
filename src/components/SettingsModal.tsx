@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import ModalShell, { ModalCloseButton } from './ModalShell';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -12,11 +10,6 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  useBodyScrollLock(isOpen);
-
-  const vv = useVisualViewport(isOpen);
-
-  const zIndex = useModalLayer(isOpen, onClose);
   const [periodNames, setPeriodNames] = useState<string[]>(['1', '2', '3', '4', '5', '6']);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -81,19 +74,30 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} onClick={closeAllModals}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-full flex flex-col border border-slate-200" onClick={e => e.stopPropagation()}>
-        {/* 헤더 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h3 className="text-lg font-black text-slate-800">⚙️ 환경 설정 (수업 명칭/시수)</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
-        </div>
-
+    <ModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      width="md"
+      title="⚙️ 환경 설정 (수업 명칭/시수)"
+      bare
+      footer={
+        <>
+          <ModalCloseButton onClose={onClose} />
+          {saveSuccess && <span className="text-emerald-500 text-xs font-bold mr-2">✅ 저장되었습니다 (새로고침 시 적용)</span>}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-5 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+          >
+            {saving ? '저장 중...' : '저장 및 적용'}
+          </button>
+        </>
+      }
+    >
+      <div>
         {/* 안내 */}
-        <div className="px-6 py-3">
+        <div className="px-5 py-3">
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-800">
             <strong>[시수 설정]</strong> 학교마다 다른 수업 시간을 자유롭게 변경하세요.<br />
             이곳에 등록된 개수와 순서에 맞춰 화면 칸이 자연스럽게 분할됩니다.
@@ -134,7 +138,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         </div>
 
         {/* 공공데이터 API 키 설정 영역 */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50">
+        <div className="px-5 py-4 border-t border-slate-100 bg-slate-50">
           <label className="block text-xs font-bold text-slate-700 mb-1">
             공공데이터포털 API Key (특일정보)
           </label>
@@ -147,20 +151,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           />
           <p className="text-[11px] text-slate-400 mt-1">공휴일을 달력에 표시하기 위해 필요합니다. (자동 저장)</p>
         </div>
-
-        {/* 푸터 */}
-        <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-slate-100 bg-slate-50">
-          <button onClick={onClose} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-all">닫기</button>
-          {saveSuccess && <span className="text-emerald-500 text-xs font-bold mr-2">✅ 저장되었습니다 (새로고침 시 적용)</span>}
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-5 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
-          >
-            {saving ? '저장 중...' : '저장 및 적용'}
-          </button>
-        </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }

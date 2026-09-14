@@ -3,9 +3,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { showToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import ModalShell, { ModalCloseButton } from './ModalShell';
 import DetailEditModal from './DetailEditModal';
 import { moveToTrash } from '../utils/trashHelper';
 import { eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
@@ -29,11 +27,6 @@ function formatDate(d: Date): string {
 }
 
 export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProps) {
-  useBodyScrollLock(isOpen);
-
-  const vv = useVisualViewport(isOpen);
-
-  const zIndex = useModalLayer(isOpen, onClose);
   const { selectedGroupId } = useAppStore();
   const [incompleteEvents, setIncompleteEvents] = useState<ForwardEvent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -239,14 +232,26 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
 
   return (
     <>
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} onClick={closeAllModals}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-full flex flex-col border border-slate-200" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h3 className="text-lg font-black text-slate-800">📤 미완료 일정 전달</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
-        </div>
-
-        <div className="px-6 py-3">
+    <ModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      width="md"
+      title="📤 미완료 일정 전달"
+      bare
+      footer={
+        <>
+          <button onClick={scanIncompleteEvents} className="mr-auto px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold">다시 스캔</button>
+          <ModalCloseButton onClose={onClose} />
+          {incompleteEvents.length > 0 && (
+            <button onClick={handleForwardAll} disabled={processing} className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-xs">
+              {processing ? '처리 중...' : `오늘로 전달 (${incompleteEvents.length}건)`}
+            </button>
+          )}
+        </>
+      }
+    >
+      <div>
+        <div className="px-5 py-3">
           <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-800">
             <strong>안내:</strong> '전달' 라벨이 있는 미완료 일정을 오늘 날짜로 자동 이동합니다.<br />
             지난 7일간의 미완료 일정을 스캔합니다.
@@ -314,20 +319,8 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
             </div>
           )}
         </div>
-
-        <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-100 bg-slate-50">
-          <button onClick={scanIncompleteEvents} className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold">다시 스캔</button>
-          <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold">닫기</button>
-            {incompleteEvents.length > 0 && (
-              <button onClick={handleForwardAll} disabled={processing} className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-xs">
-                {processing ? '처리 중...' : `오늘로 전달 (${incompleteEvents.length}건)`}
-              </button>
-            )}
-          </div>
-        </div>
       </div>
-    </div>
+    </ModalShell>
 
     {detailItem && (
       <DetailEditModal

@@ -6,9 +6,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
 import { addReverseLink } from '../utils/linkUtils';
 import { eventDocPayload, readEventList } from '../lib/eventText';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import ModalShell, { ModalCloseButton } from './ModalShell';
 
 interface QuickAddModalProps {
   isOpen: boolean;
@@ -17,12 +15,6 @@ interface QuickAddModalProps {
 }
 
 export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModalProps) {
-  useBodyScrollLock(isOpen);
-
-  const vv = useVisualViewport(isOpen);
-
-
-  const zIndex = useModalLayer(isOpen, onClose);
   const { selectedGroupId, openLinkerModal } = useAppStore();
   const { eventLabels, getLabelColor } = useLabels();
 
@@ -104,16 +96,22 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} onClick={closeAllModals}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-full overflow-y-auto overscroll-contain flex flex-col border border-slate-200 p-5" onClick={e => e.stopPropagation()} data-scroll-lock>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-black text-slate-800">새 일정 추가</h3>
-          <span className="text-xs text-slate-400">{dateStr}</span>
-        </div>
-
+    <ModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      width="sm"
+      title="새 일정 추가"
+      headerExtra={<span className="text-xs text-slate-400">{dateStr}</span>}
+      footer={
+        <>
+          <ModalCloseButton onClose={onClose} />
+          <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-primary hover:bg-blue-600 text-white rounded-xl text-xs font-bold shadow-xs transition-all">
+            {saving ? '저장 중...' : '저장'}
+          </button>
+        </>
+      }
+    >
         <div className="space-y-4">
           {/* 일정 내용 */}
           <div>
@@ -188,16 +186,6 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
             )}
           </div>
         </div>
-
-        <div className="flex gap-2 mt-6">
-          <button onClick={onClose} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all">
-            닫기
-          </button>
-          <button onClick={handleSave} disabled={saving} className="flex-1 py-2 bg-primary hover:bg-blue-600 text-white rounded-xl text-xs font-bold shadow-xs transition-all">
-            {saving ? '저장 중...' : '저장하기'}
-          </button>
-        </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

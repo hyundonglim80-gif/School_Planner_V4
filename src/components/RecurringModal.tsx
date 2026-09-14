@@ -4,9 +4,7 @@ import { db, auth } from '../lib/firebase';
 import { showToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { eventDocPayload, readEventList } from '../lib/eventText';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import ModalShell, { ModalCloseButton } from './ModalShell';
 
 interface RecurringModalProps {
   isOpen: boolean;
@@ -28,11 +26,6 @@ function formatDate(d: Date): string {
 }
 
 export default function RecurringModal({ isOpen, onClose, defaultContent = '', defaultLabelName = '', defaultStartDate }: RecurringModalProps) {
-  useBodyScrollLock(isOpen);
-
-  const vv = useVisualViewport(isOpen);
-
-  const zIndex = useModalLayer(isOpen, onClose);
   const { selectedGroupId } = useAppStore();
   const [content, setContent] = useState(defaultContent);
   const [labelName, setLabelName] = useState(defaultLabelName);
@@ -140,17 +133,22 @@ export default function RecurringModal({ isOpen, onClose, defaultContent = '', d
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} onClick={closeAllModals}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-full flex flex-col border border-slate-200" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h3 className="text-lg font-black text-slate-800">🔄 반복 일정 생성</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
-        </div>
-
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-4 space-y-4" data-scroll-lock>
+    <ModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      width="lg"
+      title="🔄 반복 일정 생성"
+      footer={
+        <>
+          <ModalCloseButton onClose={onClose} />
+          <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-xs hover:bg-primary/90 transition-all">
+            {saving ? '생성 중...' : `반복 일정 생성 (${previewDates.length}개)`}
+          </button>
+        </>
+      }
+    >
+        <div className="space-y-4">
           {/* 일정 내용 */}
           <div>
             <label className="text-xs font-bold text-slate-600 block mb-1">일정 내용</label>
@@ -233,14 +231,6 @@ export default function RecurringModal({ isOpen, onClose, defaultContent = '', d
             </div>
           )}
         </div>
-
-        <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-slate-100 bg-slate-50">
-          <button onClick={onClose} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold">닫기</button>
-          <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-xs hover:bg-primary/90 transition-all">
-            {saving ? '생성 중...' : `반복 일정 생성 (${previewDates.length}개)`}
-          </button>
-        </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

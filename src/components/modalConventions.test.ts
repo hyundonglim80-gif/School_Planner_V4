@@ -32,8 +32,34 @@ describe('팝업 공통 규칙', () => {
   );
 
   it.each(entries)('$name - 배경을 눌러 닫을 수 있다', ({ src }) => {
-    expect(src).toContain('closeAllModals');
+    // ModalShell을 쓰면 껍데기가 처리한다. 직접 만든 팝업은 스스로 처리해야 한다.
+    const handled = src.includes('ModalShell') || src.includes('closeAllModals');
+    expect(handled).toBe(true);
   });
+
+  it.each(entries.filter((e) => !CENTERED_BY_DESIGN.includes(e.name)))(
+    '$name - 껍데기를 직접 만들지 않는다 (ModalShell 사용)',
+    ({ src, name }) => {
+      // 아직 옮기지 못한 팝업은 여기 적어둔다. 옮기면 목록에서 지운다.
+      const NOT_MIGRATED = [
+        'BackupModal.tsx',
+        'DetailEditModal.tsx',
+        'EvaluationModal.tsx',
+        'LabelModal.tsx',
+        'LinkViewerModal.tsx',
+        'LinkerModal.tsx',
+        'RosterModal.tsx',
+        'SearchModal.tsx',
+        'TimetableTemplateModal.tsx',
+        'TrashModal.tsx',
+      ];
+      if (NOT_MIGRATED.includes(name)) {
+        expect(src).toContain('closeAllModals');
+        return;
+      }
+      expect(src).toContain('ModalShell');
+    }
+  );
 
   it.each(entries)('$name - 닫기 버튼 문구로 "취소"를 쓰지 않는다', ({ src }) => {
     // 저장과 닫기를 분리하기로 했으므로 닫기 쪽 문구는 '닫기'로 통일한다

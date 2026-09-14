@@ -2,9 +2,7 @@ import React, { useState } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
 import { useGroups } from '../hooks/useGroups';
 import { auth } from '../lib/firebase';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import ModalShell, { ModalCloseButton } from './ModalShell';
 
 interface GroupModalProps {
   isOpen: boolean;
@@ -12,11 +10,6 @@ interface GroupModalProps {
 }
 
 export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
-  useBodyScrollLock(isOpen);
-
-  const vv = useVisualViewport(isOpen);
-
-  const zIndex = useModalLayer(isOpen, onClose);
   const { groups, createGroup, joinGroup, leaveGroup, deleteGroup } = useGroups();
   const [activeTab, setActiveTab] = useState<'list' | 'create' | 'join'>('list');
   const [newGroupName, setNewGroupName] = useState('');
@@ -67,28 +60,17 @@ export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}>
-      {/* 백드롭 */}
-      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={closeAllModals} />
-
-      {/* 모달 박스 */}
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-full">
-        {/* 헤더 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">👥</span>
-            <h3 className="text-lg font-bold text-slate-800">공유 그룹 관리</h3>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-          >
-            ✕
-          </button>
-        </div>
-
+    <ModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      width="lg"
+      title="👥 공유 그룹 관리"
+      bare
+      footer={<ModalCloseButton onClose={onClose} />}
+    >
+      <div>
         {/* 탭 네비게이션 */}
-        <div className="flex border-b border-slate-100 px-6 pt-2 gap-4">
+        <div className="flex border-b border-slate-100 px-5 pt-2 gap-4">
           <button
             onClick={() => setActiveTab('list')}
             className={`pb-3 text-xs font-bold transition-all border-b-2 ${
@@ -269,6 +251,6 @@ export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
           )}
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }

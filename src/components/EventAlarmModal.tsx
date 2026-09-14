@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { showToast } from '../utils/toast';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import ModalShell, { ModalCloseButton } from './ModalShell';
 
 export interface EventAlarmModalProps {
   isOpen: boolean;
@@ -37,16 +35,10 @@ export default function EventAlarmModal({
   onSave,
   onTurnOff,
 }: EventAlarmModalProps) {
-  useBodyScrollLock(isOpen);
-  const vv = useVisualViewport(isOpen);
-  const zIndex = useModalLayer(isOpen, onClose);
-
   const initialParts = (initialTime || '').split('T');
   const [dVal, setDVal] = useState(initialParts[0] || dateStr);
   const [tVal, setTVal] = useState(initialParts[1] || '');
   const [error, setError] = useState('');
-
-  if (!isOpen) return null;
 
   const handleSave = async () => {
     const normalized = normalizeTimeInput(tVal);
@@ -64,17 +56,32 @@ export default function EventAlarmModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-black/50 backdrop-blur-xs animate-fade-in"
-      style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
-      onClick={closeAllModals}
+    <ModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      width="sm"
+      title="⏰ 알림 시간 설정"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={handleTurnOff}
+            className="mr-auto px-3 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-colors cursor-pointer"
+          >
+            알림 끄기
+          </button>
+          <ModalCloseButton onClose={onClose} />
+          <button
+            type="button"
+            onClick={handleSave}
+            className="px-4 py-2 text-xs font-bold text-white bg-primary hover:bg-blue-600 rounded-xl shadow-xs transition-colors cursor-pointer"
+          >
+            저장
+          </button>
+        </>
+      }
     >
-      <div
-        className="bg-white w-full max-w-sm max-h-full overflow-y-auto rounded-2xl shadow-2xl border border-slate-200 p-5"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2">⏰ 알림 시간 설정</h3>
-
+      <div>
         <div className="mb-4">
           <label className="block text-xs font-bold text-slate-500 mb-1.5">날짜 선택</label>
           <input
@@ -99,33 +106,7 @@ export default function EventAlarmModal({
           />
         </div>
         {error && <p className="text-xs font-bold text-red-500 mb-2">{error}</p>}
-
-        <div className="flex items-center justify-between gap-2 mt-5">
-          <button
-            type="button"
-            onClick={handleTurnOff}
-            className="px-3 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-colors cursor-pointer"
-          >
-            알림 끄기
-          </button>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer"
-            >
-              닫기
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              className="px-4 py-2 text-xs font-bold text-white bg-primary hover:bg-blue-600 rounded-xl shadow-xs transition-colors cursor-pointer"
-            >
-              저장
-            </button>
-          </div>
-        </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }

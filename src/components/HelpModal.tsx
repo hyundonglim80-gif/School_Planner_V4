@@ -1,7 +1,5 @@
 import React from 'react';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import ModalShell, { ModalCloseButton } from './ModalShell';
 
 interface HelpModalProps {
   isOpen: boolean;
@@ -9,37 +7,15 @@ interface HelpModalProps {
 }
 
 export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
-  useBodyScrollLock(isOpen);
-
-  const vv = useVisualViewport(isOpen);
-
-  const zIndex = useModalLayer(isOpen, onClose);
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}>
-      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={closeAllModals} />
-
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-full">
-        {/* 헤더 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">💡</span>
-            <div>
-              <h3 className="text-lg font-bold text-slate-800">School Planner V4 사용 설명서</h3>
-              <p className="text-xs text-slate-400 mt-0.5">단축키 및 주요 활용 팁</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* 본문 */}
-        <div className="p-6 overflow-y-auto overscroll-contain flex-1 min-h-0 space-y-5 text-xs text-slate-700 leading-relaxed" data-scroll-lock>
+    <ModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      width="lg"
+      title="💡 School Planner V4 사용 설명서"
+      footer={<ModalCloseButton onClose={onClose} />}
+    >
+        <div className="space-y-5 text-xs text-slate-700 leading-relaxed">
           {/* 주요 키보드 단축키 */}
           <div className="space-y-2">
             <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5">
@@ -117,7 +93,6 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
