@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { showToast } from '../utils/toast';
+import { showToast, showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 import DetailEditModal from './DetailEditModal';
@@ -91,7 +91,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
   };
 
   const handleForwardAll = async () => {
-    if (incompleteEvents.length === 0) return alert('전달할 미완료 일정이 없습니다.');
+    if (incompleteEvents.length === 0) return showErrorToast('전달할 미완료 일정이 없습니다.');
     if (!confirm(`${incompleteEvents.length}개의 미완료 일정을 오늘 날짜로 전달하시겠습니까?`)) return;
 
     const uid = auth.currentUser?.uid;
@@ -144,7 +144,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
       setIncompleteEvents([]);
     } catch (e: any) {
       console.error(e);
-      alert('전달 처리 중 오류: ' + e.message);
+      showErrorToast('전달 처리 중 오류: ' + e.message);
     } finally {
       setProcessing(false);
     }
@@ -164,7 +164,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
         const eventList = readEventList(snap.data());
         const idx = findIndexFor(eventList, item);
         if (idx < 0) {
-          alert('이미 변경되었거나 삭제된 일정입니다. 목록을 다시 스캔합니다.');
+          showToast('이미 변경되었거나 삭제된 일정입니다. 목록을 다시 스캔합니다.');
           await scanIncompleteEvents();
           return;
         }
@@ -186,7 +186,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
       }
       setIncompleteEvents(prev => prev.filter(e => !isSameItem(e, item)));
     } catch (e: any) {
-      alert('삭제 중 오류: ' + e.message);
+      showErrorToast('삭제 중 오류: ' + e.message);
     }
   };
 
@@ -224,7 +224,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
         next.delete(key);
         return next;
       });
-      alert('완료 처리 중 오류: ' + e.message);
+      showErrorToast('완료 처리 중 오류: ' + e.message);
     }
   };
 

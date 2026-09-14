@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { showToast } from '../utils/toast';
+import { showToast, showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
 import { addReverseLink } from '../utils/linkUtils';
@@ -36,7 +36,7 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
   };
 
   const handleSave = async () => {
-    if (!text.trim()) return alert('일정 내용을 입력하세요.');
+    if (!text.trim()) return showToast('일정 내용을 입력하세요.');
     
     setSaving(true);
     try {
@@ -90,7 +90,7 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
       showToast('✅ 일정이 추가되었습니다.');
     } catch (e: any) {
       console.error(e);
-      alert('저장 중 오류: ' + e.message);
+      showErrorToast('저장 중 오류: ' + e.message);
     } finally {
       setSaving(false);
     }

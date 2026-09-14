@@ -211,7 +211,7 @@ export default function EntryDrawer({
 
     const user = auth.currentUser;
     if (!user) {
-      alert('로그인이 필요합니다.');
+      showToast('로그인이 필요합니다.');
       return;
     }
 
@@ -228,7 +228,7 @@ export default function EntryDrawer({
       setAttachments((prev) => [...prev, ...uploaded]);
     } catch (error) {
       console.error('파일 업로드 에러:', error);
-      alert('파일 업로드에 실패했습니다.');
+      showErrorToast('파일 업로드에 실패했습니다.');
     } finally {
       setUploadingFiles(false);
       e.target.value = '';

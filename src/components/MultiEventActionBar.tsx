@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
 import { Trash2, X, CheckSquare, Tag, Loader2 } from 'lucide-react';
@@ -42,7 +43,7 @@ export default function MultiEventActionBar() {
       await bulkUpdateSelectedEvents({ completed: true });
     } catch (e: any) {
       console.error(e);
-      alert('일괄 완료 처리 중 오류가 발생했습니다: ' + e.message);
+      showErrorToast('일괄 완료 처리 중 오류가 발생했습니다: ' + e.message);
     } finally {
       setIsProcessing(false);
     }
@@ -57,7 +58,7 @@ export default function MultiEventActionBar() {
       setIsLabelOpen(false);
     } catch (e: any) {
       console.error(e);
-      alert('라벨 일괄 변경 중 오류가 발생했습니다: ' + e.message);
+      showErrorToast('라벨 일괄 변경 중 오류가 발생했습니다: ' + e.message);
     } finally {
       setIsProcessing(false);
     }
@@ -74,7 +75,7 @@ export default function MultiEventActionBar() {
       await bulkDeleteSelectedEvents();
     } catch (e: any) {
       console.error(e);
-      alert('일괄 삭제 중 오류가 발생했습니다: ' + e.message);
+      showErrorToast('일괄 삭제 중 오류가 발생했습니다: ' + e.message);
     } finally {
       setIsProcessing(false);
     }

@@ -1,6 +1,7 @@
 //src/components/BackupModal.tsx
 
 import React, { useState, useEffect } from 'react';
+import { showToast, showErrorToast } from '../utils/toast';
 import { collection, getDocs, doc, setDoc, query, where, documentId, getDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useGroups } from '../hooks/useGroups';
@@ -55,7 +56,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
 
       if (holidayDates.length === 0) {
         setProcessing(false);
-        return alert('가져올 공휴일 데이터가 없습니다. API 키를 확인해주세요.');
+        return showErrorToast('가져올 공휴일 데이터가 없습니다. API 키를 확인해주세요.');
       }
 
       let count = 0;
@@ -80,10 +81,10 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
           count++;
         }
       }
-      alert(`학사일정 처리를 위해 ${govYear}년과 ${govYear + 1}년 공휴일 총 ${count}건을 일정에 성공적으로 추가했습니다.`);
+      showToast(`학사일정 처리를 위해 ${govYear}년과 ${govYear + 1}년 공휴일 총 ${count}건을 일정에 성공적으로 추가했습니다.`);
     } catch (e: any) {
       console.error(e);
-      alert('공휴일 가져오기 실패: ' + e.message);
+      showErrorToast('공휴일 가져오기 실패: ' + e.message);
     } finally {
       setProcessing(false);
       setStatusMsg('');
@@ -210,7 +211,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
     let cleanId = configInputId.trim();
     const urlMatch = cleanId.match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
     if (urlMatch) cleanId = urlMatch[1];
-    if (!cleanId) return alert('유효한 구글 시트 주소 또는 ID를 입력해주세요.');
+    if (!cleanId) return showErrorToast('유효한 구글 시트 주소 또는 ID를 입력해주세요.');
 
     try {
       await setDoc(doc(db, 'users', user.uid, 'settings', 'backup_config'), {
@@ -219,10 +220,10 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
       }, { merge: true });
       setSpreadsheetId(cleanId);
       setShowConfigInput(false);
-      alert('✅ 백업 구글 시트 주소가 저장되었습니다.');
+      showToast('✅ 백업 구글 시트 주소가 저장되었습니다.');
     } catch (e) {
       console.error(e);
-      alert('저장 중 오류가 발생했습니다.');
+      showErrorToast('저장 중 오류가 발생했습니다.');
     }
   };
 
@@ -257,7 +258,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
     if (!user) return;
 
     if (!incEvents && !incSchedules && !incJournals && !incRosters && !incMemos) {
-      return alert('내보낼 데이터 항목을 최소 하나 이상 선택해주세요.');
+      return showErrorToast('내보낼 데이터 항목을 최소 하나 이상 선택해주세요.');
     }
 
     setProcessing(true);
@@ -271,7 +272,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         const token = googleAccessToken || sessionStorage.getItem('google_api_token');
         if (!token) {
           setProcessing(false);
-          return alert('구글 로그인이 필요합니다. 로그아웃 후 다시 로그인해주세요.');
+          return showErrorToast('구글 로그인이 필요합니다. 로그아웃 후 다시 로그인해주세요.');
         }
 
         setStatusMsg('구글 캘린더 연동 준비 중...');
@@ -299,11 +300,11 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
 
         if (eventsToExport.length === 0) {
           setProcessing(false);
-          return alert('구글 캘린더로 내보낼 일정이 없습니다.');
+          return showErrorToast('구글 캘린더로 내보낼 일정이 없습니다.');
         }
 
         await exportToGoogleCalendar(token, eventsToExport, setStatusMsg);
-        alert(`✅ [${scopeName}] 총 ${eventsToExport.length}개의 일정이 구글 캘린더와 동기화되었습니다.`);
+        showToast(`✅ [${scopeName}] 총 ${eventsToExport.length}개의 일정이 구글 캘린더와 동기화되었습니다.`);
       }
 
       // 2. 구글 시트 내보내기
@@ -311,11 +312,11 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         if (!spreadsheetId) {
           setShowConfigInput(true);
           setProcessing(false);
-          return alert('먼저 연결할 백업 구글 시트 주소를 설정해주세요.');
+          return showErrorToast('먼저 연결할 백업 구글 시트 주소를 설정해주세요.');
         }
         setStatusMsg('구글 시트에 백업 데이터 작성 중...');
         // 안내 후 연결된 시트 열기
-        alert(`✅ [${scopeName}] 학사 일정, 시간표, 일지, 조사표, 메모 데이터가 구글 시트 백업본에 정상 동기화되었습니다!`);
+        showToast(`✅ [${scopeName}] 학사 일정, 시간표, 일지, 조사표, 메모 데이터가 구글 시트 백업본에 정상 동기화되었습니다!`);
         window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`, '_blank');
       }
 
@@ -408,7 +409,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
 
         if (rows.length <= 1) {
           setProcessing(false);
-          return alert('선택한 조건에 해당하는 내보낼 데이터가 없습니다.');
+          return showErrorToast('선택한 조건에 해당하는 내보낼 데이터가 없습니다.');
         }
 
         const csvContent = '\uFEFF' + rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -422,7 +423,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
 
-        alert(`✅ 총 ${rows.length - 1}건의 데이터가 CSV 파일로 내보내졌습니다.`);
+        showToast(`✅ 총 ${rows.length - 1}건의 데이터가 CSV 파일로 내보내졌습니다.`);
       }
 
       // 4. JSON 전체 백업 다운로드
@@ -474,11 +475,11 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        alert(`✅ [${scopeName}] JSON 전체 백업 파일이 다운로드되었습니다.`);
+        showToast(`✅ [${scopeName}] JSON 전체 백업 파일이 다운로드되었습니다.`);
       }
     } catch (e: any) {
       console.error(e);
-      alert('내보내기 중 오류가 발생했습니다: ' + e.message);
+      showErrorToast('내보내기 중 오류가 발생했습니다: ' + e.message);
     } finally {
       setProcessing(false);
       setStatusMsg('');
@@ -488,13 +489,13 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
   // 📤 가져오기 실행 (파일 또는 시트)
   const handleExecuteImport = () => {
     if (exportTarget === 'calendar') {
-      return alert('구글 캘린더에서 플래너로 역방향 가져오기는 지원하지 않습니다. (구글 시트 또는 파일 가져오기를 이용하세요)');
+      return showErrorToast('구글 캘린더에서 플래너로 역방향 가져오기는 지원하지 않습니다. (구글 시트 또는 파일 가져오기를 이용하세요)');
     }
 
     if (exportTarget === 'sheets') {
-      if (!spreadsheetId) return alert('연결된 구글 시트 백업본이 없습니다.');
+      if (!spreadsheetId) return showErrorToast('연결된 구글 시트 백업본이 없습니다.');
       if (confirm('구글 시트의 백업 데이터에서 일정, 시간표, 조사표, 메모를 불러와 앱에 동기화하시겠습니까?')) {
-        alert('✅ 구글 시트로부터 데이터 동기화가 완료되었습니다.');
+        showToast('✅ 구글 시트로부터 데이터 동기화가 완료되었습니다.');
         window.location.reload();
       }
       return;
@@ -540,15 +541,15 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
               await setDoc(doc(getColRef('tasks'), id), data.tasks[id], { merge: true });
             }
           }
-          alert(`✅ 백업 파일(${file.name}) 복원이 성공적으로 완료되었습니다.`);
+          showToast(`✅ 백업 파일(${file.name}) 복원이 성공적으로 완료되었습니다.`);
         } else {
-          alert(`✅ CSV 파일(${file.name})에서 데이터가 성공적으로 추출되어 복원되었습니다.`);
+          showToast(`✅ CSV 파일(${file.name})에서 데이터가 성공적으로 추출되어 복원되었습니다.`);
         }
         onClose();
         window.location.reload();
       } catch (err: any) {
         console.error(err);
-        alert('파일 복원 중 오류가 발생했습니다.');
+        showErrorToast('파일 복원 중 오류가 발생했습니다.');
       } finally {
         setProcessing(false);
         setStatusMsg('');

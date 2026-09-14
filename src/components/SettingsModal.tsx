@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { showToast, showErrorToast } from '../utils/toast';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
@@ -48,14 +49,14 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   };
 
   const handleRemovePeriod = (idx: number) => {
-    if (periodNames.length <= 1) return alert('최소 1개의 시간은 존재해야 합니다.');
+    if (periodNames.length <= 1) return showToast('최소 1개의 시간은 존재해야 합니다.');
     const updated = periodNames.filter((_, i) => i !== idx);
     setPeriodNames(updated);
   };
 
   const handleSave = async () => {
     const finalNames = periodNames.map(n => n.trim()).filter(n => n !== '');
-    if (finalNames.length === 0) return alert('최소 1개의 유효한 명칭을 입력해야 합니다.');
+    if (finalNames.length === 0) return showToast('최소 1개의 유효한 명칭을 입력해야 합니다.');
     setSaving(true);
     try {
       const uid = auth.currentUser?.uid;
@@ -68,7 +69,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (e) {
       console.error(e);
-      alert('설정 저장에 실패했습니다.');
+      showErrorToast('설정 저장에 실패했습니다.');
     } finally {
       setSaving(false);
     }

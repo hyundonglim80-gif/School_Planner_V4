@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { doc, getDoc, setDoc, getDocs, collection, addDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { showToast } from '../utils/toast';
+import { showToast, showErrorToast } from '../utils/toast';
 import { eventDocPayload } from '../lib/eventText';
 import { useAppStore } from '../store/useAppStore';
 import { parseV3EventText } from '../hooks/useDayData';
@@ -406,7 +406,7 @@ export default function LinkerModal({
       setNewItemText('');
     } catch (e: any) {
       console.error(e);
-      alert('생성 중 오류가 발생했습니다.');
+      showErrorToast('생성 중 오류가 발생했습니다.');
     } finally {
       setIsCreating(false);
     }
@@ -471,7 +471,7 @@ export default function LinkerModal({
   // 최종 링크 저장
   const handleSaveLinks = async () => {
     if (selectedLinks.length === 0) {
-      alert('연결할 항목을 선택해주세요.');
+      showErrorToast('연결할 항목을 선택해주세요.');
       return;
     }
 
@@ -595,7 +595,7 @@ export default function LinkerModal({
       showToast('✅ 데이터가 연결되었습니다.');
     } catch (e: any) {
       console.error('saveLinks error:', e);
-      alert('연결 저장 중 오류가 발생했습니다: ' + e.message);
+      showErrorToast('연결 저장 중 오류가 발생했습니다: ' + e.message);
     }
   };
 

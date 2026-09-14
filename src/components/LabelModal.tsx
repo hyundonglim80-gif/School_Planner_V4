@@ -445,7 +445,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     const user = auth.currentUser;
     if (!user) return;
     if (!labelsLoaded) {
-      alert('라벨 정보를 아직 불러오지 못했습니다. 다시 불러온 뒤 저장해주세요.');
+      showErrorToast('라벨 정보를 아직 불러오지 못했습니다. 다시 불러온 뒤 저장해주세요.');
       return;
     }
 
@@ -525,7 +525,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
         result.missingEventNames.length + result.missingJournalNames.length + result.missingMemoNames.length;
 
       if (totalMissing === 0) {
-        alert('✅ 검사 완료: 삭제되었거나 누락된 라벨이 없습니다.');
+        showErrorToast('✅ 검사 완료: 삭제되었거나 누락된 라벨이 없습니다.');
         return;
       }
 
@@ -595,10 +595,10 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
       originalJournalLabelsRef.current = restoredJournalLabels;
       originalMemoLabelsRef.current = restoredMemoLabels;
 
-      alert(`✅ ${totalMissing}개의 라벨을 복구하고 저장했습니다.`);
+      showToast(`✅ ${totalMissing}개의 라벨을 복구하고 저장했습니다.`);
     } catch (e) {
       console.error('라벨 복구 스캔 오류:', e);
-      alert('라벨 복구 중 오류가 발생했습니다.');
+      showErrorToast('라벨 복구 중 오류가 발생했습니다.');
     } finally {
       setScanning(false);
     }

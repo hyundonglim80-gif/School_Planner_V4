@@ -6,7 +6,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
-import { showToast } from '../utils/toast';
+import { showToast, showErrorToast } from '../utils/toast';
 
 interface EvaluationModalProps {
   isOpen: boolean;
@@ -74,10 +74,10 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
   };
 
   const handleCreate = async () => {
-    if (!title.trim()) return alert('제목을 입력하세요.');
-    if (!rosters || rosters.length === 0) return alert('명렬표를 먼저 등록해주세요.');
+    if (!title.trim()) return showToast('제목을 입력하세요.');
+    if (!rosters || rosters.length === 0) return showErrorToast('명렬표를 먼저 등록해주세요.');
     const selectedRoster = rosters[parseInt(rosterIdx, 10)];
-    if (!selectedRoster) return alert('명렬표를 선택해주세요.');
+    if (!selectedRoster) return showErrorToast('명렬표를 선택해주세요.');
 
     const activeStudents = (selectedRoster.students || []).filter((s: any) => s.isActive !== false);
     const studentsSnapshot = activeStudents.map((s: any) => ({ num: s.num, name: s.name, gender: s.gender || '' }));

@@ -1,6 +1,7 @@
 //src/components/SearchModal.tsx
 
 import React, { useState } from 'react';
+import { showErrorToast } from '../utils/toast';
 import { collection, getDocs, query, where, documentId } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
@@ -125,7 +126,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
       const range = getTargetDateRange();
       if (searchScope === 'custom' && (!range?.start || !range?.end)) {
-        alert('검색할 시작 날짜와 종료 날짜를 모두 지정해주세요.');
+        showErrorToast('검색할 시작 날짜와 종료 날짜를 모두 지정해주세요.');
         setSearching(false);
         return;
       }

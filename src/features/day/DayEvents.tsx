@@ -4,7 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
 import { uploadFile, uploadImage } from '../../utils/uploadHelper';
 import { auth } from '../../lib/firebase';
-import { showToast } from '../../utils/toast';
+import { showToast, showErrorToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
 import { resolveEventLabelNames, eventDisplayContent } from '../../lib/eventLabels';
 import { useClickOutside } from '../../hooks/useClickOutside';
@@ -248,7 +248,7 @@ export default function DayEvents({
     const files = e.target.files;
     if (!files || files.length === 0) return;
     const user = auth.currentUser;
-    if (!user) return alert('로그인이 필요합니다.');
+    if (!user) return showToast('로그인이 필요합니다.');
     
     setUploadingFiles(true);
     try {
@@ -268,7 +268,7 @@ export default function DayEvents({
       }
       setNewAttachments(prev => [...prev, ...uploaded]);
     } catch (err: any) {
-      alert('파일 업로드 에러: ' + err.message);
+      showErrorToast('파일 업로드 에러: ' + err.message);
     } finally {
       setUploadingFiles(false);
       if (fileInputRef.current) fileInputRef.current.value = '';

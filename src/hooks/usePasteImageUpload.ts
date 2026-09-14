@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { showToast, showErrorToast } from '../utils/toast';
 import type React from 'react';
 import { auth } from '../lib/firebase';
 import { uploadFile } from '../utils/uploadHelper';
@@ -58,7 +59,7 @@ export function usePasteImageUpload(onUploaded: (images: PastedImage[]) => void)
 
     const user = auth.currentUser;
     if (!user) {
-      alert('로그인이 필요합니다.');
+      showToast('로그인이 필요합니다.');
       return;
     }
 
@@ -78,7 +79,7 @@ export function usePasteImageUpload(onUploaded: (images: PastedImage[]) => void)
       onUploadedRef.current(uploaded);
     } catch (err) {
       console.error('붙여넣은 이미지 업로드 실패:', err);
-      alert('이미지 업로드에 실패했습니다.');
+      showErrorToast('이미지 업로드에 실패했습니다.');
     } finally {
       setPasting(false);
     }

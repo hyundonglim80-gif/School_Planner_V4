@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { showToast } from '../utils/toast';
+import { showToast, showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { useRoster, type ClassRoster, type Student } from '../hooks/useRoster';
 import { downloadCSV, parseCSV } from '../utils/csvHelper';
@@ -121,7 +121,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       cleanId = urlMatch[1];
     }
 
-    if (!cleanId) return alert('유효한 구글 시트 ID나 URL을 입력해주세요.');
+    if (!cleanId) return showErrorToast('유효한 구글 시트 ID나 URL을 입력해주세요.');
 
     try {
       await setDoc(doc(db, 'users', user.uid, 'settings', 'backup_config'), {
@@ -130,10 +130,10 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       }, { merge: true });
       setSpreadsheetId(cleanId);
       setShowConfigInput(false);
-      alert('✅ 구글 시트가 연결되었습니다.');
+      showToast('✅ 구글 시트가 연결되었습니다.');
     } catch (e) {
       console.error(e);
-      alert('설정 저장 중 오류가 발생했습니다.');
+      showErrorToast('설정 저장 중 오류가 발생했습니다.');
     }
   };
 
@@ -141,7 +141,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   const handleImportFromGoogleSheet = async () => {
     const { year, grade, classNum } = currentClass;
     if (!year || !grade || !classNum) {
-      return alert('가져올 학급의 학년도, 학년, 반 정보를 먼저 위 칸에 입력해주세요.');
+      return showErrorToast('가져올 학급의 학년도, 학년, 반 정보를 먼저 위 칸에 입력해주세요.');
     }
 
     if (!spreadsheetId) {
@@ -152,7 +152,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     // V3 호환: Google Sheets API v4 + OAuth 토큰 방식 (CORS 문제 해결)
     const token = googleAccessToken || sessionStorage.getItem('google_api_token');
     if (!token) {
-      alert('구글 로그인이 필요합니다.\n로그아웃 후 다시 로그인해주세요.');
+      showErrorToast('구글 로그인이 필요합니다.\n로그아웃 후 다시 로그인해주세요.');
       return;
     }
 
@@ -183,7 +183,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
             body: JSON.stringify({ values: [['번호', '이름', '성별']] })
           });
 
-          alert(`✅ 시트 생성이 완료되었습니다!\n\n곧 열리는 구글 시트의 [${sheetName}] 탭에 학생 번호와 이름을 등록하신 뒤, 앱으로 돌아와 다시 '구글 시트에서 불러오기'를 눌러주세요.`);
+          showErrorToast(`✅ 시트 생성이 완료되었습니다!\n\n곧 열리는 구글 시트의 [${sheetName}] 탭에 학생 번호와 이름을 등록하신 뒤, 앱으로 돌아와 다시 '구글 시트에서 불러오기'를 눌러주세요.`);
           window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`, '_blank');
         }
         return;
@@ -193,7 +193,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       const rows: string[][] = data.values || [];
 
       if (rows.length === 0) {
-        alert(`[${sheetName}] 시트에 등록된 학생 데이터가 없습니다.\n시트에 번호와 이름을 등록해주세요.`);
+        showErrorToast(`[${sheetName}] 시트에 등록된 학생 데이터가 없습니다.\n시트에 번호와 이름을 등록해주세요.`);
         window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`, '_blank');
         return;
       }
@@ -219,7 +219,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       }
 
       if (parsedStudents.length === 0) {
-        alert('유효한 학생 데이터(번호, 이름)를 찾지 못했습니다.\n시트의 A열과 B열에 데이터를 올바르게 입력했는지 확인해주세요.');
+        showErrorToast('유효한 학생 데이터(번호, 이름)를 찾지 못했습니다.\n시트의 A열과 B열에 데이터를 올바르게 입력했는지 확인해주세요.');
         return;
       }
 
@@ -230,14 +230,14 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
           students: parsedStudents,
         };
         setCurrentClasses(updated);
-        alert('✅ 성공적으로 반영되었습니다.\n하단 \'클라우드 저장\' 버튼을 눌러 완전히 적용해주세요.');
+        showErrorToast('✅ 성공적으로 반영되었습니다.\n하단 \'클라우드 저장\' 버튼을 눌러 완전히 적용해주세요.');
       }
     } catch (e: any) {
       console.error(e);
       if (e.message && (e.message.includes('401') || e.message.includes('403'))) {
-        alert('구글 API 권한이 거부되었습니다.\n\n[해결 방법]\n1. 로그아웃합니다.\n2. 다시 로그인할 때 뜨는 구글 팝업창에서 모든 접근 권한 체크박스를 반드시 체크해주세요!');
+        showErrorToast('구글 API 권한이 거부되었습니다.\n\n[해결 방법]\n1. 로그아웃합니다.\n2. 다시 로그인할 때 뜨는 구글 팝업창에서 모든 접근 권한 체크박스를 반드시 체크해주세요!');
       } else {
-        alert('구글 시트 연동 중 오류가 발생했습니다: ' + e.message);
+        showErrorToast('구글 시트 연동 중 오류가 발생했습니다: ' + e.message);
       }
     } finally {
       setLoadingSheet(false);
@@ -246,7 +246,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
 
   const handleDownloadCSV = () => {
     if (students.length === 0) {
-      alert('다운로드할 명단이 없습니다.');
+      showErrorToast('다운로드할 명단이 없습니다.');
       return;
     }
     const filename = `${currentClass.year}년_${currentClass.grade}학년_${currentClass.classNum}반_명렬표.csv`;
@@ -260,7 +260,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     try {
       const parsedStudents = await parseCSV(file);
       if (parsedStudents.length === 0) {
-        alert('CSV 파일에서 학생 정보를 찾지 못했습니다.');
+        showToast('CSV 파일에서 학생 정보를 찾지 못했습니다.');
         return;
       }
       
@@ -271,10 +271,10 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
           students: parsedStudents,
         };
         setCurrentClasses(updated);
-        alert('✅ 성공적으로 반영되었습니다.\n하단 \'클라우드 저장\' 버튼을 눌러 완전히 적용해주세요.');
+        showErrorToast('✅ 성공적으로 반영되었습니다.\n하단 \'클라우드 저장\' 버튼을 눌러 완전히 적용해주세요.');
       }
     } catch (err: any) {
-      alert('CSV 불러오기 오류: ' + err.message);
+      showErrorToast('CSV 불러오기 오류: ' + err.message);
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
@@ -382,7 +382,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
 
   // 학생 전체 삭제
   const handleRemoveAllStudents = () => {
-    if (students.length === 0) return alert('삭제할 학생이 없습니다.');
+    if (students.length === 0) return showErrorToast('삭제할 학생이 없습니다.');
     if (confirm('현재 학급의 모든 학생을 삭제하시겠습니까?\n(하단 클라우드 저장을 눌러야 최종 반영됩니다.)')) {
       const updated = [...currentClasses];
       updated[currentIndex].students = [];
@@ -449,7 +449,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       showToast('✅ 학급 정보가 저장되었습니다.');
     } catch (e) {
       console.error('명렬표 저장 오류:', e);
-      alert('명렬표 저장 중 오류가 발생했습니다.');
+      showErrorToast('명렬표 저장 중 오류가 발생했습니다.');
     } finally {
       setSaving(false);
     }

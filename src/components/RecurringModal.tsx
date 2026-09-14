@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { showToast } from '../utils/toast';
+import { showToast, showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { eventDocPayload, readEventList } from '../lib/eventText';
 import ModalShell, { ModalCloseButton } from './ModalShell';
@@ -87,11 +87,11 @@ export default function RecurringModal({ isOpen, onClose, defaultContent = '', d
   };
 
   const handleSave = async () => {
-    if (!content.trim()) return alert('일정 내용을 입력하세요.');
-    if (!endDate) return alert('종료일을 선택해주세요.');
+    if (!content.trim()) return showToast('일정 내용을 입력하세요.');
+    if (!endDate) return showErrorToast('종료일을 선택해주세요.');
 
     const dates = calculateDates();
-    if (dates.length === 0) return alert('생성할 날짜가 없습니다. 반복 조건을 확인해주세요.');
+    if (dates.length === 0) return showErrorToast('생성할 날짜가 없습니다. 반복 조건을 확인해주세요.');
     if (!confirm(`총 ${dates.length}개의 날짜에 일정을 생성합니다. 계속하시겠습니까?`)) return;
 
     setSaving(true);
@@ -127,7 +127,7 @@ export default function RecurringModal({ isOpen, onClose, defaultContent = '', d
       showToast(`✅ ${dates.length}개 날짜에 반복 일정이 생성되었습니다.`);
     } catch (e: any) {
       console.error(e);
-      alert('반복 일정 생성 중 오류가 발생했습니다: ' + e.message);
+      showErrorToast('반복 일정 생성 중 오류가 발생했습니다: ' + e.message);
     } finally {
       setSaving(false);
     }

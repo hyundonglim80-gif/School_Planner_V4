@@ -129,7 +129,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   // 템플릿 삭제
   const handleDeleteTemplate = () => {
     if (Object.keys(editingTemplates).length <= 1) {
-      alert('최소 1개의 시간표 템플릿은 남아있어야 합니다.');
+      showToast('최소 1개의 시간표 템플릿은 남아있어야 합니다.');
       return;
     }
     if (confirm(`현재 표시된 [${selectedTemplate}] 시간표를 삭제하시겠습니까?`)) {
@@ -201,10 +201,10 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   const handleSaveSemesterDates = async () => {
     if (!canSave) return;
     if (!summerStart || !summerEnd || !winterStart || !winterEnd) {
-      return alert('여름 방학과 겨울 방학의 시작일·종료일을 모두 입력해주세요.');
+      return showErrorToast('여름 방학과 겨울 방학의 시작일·종료일을 모두 입력해주세요.');
     }
-    if (summerStart > summerEnd) return alert('여름 방학의 시작일이 종료일보다 늦습니다.');
-    if (winterStart > winterEnd) return alert('겨울 방학의 시작일이 종료일보다 늦습니다.');
+    if (summerStart > summerEnd) return showToast('여름 방학의 시작일이 종료일보다 늦습니다.');
+    if (winterStart > winterEnd) return showToast('겨울 방학의 시작일이 종료일보다 늦습니다.');
 
     const newConf = { ...semesterConfig, summerStart, summerEnd, winterStart, winterEnd };
     setSemesterConfig(newConf);
@@ -225,13 +225,13 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   const handleFillApplyDates = (type: 'sem1' | 'sem2' | 'week') => {
     if (type === 'sem1') {
       if (!derivedRanges.sem1.start || !derivedRanges.sem1.end) {
-        return alert('여름 방학 시작일을 먼저 지정해주세요. 1학기는 3월 1일부터 여름 방학 전날까지입니다.');
+        return showErrorToast('여름 방학 시작일을 먼저 지정해주세요. 1학기는 3월 1일부터 여름 방학 전날까지입니다.');
       }
       setApplyStart(derivedRanges.sem1.start);
       setApplyEnd(derivedRanges.sem1.end);
     } else if (type === 'sem2') {
       if (!derivedRanges.sem2.start || !derivedRanges.sem2.end) {
-        return alert('여름 방학 종료일과 겨울 방학 시작일을 먼저 지정해주세요.');
+        return showErrorToast('여름 방학 종료일과 겨울 방학 시작일을 먼저 지정해주세요.');
       }
       setApplyStart(derivedRanges.sem2.start);
       setApplyEnd(derivedRanges.sem2.end);
@@ -249,10 +249,10 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   // 캘린더에 일괄 덮어쓰기 (핵심 기능)
   const handleApplyToCalendar = async () => {
     if (!applyStart || !applyEnd) {
-      return alert('적용할 기간의 시작일과 종료일을 모두 선택해주세요.');
+      return showErrorToast('적용할 기간의 시작일과 종료일을 모두 선택해주세요.');
     }
     if (applyStart > applyEnd) {
-      return alert('시작일이 종료일보다 늦을 수 없습니다.');
+      return showErrorToast('시작일이 종료일보다 늦을 수 없습니다.');
     }
 
     if (!confirm(`지정한 기간(${applyStart} ~ ${applyEnd})에\n현재 화면의 [${selectedTemplate}] 시간표를 일괄 적용하시겠습니까?\n\n(※ 공휴일 및 행사 휴업일은 자동으로 제외되며, 기존 메모/준비물은 보존됩니다.)`)) {

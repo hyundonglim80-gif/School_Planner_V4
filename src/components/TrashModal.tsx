@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { showToast, showErrorToast } from '../utils/toast';
 import { collection, query, getDocs, orderBy, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { completeRestoreFromTrash, deleteFromTrash, type TrashItem } from '../utils/trashHelper';
@@ -170,9 +171,9 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
         next.delete(item.id);
         return next;
       });
-      alert('복원되었습니다.');
+      showToast('복원되었습니다.');
     } catch (err: any) {
-      alert('복원 실패: ' + err.message);
+      showErrorToast('복원 실패: ' + err.message);
     } finally {
       setActionLoadingId(null);
     }
@@ -199,7 +200,7 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
         return next;
       });
     } catch (err) {
-      alert('삭제 실패');
+      showErrorToast('삭제 실패');
     } finally {
       setActionLoadingId(null);
     }
@@ -244,9 +245,9 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
     setBulkProcessing(false);
 
     if (failedContents.length > 0) {
-      alert(`${restoredIds.length}개 복원 완료, ${failedContents.length}개 실패:\n${failedContents.join(', ')}`);
+      showErrorToast(`${restoredIds.length}개 복원 완료, ${failedContents.length}개 실패:\n${failedContents.join(', ')}`);
     } else {
-      alert(`${restoredIds.length}개 항목을 복원했습니다.`);
+      showToast(`${restoredIds.length}개 항목을 복원했습니다.`);
     }
   };
 
@@ -278,7 +279,7 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
     setTrashItems(prev => prev.filter(t => !deletedIds.includes(t.id)));
     setSelectedIds(new Set());
     setBulkProcessing(false);
-    alert(`${deletedIds.length}개 항목을 영구 삭제했습니다.`);
+    showToast(`${deletedIds.length}개 항목을 영구 삭제했습니다.`);
   };
 
   if (!isOpen) return null;

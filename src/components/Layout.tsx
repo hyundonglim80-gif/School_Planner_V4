@@ -27,7 +27,7 @@ import MultiEventActionBar from './MultiEventActionBar';
 import MiniCalendarPicker from './MiniCalendarPicker';
 import MobileTabBar from './MobileTabBar';
 import { useGlobalGestures } from '../hooks/useGlobalGestures';
-import { showToast } from '../utils/toast';
+import { showToast, showErrorToast } from '../utils/toast';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user } = useAuth();
@@ -129,7 +129,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         setDeferredPrompt(null);
       }
     } else {
-      alert("이미 기기에 설치되어 있거나 현재 브라우저 환경에서 직접 설치를 지원하지 않습니다.\n\n[아이폰/아이패드(Safari)의 경우]\n하단의 '공유(내보내기)' 아이콘을 누르고 '홈 화면에 추가'를 선택하여 수동으로 설치할 수 있습니다.");
+      showErrorToast("이미 기기에 설치되어 있거나 현재 브라우저 환경에서 직접 설치를 지원하지 않습니다.\n\n[아이폰/아이패드(Safari)의 경우]\n하단의 '공유(내보내기)' 아이콘을 누르고 '홈 화면에 추가'를 선택하여 수동으로 설치할 수 있습니다.");
     }
   };
 

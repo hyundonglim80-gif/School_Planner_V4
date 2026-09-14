@@ -31,7 +31,7 @@ export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
       setNewGroupName('');
       setActiveTab('list');
     } catch (err: any) {
-      alert(err.message || '그룹 생성 실패');
+      showErrorToast(err.message || '그룹 생성 실패');
     } finally {
       setLoading(false);
     }
@@ -47,7 +47,7 @@ export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
       setInviteCodeInput('');
       setActiveTab('list');
     } catch (err: any) {
-      alert(err.message || '그룹 참여 실패');
+      showErrorToast(err.message || '그룹 참여 실패');
     } finally {
       setLoading(false);
     }
