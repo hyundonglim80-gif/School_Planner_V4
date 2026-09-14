@@ -1,10 +1,8 @@
-import React, { useState, useRef } from 'react';
-import type { EventItem, Attachment } from '../../hooks/useDayData';
+import React, { useState } from 'react';
+import type { EventItem } from '../../hooks/useDayData';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
-import { uploadFile, uploadImage } from '../../utils/uploadHelper';
-import { auth } from '../../lib/firebase';
-import { showToast, showErrorToast } from '../../utils/toast';
+import { showToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
 import { resolveEventLabelNames, eventDisplayContent } from '../../lib/eventLabels';
 import { useClickOutside } from '../../hooks/useClickOutside';
@@ -39,10 +37,7 @@ export default function DayEvents({
   const [newPeriod, setNewPeriod] = useState(false);
   const [newRecur, setNewRecur] = useState(false);
   const [newSkip, setNewSkip] = useState(false);
-  const [newAttachments, setNewAttachments] = useState<Attachment[]>([]);
   const [newLinkedItems, setNewLinkedItems] = useState<any[]>([]);
-  const [uploadingFiles, setUploadingFiles] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const { openLinkerModal, openLinkViewerModal, openLabelModal, currentDate, isMultiSelectMode, selectedEventIds, toggleEventSelection } = useAppStore();
@@ -188,13 +183,12 @@ export default function DayEvents({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newText.trim() && newAttachments.length === 0) return;
+    if (!newText.trim()) return;
     try {
       setSubmitting(true);
       const labelStr = newLabels.length > 0 ? newLabels.join(',') : undefined;
       await onAddEvent(newText.trim(), {
         label: labelStr,
-        attachments: newAttachments,
         linkedItems: newLinkedItems,
         time: newAlarmTime || undefined,
         calendar: newCalendar,
@@ -205,7 +199,6 @@ export default function DayEvents({
       });
       setNewText('');
       setNewLabels([]);
-      setNewAttachments([]);
       setNewLinkedItems([]);
       setNewAlarmTime('');
       setNewCalendar(true);
@@ -242,41 +235,6 @@ export default function DayEvents({
       }
       return [...prev, labelName];
     });
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    const user = auth.currentUser;
-    if (!user) return showToast('로그인이 필요합니다.');
-    
-    setUploadingFiles(true);
-    try {
-      const uploaded: Attachment[] = [];
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const isImage = file.type.startsWith('image/');
-        const url = isImage 
-          ? await uploadImage(file, user.uid)
-          : await uploadFile(file, user.uid);
-        
-        uploaded.push({
-          name: file.name,
-          url,
-          type: isImage ? 'image' : 'document'
-        });
-      }
-      setNewAttachments(prev => [...prev, ...uploaded]);
-    } catch (err: any) {
-      showErrorToast('파일 업로드 에러: ' + err.message);
-    } finally {
-      setUploadingFiles(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  const handleRemoveAttachment = (idx: number) => {
-    setNewAttachments(prev => prev.filter((_, i) => i !== idx));
   };
 
   const openLinker = () => {
@@ -441,7 +399,7 @@ export default function DayEvents({
             </button>
             <button
               type="submit"
-              disabled={(!newText.trim() && newAttachments.length === 0) || submitting || uploadingFiles}
+              disabled={!newText.trim() || submitting}
               className="px-4 py-1.5 bg-primary hover:bg-blue-600 disabled:opacity-40 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
             >
               저장
@@ -726,7 +684,7 @@ export default function DayEvents({
                               <img src={att.url} alt={att.name} className="w-full h-full object-cover" />
                             </a>
                           ) : (
-                            <a key={idx} href={att.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="block px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-2xs text-slate-500 truncate max-w-[80px]" title={att.name}>
+                            <a key={idx} href={att.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="block px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 truncate max-w-[150px] hover:bg-slate-100 transition-colors" title={att.name}>
                               📎 {att.name}
                             </a>
                           )
