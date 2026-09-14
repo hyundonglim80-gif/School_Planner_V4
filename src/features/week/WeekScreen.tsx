@@ -19,7 +19,7 @@ export default function WeekScreen() {
     return weekDays.map(d => d.dateStr);
   }, [weekDays]);
 
-  const { dataMap, loading, toggleEventItem } = useCalendarData(dateStrings, selectedGroupId);
+  const { dataMap, loading, toggleEventItem, deleteEventItem } = useCalendarData(dateStrings, selectedGroupId);
 
   const rangeLabel = useMemo(() => {
     if (weekDays.length === 0) return '';
@@ -70,6 +70,7 @@ export default function WeekScreen() {
           dataMap={dataMap}
           onSelectDate={handleSelectDate}
           onToggleEvent={toggleEventItem}
+          onDeleteEvent={deleteEventItem}
         />
       )}
       

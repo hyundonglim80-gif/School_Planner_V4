@@ -12,6 +12,7 @@ import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 import { usePasteImageUpload } from '../hooks/usePasteImageUpload';
 import ImageViewerModal, { type ViewerImage } from './ImageViewerModal';
+import AutoTextarea from './AutoTextarea';
 
 export type EntryKind = 'memo' | 'journal';
 
@@ -138,22 +139,6 @@ export default function EntryDrawer({
   const [uploadingFiles, setUploadingFiles] = useState(false);
 
   const handleSubmitRef = useRef<() => void>(() => {});
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const adjustTextareaHeight = () => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.max(120, el.scrollHeight)}px`;
-  };
-
-  useEffect(() => {
-    if (isOpen) {
-      requestAnimationFrame(() => {
-        adjustTextareaHeight();
-      });
-    }
-  }, [content, isOpen]);
 
   useEffect(() => {
     if (entry) {
@@ -338,14 +323,13 @@ export default function EntryDrawer({
             <label className="block text-xs font-semibold text-slate-600">
               {text.contentLabel} <span className="text-red-500">*</span>
             </label>
-            <textarea
-              ref={textareaRef}
+            <AutoTextarea
               autoFocus
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onPaste={handlePaste}
               placeholder={text.placeholder}
-              className="w-full min-h-[120px] p-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none text-slate-800 leading-relaxed placeholder-slate-400 text-sm overflow-hidden"
+              className="w-full min-h-[120px] p-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-slate-800 leading-relaxed placeholder-slate-400 text-sm"
             />
           </div>
 

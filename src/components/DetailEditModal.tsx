@@ -8,6 +8,7 @@ import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 import EventAlarmModal from './EventAlarmModal';
+import AutoTextarea from './AutoTextarea';
 
 function formatAlarmBadge(time?: string) {
   if (!time) return null;
@@ -451,11 +452,10 @@ export default function DetailEditModal({
                 <label className="block text-xs font-bold text-slate-500 mb-1">
                   {type === 'schedule' ? '수업 메모' : '일정 내용'}
                 </label>
-                <textarea
+                <AutoTextarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  rows={4}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
+                  className="w-full min-h-[96px] px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
 
@@ -478,7 +478,7 @@ export default function DetailEditModal({
                 disabled={saving}
                 className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors"
               >
-                취소
+                닫기
               </button>
               <button
                 onClick={handleSave}

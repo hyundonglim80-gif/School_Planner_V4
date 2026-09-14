@@ -22,7 +22,7 @@ export default function MonthScreen() {
     return calendarDays.map(d => d.dateStr);
   }, [calendarDays]);
 
-  const { dataMap, loading, toggleEventItem } = useCalendarData(dateStrings, selectedGroupId);
+  const { dataMap, loading, toggleEventItem, deleteEventItem } = useCalendarData(dateStrings, selectedGroupId);
 
   const handlePrevMonth = () => {
     const prev = new Date(year, month - 2, 1);
@@ -58,6 +58,7 @@ export default function MonthScreen() {
           onSelectDate={handleSelectDate}
           showWeekend={showWeekend}
           onToggleEvent={toggleEventItem}
+          onDeleteEvent={deleteEventItem}
         />
       )}
       

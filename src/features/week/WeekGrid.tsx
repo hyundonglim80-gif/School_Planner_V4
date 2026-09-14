@@ -7,6 +7,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
 import { splitHolidayEvents } from '../../lib/holiday';
 import DetailEditModal from '../../components/DetailEditModal';
+import EventItemActions from '../../components/EventItemActions';
 import { useState } from 'react';
 
 interface WeekDayItem {
@@ -22,9 +23,10 @@ interface WeekGridProps {
   onSelectDate: (dateStr: string) => void;
   onQuickAdd: (dateStr: string) => void;
   onToggleEvent: (dateStr: string, eventId: string) => void;
+  onDeleteEvent: (dateStr: string, eventId: string, item?: any) => void;
 }
 
-export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onToggleEvent }: WeekGridProps) {
+export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onToggleEvent, onDeleteEvent }: WeekGridProps) {
   const { getLabelColor, getLabel } = useLabels();
   const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal } = useAppStore();
   const { holidays } = useGovHolidays();
@@ -202,7 +204,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                               });
                             }
                           }}
-                          className={`px-2 py-1.5 rounded-lg text-xs leading-snug transition-all border block hover:shadow-sm cursor-pointer break-words ${
+                          className={`group relative px-2 py-1.5 rounded-lg text-xs leading-snug transition-all border block hover:shadow-sm cursor-pointer break-words ${
                             selectedEventIds.includes(ev.id)
                               ? 'bg-primary/10 border-primary text-primary'
                               : ev.completed
@@ -253,6 +255,22 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                             >
                               🔗 {(ev.linkedItems || []).length}
                             </button>
+                          )}
+
+                          {!isMultiSelectMode && (
+                            <EventItemActions
+                              floating
+                              onEdit={() =>
+                                setDetailModal({
+                                  isOpen: true,
+                                  type: 'event',
+                                  dateStr: day.dateStr,
+                                  itemId: ev.id,
+                                  initialData: ev,
+                                })
+                              }
+                              onDelete={() => onDeleteEvent(day.dateStr, ev.id, ev)}
+                            />
                           )}
                         </div>
                       );

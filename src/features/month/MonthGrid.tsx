@@ -9,6 +9,7 @@ import { useGovHolidays } from '../../hooks/useGovHolidays';
 import { splitHolidayEvents } from '../../lib/holiday';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import DetailEditModal from '../../components/DetailEditModal';
+import EventItemActions from '../../components/EventItemActions';
 import { useState } from 'react';
 
 interface MonthGridProps {
@@ -18,6 +19,7 @@ interface MonthGridProps {
   onQuickAdd: (dateStr: string) => void;
   showWeekend?: boolean;
   onToggleEvent: (dateStr: string, eventId: string) => void;
+  onDeleteEvent: (dateStr: string, eventId: string, item?: any) => void;
 }
 
 const ALL_WEEKDAYS = [
@@ -30,7 +32,7 @@ const ALL_WEEKDAYS = [
   { name: '토', color: 'text-blue-500' },
 ];
 
-export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, showWeekend = true, onToggleEvent }: MonthGridProps) {
+export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, showWeekend = true, onToggleEvent, onDeleteEvent }: MonthGridProps) {
   const currentWeekdays = showWeekend ? ALL_WEEKDAYS : ALL_WEEKDAYS.slice(1, 6);
   const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal } = useAppStore();
 
@@ -199,7 +201,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                             });
                           }
                         }}
-                        className={`px-1.5 py-0.5 rounded text-[16.5px] font-medium leading-tight transition-all border block hover:shadow-sm cursor-pointer break-words ${
+                        className={`group relative px-1.5 py-0.5 rounded text-[16.5px] font-medium leading-tight transition-all border block hover:shadow-sm cursor-pointer break-words ${
                           selectedEventIds.includes(ev.id)
                             ? 'bg-primary/10 border border-primary text-primary'
                             : ev.completed
@@ -250,6 +252,22 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                           >
                             🔗 {(ev.linkedItems || []).length}
                           </button>
+                        )}
+
+                        {!isMultiSelectMode && (
+                          <EventItemActions
+                            floating
+                            onEdit={() =>
+                              setDetailModal({
+                                isOpen: true,
+                                type: 'event',
+                                dateStr: dayObj.dateStr,
+                                itemId: ev.id,
+                                initialData: ev,
+                              })
+                            }
+                            onDelete={() => onDeleteEvent(dayObj.dateStr, ev.id, ev)}
+                          />
                         )}
                       </div>
                     );

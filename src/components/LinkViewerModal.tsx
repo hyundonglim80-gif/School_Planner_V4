@@ -6,6 +6,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import AutoTextarea from './AutoTextarea';
 
 interface LinkViewerModalProps {
   isOpen: boolean;
@@ -536,7 +537,7 @@ export default function LinkViewerModal({
 
                   {isEditing ? (
                     <div className="flex flex-col gap-2 mt-2">
-                      <textarea
+                      <AutoTextarea
                         value={editText}
                         onChange={(e) => setEditText(e.target.value)}
                         className="w-full text-xs p-2.5 border border-indigo-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[70px] leading-relaxed"

@@ -8,6 +8,7 @@ import { showToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
 import DetailEditModal from '../../components/DetailEditModal';
 import EventAlarmModal from '../../components/EventAlarmModal';
+import EventItemActions from '../../components/EventItemActions';
 
 interface DayEventsProps {
   events: EventItem[];
@@ -528,6 +529,12 @@ export default function DayEvents({
                   </div>
                 </div>
 
+                {!isMultiSelectMode && (
+                  <EventItemActions
+                    onEdit={() => setDetailItem({ dateStr: formattedDate, itemId: event.id, initialData: event })}
+                    onDelete={() => onDeleteEvent(event.id)}
+                  />
+                )}
               </div>
             );
           })

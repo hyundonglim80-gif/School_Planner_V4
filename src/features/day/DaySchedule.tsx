@@ -3,6 +3,7 @@ import type { PeriodSchedule } from '../../hooks/useDayData';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { useAppStore } from '../../store/useAppStore';
 import { parseDateStr } from '../../lib/dateUtils';
+import AutoTextarea from '../../components/AutoTextarea';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
 
 interface DayScheduleProps {
@@ -211,7 +212,7 @@ export default function DaySchedule({
                     className="col-span-2 px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
-                <textarea
+                <AutoTextarea
                   value={editMemo}
                   onChange={(e) => setEditMemo(e.target.value)}
                   onKeyDown={(e) => {
@@ -222,8 +223,7 @@ export default function DaySchedule({
                     }
                   }}
                   placeholder="수업 메모..."
-                  rows={2}
-                  className="w-full p-2.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary resize-none placeholder-slate-400 leading-relaxed"
+                  className="w-full min-h-[56px] p-2.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary placeholder-slate-400 leading-relaxed"
                 />
               </div>
             );

@@ -9,7 +9,10 @@ import { useGovHolidays } from '../../hooks/useGovHolidays';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { getAcademicYear, getAcademicMonths, parseDateStr, formatDateStr } from '../../lib/dateUtils';
 import { parseV3EventText, formatV3EventText, runAutoForwarding } from '../../hooks/useDayData';
+import { eventDocPayload, readEventList } from '../../lib/eventText';
+import { moveToTrash } from '../../utils/trashHelper';
 import DetailEditModal from '../../components/DetailEditModal';
+import EventItemActions from '../../components/EventItemActions';
 import QuickAddModal from '../../components/QuickAddModal';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
@@ -126,6 +129,40 @@ export default function YearScreen() {
       }
     } catch (err) {
       console.error('Toggle event error:', err);
+    }
+  };
+
+  const handleDeleteEvent = async (dateStr: string, eventId: string, fallbackItem?: any) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const eventDocRef = selectedGroupId
+      ? doc(db, 'groups', selectedGroupId, 'events', dateStr)
+      : doc(db, 'users', user.uid, 'events', dateStr);
+
+    try {
+      const snap = await getDoc(eventDocRef);
+      const list = snap.exists() ? readEventList(snap.data()) : [];
+      const removed = list.find((item: any) => String(item.id) === String(eventId)) || fallbackItem;
+      const kept = list.filter((item: any) => String(item.id) !== String(eventId));
+      await setDoc(eventDocRef, eventDocPayload(kept), { merge: true });
+
+      if (removed) {
+        try {
+          await moveToTrash({
+            id: String(eventId),
+            type: 'event',
+            originalDateStr: dateStr,
+            fId: selectedGroupId || 'personal',
+            content: removed.content || '',
+            data: removed,
+          });
+        } catch (err) {
+          console.error('Failed to move to trash:', err);
+        }
+      }
+    } catch (err) {
+      console.error('Delete event error:', err);
+      alert('일정을 삭제하지 못했습니다.');
     }
   };
 
@@ -266,7 +303,7 @@ export default function YearScreen() {
                                           setDetailModal({ isOpen: true, type: 'event', dateStr: dObj.dateStr, itemId: ev.id, initialData: ev });
                                         }
                                       }}
-                                      className={`px-1.5 py-1 rounded-lg text-xs leading-snug transition-all border block hover:shadow-sm cursor-pointer break-words ${
+                                      className={`group relative px-1.5 py-1 rounded-lg text-xs leading-snug transition-all border block hover:shadow-sm cursor-pointer break-words ${
                                         selectedEventIds.includes(ev.id)
                                           ? 'bg-primary/10 border-primary text-primary'
                                           : ev.completed
@@ -313,6 +350,16 @@ export default function YearScreen() {
                                         >
                                           🔗 {(ev.linkedItems || []).length}
                                         </button>
+                                      )}
+
+                                      {!isMultiSelectMode && (
+                                        <EventItemActions
+                                          floating
+                                          onEdit={() =>
+                                            setDetailModal({ isOpen: true, type: 'event', dateStr: dObj.dateStr, itemId: ev.id, initialData: ev })
+                                          }
+                                          onDelete={() => handleDeleteEvent(dObj.dateStr, ev.id, ev)}
+                                        />
                                       )}
                                     </div>
                                   );

@@ -18,6 +18,7 @@ import { db, auth } from '../lib/firebase';
 import { type PeriodSchedule, type EventItem, runAutoForwarding } from './useDayData';
 import { eventDocPayload, readEventList } from '../lib/eventText';
 import { showErrorToast } from '../utils/toast';
+import { moveToTrash } from '../utils/trashHelper';
 
 export interface DaySummary {
   eventText?: string;
@@ -250,5 +251,40 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
     }
   };
 
-  return { dataMap, loading, toggleEventItem };
+  // 달력형 뷰(주간/월간)에서 일정 하나를 지운다. 그 날짜의 useDayData를 쓰지 않는
+  // 화면이라, 문서를 직접 읽어 해당 항목만 빼고 다시 쓴다.
+  const deleteEventItem = async (dateStr: string, eventId: string, fallbackItem?: Partial<EventItem>) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const eventDocRef = groupId
+      ? doc(db, 'groups', groupId, 'events', dateStr)
+      : doc(db, 'users', user.uid, 'events', dateStr);
+
+    try {
+      const snap = await getDoc(eventDocRef);
+      const list = snap.exists() ? readEventList(snap.data()) : [];
+      const removed = list.find((item: any) => String(item.id) === String(eventId)) || fallbackItem;
+      const kept = list.filter((item: any) => String(item.id) !== String(eventId));
+      await setDoc(eventDocRef, eventDocPayload(kept), { merge: true });
+
+      if (removed) {
+        try {
+          await moveToTrash({
+            id: String(eventId),
+            type: 'event',
+            originalDateStr: dateStr,
+            fId: groupId || 'personal',
+            content: (removed as any).content || '',
+            data: removed,
+          });
+        } catch (err) {
+          console.error('Failed to move to trash:', err);
+        }
+      }
+    } catch (error) {
+      showErrorToast('일정을 삭제하지 못했습니다.', error);
+    }
+  };
+
+  return { dataMap, loading, toggleEventItem, deleteEventItem };
 }
