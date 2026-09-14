@@ -3,9 +3,7 @@ import type { JournalEntry } from '../../hooks/useDayData';
 import { renderFormattedText } from '../../lib/textUtils';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
-import { DEFAULT_JOURNAL_LABELS, type JournalLabel } from '../../hooks/useLabels';
-import { doc, getDoc } from 'firebase/firestore';
-import { db, auth } from '../../lib/firebase';
+import { auth } from '../../lib/firebase';
 import { uploadImage, uploadFile } from '../../utils/uploadHelper';
 import { usePasteImageUpload } from '../../hooks/usePasteImageUpload';
 import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
@@ -40,23 +38,18 @@ export default function DayJournal({
   
   const itemFileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
-  const { openLinkerModal, openLinkViewerModal, openLabelModal, isLabelModalOpen, currentDate } = useAppStore();
+  const { openLinkerModal, openLinkViewerModal, openLabelModal, currentDate } = useAppStore();
   const formattedDate = formatDateStr(new Date(currentDate));
-  const { journalLabels: hookJournalLabels } = useLabels();
+  // 라벨은 useLabels 한 곳에서만 읽는다. 여기서 직접 Firestore를 읽으면
+  // V3가 localStorage에만 남긴 라벨과 오프라인 캐시 보정을 놓쳐,
+  // 기록 라벨이 통째로 사라진다.
+  const { journalLabels } = useLabels();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [editLabels, setEditLabels] = useState<string[]>([]);
   const [editImageUrl, setEditImageUrl] = useState('');
-  const [journalLabels, setJournalLabels] = useState<JournalLabel[]>(DEFAULT_JOURNAL_LABELS);
 
-  // useLabels의 실시간 구독 값과 동기화
-  useEffect(() => {
-    if (hookJournalLabels && hookJournalLabels.length > 0) {
-      setJournalLabels(hookJournalLabels);
-    }
-  }, [hookJournalLabels]);
-  
   // 항목별 접기/펼치기 상태
   const [collapsedIds, setCollapsedIds] = useState<Record<string, boolean>>({});
   const toggleCollapse = (id: string) => {
@@ -65,28 +58,6 @@ export default function DayJournal({
 
   // 필터 상태 추가
   const [currentFilter, setCurrentFilter] = useState('전체');
-
-  useEffect(() => {
-    const fetchLabels = async () => {
-      const user = auth.currentUser;
-      if (!user) return;
-      try {
-        const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
-        const snap = await getDoc(docRef);
-        if (snap.exists() && snap.data().journalLabels) {
-          const rawJournals = snap.data().journalLabels;
-          setJournalLabels(rawJournals.map((l: any, i: number) => ({
-            id: l.id || `j_${i}_${l.name || ''}`,
-            name: l.name || '',
-            color: l.color || 'green',
-          })));
-        }
-      } catch (err) {
-        console.error('Failed to fetch journal labels', err);
-      }
-    };
-    fetchLabels();
-  }, [isLabelModalOpen]);
 
   // 💡 라벨이 삭제된 경우 빈 문자열('')을 반환하도록 수정
   const getLabelName = (entry: JournalEntry) => {

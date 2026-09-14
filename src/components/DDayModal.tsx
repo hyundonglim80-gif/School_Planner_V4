@@ -15,7 +15,7 @@ export default function DDayModal({ isOpen, onClose }: DDayModalProps) {
   const vv = useVisualViewport(isOpen);
 
   const zIndex = useModalLayer(isOpen, onClose);
-  const { dDayList, addDDay, deleteDDay } = useDDay();
+  const { dDayList, addDDay, deleteDDay, selectedDDayId, selectDDay } = useDDay();
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -88,20 +88,32 @@ export default function DDayModal({ isOpen, onClose }: DDayModalProps) {
 
           {/* D-Day 목록 */}
           <div className="space-y-2">
-            <div className="text-xs font-bold text-slate-500">등록된 D-Day ({dDayList.length})</div>
+            <div className="text-xs font-bold text-slate-500">
+              등록된 D-Day ({dDayList.length}) · 누르면 상단에 표시됩니다
+            </div>
             {dDayList.length > 0 ? (
               dDayList.map((item) => {
                 const calc = calculateDDay(item.date);
                 const isUpcoming = calc.daysDiff >= 0;
+                const isSelected = item.id === selectedDDayId;
 
                 return (
                   <div
                     key={item.id}
-                    className="p-3 bg-white border border-slate-200/80 rounded-xl flex items-center justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all"
+                    className={`p-3 bg-white border rounded-xl flex items-center justify-between gap-3 shadow-2xs transition-all ${
+                      isSelected
+                        ? 'border-primary ring-1 ring-primary/30'
+                        : 'border-slate-200/80 hover:border-slate-300'
+                    }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => selectDDay(isSelected ? null : item.id)}
+                      className="flex items-center gap-3 text-left flex-1 min-w-0"
+                      title={isSelected ? '상단 표시 해제' : '상단에 표시'}
+                    >
                       <span
-                        className={`px-2.5 py-1 rounded-lg text-xs font-black ${
+                        className={`px-2.5 py-1 rounded-lg text-xs font-black shrink-0 ${
                           isUpcoming
                             ? 'bg-rose-50 text-rose-600 border border-rose-100'
                             : 'bg-slate-100 text-slate-500'
@@ -109,11 +121,14 @@ export default function DDayModal({ isOpen, onClose }: DDayModalProps) {
                       >
                         {calc.text}
                       </span>
-                      <div>
-                        <div className="text-sm font-bold text-slate-800">{item.title}</div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-slate-800 truncate">
+                          {isSelected && <span className="text-primary">★ </span>}
+                          {item.title}
+                        </div>
                         <div className="text-[16.5px] text-slate-400">{item.date}</div>
                       </div>
-                    </div>
+                    </button>
 
                     <button
                       onClick={() => deleteDDay(item.id)}

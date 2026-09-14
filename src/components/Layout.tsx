@@ -344,10 +344,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               >
                 <span>⏳</span>
                 {primaryDDay ? (
-                  <span className="hidden sm:inline">
-                    <span>{primaryDDay.title} </span>
-                    <strong className="text-rose-600 font-extrabold">{primaryDDay.text}</strong>
-                  </span>
+                  <>
+                    {/* 좁은 화면에서도 남은 날짜는 보여준다. 예전에는 통째로 숨겨서
+                        휴대폰에서는 D-Day가 아예 없는 것처럼 보였다. */}
+                    <span className="hidden sm:inline">{primaryDDay.title}</span>
+                    <strong className="text-rose-600 font-extrabold text-[11px] sm:text-xs">
+                      {primaryDDay.text}
+                    </strong>
+                  </>
                 ) : (
                   <span className="hidden sm:inline">D-Day</span>
                 )}

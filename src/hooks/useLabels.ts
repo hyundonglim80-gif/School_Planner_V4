@@ -58,7 +58,7 @@ export const DEFAULT_JOURNAL_LABELS: JournalLabel[] = [
 
 // V3는 isSkip/isPeriod/isRecur/showInCalendar, V4는 skip/period/recur/calendar를 쓴다.
 // 어느 쪽으로 저장되어 있든 같게 읽는다.
-function normalizeEventLabel(l: any, i: number): EventLabel {
+export function normalizeEventLabel(l: any, i: number): EventLabel {
   return {
     id: l.id || `ev_${i}_${l.name || ''}`,
     name: l.name || '',

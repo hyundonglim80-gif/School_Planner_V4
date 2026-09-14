@@ -2,7 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { DEFAULT_EVENT_LABELS, type EventLabel } from '../hooks/useLabels';
+import { DEFAULT_EVENT_LABELS, normalizeEventLabel, type EventLabel } from '../hooks/useLabels';
+import {
+  readLegacyEventLabels,
+  readLegacyJournalLabels,
+  readLegacyMemoLabels,
+} from '../lib/legacyLabels';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
@@ -180,48 +185,43 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
       const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
       const snap = await getDoc(docRef);
 
-      if (snap.exists()) {
-        const data = snap.data();
-        const rawEvents = data.eventLabels || data.labels || DEFAULT_EVENT_LABELS;
-        const nextEventLabels = rawEvents.map((l: any, i: number) => ({
-          id: l.id || `ev_${i}_${l.name || ''}`,
-          name: l.name || '',
-          color: l.color || 'blue',
-          calendar: l.calendar !== false,
-          skip: !!l.skip,
-          forward: !!(l.forward || l.isForward),
-          period: !!l.period,
-          recur: !!l.recur,
-        }));
-        setEventLabels(nextEventLabels);
-        originalEventLabelsRef.current = nextEventLabels;
+      const data = snap.exists() ? snap.data() : {};
 
-        const rawMemos = data.memoLabels || DEFAULT_MEMO_LABELS;
-        const nextMemoLabels = rawMemos.map((l: any, i: number) => ({
-          id: (typeof l === 'object' && l.id) ? l.id : `memo_${i}_${typeof l === 'string' ? l : l.name || ''}`,
-          name: typeof l === 'string' ? l : (l.name || ''),
-          color: (typeof l === 'object' && l.color) ? l.color : 'green',
-        }));
-        setMemoLabels(nextMemoLabels);
-        originalMemoLabelsRef.current = nextMemoLabels;
+      // 클라우드 -> V3 localStorage -> 기본값 순으로 고른다.
+      // 라벨 설정 화면이 useLabels와 다른 경로로 읽으면, V3가 localStorage에만
+      // 남긴 라벨이 기본값으로 보이고 저장하는 순간 클라우드까지 덮어써진다.
+      const pick = (cloud: any, legacy: any[] | null, fallback: any[]) =>
+        (Array.isArray(cloud) && cloud.length > 0 && cloud) || legacy || fallback;
 
-        const rawJournals = data.journalLabels || DEFAULT_JOURNAL_LABELS;
-        const nextJournalLabels = rawJournals.map((l: any, i: number) => ({
-          id: l.id || `j_${i}_${l.name || ''}`,
-          name: l.name || '',
-          color: l.color || 'green',
-        }));
-        setJournalLabels(nextJournalLabels);
-        originalJournalLabelsRef.current = nextJournalLabels;
-      } else {
-        // 신규 계정이라 저장된 라벨이 아직 없는 정상적인 경우 -> 기본값을 보여주고 저장도 허용
-        setEventLabels(DEFAULT_EVENT_LABELS);
-        setMemoLabels(DEFAULT_MEMO_LABELS);
-        setJournalLabels(DEFAULT_JOURNAL_LABELS);
-        originalEventLabelsRef.current = DEFAULT_EVENT_LABELS;
-        originalMemoLabelsRef.current = DEFAULT_MEMO_LABELS;
-        originalJournalLabelsRef.current = DEFAULT_JOURNAL_LABELS;
-      }
+      const rawEvents = pick(
+        (Array.isArray(data.eventLabels) && data.eventLabels.length > 0 && data.eventLabels) || data.labels,
+        readLegacyEventLabels(),
+        DEFAULT_EVENT_LABELS
+      );
+      // V3의 isSkip/isPeriod/isRecur/showInCalendar를 그대로 인식해야
+      // 저장할 때 휴일/기간/반복 속성이 꺼진 채로 덮어써지지 않는다.
+      const nextEventLabels = rawEvents.map(normalizeEventLabel);
+      setEventLabels(nextEventLabels);
+      originalEventLabelsRef.current = nextEventLabels;
+
+      const rawMemos = pick(data.memoLabels, readLegacyMemoLabels(), DEFAULT_MEMO_LABELS);
+      const nextMemoLabels = rawMemos.map((l: any, i: number) => ({
+        id: (typeof l === 'object' && l.id) ? l.id : `memo_${i}_${typeof l === 'string' ? l : l.name || ''}`,
+        name: typeof l === 'string' ? l : (l.name || ''),
+        color: (typeof l === 'object' && l.color) ? l.color : 'green',
+      }));
+      setMemoLabels(nextMemoLabels);
+      originalMemoLabelsRef.current = nextMemoLabels;
+
+      const rawJournals = pick(data.journalLabels, readLegacyJournalLabels(), DEFAULT_JOURNAL_LABELS);
+      const nextJournalLabels = rawJournals.map((l: any, i: number) => ({
+        id: l.id || `j_${i}_${l.name || ''}`,
+        name: l.name || '',
+        color: l.color || 'green',
+      }));
+      setJournalLabels(nextJournalLabels);
+      originalJournalLabelsRef.current = nextJournalLabels;
+
       setLabelsLoaded(true);
     } catch (e) {
       console.error('라벨 불러오기 오류:', e);

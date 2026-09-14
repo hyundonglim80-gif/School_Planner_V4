@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { showToast } from '../../utils/toast';
 import type { Memo, MemoAttachment } from '../../hooks/useMemos';
-import { auth, db } from '../../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { auth } from '../../lib/firebase';
 import { uploadImage, uploadFile } from '../../utils/uploadHelper';
+import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
 import { formatDateStr } from '../../lib/dateUtils';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -44,7 +44,11 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
   
   const [saving, setSaving] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
-  const [presetLabels, setPresetLabels] = useState<string[]>(PRESET_LABELS);
+  // 라벨은 useLabels 한 곳에서만 읽는다. 여기서 직접 Firestore를 읽으면
+  // V3가 localStorage에만 남긴 라벨과 오프라인 캐시 보정을 놓쳐,
+  // 사용자 메모 라벨이 기본값으로 되돌아간다.
+  const { memoLabels } = useLabels();
+  const presetLabels = memoLabels.length > 0 ? memoLabels : PRESET_LABELS;
 
   const handleSubmitRef = useRef<() => void>(() => {});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -63,34 +67,6 @@ export default function MemoDrawer({ isOpen, onClose, onSave, editingMemo, onDel
       });
     }
   }, [content, isOpen]);
-
-  useEffect(() => {
-    const fetchMemoLabels = async () => {
-      const user = auth.currentUser;
-      if (!user) {
-        setPresetLabels(PRESET_LABELS);
-        return;
-      }
-      
-      try {
-        const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-          const data = snap.data();
-          if (Array.isArray(data.memoLabels) && data.memoLabels.length > 0) {
-            const labelNames = data.memoLabels.map((l: any) => (typeof l === 'string' ? l : l.name));
-            setPresetLabels(labelNames);
-            return;
-          }
-        }
-        setPresetLabels(PRESET_LABELS);
-      } catch (e) {
-        console.error('Failed to fetch memo labels:', e);
-        setPresetLabels(PRESET_LABELS);
-      }
-    };
-    fetchMemoLabels();
-  }, [isOpen, isLabelModalOpen, auth.currentUser?.uid]);
 
   useEffect(() => {
     if (editingMemo) {

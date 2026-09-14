@@ -1,8 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db, auth } from '../../lib/firebase';
-
-const DEFAULT_LABELS = ['긴급', '중요', '업무', '개인', '기타'];
+import React from 'react';
+import { useLabels } from '../../hooks/useLabels';
 
 interface MemoFilterProps {
   currentFilter: string;
@@ -10,32 +7,10 @@ interface MemoFilterProps {
 }
 
 export default function MemoFilter({ currentFilter, onFilterChange }: MemoFilterProps) {
-  const [labels, setLabels] = useState<string[]>(DEFAULT_LABELS);
-
-  useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) {
-      setLabels(DEFAULT_LABELS);
-      return;
-    }
-
-    const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
-    const unsub = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (Array.isArray(data.memoLabels) && data.memoLabels.length > 0) {
-          setLabels(data.memoLabels.map((l: any) => (typeof l === 'string' ? l : l.name)));
-          return;
-        }
-      }
-      setLabels(DEFAULT_LABELS);
-    }, (error) => {
-      console.error('Failed to fetch memo labels:', error);
-      setLabels(DEFAULT_LABELS);
-    });
-
-    return () => unsub();
-  }, [auth.currentUser?.uid]); // 계정이 바뀔 때마다 올바르게 재구독
+  // 라벨은 useLabels 한 곳에서만 읽는다. 여기서 직접 Firestore를 읽으면
+  // V3가 localStorage에만 남긴 라벨과 오프라인 캐시 보정을 놓쳐,
+  // 사용자 메모 라벨이 기본값으로 되돌아간다.
+  const { memoLabels: labels } = useLabels();
 
   return (
     <div className="flex flex-wrap gap-2">
