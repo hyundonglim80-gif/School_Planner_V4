@@ -10,6 +10,7 @@ import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { getAcademicYear, getAcademicMonths, parseDateStr, formatDateStr } from '../../lib/dateUtils';
 import { parseV3EventText, formatV3EventText, runAutoForwarding } from '../../hooks/useDayData';
 import { eventDocPayload, readEventList } from '../../lib/eventText';
+import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import { moveToTrash } from '../../utils/trashHelper';
 import { showToast, showErrorToast } from '../../utils/toast';
 import DetailEditModal from '../../components/DetailEditModal';
@@ -33,7 +34,7 @@ export default function YearScreen() {
     initialData: any;
   } | null>(null);
 
-  const { getLabelColor, getLabel } = useLabels();
+  const { getLabelColor, eventLabels } = useLabels();
   const { holidays } = useGovHolidays();
   const { templates, currentTemplateName } = useTimetableTemplate();
   const maxPeriods = templates[currentTemplateName]?.names.length || 6;
@@ -287,11 +288,11 @@ export default function YearScreen() {
                             {showEvents && visibleEvents.length > 0 && (
                               <div className="flex flex-col gap-1">
                                 {visibleEvents.map((ev) => {
-                                  const hasLabel = !!ev.label;
-                                  const labelDef = hasLabel ? getLabel(ev.label!) : null;
-                                  const isValidLabel = !!labelDef; // 💡 등록된(삭제되지 않은) 라벨인지 확인
-                                  const labelColor = isValidLabel ? getLabelColor(ev.label!) : null;
-                                  const isForwardLabel = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
+                                  // 라벨 해석은 lib/eventLabels 한 곳에서만 한다
+                                  const labelDef = resolveEventLabel(ev, eventLabels);
+                                  const labelName = labelDef?.name || '';
+                                  const labelColor = labelDef ? getLabelColor(labelName) : null;
+                                  const forwardLabel = isForwardLabel(labelDef);
 
                                   return (
                                     <div
@@ -318,13 +319,13 @@ export default function YearScreen() {
                                         <input type="checkbox" checked={selectedEventIds.includes(ev.id)} readOnly className="inline-block align-middle mr-1.5 pointer-events-none" />
                                       )}
                                       {/* 라벨 칩 클릭 시 완료 토글(이월 라벨이면 이월도 정지) */}
-                                      {isValidLabel && labelColor && !isMultiSelectMode && (
+                                      {labelColor && !isMultiSelectMode && (
                                         <span
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             handleToggleEvent(dObj.dateStr, ev.id);
                                           }}
-                                          title={isForwardLabel ? '클릭하여 완료 처리 (이월 정지)' : '클릭하여 완료 처리'}
+                                          title={forwardLabel ? '클릭하여 완료 처리 (이월 정지)' : '클릭하여 완료 처리'}
                                           className="inline-block align-middle mr-1.5 text-[13.5px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap cursor-pointer"
                                           style={{
                                             backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
@@ -332,11 +333,11 @@ export default function YearScreen() {
                                             border: '1px solid ' + (ev.completed ? '#e2e8f0' : labelColor.border)
                                           }}
                                         >
-                                          {ev.label}
+                                          {labelName}
                                         </span>
                                       )}
                                       <span className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}>
-                                        {ev.content}
+                                        {eventDisplayContent(ev)}
                                       </span>
                                       
                                       {(ev.linkedItems || []).length > 0 && (

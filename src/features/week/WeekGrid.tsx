@@ -6,6 +6,7 @@ import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
 import { splitHolidayEvents } from '../../lib/holiday';
+import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import DetailEditModal from '../../components/DetailEditModal';
 import EventItemActions from '../../components/EventItemActions';
 import { useState } from 'react';
@@ -27,7 +28,7 @@ interface WeekGridProps {
 }
 
 export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onToggleEvent, onDeleteEvent }: WeekGridProps) {
-  const { getLabelColor, getLabel } = useLabels();
+  const { getLabelColor, eventLabels } = useLabels();
   const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal } = useAppStore();
   const { holidays } = useGovHolidays();
 
@@ -180,12 +181,12 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                 {events.length > 0 ? (
                   <div className="space-y-1.5">
                     {events.map((ev) => {
-                      const hasLabel = !!ev.label;
-                      const labelDef = hasLabel ? getLabel(ev.label!) : null;
-                      // 💡 등록된 라벨인지 확인하여 삭제된 라벨 거르기
-                      const isValidLabel = !!labelDef;
-                      const labelColor = isValidLabel ? getLabelColor(ev.label!) : null;
-                      const isForwardLabel = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
+                      // 라벨 해석은 lib/eventLabels 한 곳에서만 한다 (화면마다 다르면
+                      // 라벨 이름을 바꿀 때 칩이 보이는 화면과 안 보이는 화면이 갈린다)
+                      const labelDef = resolveEventLabel(ev, eventLabels);
+                      const labelName = labelDef?.name || '';
+                      const labelColor = labelDef ? getLabelColor(labelName) : null;
+                      const forwardLabel = isForwardLabel(labelDef);
 
                       return (
                         <div
@@ -222,13 +223,13 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                             />
                           )}
                           {/* 💡 유효한 라벨일 때만 렌더링, 클릭 시 완료 토글(이월 라벨이면 이월도 정지) */}
-                          {isValidLabel && labelColor && !isMultiSelectMode && (
+                          {labelColor && !isMultiSelectMode && (
                             <span
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onToggleEvent(day.dateStr, ev.id);
                               }}
-                              title={isForwardLabel ? '클릭하여 완료 처리 (이월 정지)' : '클릭하여 완료 처리'}
+                              title={forwardLabel ? '클릭하여 완료 처리 (이월 정지)' : '클릭하여 완료 처리'}
                               className="inline-block align-middle mr-1.5 text-[13.5px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap cursor-pointer"
                               style={{
                                 backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
@@ -236,11 +237,11 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                                 border: '1px solid ' + (ev.completed ? '#e2e8f0' : labelColor.border)
                               }}
                             >
-                              {ev.label}
+                              {labelName}
                             </span>
                           )}
                           <span className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}>
-                            {ev.content}
+                            {eventDisplayContent(ev)}
                           </span>
                           
                           {(ev.linkedItems || []).length > 0 && (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { showToast } from '../utils/toast';
+import { showToast, showErrorToast } from '../utils/toast';
 import {
   useTimetableTemplate,
   getSemesterRanges,
@@ -37,6 +37,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
     setCurrentTemplateName,
     semesterConfig,
     setSemesterConfig,
+    loading,
     syncToCloud,
     applyTimetableToCalendar,
   } = useTimetableTemplate();
@@ -58,8 +59,20 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);
 
+  // 💡 입력칸을 클라우드 값으로 채우는 것은 "한 번 열 때 한 번"만 한다.
+  // 예전에는 templates/semesterConfig가 바뀔 때마다 이 효과가 다시 돌았다. 구독이
+  // 스냅샷을 한 번 더 주는 것만으로도 입력 중이던 시간표와 방학 날짜가 클라우드 값으로
+  // 되돌아갔고, 그 상태로 저장하면 방금 입력한 내용이 그대로 사라졌다.
+  const [hydrated, setHydrated] = useState(false);
+
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setHydrated(false);
+      return;
+    }
+    // 아직 클라우드에서 못 읽었으면 기다린다. 기본값으로 채워두면 저장할 때
+    // 저장돼 있던 시간표를 기본값으로 덮어쓴다.
+    if (loading || hydrated) return;
 
     if (templates && Object.keys(templates).length > 0) {
       setEditingTemplates(JSON.parse(JSON.stringify(templates)));
@@ -75,7 +88,9 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
     const ranges = getSemesterRanges(semesterConfig);
     setApplyStart(ranges.sem1.start || formatDate(new Date()));
     setApplyEnd(ranges.sem1.end || formatDate(new Date()));
-  }, [isOpen, templates, currentTemplateName, semesterConfig]);
+
+    setHydrated(true);
+  }, [isOpen, loading, hydrated, templates, currentTemplateName, semesterConfig]);
 
   if (!isOpen) return null;
 
@@ -178,8 +193,13 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
     setEditingTemplates(updated);
   };
 
+  // 저장이 안전한 시점인지. 클라우드 값을 아직 못 읽었으면 저장하면 안 된다.
+  // (기본값으로 채워진 화면을 그대로 쓰면 저장돼 있던 시간표/방학이 날아간다)
+  const canSave = !loading && hydrated;
+
   // 방학 기간 저장 (학기는 여기서 계산된다)
   const handleSaveSemesterDates = async () => {
+    if (!canSave) return;
     if (!summerStart || !summerEnd || !winterStart || !winterEnd) {
       return alert('여름 방학과 겨울 방학의 시작일·종료일을 모두 입력해주세요.');
     }
@@ -239,6 +259,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
       return;
     }
 
+    if (!canSave) return;
     setApplying(true);
     try {
       // 먼저 최신 템플릿을 저장
@@ -247,8 +268,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
       const res = await applyTimetableToCalendar(applyStart, applyEnd, gridData, periodNames);
       showToast(`✅ 시간표 적용 완료 - 수업일 ${res.appliedCount}일, 제외 ${res.skippedCount}일`);
     } catch (e) {
-      console.error('시간표 적용 오류:', e);
-      alert('시간표 적용 중 오류가 발생했습니다.');
+      showErrorToast('시간표 적용 중 오류가 발생했습니다.', e);
     } finally {
       setApplying(false);
     }
@@ -256,13 +276,13 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
 
   // 전체 템플릿 저장
   const handleSaveAll = async () => {
+    if (!canSave) return;
     setSaving(true);
     try {
       await syncToCloud(editingTemplates);
       showToast('✅ 시간표 템플릿이 클라우드에 저장되었습니다.');
     } catch (e) {
-      console.error('템플릿 저장 오류:', e);
-      alert('저장 중 오류가 발생했습니다.');
+      showErrorToast('저장 중 오류가 발생했습니다.', e);
     } finally {
       setSaving(false);
     }
@@ -395,7 +415,9 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
               <span className="text-xs font-extrabold text-slate-800">📅 학사일정(학기) 기간 설정</span>
               <button
                 onClick={handleSaveSemesterDates}
-                className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg transition-colors"
+                disabled={!canSave}
+                title={!canSave ? '저장된 설정을 불러오는 중입니다' : undefined}
+                className="px-3 py-1 bg-slate-200 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-xs font-bold rounded-lg transition-colors"
               >
                 방학 기간 저장
               </button>
@@ -516,8 +538,9 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
 
               <button
                 onClick={handleApplyToCalendar}
-                disabled={applying}
-                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-xs transition-all flex items-center gap-1.5"
+                disabled={applying || !canSave}
+                title={!canSave ? '저장된 설정을 불러오는 중입니다' : undefined}
+                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold shadow-xs transition-all flex items-center gap-1.5"
               >
                 <span>⚡</span>
                 {applying ? '적용 중...' : '이 기간에 시간표 일괄 덮어쓰기'}
@@ -536,10 +559,11 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
           </button>
           <button
             onClick={handleSaveAll}
-            disabled={saving}
-            className="px-5 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+            disabled={saving || !canSave}
+            title={!canSave ? '저장된 설정을 불러오는 중입니다' : undefined}
+            className="px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
           >
-            <span>💾</span> {saving ? '저장 중...' : '템플릿 클라우드 저장'}
+            <span>💾</span> {saving ? '저장 중...' : canSave ? '템플릿 클라우드 저장' : '불러오는 중...'}
           </button>
         </div>
       </div>

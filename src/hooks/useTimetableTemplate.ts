@@ -103,13 +103,16 @@ export function useTimetableTemplate() {
 
     const cur = newTemplates[currentTemplateName] || Object.values(newTemplates)[0];
 
+    // 💡 방학 기간은 넘겨받았을 때만 쓴다. 예전에는 안 넘기면 훅이 들고 있던 값을
+    // 같이 써버려서, 아직 클라우드를 못 읽은 상태로 시간표를 저장하면 저장해 둔
+    // 방학 기간이 기본값으로 덮어써졌다. merge 저장이므로 빼면 기존 값이 남는다.
     await setDoc(docRef, {
       templates: newTemplates,
-      semesterConfig: newSemesterConfig || semesterConfig,
+      ...(newSemesterConfig ? { semesterConfig: newSemesterConfig } : {}),
       currentNames: cur ? cur.names : DEFAULT_NAMES,
       updatedAt: Date.now(),
     }, { merge: true });
-  }, [templates, currentTemplateName, semesterConfig]);
+  }, [templates, currentTemplateName]);
 
   // 시간표 캘린더 일괄 덮어쓰기 (applyTimetableToCalendar)
   const applyTimetableToCalendar = useCallback(async (

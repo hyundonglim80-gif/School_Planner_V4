@@ -12,6 +12,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { splitHolidayEvents } from '../../lib/holiday';
+import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import DetailEditModal from '../../components/DetailEditModal';
 import EventItemActions from '../../components/EventItemActions';
 
@@ -38,7 +39,7 @@ export default function MonthAgenda({
 }: MonthAgendaProps) {
   const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal } =
     useAppStore();
-  const { getLabelColor, getLabel, eventLabels } = useLabels();
+  const { getLabelColor, eventLabels } = useLabels();
   const { holidays } = useGovHolidays();
   const { templates, currentTemplateName } = useTimetableTemplate();
 
@@ -57,13 +58,6 @@ export default function MonthAgenda({
     const inMonth = days.filter((d) => d.isCurrentMonth);
     return showWeekend ? inMonth : inMonth.filter((d) => !d.isSunday && !d.isSaturday);
   }, [days, showWeekend]);
-
-  const labelNameOf = (ev: any): string =>
-    (ev.label ? String(ev.label).split(',')[0].trim() : '') ||
-    (ev.labelIds && ev.labelIds.length > 0
-      ? (eventLabels.find((l) => ev.labelIds.includes(l.id)) ||
-          eventLabels.find((l) => ev.labelIds.includes(l.name)))?.name || ''
-      : '');
 
   return (
     <>
@@ -168,10 +162,11 @@ export default function MonthAgenda({
 
                   {/* 일정 - 한 줄에 하나씩, 제목이 잘리지 않게 */}
                   {visibleEvents.map((ev) => {
-                    const labelName = labelNameOf(ev);
-                    const labelDef = labelName ? getLabel(labelName) : null;
+                    // 라벨 해석은 lib/eventLabels 한 곳에서만 한다
+                    const labelDef = resolveEventLabel(ev, eventLabels);
+                    const labelName = labelDef?.name || '';
                     const labelColor = labelDef ? getLabelColor(labelName) : null;
-                    const isForwardLabel = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
+                    const forwardLabel = isForwardLabel(labelDef);
                     const linkCount = (ev.linkedItems || []).length;
 
                     return (
@@ -205,7 +200,7 @@ export default function MonthAgenda({
                                 e.stopPropagation();
                                 onToggleEvent(dayObj.dateStr, ev.id);
                               }}
-                              title={isForwardLabel ? '눌러서 완료 처리 (이월 정지)' : '눌러서 완료 처리'}
+                              title={forwardLabel ? '눌러서 완료 처리 (이월 정지)' : '눌러서 완료 처리'}
                               className="inline-block align-middle mr-1.5 text-[11px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
                               style={{
                                 backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
@@ -216,7 +211,9 @@ export default function MonthAgenda({
                               {labelName}
                             </span>
                           )}
-                          <span className={`align-middle ${ev.completed ? 'line-through' : ''}`}>{ev.content}</span>
+                          <span className={`align-middle ${ev.completed ? 'line-through' : ''}`}>
+                            {eventDisplayContent(ev)}
+                          </span>
                           {linkCount > 0 && (
                             <button
                               type="button"

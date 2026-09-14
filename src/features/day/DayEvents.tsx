@@ -6,6 +6,7 @@ import { uploadFile, uploadImage } from '../../utils/uploadHelper';
 import { auth } from '../../lib/firebase';
 import { showToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
+import { resolveEventLabelNames, eventDisplayContent } from '../../lib/eventLabels';
 import EventAlarmModal from '../../components/EventAlarmModal';
 import AutoTextarea from '../../components/AutoTextarea';
 import EventItemActions from '../../components/EventItemActions';
@@ -44,7 +45,7 @@ export default function DayEvents({
   const [submitting, setSubmitting] = useState(false);
 
   const { openLinkerModal, openLinkViewerModal, openLabelModal, currentDate, isMultiSelectMode, selectedEventIds, toggleEventSelection } = useAppStore();
-  const { eventLabels, getLabelColor, getLabel } = useLabels();
+  const { eventLabels, getLabelColor } = useLabels();
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
@@ -78,31 +79,15 @@ export default function DayEvents({
     return `${m}/${day} ${h}:${min}`;
   };
 
+  // 라벨 해석은 lib/eventLabels 한 곳에서만 한다. 화면마다 다르게 풀면 라벨 이름을
+  // 바꿀 때 칩이 보이는 화면과 안 보이는 화면이 갈린다.
   const getEventLabelInfo = (event: EventItem) => {
-    let names: string[] = [];
-    if (event.label) {
-      names = event.label.split(',').map(l => l.trim()).filter(Boolean);
-    } else if (event.labelIds && event.labelIds.length > 0) {
-      const found = eventLabels.filter(l => event.labelIds!.includes(l.id));
-      names = found.map(f => f.name);
-    } else {
-      const match = event.content.match(/^\[(.*?)\]\s*(.*)$/);
-      if (match) {
-        names = [match[1].trim()];
-      }
-    }
-
-    // 💡 통합 라벨 관리에 존재하는(삭제되지 않은) 라벨만 필터링
-    const validNames = names.filter(name => eventLabels.some(l => l.name === name));
-
-    const labelDefs = validNames.map(name => eventLabels.find(l => l.name === name));
-
-    let cleanContent = event.content;
-    if (names.length === 1 && cleanContent.startsWith(`[${names[0]}]`)) {
-      cleanContent = cleanContent.replace(new RegExp(`^\\[${names[0]}\\]\\s*`), '');
-    }
-
-    return { names: validNames, labelDefs, cleanContent }; // validNames 반환
+    const names = resolveEventLabelNames(event, eventLabels);
+    return {
+      names,
+      labelDefs: names.map((name) => eventLabels.find((l) => l.name === name)),
+      cleanContent: eventDisplayContent(event),
+    };
   };
 
   // 라벨이 붙어 있어 라벨 칩 클릭으로 완료 처리할 수 있는 일정들

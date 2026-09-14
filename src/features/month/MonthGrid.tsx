@@ -7,6 +7,7 @@ import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
 import { splitHolidayEvents } from '../../lib/holiday';
+import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import DetailEditModal from '../../components/DetailEditModal';
 import EventItemActions from '../../components/EventItemActions';
@@ -43,7 +44,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
     return days;
   }, [days, showWeekend]);
 
-  const { getLabelColor, getLabel, eventLabels } = useLabels();
+  const { getLabelColor, eventLabels } = useLabels();
   const { holidays } = useGovHolidays();
   const { templates, currentTemplateName } = useTimetableTemplate();
   
@@ -170,19 +171,11 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                 {showEvents && (
                 <div className="space-y-1">
                   {events.slice(0, 3).map((ev) => {
-                    // 💡 V3에서 만든 항목은 label(이름) 없이 labelIds만 갖는다.
-                    // 예전에는 label만 봐서 그런 일정에 라벨 칩이 붙지 않았다.
-                    const labelName =
-                      (ev.label ? String(ev.label).split(',')[0].trim() : '') ||
-                      (ev.labelIds && ev.labelIds.length > 0
-                        ? (eventLabels.find((l) => ev.labelIds!.includes(l.id)) ||
-                           eventLabels.find((l) => ev.labelIds!.includes(l.name)))?.name || ''
-                        : '');
-                    const labelDef = labelName ? getLabel(labelName) : null;
-                    // 등록된 라벨인지 확인하여 삭제된 라벨 거르기
-                    const isValidLabel = !!labelDef;
-                    const labelColor = isValidLabel ? getLabelColor(labelName) : null;
-                    const isForwardLabel = labelDef ? !!(labelDef.forward || (labelDef as any).isForward) : false;
+                    // 라벨 해석은 lib/eventLabels 한 곳에서만 한다
+                    const labelDef = resolveEventLabel(ev, eventLabels);
+                    const labelName = labelDef?.name || '';
+                    const labelColor = labelDef ? getLabelColor(labelName) : null;
+                    const forwardLabel = isForwardLabel(labelDef);
 
                     return (
                       <div
@@ -219,13 +212,13 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                           />
                         )}
                         {/* 💡 유효한 라벨일 때만 렌더링, 클릭 시 완료 토글(이월 라벨이면 이월도 정지) */}
-                        {isValidLabel && labelColor && !isMultiSelectMode && (
+                        {labelColor && !isMultiSelectMode && (
                           <span
                             onClick={(e) => {
                               e.stopPropagation();
                               onToggleEvent(dayObj.dateStr, ev.id);
                             }}
-                            title={isForwardLabel ? '클릭하여 완료 처리 (이월 정지)' : '클릭하여 완료 처리'}
+                            title={forwardLabel ? '클릭하여 완료 처리 (이월 정지)' : '클릭하여 완료 처리'}
                             className="inline-block align-middle mr-1 text-[13.5px] font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap cursor-pointer"
                             style={{
                               backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
@@ -237,7 +230,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                           </span>
                         )}
                         <span className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}>
-                          {ev.content}
+                          {eventDisplayContent(ev)}
                         </span>
                         
                         {(ev.linkedItems || []).length > 0 && (

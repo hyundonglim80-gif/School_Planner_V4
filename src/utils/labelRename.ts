@@ -43,6 +43,16 @@ function renameCommaField(value: unknown, map: Map<string, string>): { next: str
   return { next: next.join(','), changed };
 }
 
+// V3가 남긴 항목은 라벨을 본문 앞의 "[회의] 교직원 회의" 로만 들고 있는 경우가 있다.
+function renameContentPrefix(value: unknown, map: Map<string, string>): { next: string; changed: boolean } {
+  const content = typeof value === 'string' ? value : '';
+  const match = content.match(/^\[(.*?)\]\s*(.*)$/);
+  if (!match) return { next: content, changed: false };
+  const mapped = map.get(match[1].trim());
+  if (!mapped) return { next: content, changed: false };
+  return { next: `[${mapped}] ${match[2]}`.trim(), changed: true };
+}
+
 function toMap(renames: LabelRename[]): Map<string, string> {
   const map = new Map<string, string>();
   for (const { from, to } of renames) {
@@ -66,12 +76,14 @@ async function renameInEvents(basePath: string, map: Map<string, string>): Promi
     const nextList = list.map((item: any) => {
       const label = renameCommaField(item.label, map);
       const ids = renameList(item.labelIds, map);
-      if (!label.changed && !ids.changed) return item;
+      const content = renameContentPrefix(item.content ?? item.text, map);
+      if (!label.changed && !ids.changed && !content.changed) return item;
       docChanged = true;
       return {
         ...item,
         ...(label.changed ? { label: label.next } : {}),
         ...(ids.changed ? { labelIds: ids.next } : {}),
+        ...(content.changed ? { content: content.next } : {}),
       };
     });
 
