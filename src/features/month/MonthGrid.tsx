@@ -6,7 +6,13 @@ import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
-import { splitHolidayEvents } from '../../lib/holiday';
+import {
+  splitHolidayEvents,
+  dayToneOf,
+  DAY_CELL_BG,
+  DAY_NUMBER_COLOR,
+  WEEKDAY_HEADER_COLOR,
+} from '../../lib/holiday';
 import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import DetailEditModal from '../../components/DetailEditModal';
@@ -23,14 +29,15 @@ interface MonthGridProps {
   onDeleteEvent: (dateStr: string, eventId: string, item?: any) => void;
 }
 
+// 요일 머리글도 같은 규칙을 쓴다 (일=빨강, 토=파랑)
 const ALL_WEEKDAYS = [
-  { name: '일', color: 'text-red-500' },
-  { name: '월', color: 'text-slate-700' },
-  { name: '화', color: 'text-slate-700' },
-  { name: '수', color: 'text-slate-700' },
-  { name: '목', color: 'text-slate-700' },
-  { name: '금', color: 'text-slate-700' },
-  { name: '토', color: 'text-blue-500' },
+  { name: '일', color: WEEKDAY_HEADER_COLOR.holiday },
+  { name: '월', color: WEEKDAY_HEADER_COLOR.normal },
+  { name: '화', color: WEEKDAY_HEADER_COLOR.normal },
+  { name: '수', color: WEEKDAY_HEADER_COLOR.normal },
+  { name: '목', color: WEEKDAY_HEADER_COLOR.normal },
+  { name: '금', color: WEEKDAY_HEADER_COLOR.normal },
+  { name: '토', color: WEEKDAY_HEADER_COLOR.saturday },
 ];
 
 export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, showWeekend = true, onToggleEvent, onDeleteEvent }: MonthGridProps) {
@@ -81,14 +88,15 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
           // 공휴일 일정은 목록에서 빼고 날짜 옆 빨간 이름으로만 보여준다
           const { events, holidayName: holidayFromEvent } = splitHolidayEvents(rawEvents);
           const holidayName = dayObj.holidayName || holidays[dayObj.dateStr] || holidayFromEvent;
-          const isHoliday = !!holidayName || dayObj.isSunday;
+          // 토요일 파랑 / 일요일·공휴일 빨강 (lib/holiday의 공통 규칙)
+          const tone = dayToneOf({ isSunday: dayObj.isSunday, isSaturday: dayObj.isSaturday, holidayName });
 
           return (
             <div
               key={dayObj.dateStr}
               onClick={() => onSelectDate(dayObj.dateStr)}
-              className={`min-h-[105px] p-2 flex flex-col justify-between transition-all cursor-pointer group hover:bg-blue-50/30 ${
-                !dayObj.isCurrentMonth ? 'bg-slate-50/40 opacity-40' : 'bg-white'
+              className={`min-h-[105px] p-2 flex flex-col justify-between transition-all cursor-pointer group hover:brightness-98 ${
+                !dayObj.isCurrentMonth ? 'bg-slate-50/40 opacity-40' : DAY_CELL_BG[tone]
               } ${dayObj.isToday ? 'ring-2 ring-inset ring-primary/40' : ''}`}
             >
               <div>
@@ -96,13 +104,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                   <div className="flex items-center gap-1">
                     <span
                       className={`text-xs font-black inline-flex items-center justify-center w-6 h-6 rounded-full ${
-                        dayObj.isToday
-                          ? 'bg-primary text-white shadow-xs'
-                          : isHoliday
-                          ? 'text-red-500'
-                          : dayObj.isSaturday
-                          ? 'text-blue-500'
-                          : 'text-slate-700'
+                        dayObj.isToday ? 'bg-primary text-white shadow-xs' : DAY_NUMBER_COLOR[tone]
                       }`}
                     >
                       {dayObj.day}

@@ -11,6 +11,7 @@ import { getAcademicYear, getAcademicMonths, parseDateStr, formatDateStr } from 
 import { parseV3EventText, formatV3EventText, runAutoForwarding } from '../../hooks/useDayData';
 import { eventDocPayload, readEventList } from '../../lib/eventText';
 import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
+import { dayToneOf, DAY_CELL_BG, DAY_NUMBER_COLOR } from '../../lib/holiday';
 import { moveToTrash } from '../../utils/trashHelper';
 import { showToast, showErrorToast } from '../../utils/toast';
 import DetailEditModal from '../../components/DetailEditModal';
@@ -224,21 +225,24 @@ export default function YearScreen() {
                       
                       const holidayEvent = evs.find((e: any) => e.label === '휴일' || e.labelIds?.includes('휴일'));
                       const holidayName = holidays[dObj.dateStr] || holidayEvent?.content;
-                      const isHoliday = !!holidayName || dayOfWeekNum === 0;
-                      
-                      const dateColor = isHoliday ? 'text-red-500' : dayOfWeekNum === 6 ? 'text-blue-500' : 'text-blue-700';
-                      
+                      // 토요일 파랑 / 일요일·공휴일 빨강 (lib/holiday의 공통 규칙)
+                      const tone = dayToneOf({
+                        isSunday: dayOfWeekNum === 0,
+                        isSaturday: dayOfWeekNum === 6,
+                        holidayName,
+                      });
+
                       const visibleEvents = evs.filter((e: any) => e.label !== '휴일' && !e.labelIds?.includes('휴일'));
                       const hasClasses = periodArray.some(p => sch[p]?.subject?.trim() && sch[p]?.subject?.toUpperCase() !== 'X');
 
                       return (
-                        <div 
-                          key={dObj.dateStr} 
-                          className={`flex flex-col gap-1.5 pb-3 border-b border-dashed border-slate-200 last:border-0 last:pb-0 ${isTodayEvent ? 'bg-blue-50/50 p-2 rounded-xl border-blue-200 border-solid -mx-2 px-2' : ''}`}
+                        <div
+                          key={dObj.dateStr}
+                          className={`flex flex-col gap-1.5 p-2 -mx-2 rounded-xl border-b border-dashed border-slate-200 last:border-0 ${DAY_CELL_BG[tone]} ${isTodayEvent ? 'ring-1 ring-primary/40 border-solid' : ''}`}
                         >
                           <div className="flex items-center justify-between">
-                            <div 
-                              className={`font-black cursor-pointer hover:underline flex items-center gap-1 ${dateColor} ${isTodayEvent ? 'text-base' : 'text-sm'}`}
+                            <div
+                              className={`font-black cursor-pointer hover:underline flex items-center gap-1 ${DAY_NUMBER_COLOR[tone]} ${isTodayEvent ? 'text-base' : 'text-sm'}`}
                               onClick={() => handleDateClick(dObj.dateStr)}
                             >
                               <span>{dObj.day}일 ({dayOfWeek})</span>

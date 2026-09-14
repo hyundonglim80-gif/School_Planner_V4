@@ -11,7 +11,7 @@ import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
-import { splitHolidayEvents } from '../../lib/holiday';
+import { splitHolidayEvents, dayToneOf, DAY_CELL_BG, DAY_NUMBER_COLOR } from '../../lib/holiday';
 import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import DetailEditModal from '../../components/DetailEditModal';
 import EventItemActions from '../../components/EventItemActions';
@@ -67,7 +67,8 @@ export default function MonthAgenda({
           const schedules = summary.schedules || {};
           const { events, holidayName: holidayFromEvent } = splitHolidayEvents(summary.eventList || []);
           const holidayName = dayObj.holidayName || holidays[dayObj.dateStr] || holidayFromEvent;
-          const isHoliday = !!holidayName || dayObj.isSunday;
+          // 토요일 파랑 / 일요일·공휴일 빨강 (lib/holiday의 공통 규칙)
+          const tone = dayToneOf({ isSunday: dayObj.isSunday, isSaturday: dayObj.isSaturday, holidayName });
 
           const subjects = periodArray
             .map((p) => ({ period: p, item: schedules[p] }))
@@ -90,7 +91,7 @@ export default function MonthAgenda({
               {/* 날짜 줄 - 누르면 그 날의 하루 화면으로 */}
               <div
                 className={`flex items-center gap-2 px-3 py-2 ${isEmpty ? '' : 'border-b border-slate-100'} ${
-                  dayObj.isToday ? 'bg-primary/5' : 'bg-slate-50/60'
+                  dayObj.isToday ? 'bg-primary/5' : DAY_CELL_BG[tone]
                 }`}
               >
                 <button
@@ -100,22 +101,12 @@ export default function MonthAgenda({
                 >
                   <span
                     className={`shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full text-sm font-black ${
-                      dayObj.isToday
-                        ? 'bg-primary text-white'
-                        : isHoliday
-                        ? 'text-red-500'
-                        : dayObj.isSaturday
-                        ? 'text-blue-500'
-                        : 'text-slate-700'
+                      dayObj.isToday ? 'bg-primary text-white' : DAY_NUMBER_COLOR[tone]
                     }`}
                   >
                     {dayObj.day}
                   </span>
-                  <span
-                    className={`shrink-0 text-xs font-bold ${
-                      isHoliday ? 'text-red-500' : dayObj.isSaturday ? 'text-blue-500' : 'text-slate-400'
-                    }`}
-                  >
+                  <span className={`shrink-0 text-xs font-bold ${DAY_NUMBER_COLOR[tone]}`}>
                     {DAY_NAMES[new Date(dayObj.dateStr + 'T00:00:00').getDay()]}
                   </span>
                   {holidayName && (

@@ -5,7 +5,7 @@ import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
-import { splitHolidayEvents } from '../../lib/holiday';
+import { splitHolidayEvents, dayToneOf, DAY_CELL_BG, DAY_NUMBER_COLOR } from '../../lib/holiday';
 import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import DetailEditModal from '../../components/DetailEditModal';
 import EventItemActions from '../../components/EventItemActions';
@@ -61,14 +61,18 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
         // 공휴일 일정은 목록에서 빼고 빨간 이름으로만 보여준다
         const { events, holidayName: holidayFromEvent } = splitHolidayEvents(rawEvents);
         const holidayName = holidays[day.dateStr] || holidayFromEvent;
-        const isHoliday = !!holidayName || day.dayName === '일';
-        
+        // 토요일 파랑 / 일요일·공휴일 빨강 (lib/holiday의 공통 규칙)
+        const tone = dayToneOf({
+          isSunday: day.dayName === '일',
+          isSaturday: day.dayName === '토',
+          holidayName,
+        });
 
         return (
           <div
             key={day.dateStr}
             onClick={() => onSelectDate(day.dateStr)}
-            className={`bg-white rounded-2xl border p-3.5 flex flex-col justify-between transition-all cursor-pointer group hover:shadow-md hover:border-primary/50 min-h-[380px] ${
+            className={`${DAY_CELL_BG[tone]} rounded-2xl border p-3.5 flex flex-col justify-between transition-all cursor-pointer group hover:shadow-md hover:border-primary/50 min-h-[380px] ${
               day.isToday ? 'border-primary ring-2 ring-primary/20 shadow-xs' : 'border-slate-200/80 shadow-xs'
             }`}
           >
@@ -76,21 +80,15 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
                 <div className="flex items-center gap-2">
                   <span
-                    className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs ${
-                      day.isToday
-                        ? 'bg-primary text-white shadow-xs'
-                        : isHoliday
-                        ? 'bg-rose-50 text-rose-600'
-                        : day.isWeekend
-                        ? 'bg-blue-50 text-blue-600'
-                        : 'bg-slate-100 text-slate-700'
+                    className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs bg-white/70 ${
+                      day.isToday ? 'bg-primary text-white shadow-xs' : DAY_NUMBER_COLOR[tone]
                     }`}
                   >
                     {day.dayName}
                   </span>
-                  
+
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-slate-700">
+                    <span className={`text-xs font-bold ${DAY_NUMBER_COLOR[tone]}`}>
                       {Number(month)}.{Number(dateNum)}
                     </span>
                     {holidayName && (
