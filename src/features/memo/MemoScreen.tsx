@@ -62,8 +62,21 @@ export default function MemoScreen() {
   const handleSaveMemo = async (draft: EntryDraft) => {
     if (editingMemo) {
       await updateMemo(editingMemo.firestoreId, draft);
-    } else {
-      await addMemo(draft);
+      return;
+    }
+    const ref = await addMemo(draft);
+    // 저장해도 배너는 열려 있으므로, 방금 만든 메모를 수정 대상으로 잡아둔다.
+    // 안 그러면 한 번 더 저장할 때 같은 내용이 새로 하나 더 생긴다.
+    if (ref?.id) {
+      setEditingMemo({
+        firestoreId: ref.id,
+        content: draft.content,
+        createdAt: Date.now(),
+        labels: draft.labels,
+        imageUrl: draft.imageUrl,
+        attachments: draft.attachments,
+        linkedItems: draft.linkedItems,
+      });
     }
   };
 

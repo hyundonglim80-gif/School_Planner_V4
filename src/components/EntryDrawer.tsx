@@ -280,8 +280,8 @@ export default function EntryDrawer({
         linkedItems,
         imageUrl: attachments.find(isImageAttachment)?.url,
       });
+      // 저장해도 배너는 닫지 않는다. 닫기 버튼이나 배경 클릭으로만 닫힌다.
       showToast(`✅ ${text.noun}을(를) 저장했습니다.`);
-      onClose();
     } catch (error) {
       showErrorToast(`${text.noun} 저장에 실패했습니다.`, error);
     } finally {
@@ -534,7 +534,7 @@ export default function EntryDrawer({
               disabled={saving || uploadingFiles}
               className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
             >
-              취소
+              닫기
             </button>
             <button
               type="button"
@@ -548,7 +548,7 @@ export default function EntryDrawer({
                   <span>저장 중...</span>
                 </>
               ) : (
-                <span>{isEditing ? '수정 완료 (Ctrl+S)' : '저장하기 (Ctrl+S)'}</span>
+                <span>저장</span>
               )}
             </button>
           </div>

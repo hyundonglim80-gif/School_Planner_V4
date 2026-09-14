@@ -9,7 +9,7 @@ import { formatDateStr } from '../../lib/dateUtils';
 
 interface DayJournalProps {
   journals: JournalEntry[];
-  onAddJournal: (content: string, label: string, labelIds?: string[], imageUrl?: string, options?: Partial<JournalEntry>) => Promise<void>;
+  onAddJournal: (content: string, label: string, labelIds?: string[], imageUrl?: string, options?: Partial<JournalEntry>) => Promise<string | void>;
   onDeleteJournal: (id: string) => Promise<void>;
   onUpdateJournal?: (id: string, updates: Partial<JournalEntry>) => Promise<void>;
   onReorderJournals?: (sourceIndex: number, targetIndex: number) => Promise<void>;
@@ -157,10 +157,24 @@ export default function DayJournal({
         linkedItems: draft.linkedItems,
       });
     } else {
-      await onAddJournal(draft.content, mainLabel, draft.labels, undefined, {
+      const newId = await onAddJournal(draft.content, mainLabel, draft.labels, undefined, {
         attachments,
         linkedItems: draft.linkedItems,
       });
+      // 저장해도 배너는 열려 있으므로, 방금 만든 기록을 수정 대상으로 잡아둔다.
+      // 안 그러면 한 번 더 저장할 때 같은 내용이 새로 하나 더 생긴다.
+      if (typeof newId === 'string') {
+        setEditingEntry({
+          id: newId,
+          content: draft.content,
+          createdAt: Date.now(),
+          label: mainLabel,
+          labelIds: draft.labels,
+          imageUrl: '',
+          attachments,
+          linkedItems: draft.linkedItems,
+        });
+      }
     }
   };
 

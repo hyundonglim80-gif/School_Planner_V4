@@ -822,6 +822,10 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         await addReverseLink(link, sourceMeta as any, groupId || 'personal');
       }
     }
+
+    // 저장 후에도 배너가 열려 있으므로, 화면이 방금 만든 항목으로 수정 대상을
+    // 바꿀 수 있게 ID를 돌려준다. 안 그러면 한 번 더 저장할 때 새로 추가된다.
+    return newId;
   }, [dateStr, groupId, journals]);
 
   const reorderEvents = useCallback(async (sourceIndex: number, targetIndex: number) => {

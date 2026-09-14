@@ -193,11 +193,78 @@ describe('DayJournal - 라벨 칩과 필터', () => {
       .filter((b) => b.className.includes('rounded-lg') && /학급활동/.test(b.textContent || ''));
     if (drawerLabels[0]?.className.includes('bg-blue-600')) await user.click(drawerLabels[0]);
 
-    await user.click(screen.getByRole('button', { name: /저장하기/ }));
+    await user.click(screen.getByRole('button', { name: '저장' }));
 
     expect(props.onAddJournal).toHaveBeenCalledTimes(1);
     const [, mainLabel, labelIds] = (props.onAddJournal as any).mock.calls[0];
     expect(mainLabel).toBe('');
     expect(labelIds).toEqual([]);
+  });
+});
+
+describe('DayJournal - 배너 버튼과 닫기', () => {
+  it("버튼 문구가 '저장'과 '닫기'다", async () => {
+    const user = userEvent.setup();
+    renderJournal();
+
+    await user.click(screen.getAllByTitle('기록 수정')[0]);
+    await screen.findByDisplayValue('첫 번째 기록');
+
+    expect(screen.getByRole('button', { name: '저장' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '닫기' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /수정 완료/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: '취소' })).toBeNull();
+  });
+
+  it('저장을 눌러도 배너는 열려 있다', async () => {
+    const user = userEvent.setup();
+    const { props } = renderJournal();
+
+    await user.click(screen.getAllByTitle('기록 수정')[0]);
+    await screen.findByDisplayValue('첫 번째 기록');
+
+    await user.click(screen.getByRole('button', { name: '저장' }));
+
+    expect(props.onUpdateJournal).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('heading', { name: '기록 수정' })).toBeInTheDocument();
+    expect(screen.getByDisplayValue('첫 번째 기록')).toBeInTheDocument();
+  });
+
+  it('닫기를 누르면 배너가 닫힌다', async () => {
+    const user = userEvent.setup();
+    renderJournal();
+
+    await user.click(screen.getAllByTitle('기록 수정')[0]);
+    await screen.findByDisplayValue('첫 번째 기록');
+
+    await user.click(screen.getByRole('button', { name: '닫기' }));
+
+    expect(screen.queryByRole('heading', { name: '기록 수정' })).toBeNull();
+  });
+
+  // 배너가 열린 채로 남으므로, 두 번 저장해도 같은 기록이 하나 더 생기면 안 된다.
+  it('새 기록을 두 번 저장하면 두 번째는 수정으로 간다', async () => {
+    const user = userEvent.setup();
+    const onAddJournal = vi.fn(async () => 'jr_new');
+    const onUpdateJournal = vi.fn(async (_id: string, _updates: Partial<JournalEntry>) => {});
+    render(
+      <DayJournal
+        journals={[]}
+        onAddJournal={onAddJournal}
+        onDeleteJournal={vi.fn(async () => {})}
+        onUpdateJournal={onUpdateJournal}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /추가/ }));
+    await user.type(await screen.findByPlaceholderText(/기록/), '두 번 저장');
+
+    await user.click(screen.getByRole('button', { name: '저장' }));
+    expect(onAddJournal).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: '저장' }));
+    expect(onAddJournal).toHaveBeenCalledTimes(1);
+    expect(onUpdateJournal).toHaveBeenCalledTimes(1);
+    expect(onUpdateJournal.mock.calls[0][0]).toBe('jr_new');
   });
 });
