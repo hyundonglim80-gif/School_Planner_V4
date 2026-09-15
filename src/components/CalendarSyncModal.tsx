@@ -4,14 +4,15 @@
 //
 // 한 방향으로만 간다. 여기에서 구글로 보내기만 하고 가져오지는 않는다.
 // 양쪽에서 고칠 수 있게 하면 어느 쪽이 맞는지 정할 수가 없다. V3도 같다.
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useSyncExternalStore } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
 import { auth } from '../lib/firebase';
 import { getValidGoogleToken } from '../lib/googleApi';
-import { exportCalendarData, type SyncKind, type SyncMode } from '../lib/calendarSync';
+import { type SyncKind, type SyncMode } from '../lib/calendarSync';
+import { startCalendarSync, subscribeSyncProgress, getSyncProgress } from '../lib/calendarSyncTask';
 import { formatDateStr } from '../lib/dateUtils';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 
@@ -65,17 +66,16 @@ export default function CalendarSyncModal({ isOpen, onClose }: CalendarSyncModal
   const [include, setInclude] = useState<Record<SyncKind, boolean>>({ event: true, class: true, journal: false });
   const [mode, setMode] = useState<SyncMode>('merge');
 
-  const [running, setRunning] = useState(false);
-  const [status, setStatus] = useState('');
-  const [percent, setPercent] = useState(0);
+  // 진행 상황은 창이 아니라 lib/calendarSyncTask가 들고 있다.
+  // 그래야 창을 닫아도 계속 돌고, 다시 열면 지금 어디까지 왔는지 보인다.
+  const progress = useSyncExternalStore(subscribeSyncProgress, getSyncProgress, getSyncProgress);
+  const running = progress.running;
 
   useEffect(() => {
     if (!isOpen) return;
     const range = rangeForScope(scope, currentDate);
     setStartStr(range.start);
     setEndStr(range.end);
-    setStatus('');
-    setPercent(0);
   }, [isOpen, scope, currentDate]);
 
   const colPathOf = (col: 'events' | 'schedules' | 'journals') => {
@@ -92,51 +92,27 @@ export default function CalendarSyncModal({ isOpen, onClose }: CalendarSyncModal
       return showToast('보낼 대상을 하나 이상 골라 주세요.');
     }
 
-    setRunning(true);
-    setStatus('구글 권한을 확인하는 중...');
-    setPercent(0);
-
+    let token: string | null = null;
     try {
-      const token = await getValidGoogleToken();
-      if (!token) {
-        setRunning(false);
-        return showErrorToast('구글 권한을 받지 못했습니다.');
-      }
-
-      const result = await exportCalendarData({
-        token,
-        startStr,
-        endStr,
-        mode,
-        include,
-        colPathOf,
-        periodNames: templates[currentTemplateName]?.names || ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'],
-        eventLabels,
-        journalLabels,
-        onProgress: (msg, pct) => {
-          setStatus(msg);
-          setPercent(Math.round(pct));
-        },
-      });
-
-      const summary = (['event', 'class', 'journal'] as SyncKind[])
-        .filter((k) => include[k])
-        .map((k) => `${KIND_LABEL[k].title} ${result.counts[k]}건`)
-        .join(', ');
-      showToast(`✅ 구글 캘린더에 반영했습니다. (${summary})`);
+      token = await getValidGoogleToken();
     } catch (e: any) {
-      console.error(e);
-      const message = String(e?.message || e);
-      showErrorToast(
-        message.includes('401') || message.includes('403')
-          ? '구글 캘린더 권한이 없습니다. 로그아웃 후 다시 로그인할 때 캘린더 접근을 허용해 주세요.'
-          : `동기화에 실패했습니다: ${message}`
-      );
-      setStatus('');
-    } finally {
-      setRunning(false);
-      setPercent(0);
+      return showErrorToast(String(e?.message || e));
     }
+    if (!token) return showErrorToast('구글 권한을 받지 못했습니다.');
+
+    // 창을 닫아도 끝까지 돈다. 기다리지 않는다.
+    showToast('구글 캘린더로 보내는 중입니다. 창을 닫아도 계속되며, 끝나면 알려드립니다.');
+    void startCalendarSync({
+      token,
+      startStr,
+      endStr,
+      mode,
+      include,
+      colPathOf,
+      periodNames: templates[currentTemplateName]?.names || ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'],
+      eventLabels,
+      journalLabels,
+    });
   };
 
   return (
@@ -253,17 +229,24 @@ export default function CalendarSyncModal({ isOpen, onClose }: CalendarSyncModal
           )}
         </div>
 
-        {(running || status) && (
+        {running && (
           <div className="border-t border-slate-100 pt-3">
-            <p className="text-slate-600 font-bold">{status}</p>
+            <p className="text-slate-600 font-bold">{progress.message}</p>
             <div className="mt-1.5 h-2 bg-slate-100 rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary transition-all duration-300"
-                style={{ width: `${percent}%` }}
+                style={{ width: `${progress.percent}%` }}
                 role="progressbar"
-                aria-valuenow={percent}
+                aria-valuenow={progress.percent}
               />
             </div>
+            <p className="text-slate-400 mt-1.5">창을 닫아도 계속됩니다. 끝나면 알려드립니다.</p>
+          </div>
+        )}
+
+        {!running && progress.lastResult && (
+          <div className="border-t border-slate-100 pt-3">
+            <p className="text-emerald-600 font-bold">✅ 지난 동기화: {progress.lastResult}</p>
           </div>
         )}
       </div>

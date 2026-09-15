@@ -70,7 +70,8 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
       let count = 0;
       for (const dateStr of holidayDates) {
         const hName = fetchedHolidays[dateStr];
-        const ref = doc(db, 'users', user.uid, 'events', dateStr);
+        // 예전에는 늘 개인 공간에 넣어서, 그룹을 골라 두고 눌러도 개인 일정에 들어갔다
+        const ref = doc(getColRef('events'), dateStr);
         const snap = await getDoc(ref);
         const eventList = snap.exists() ? readEventList(snap.data()) : [];
 
@@ -315,17 +316,14 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         showToast(`✅ [${scopeName}] ${total}건을 구글 캘린더에 반영했습니다.`);
       }
 
-      // 2. 구글 시트 내보내기
+      // 2. 구글 시트 내보내기 — 아직 만들어지지 않았다.
+      // 예전에는 시트에 한 글자도 쓰지 않고 "정상 동기화되었습니다!"라고 알린 뒤
+      // 시트를 열어 주기만 했다. 백업이 된 줄 알고 넘어가면 그게 더 위험하다.
       else if (exportTarget === 'sheets') {
-        if (!spreadsheetId) {
-          setShowConfigInput(true);
-          setProcessing(false);
-          return showErrorToast('먼저 연결할 백업 구글 시트 주소를 설정해주세요.');
-        }
-        setStatusMsg('구글 시트에 백업 데이터 작성 중...');
-        // 안내 후 연결된 시트 열기
-        showToast(`✅ [${scopeName}] 학사 일정, 시간표, 일지, 조사표, 메모 데이터가 구글 시트 백업본에 정상 동기화되었습니다!`);
-        window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`, '_blank');
+        setProcessing(false);
+        return showErrorToast(
+          '구글 시트 내보내기는 아직 만들어지지 않았습니다. CSV나 JSON으로 내려받아 주세요.'
+        );
       }
 
       // 3. 로컬 CSV 내보내기
@@ -383,7 +381,9 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
           const snap = await getDocs(q);
           snap.forEach((d) => {
             const data = d.data();
-            const list = data.list || [];
+            // 기록은 entries에 담긴다. list를 보고 있어서 늘 0건이 나왔다.
+            // (list는 아주 예전 형식이라 폴백으로만 둔다)
+            const list = data.entries || data.list || [];
             list.forEach((item: any) => {
               rows.push(['기록', d.id, item.label || '일반', item.content || item.text || '', '']);
             });
@@ -466,10 +466,16 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
           const snap = await getDocs(getColRef('tasks'));
           snap.forEach((d) => (payload.tasks[d.id] = d.data()));
         }
-        if (incRosters && selectedScope === 'personal') {
+        // 설정도 함께 담는다. 예전에는 settings 칸을 만들어 두고 비운 채로 내보내서,
+        // '전체 백업'인데 라벨·시간표·환경설정·D-Day가 들어 있지 않았다.
+        // 복원해도 그것들은 돌아오지 않았다.
+        if (selectedScope === 'personal') {
           const snap = await getDocs(collection(db, 'users', user.uid, 'settings'));
           snap.forEach((d) => {
-            if (d.id === 'rosters' || d.id === 'roster') payload.rosters[d.id] = d.data();
+            // 구글 시트 주소 같은 연결 정보는 기기에 매인 값이라 뺀다
+            if (d.id === 'backup_config') return;
+            payload.settings[d.id] = d.data();
+            if (incRosters && (d.id === 'rosters' || d.id === 'roster')) payload.rosters[d.id] = d.data();
           });
         }
 
@@ -500,13 +506,12 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
       return showErrorToast('구글 캘린더에서 플래너로 역방향 가져오기는 지원하지 않습니다. (구글 시트 또는 파일 가져오기를 이용하세요)');
     }
 
+    // 시트 가져오기도 아직 없다. 예전에는 아무것도 읽지 않고 "동기화가
+    // 완료되었습니다"라고 알린 뒤 새로고침만 했다.
     if (exportTarget === 'sheets') {
-      if (!spreadsheetId) return showErrorToast('연결된 구글 시트 백업본이 없습니다.');
-      if (confirm('구글 시트의 백업 데이터에서 일정, 시간표, 조사표, 메모를 불러와 앱에 동기화하시겠습니까?')) {
-        showToast('✅ 구글 시트로부터 데이터 동기화가 완료되었습니다.');
-        window.location.reload();
-      }
-      return;
+      return showErrorToast(
+        '구글 시트 가져오기는 아직 만들어지지 않았습니다. 내려받은 JSON 파일로 복원해 주세요.'
+      );
     }
 
     // 파일 선택 창 열기
@@ -517,6 +522,9 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const scopeLabel =
+      selectedScope === 'personal' ? '개인' : groups.find((g) => g.id === selectedScope)?.name || '공유그룹';
 
     const reader = new FileReader();
     reader.onload = async (event) => {
@@ -529,6 +537,33 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         const text = event.target?.result as string;
         if (file.name.endsWith('.json')) {
           const data = JSON.parse(text);
+
+          // 같은 날짜의 문서는 통째로 백업 시점 것으로 바뀐다. 문서 단위로 덮어쓰므로
+          // 그 날 일정 목록 전체가 교체된다(항목별로 합쳐지지 않는다).
+          // 되돌릴 방법이 없으니 먼저 묻는다. 예전에는 파일을 고르는 즉시 덮어썼다.
+          const counts = [
+            data.events && `일정 ${Object.keys(data.events).length}일`,
+            data.schedules && `수업 ${Object.keys(data.schedules).length}일`,
+            data.journals && `기록 ${Object.keys(data.journals).length}일`,
+            data.tasks && `메모 ${Object.keys(data.tasks).length}건`,
+            data.settings && `설정 ${Object.keys(data.settings).length}개`,
+          ].filter(Boolean).join(', ');
+
+          const ok = confirm(
+            `[${scopeLabel}]에 복원합니다.
+
+${counts}
+
+같은 날짜에 지금 들어 있는 내용은 백업 시점 것으로 바뀝니다.
+되돌릴 수 없습니다. 계속할까요?`
+          );
+          if (!ok) {
+            setProcessing(false);
+            setStatusMsg('');
+            if (e.target) e.target.value = '';
+            return;
+          }
+
           if (data.events) {
             for (const id in data.events) {
               await setDoc(doc(getColRef('events'), id), data.events[id], { merge: true });
@@ -549,12 +584,25 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
               await setDoc(doc(getColRef('tasks'), id), data.tasks[id], { merge: true });
             }
           }
+          // 설정과 명렬표는 개인 공간에만 있다. 예전에는 백업에 담기지도,
+          // 복원되지도 않아서 라벨과 시간표가 그대로 사라진 채로 남았다.
+          if (selectedScope === 'personal') {
+            for (const id in data.settings || {}) {
+              if (id === 'backup_config') continue;
+              await setDoc(doc(db, 'users', user.uid, 'settings', id), data.settings[id], { merge: true });
+            }
+            for (const id in data.rosters || {}) {
+              await setDoc(doc(db, 'users', user.uid, 'settings', id), data.rosters[id], { merge: true });
+            }
+          }
           showToast(`✅ 백업 파일(${file.name}) 복원이 성공적으로 완료되었습니다.`);
+          onClose();
+          window.location.reload();
         } else {
-          showToast(`✅ CSV 파일(${file.name})에서 데이터가 성공적으로 추출되어 복원되었습니다.`);
+          // CSV 복원은 만들어지지 않았다. 예전에는 파일을 읽지도 않고
+          // "성공적으로 추출되어 복원되었습니다"라고 알린 뒤 새로고침했다.
+          showErrorToast('CSV 복원은 아직 지원하지 않습니다. JSON 백업 파일로 복원해 주세요.');
         }
-        onClose();
-        window.location.reload();
       } catch (err: any) {
         console.error(err);
         showErrorToast('파일 복원 중 오류가 발생했습니다.');

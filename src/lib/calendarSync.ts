@@ -87,11 +87,21 @@ export function bareSummary(summary: string): string {
 /**
  * 구글 캘린더에 올릴 제목.
  *
- * 라벨을 내용 뒤에 붙인다. 앞에 두면 달력의 좁은 칸에서 라벨만 보이고 정작
+ * 라벨은 내용 뒤에 붙인다. 앞에 두면 달력의 좁은 칸에서 라벨만 보이고 정작
  * 내용이 잘려 무슨 일인지 알 수 없었다. 완료 표시(✅)는 짧으니 앞에 둔다.
+ *
+ * 수업은 예외다. 교시는 짧고, 그날 시간표를 훑을 때 먼저 보이는 편이 낫다.
+ * 그래서 '[1교시] 국어' 형태를 그대로 쓴다(labelFirst).
  */
-export function composeSummary(seq: number, completed: boolean, content: string, labelStr: string): string {
-  return `${invisiblePrefix(seq)}${completed ? '✅ ' : ''}${content} [${labelStr}]`;
+export function composeSummary(
+  seq: number,
+  completed: boolean,
+  content: string,
+  labelStr: string,
+  labelFirst = false
+): string {
+  const head = `${invisiblePrefix(seq)}${completed ? '✅ ' : ''}`;
+  return labelFirst ? `${head}[${labelStr}] ${content}` : `${head}${content} [${labelStr}]`;
 }
 
 /**
@@ -213,7 +223,7 @@ export function buildPayloads(args: BuildArgs): Record<SyncKind, GoogleEventPayl
       if (!subject || subject.toUpperCase() === 'X') continue;
 
       out.class.push({
-        summary: composeSummary(seq++, false, subject, periodNames[i - 1] || `${i}교시`),
+        summary: composeSummary(seq++, false, subject, periodNames[i - 1] || `${i}교시`, true),
         description: '🎒 [수업]',
         start: { date: dateStr },
         end: { date: endStr },

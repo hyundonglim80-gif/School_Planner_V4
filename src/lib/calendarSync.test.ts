@@ -204,7 +204,8 @@ describe('buildPayloads - 보낼 내용 만들기', () => {
     });
 
     expect(out.class).toHaveLength(1);
-    expect(bareSummary(out.class[0].summary)).toBe('국어 [1교시]');
+    // 수업만 교시를 앞에 둔다. 짧고, 시간표를 훑을 때 먼저 보이는 편이 낫다.
+    expect(bareSummary(out.class[0].summary)).toBe('[1교시] 국어');
     expect(out.class[0].extendedProperties.private.period).toBe('1');
   });
 
