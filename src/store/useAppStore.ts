@@ -6,6 +6,7 @@ import { formatV3EventText } from '../hooks/useDayData';
 import { moveToTrash } from '../utils/trashHelper';
 import { showErrorToast } from '../utils/toast';
 import { FORWARD_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
+import type { ShortcutOverrides } from '../lib/shortcuts';
 
 type Scope = 'day' | 'week' | 'month' | 'year' | 'memo';
 
@@ -26,6 +27,8 @@ interface AppState {
   // 환경설정에서 조절하는 값들
   startupScope: StartupScope;
   forwardLookbackDays: number;
+  // 기본값에서 바꾼 단축키만 담는다. 나머지는 lib/shortcuts.ts의 기본값을 쓴다.
+  shortcutOverrides: ShortcutOverrides;
 
   setScope: (scope: Scope) => void;
   setSemesterFilter: (filter: 'all' | 1 | 2) => void;
@@ -38,6 +41,7 @@ interface AppState {
   setEnableScrollNav: (enable: boolean) => void;
   setStartupScope: (scope: StartupScope) => void;
   setForwardLookbackDays: (days: number) => void;
+  setShortcutOverrides: (overrides: ShortcutOverrides) => void;
   navigatePrevDate: () => void;
   navigateNextDate: () => void;
 
@@ -126,6 +130,7 @@ export const useAppStore = create<AppState>()(
       enableScrollNav: false,
       startupScope: 'last',
       forwardLookbackDays: FORWARD_LOOKBACK_DAYS,
+      shortcutOverrides: {},
 
       clearAuthData: () => set({
         selectedGroupId: null,
@@ -147,6 +152,7 @@ export const useAppStore = create<AppState>()(
       setEnableScrollNav: (enable) => set({ enableScrollNav: enable }),
       setStartupScope: (startupScope) => set({ startupScope }),
       setForwardLookbackDays: (days) => set({ forwardLookbackDays: clampLookbackDays(days) }),
+      setShortcutOverrides: (shortcutOverrides) => set({ shortcutOverrides }),
 
       navigatePrevDate: () => {
         const state = get();
@@ -403,6 +409,7 @@ export const useAppStore = create<AppState>()(
         enableScrollNav: state.enableScrollNav, // 추가됨
         startupScope: state.startupScope,
         forwardLookbackDays: state.forwardLookbackDays,
+        shortcutOverrides: state.shortcutOverrides,
         // govApiKey는 일부러 넣지 않는다. 키는 Firestore의 admin/config에 있고
         // 개발자가 환경설정을 열 때 거기서 읽어온다. 이 기기에도 남길 이유가 없다.
       }),

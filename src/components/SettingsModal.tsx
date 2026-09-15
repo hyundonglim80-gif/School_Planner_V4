@@ -15,6 +15,8 @@ import { useAppStore } from '../store/useAppStore';
 import type { StartupScope } from '../store/useAppStore';
 import { isDeveloper } from '../lib/developers';
 import { MIN_LOOKBACK_DAYS, MAX_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
+import { SHORTCUT_ACTIONS, resolveBindings, formatActionBinding } from '../lib/shortcuts';
+import ShortcutModal from './ShortcutModal';
 import { loadAdminConfig, saveAdminGovApiKey } from '../lib/adminConfig';
 import { loadSharedHolidays, saveSharedHolidays } from '../lib/holidays';
 import { fetchHolidaysFromGovApi } from '../lib/govApi';
@@ -100,6 +102,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const [shortcutOpen, setShortcutOpen] = useState(false);
+  // 저장하면 바로 이 목록에 반영되도록 store를 구독한다
+  const shortcutOverrides = useAppStore((s) => s.shortcutOverrides);
+  const bindings = resolveBindings(shortcutOverrides);
 
   // 개발자 설정
   const [yearStatus, setYearStatus] = useState<YearStatus[]>([]);
@@ -281,6 +288,28 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </div>
         </Section>
 
+        <Section title="단축키" desc="지금 등록된 조합입니다. 바꾸려면 아래 버튼을 누르세요.">
+          <div className="flex flex-wrap gap-1.5">
+            {SHORTCUT_ACTIONS.map((action) => (
+              <span
+                key={action.id}
+                className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1"
+              >
+                <span className="text-xs text-slate-500">{action.label}</span>
+                <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-xs font-mono font-bold text-slate-700">
+                  {formatActionBinding(action, bindings[action.id])}
+                </kbd>
+              </span>
+            ))}
+          </div>
+          <button
+            onClick={() => setShortcutOpen(true)}
+            className="mt-3 px-4 py-2 bg-white border border-slate-200 hover:border-primary hover:text-primary text-slate-600 rounded-xl text-xs font-bold transition-colors"
+          >
+            ⌨️ 단축키 수정
+          </button>
+        </Section>
+
         <Section
           title="이월"
           desc="'전달' 라벨이 붙은 미완료 일정을 오늘로 끌어올 때 며칠 전까지 거슬러 볼지 정합니다. 자동 이월과 '미완료 일정 가져오기'가 같은 값을 씁니다."
@@ -370,6 +399,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </Section>
         )}
       </div>
+
+      {shortcutOpen && <ShortcutModal isOpen onClose={() => setShortcutOpen(false)} />}
     </ModalShell>
   );
 }

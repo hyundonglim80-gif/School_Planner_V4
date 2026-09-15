@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { SHORTCUT_ACTIONS } from '../lib/shortcuts';
 
 // 상단 '주말' / '일정' / '수업' 버튼이 켜고 끄는 값들.
 // 예전에 showEvents는 store에도 있고 주간/월간/년간도 보고 있었는데, 하루 화면만
@@ -40,30 +41,39 @@ describe('표시 토글은 버튼과 화면이 같이 움직인다', () => {
   });
 });
 
-// 토글 단축키는 세 곳이 어긋나기 쉽다.
-//   Layout의 키 처리 / 버튼 title에 적히는 hint / 사용 설명서의 단축키 목록
-// 실제로 일정 토글은 버튼도 단축키도 없이 값만 있었고, 버튼을 붙인 뒤에도
-// hint가 빈 문자열이라 어떤 키인지 알 수 없었다.
-describe('표시 토글 단축키는 설명서와 같다', () => {
+// 단축키는 세 곳이 어긋나기 쉬웠다.
+//   Layout의 키 처리 / 버튼 툴팁 / 사용 설명서의 목록
+// 실제로 일정 토글은 셋 다 비어 있었다. 지금은 lib/shortcuts.ts 한 곳을 셋이 같이 본다.
+describe('단축키는 한 곳에서만 정한다', () => {
   const layout = read('/Layout.tsx');
   const help = read('/HelpModal.tsx');
 
-  const expected = [
-    { label: '주말', key: 'showWeekend', hint: 'Shift + ↑/↓', kbd: 'Shift + ↑ / ↓' },
-    { label: '일정', key: 'showEvents', hint: 'Ctrl + ↑/↓', kbd: 'Ctrl + ↑ / ↓' },
-    { label: '수업', key: 'showClass', hint: 'Alt + ↑/↓', kbd: 'Alt + ↑ / ↓' },
-  ];
-
-  it.each(expected)('$label - 버튼에 단축키가 적혀 있다', ({ hint }) => {
-    expect(layout).toContain(`hint: '${hint}'`);
+  it.each([
+    { label: '주말', id: 'toggleWeekend', mods: { ctrl: false, alt: false, shift: true } },
+    { label: '일정', id: 'toggleEvents', mods: { ctrl: true, alt: false, shift: false } },
+    { label: '수업', id: 'toggleClass', mods: { ctrl: false, alt: true, shift: false } },
+  ])('$label - 기본 단축키가 정의에 있다', ({ id, mods }) => {
+    const action = SHORTCUT_ACTIONS.find((a) => a.id === id);
+    expect(action, `${id} 가 없다`).toBeDefined();
+    expect(action!.def).toEqual({ ...mods, key: 'ArrowUp' });
+    // 켜고 끄는 기능이라 ↑와 ↓가 같이 동작해야 한다 (예전부터 그렇게 써 왔다)
+    expect(action!.pairArrows).toBe(true);
   });
 
-  it.each(expected)('$label - 사용 설명서에 단축키가 실려 있다', ({ label, kbd }) => {
-    expect(help).toContain(`${label} 보이기 / 숨기기`);
-    expect(help).toContain(kbd);
+  it('Layout이 키 조합을 직접 적어두지 않는다', () => {
+    expect(layout).toContain("from '../lib/shortcuts'");
+    // 예전처럼 e.shiftKey && e.key === 'ArrowUp' 같은 판정을 손으로 적으면 설정과 어긋난다
+    expect(layout).not.toMatch(/e\.key === 'Arrow(Up|Down|Left|Right)'/);
+    expect(layout).not.toMatch(/e\.code === 'Digit[0-9]'/);
   });
 
-  it.each(expected)('$label - 키를 눌렀을 때 값을 뒤집는 처리가 있다', ({ key }) => {
-    expect(layout).toContain(`useAppStore.getState().${key}`);
+  it('사용 설명서가 단축키를 손으로 적어두지 않는다', () => {
+    expect(help).toContain("from '../lib/shortcuts'");
+    expect(help).not.toMatch(/Shift \+ ↑ \/ ↓|Alt \+ ↑ \/ ↓|Ctrl \+ ↑ \/ ↓/);
+  });
+
+  it('버튼 툴팁도 설정값에서 가져온다', () => {
+    expect(layout).toContain('formatActionBinding');
+    expect(layout).not.toMatch(/hint: 'Shift \+/);
   });
 });

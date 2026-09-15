@@ -27,6 +27,14 @@ import MultiEventActionBar from './MultiEventActionBar';
 import MiniCalendarPicker from './MiniCalendarPicker';
 import MobileTabBar from './MobileTabBar';
 import { useGlobalGestures } from '../hooks/useGlobalGestures';
+import {
+  SHORTCUT_ACTIONS,
+  resolveBindings,
+  matchesEvent,
+  isModifierOnly,
+  formatActionBinding,
+  type ShortcutId,
+} from '../lib/shortcuts';
 import { showToast, showErrorToast } from '../utils/toast';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -46,6 +54,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     setShowClass,
     showEvents,
     setShowEvents,
+    shortcutOverrides,
     semesterFilter,
     setSemesterFilter,
     isLinkerModalOpen,
@@ -179,13 +188,49 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   // 화면에 무엇을 보여줄지 정하는 토글. 상단 줄과 ⋮ 메뉴가 같은 정의를 쓴다.
   // showEvents는 값과 화면 연결은 되어 있었는데 누르는 자리가 없어서 늘 켜짐이었다.
+  // 툴팁의 단축키는 실제 설정값에서 가져온다. 적어두면 환경설정에서 바꿨을 때 거짓말이 된다.
+  const toggleHint = (id: ShortcutId) => {
+    const action = SHORTCUT_ACTIONS.find((a) => a.id === id)!;
+    return formatActionBinding(action, resolveBindings(shortcutOverrides)[id]);
+  };
   const viewToggles = [
-    { key: 'weekend', label: '주말', on: showWeekend, set: setShowWeekend, hint: 'Shift + ↑/↓' },
-    { key: 'events', label: '일정', on: showEvents, set: setShowEvents, hint: 'Ctrl + ↑/↓' },
-    { key: 'class', label: '수업', on: showClass, set: setShowClass, hint: 'Alt + ↑/↓' },
+    { key: 'weekend', label: '주말', on: showWeekend, set: setShowWeekend, hint: toggleHint('toggleWeekend') },
+    { key: 'events', label: '일정', on: showEvents, set: setShowEvents, hint: toggleHint('toggleEvents') },
+    { key: 'class', label: '수업', on: showClass, set: setShowClass, hint: toggleHint('toggleClass') },
   ];
 
-  // 키보드 단축키 핸들러 (ESC, /, Ctrl+화살표, Ctrl+Space, Shift+화살표, Shift+1~5 등)
+  // 단축키 하나가 실제로 하는 일.
+  // 조합(어떤 키냐)은 lib/shortcuts.ts가, 동작(무엇을 하냐)은 여기가 맡는다.
+  const runShortcut = (id: ShortcutId) => {
+    const scopeOrder: Array<'day' | 'week' | 'month' | 'year' | 'memo'> = ['day', 'week', 'month', 'year', 'memo'];
+    const store = useAppStore.getState();
+
+    switch (id) {
+      case 'search': setIsSearchModalOpen(true); return;
+      case 'scopeDay': setScope('day'); return;
+      case 'scopeWeek': setScope('week'); return;
+      case 'scopeMonth': setScope('month'); return;
+      case 'scopeYear': setScope('year'); return;
+      case 'scopeMemo': setScope('memo'); return;
+      case 'scopePrev':
+      case 'scopeNext': {
+        const currentIndex = scopeOrder.indexOf(store.scope);
+        if (currentIndex === -1) return;
+        const step = id === 'scopeNext' ? 1 : -1;
+        setScope(scopeOrder[(currentIndex + step + scopeOrder.length) % scopeOrder.length]);
+        return;
+      }
+      case 'datePrev': handlePrevDate(); return;
+      case 'dateNext': handleNextDate(); return;
+      case 'dateToday': handleTodayClick(); return;
+      case 'toggleWeekend': setShowWeekend(!store.showWeekend); return;
+      case 'toggleEvents': setShowEvents(!store.showEvents); return;
+      case 'toggleClass': setShowClass(!store.showClass); return;
+    }
+  };
+
+  // 키보드 단축키 핸들러. 고정 키(ESC, Ctrl+S 차단, / 검색)와
+  // 환경설정에서 바꿀 수 있는 단축키를 함께 처리한다.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
@@ -198,12 +243,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // 2. 브라우저 기본 '찾기' (Ctrl+F / Cmd+F) 잠금 및 V4 검색창 실행
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
-        e.preventDefault();
-        setIsSearchModalOpen(true);
-        return;
-      }
+      // 통합 검색(기본 Ctrl+F)은 아래 단축키 목록이 맡는다. 거기서 preventDefault를
+      // 하므로 브라우저 찾기창도 뜨지 않는다. 다른 키로 바꾸면 Ctrl+F는 브라우저 몫이 된다.
 
       // ESC: 열려있는 모든 모달 및 메뉴 닫기
       if (e.key === 'Escape') {
@@ -229,99 +270,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // 통합 검색: / 또는 ` 또는 ~ (입력창 포커스 아닐 때) 또는 Ctrl+F / Cmd+F (항상 작동)
-      if (((e.key === '/' || e.key === '`' || e.key === '~') && !isInput) || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f')) {
+      // 통합 검색 빠른 키: / 또는 ` 또는 ~ (입력창에 글자를 쓰는 중이 아닐 때)
+      // 이것만 고정이다. 환경설정에서 바꾸는 것은 아래 목록이 맡는다.
+      if ((e.key === '/' || e.key === '`' || e.key === '~') && !isInput) {
         e.preventDefault();
         setIsSearchModalOpen(true);
         return;
       }
 
-      // 화면(탭) 전환: Shift + 1 ~ 5 (하루, 주간, 월간, 년간, 메모)
-      if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !isInput) {
-        if (e.code === 'Digit1' || e.key === '1' || e.key === '!') {
-          e.preventDefault();
-          setScope('day');
-          return;
-        }
-        if (e.code === 'Digit2' || e.key === '2' || e.key === '@') {
-          e.preventDefault();
-          setScope('week');
-          return;
-        }
-        if (e.code === 'Digit3' || e.key === '3' || e.key === '#') {
-          e.preventDefault();
-          setScope('month');
-          return;
-        }
-        if (e.code === 'Digit4' || e.key === '4' || e.key === '$') {
-          e.preventDefault();
-          setScope('year');
-          return;
-        }
-        if (e.code === 'Digit5' || e.key === '5' || e.key === '%') {
-          e.preventDefault();
-          setScope('memo');
-          return;
-        }
-      }
+      // 환경설정 > 단축키에서 정한 조합들. 정의는 lib/shortcuts.ts 한 곳에 있다.
+      if (isModifierOnly(e)) return;
+      const bindings = resolveBindings(useAppStore.getState().shortcutOverrides);
 
-      // 탭 순환 이동: Shift + ← / → (입력창 포커스 아닐 때)
-      if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !isInput && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
-        e.preventDefault();
-        const scopeOrder: Array<'day' | 'week' | 'month' | 'year' | 'memo'> = ['day', 'week', 'month', 'year', 'memo'];
-        const currentScope = useAppStore.getState().scope;
-        const currentIndex = scopeOrder.indexOf(currentScope);
-        if (currentIndex !== -1) {
-          const nextIndex = e.key === 'ArrowRight'
-            ? (currentIndex + 1) % scopeOrder.length
-            : (currentIndex - 1 + scopeOrder.length) % scopeOrder.length;
-          setScope(scopeOrder[nextIndex]);
-        }
-        return;
-      }
+      for (const action of SHORTCUT_ACTIONS) {
+        const binding = bindings[action.id];
+        if (!matchesEvent(binding, e, action)) continue;
+        // 입력칸에 글자를 쓰는 중이면 수식키 없는 단축키는 무시한다(글자가 먹히지 않으면 곤란하다)
+        if (isInput && !binding.ctrl && !binding.alt) continue;
 
-      // 주말 보기/숨기기 토글: Shift + ↑ 또는 Shift + ↓
-      if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault();
-        const currentShow = useAppStore.getState().showWeekend;
-        setShowWeekend(!currentShow);
-        return;
-      }
-
-      // 수업 보이기/숨기기 토글: Alt + ↑ 또는 Alt + ↓
-      if (e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-        e.preventDefault();
-        const currentShow = useAppStore.getState().showClass;
-        setShowClass(!currentShow);
-        return;
-      }
-
-      // 일정 보이기/숨기기 토글: Ctrl + ↑ 또는 Ctrl + ↓
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-        e.preventDefault();
-        const currentShow = useAppStore.getState().showEvents;
-        setShowEvents(!currentShow);
-        return;
-      }
-
-      // 이전 날짜: Ctrl + ← (또는 Cmd + ←)
-      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowLeft') {
-        e.preventDefault();
-        handlePrevDate();
-        return;
-      }
-
-      // 다음 날짜: Ctrl + → (또는 Cmd + →)
-      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowRight') {
-        e.preventDefault();
-        handleNextDate();
-        return;
-      }
-
-      // 오늘 날짜로 이동: Ctrl + Space (또는 Cmd + Space)
-      if ((e.ctrlKey || e.metaKey) && (e.key === ' ' || e.code === 'Space')) {
-        e.preventDefault();
-        handleTodayClick();
+        runShortcut(action.id);
         return;
       }
     };

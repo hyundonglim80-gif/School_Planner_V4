@@ -1,6 +1,12 @@
 import React from 'react';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 import { useAppStore } from '../store/useAppStore';
+import {
+  SHORTCUT_ACTIONS,
+  FIXED_SHORTCUTS,
+  resolveBindings,
+  formatActionBinding,
+} from '../lib/shortcuts';
 
 interface HelpModalProps {
   isOpen: boolean;
@@ -10,6 +16,9 @@ interface HelpModalProps {
 export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
   // 안내 문구가 실제 동작과 어긋나지 않게 환경설정 값을 그대로 읽는다
   const forwardLookbackDays = useAppStore((s) => s.forwardLookbackDays);
+  // 단축키도 마찬가지다. 여기 적어두면 환경설정에서 바꿨을 때 설명서가 거짓말을 한다.
+  const shortcutOverrides = useAppStore((s) => s.shortcutOverrides);
+  const bindings = resolveBindings(shortcutOverrides);
 
   return (
     <ModalShell
@@ -26,51 +35,32 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
               <span>⌨️</span> 키보드 단축키
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
-                <span className="text-slate-600">통합 검색 열기</span>
-                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">/ 또는 `</kbd>
-              </div>
-              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
-                <span className="text-slate-600">화면(탭) 직접 전환</span>
-                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Shift + 1 ~ 5</kbd>
-              </div>
-              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
-                <span className="text-slate-600">화면(탭) 순환 이동</span>
-                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Shift + ← / →</kbd>
-              </div>
-              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
-                <span className="text-slate-600">주말 보이기 / 숨기기</span>
-                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Shift + ↑ / ↓</kbd>
-              </div>
-              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
-                <span className="text-slate-600">일정 보이기 / 숨기기</span>
-                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Ctrl + ↑ / ↓</kbd>
-              </div>
-              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
-                <span className="text-slate-600">수업 보이기 / 숨기기</span>
-                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Alt + ↑ / ↓</kbd>
-              </div>
-              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
-                <span className="text-slate-600">이전 / 다음 날짜</span>
-                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Ctrl + ← / →</kbd>
-              </div>
-              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
-                <span className="text-slate-600">오늘 날짜로 이동</span>
-                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Ctrl + Space</kbd>
-              </div>
-              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
-                <span className="text-slate-600">메모 즉시 저장</span>
-                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Ctrl + Enter</kbd>
-              </div>
-              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
-                <span className="text-slate-600">일정 빠른 등록</span>
-                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">Enter</kbd>
-              </div>
-              <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between sm:col-span-2">
-                <span className="text-slate-600">패널 / 모달 닫기</span>
-                <kbd className="px-2 py-0.5 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">ESC</kbd>
-              </div>
+              {SHORTCUT_ACTIONS.map((action) => (
+                <div
+                  key={action.id}
+                  className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between gap-2"
+                >
+                  <span className="text-slate-600 min-w-0">{action.label}</span>
+                  <kbd className="px-2 py-0.5 shrink-0 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">
+                    {formatActionBinding(action, bindings[action.id])}
+                  </kbd>
+                </div>
+              ))}
+              {FIXED_SHORTCUTS.map((fixed) => (
+                <div
+                  key={fixed.label}
+                  className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between gap-2"
+                >
+                  <span className="text-slate-600 min-w-0">{fixed.label}</span>
+                  <kbd className="px-2 py-0.5 shrink-0 bg-white border border-slate-300 rounded font-mono font-bold shadow-2xs">
+                    {fixed.keys}
+                  </kbd>
+                </div>
+              ))}
             </div>
+            <p className="text-xs text-slate-400">
+              ⋮ 메뉴 → 환경설정 → 단축키에서 바꿀 수 있습니다. 고정 단축키는 바꿀 수 없습니다.
+            </p>
           </div>
 
           {/* 주요 기능 팁 */}
