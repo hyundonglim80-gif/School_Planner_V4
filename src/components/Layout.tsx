@@ -22,6 +22,7 @@ const ForwardingModal = lazy(() => import('./ForwardingModal'));
 const LinkerModal = lazy(() => import('./LinkerModal'));
 const LinkViewerModal = lazy(() => import('./LinkViewerModal'));
 const TrashModal = lazy(() => import('./TrashModal'));
+const CalendarSyncModal = lazy(() => import('./CalendarSyncModal'));
 
 import MultiEventActionBar from './MultiEventActionBar';
 import MiniCalendarPicker from './MiniCalendarPicker';
@@ -112,6 +113,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
   const [isForwardingModalOpen, setIsForwardingModalOpen] = useState(false);
   const [isTimetableModalOpen, setIsTimetableModalOpen] = useState(false);
+  const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
 
   // 더보기 드롭다운 상태
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -229,7 +231,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       // 메뉴 열기. 기본값이 비어 있어서, 사용자가 키를 정해야 동작한다.
       case 'multiSelect': setMultiSelectMode(!store.isMultiSelectMode); return;
-      case 'calendar': showToast('구글 캘린더 연동 기능이 준비 중입니다.'); return;
+      case 'calendar': setIsCalendarModalOpen(true); return;
       case 'dday': setIsDDayModalOpen(true); return;
       case 'trash': setTrashModalOpen(true); return;
       case 'labels': openLabelModal('event'); return;
@@ -274,6 +276,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         setIsSettingsModalOpen(false);
         setIsRecurringModalOpen(false);
         setIsTimetableModalOpen(false);
+        setIsCalendarModalOpen(false);
         setIsMoreMenuOpen(false);
         if (isForwardingModalOpen) {
           setIsForwardingModalOpen(false);
@@ -388,9 +391,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
               {/* 캘린더·휴지통은 좁은 화면에서 ⋮ 메뉴로 내린다 */}
               <button
-                onClick={() => { showToast('구글 캘린더 연동 기능이 준비 중입니다.'); }}
+                onClick={() => setIsCalendarModalOpen(true)}
                 className="hidden sm:flex px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 rounded-xl text-xs font-bold transition-all items-center gap-1 shadow-2xs shrink-0"
-                title="구글 캘린더 연동"
+                title={`구글 캘린더로 보내기 (단축키: ${shortcutHint('calendar')})`}
               >
                 <span>📅</span>
                 <span>캘린더</span>
@@ -474,6 +477,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
                   {/* 좁은 화면에서 상단에 둘 자리가 없어 내려온 항목들 */}
                   <div className="sm:hidden border-b border-slate-200 pb-1 mb-1">
+                    <button
+                      onClick={() => { setIsMoreMenuOpen(false); setIsCalendarModalOpen(true); }}
+                      className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
+                    >
+                      <span>📅</span> 구글 캘린더로 보내기
+                    </button>
                     <button
                       onClick={() => { setIsMoreMenuOpen(false); setTrashModalOpen(true); }}
                       className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
@@ -768,6 +777,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {isSettingsModalOpen && (
           <SettingsModal isOpen onClose={() => setIsSettingsModalOpen(false)} />
+        )}
+
+        {isCalendarModalOpen && (
+          <CalendarSyncModal isOpen onClose={() => setIsCalendarModalOpen(false)} />
         )}
 
         {isEvaluationModalOpen && (

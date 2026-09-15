@@ -6,13 +6,16 @@ import { collection, getDocs, doc, setDoc, query, where, documentId, getDoc } fr
 import { db, auth } from '../lib/firebase';
 import { useGroups } from '../hooks/useGroups';
 import { useAppStore } from '../store/useAppStore';
-import { eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
+import { eventDocPayload, readEventList } from '../lib/eventText';
 import { formatDate } from '../lib/dateUtils';
-import { exportToGoogleCalendar } from '../lib/googleSync';
+import { exportCalendarData } from '../lib/calendarSync';
+import { getValidGoogleToken } from '../lib/googleApi';
+import { useLabels } from '../hooks/useLabels';
+import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
 import { loadHolidaysForYear } from '../lib/holidays';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import { useModalLayer } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
 
 interface BackupModalProps {
@@ -32,7 +35,9 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
 
   const backdrop = useBackdropClose();
   const { groups } = useGroups();
-  const { scope: appScope, currentDate: appCurrentDate, googleAccessToken } = useAppStore();
+  const { eventLabels, journalLabels } = useLabels();
+  const { templates, currentTemplateName } = useTimetableTemplate();
+  const { scope: appScope, currentDate: appCurrentDate } = useAppStore();
 
   // 1. 개인 or 그룹 선택
   const [selectedScope, setSelectedScope] = useState<'personal' | string>('personal');
@@ -199,6 +204,12 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
 
   if (!isOpen) return null;
 
+  // calendarSync는 경로 문자열을 받는다. 참조를 만드는 쪽과 같은 규칙을 쓴다.
+  const getColPath = (colName: string) => {
+    const uid = auth.currentUser?.uid;
+    return selectedScope === 'personal' ? `users/${uid}/${colName}` : `groups/${selectedScope}/${colName}`;
+  };
+
   const getColRef = (colName: string) => {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
@@ -271,43 +282,37 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
 
     try {
       // 1. 구글 캘린더 동기화
+      // 상단 '캘린더' 버튼과 같은 구현(lib/calendarSync)을 쓴다. 예전에는 여기만
+      // 따로 간단한 코드를 두어, 다시 누를 때마다 같은 일정이 또 생기고
+      // 종일 일정의 끝 날짜도 잘못 들어갔다.
       if (exportTarget === 'calendar') {
-        const token = googleAccessToken || sessionStorage.getItem('google_api_token');
+        if (!startDate || !endDate) {
+          setProcessing(false);
+          return showErrorToast('구글 캘린더로 보낼 기간을 정해 주세요.');
+        }
+
+        setStatusMsg('구글 권한을 확인하는 중...');
+        const token = await getValidGoogleToken();
         if (!token) {
           setProcessing(false);
-          return showErrorToast('구글 로그인이 필요합니다. 로그아웃 후 다시 로그인해주세요.');
+          return showErrorToast('구글 권한을 받지 못했습니다.');
         }
 
-        setStatusMsg('구글 캘린더 연동 준비 중...');
-        
-        // 일정 가져오기
-        const eventsToExport: any[] = [];
-        if (incEvents) {
-          const cRef = getColRef('events');
-          const q = (startDate && endDate)
-            ? query(cRef, where(documentId(), '>=', startDate), where(documentId(), '<=', endDate))
-            : cRef;
-          const snap = await getDocs(q);
-          snap.forEach((d) => {
-            const data = d.data();
-            const list = data.eventList || [];
-            list.forEach((item: any) => {
-              const text = eventContentOf(item);
-              if (text) eventsToExport.push({ dateStr: d.id, text });
-            });
-            if (data.eventText) {
-              eventsToExport.push({ dateStr: d.id, text: data.eventText });
-            }
-          });
-        }
+        const result = await exportCalendarData({
+          token,
+          startStr: startDate,
+          endStr: endDate,
+          mode: 'merge',
+          include: { event: incEvents, class: incSchedules, journal: incJournals },
+          colPathOf: (col) => getColPath(col),
+          periodNames: templates[currentTemplateName]?.names || ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'],
+          eventLabels,
+          journalLabels,
+          onProgress: (msg) => setStatusMsg(msg),
+        });
 
-        if (eventsToExport.length === 0) {
-          setProcessing(false);
-          return showErrorToast('구글 캘린더로 내보낼 일정이 없습니다.');
-        }
-
-        await exportToGoogleCalendar(token, eventsToExport, setStatusMsg);
-        showToast(`✅ [${scopeName}] 총 ${eventsToExport.length}개의 일정이 구글 캘린더와 동기화되었습니다.`);
+        const total = result.counts.event + result.counts.class + result.counts.journal;
+        showToast(`✅ [${scopeName}] ${total}건을 구글 캘린더에 반영했습니다.`);
       }
 
       // 2. 구글 시트 내보내기
