@@ -1,7 +1,7 @@
 //src/components/QuickAddModal.tsx
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { doc, getDoc, setDoc, getDocs, collection, addDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, collection } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { showToast, showErrorToast } from '../utils/toast';
 import { eventDocPayload } from '../lib/eventText';
@@ -12,8 +12,9 @@ import { resolveEventLabelNames } from '../lib/eventLabels';
 import { addReverseLink } from '../utils/linkUtils';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import { useModalLayer } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
+import LinkCreateModal, { type CreatedItem } from './LinkCreateModal';
 
 interface LinkerModalProps {
   isOpen: boolean;
@@ -111,8 +112,7 @@ export default function LinkerModal({
   const [schedulePeriod, setSchedulePeriod] = useState<number>(1);
 
   // 새 항목 즉시 생성 상태
-  const [newItemText, setNewItemText] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -316,7 +316,7 @@ export default function LinkerModal({
       setCurrentPage(1);
       setSearchKeyword('');
       setSelectedLabelNames([]);
-      setNewItemText('');
+      setCreateOpen(false);
       setSelectedSourcePeriod(sourcePeriod ? Number(sourcePeriod) : 1);
       setScheduleDate(sourceDateStr || formatDateStr(new Date()));
       setSchedulePeriod(1);
@@ -332,87 +332,22 @@ export default function LinkerModal({
     }
   }, [dateRange, isOpen, fetchDateRangeData]);
 
-  // 새 항목 즉시 생성 및 장바구니 추가
-  const handleCreateNewItem = async () => {
-    if (!newItemText.trim()) return;
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-
-    setIsCreating(true);
-    try {
-      const text = newItemText.trim();
-      let newItem: FetchedItem | null = null;
-      const dStr = sourceDateStr || formatDateStr(new Date());
-
-      if (currentTab === 'memo') {
-        const colRef = collection(db, getColPath('tasks'));
-        const newDoc = await addDoc(colRef, {
-          content: text,
-          text: text,
-          createdAt: Date.now(),
-          completed: false,
-          labels: [],
-          authorId: uid,
-          authorName: auth.currentUser?.displayName || '',
-        });
-        newItem = { id: newDoc.id, type: 'memo', title: text, date: formatDateStr(new Date()), fId: activeFId };
-        fetchMemoData();
-      } else if (currentTab === 'journal') {
-        const ref = doc(db, getColPath('journals'), dStr);
-        const snap = await getDoc(ref);
-        const existing = snap.exists() ? snap.data() : {};
-        const entries = existing.entries || [];
-        const newId = 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 4);
-        entries.push({
-          id: newId,
-          content: text,
-          createdAt: Date.now(),
-          label: '기본'
-        });
-        await setDoc(ref, { ...existing, entries, updatedAt: Date.now() }, { merge: true });
-        newItem = { id: newId, type: 'journal', title: text, date: dStr, fId: activeFId };
-        fetchDateRangeData();
-      } else if (currentTab === 'event') {
-        const ref = doc(db, getColPath('events'), dStr);
-        const snap = await getDoc(ref);
-        const existing = snap.exists() ? snap.data() : {};
-        let eventList = existing.eventList;
-        if (!eventList || eventList.length === 0) {
-          if (existing.eventText) eventList = parseV3EventText(existing.eventText);
-          else eventList = [];
-        }
-        const newId = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 4);
-        eventList.push({
-          id: newId,
-          content: text,
-          text: text,
-          completed: false,
-          createdAt: Date.now()
-        });
-        await setDoc(ref, eventDocPayload(eventList), { merge: true });
-        newItem = { id: newId, type: 'event', title: text, date: dStr, fId: activeFId };
-        fetchDateRangeData();
-      }
-
-      if (newItem) {
-        setSelectedLinks((prev) => [
-          ...prev,
-          {
-            targetType: newItem!.type,
-            targetId: newItem!.id,
-            targetDate: newItem!.date,
-            title: newItem!.title,
-            targetFId: newItem!.fId,
-          },
-        ]);
-      }
-      setNewItemText('');
-    } catch (e: any) {
-      console.error(e);
-      showErrorToast('생성 중 오류가 발생했습니다.');
-    } finally {
-      setIsCreating(false);
-    }
+  // 등록창에서 만들어 준 항목을 연결 목록(장바구니)에 담는다.
+  // 만드는 일 자체는 LinkCreateModal이 한다. 여기서는 담기만 한다.
+  const handleCreated = (item: CreatedItem) => {
+    setSelectedLinks((prev) => [
+      ...prev,
+      {
+        targetType: item.type,
+        targetId: item.id,
+        targetDate: item.date,
+        title: item.title,
+        targetFId: item.fId,
+      },
+    ]);
+    // 방금 만든 것이 아래 목록에도 보이게 다시 읽는다
+    if (item.type === 'memo') fetchMemoData();
+    else fetchDateRangeData();
   };
 
   // 항목 선택/해제 토글
@@ -711,7 +646,6 @@ export default function LinkerModal({
                 onClick={() => {
                   setCurrentTab(tab.key);
                   setCurrentPage(1);
-                  setNewItemText(''); // 탭 전환 시 생성 텍스트 초기화
                   // 탭마다 라벨 종류가 다르므로 고른 필터는 비운다.
                   // 안 그러면 다른 종류의 라벨이 걸린 채로 목록이 전부 비어 보인다.
                   setSelectedLabelNames([]);
@@ -870,32 +804,16 @@ export default function LinkerModal({
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
 
-              {/* ✨ 새로운 항목 바로 생성 및 링크 */}
-              <div className="flex items-center gap-2 mt-1">
-                <input
-                  type="text"
-                  placeholder={`새로운 ${
-                    currentTab === 'memo' ? '메모' : currentTab === 'journal' ? '기록' : '일정'
-                  } 바로 생성 후 연결...`}
-                  value={newItemText}
-                  onChange={(e) => setNewItemText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                       e.preventDefault();
-                       handleCreateNewItem();
-                    }
-                  }}
-                  className="flex-1 px-3 py-2 border border-emerald-300 rounded-lg text-xs bg-emerald-50/30 focus:outline-none focus:ring-1 focus:ring-emerald-500 placeholder-emerald-600/50"
-                />
-                <button
-                  type="button"
-                  onClick={handleCreateNewItem}
-                  disabled={isCreating || !newItemText.trim()}
-                  className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shrink-0 shadow-xs"
-                >
-                  {isCreating ? '생성 중...' : '+ 생성 및 연결'}
-                </button>
-              </div>
+              {/* 새 항목 만들어 연결. 누르면 등록창이 뜨고, 저장하면 연결 목록에 담긴 채
+                  이 창으로 돌아온다. 예전에는 여기 한 줄 입력칸에서 제목만 받아 바로
+                  만들었는데, 그러면 날짜도 라벨도 정할 수 없었다. */}
+              <button
+                type="button"
+                onClick={() => setCreateOpen(true)}
+                className="w-full mt-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
+              >
+                + 새 {currentTab === 'memo' ? '메모' : currentTab === 'journal' ? '기록' : '일정'} 만들어 연결
+              </button>
             </div>
           )}
 
@@ -1044,6 +962,19 @@ export default function LinkerModal({
           </button>
         </div>
       </div>
+
+      {/* 새 항목 등록창. 저장하면 연결 목록에 담고 스스로 닫혀 이 창으로 돌아온다. */}
+      {createOpen && currentTab !== 'schedule' && (
+        <LinkCreateModal
+          isOpen
+          onClose={() => setCreateOpen(false)}
+          type={currentTab}
+          defaultDate={sourceDateStr || formatDateStr(new Date())}
+          fId={activeFId}
+          colPathOf={(col) => getColPath(col)}
+          onCreated={handleCreated}
+        />
+      )}
     </div>
   );
 }

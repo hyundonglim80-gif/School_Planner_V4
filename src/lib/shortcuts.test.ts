@@ -155,11 +155,37 @@ describe('목록 자체', () => {
     expect(SHORTCUT_ACTIONS.some((a) => a.def.key === 'Escape')).toBe(false);
   });
 
-  it('모든 기능에 기본 조합이 있다', () => {
+  it('모든 기능에 이름과 묶음이 있다', () => {
     for (const action of SHORTCUT_ACTIONS) {
-      expect(action.def.key, `${action.id} 의 기본 키가 비어 있다`).toBeTruthy();
       expect(action.label.length).toBeGreaterThan(0);
       expect(action.group.length).toBeGreaterThan(0);
     }
+  });
+
+  it("'메뉴 열기'는 기본값이 비어 있고 나머지는 채워져 있다", () => {
+    for (const action of SHORTCUT_ACTIONS) {
+      if (action.group === '메뉴 열기') {
+        // 자주 쓰는 조합을 미리 차지해 두면 오히려 걸리적거린다. 쓸 사람이 직접 정한다.
+        expect(action.def.key, `${action.id} 는 기본값이 없어야 한다`).toBe('');
+      } else {
+        expect(action.def.key, `${action.id} 의 기본 키가 비어 있다`).toBeTruthy();
+      }
+    }
+  });
+
+  it('키를 정하지 않은 기능은 아무 키에도 걸리지 않는다', () => {
+    const none = SHORTCUT_ACTIONS.find((a) => a.group === '메뉴 열기')!;
+    expect(matchesEvent(none.def, ev({ key: 'a', code: 'KeyA' }), none)).toBe(false);
+    expect(matchesEvent(none.def, ev({ key: 'Enter', code: 'Enter' }), none)).toBe(false);
+  });
+
+  it("정하지 않은 조합은 '없음'으로 보여준다", () => {
+    const none = SHORTCUT_ACTIONS.find((a) => a.group === '메뉴 열기')!;
+    expect(formatActionBinding(none, none.def)).toBe('없음');
+  });
+
+  it('키를 정하지 않은 기능끼리는 겹치지 않는다', () => {
+    // 비어 있는 것이 여럿이므로, 그것들을 겹침으로 세면 저장이 영영 막힌다
+    expect(findConflicts(resolveBindings())).toEqual([]);
   });
 });

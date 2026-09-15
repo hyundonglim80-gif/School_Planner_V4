@@ -17,8 +17,17 @@ describe('단축키 팝업 - 목록', () => {
 
     expect(screen.getByText('통합 검색 열기')).toBeInTheDocument();
     expect(screen.getByText('일정 보이기 / 숨기기')).toBeInTheDocument();
+    expect(screen.getByText('다중 선택 모드')).toBeInTheDocument();
     expect(screen.getByText('모든 팝업창 저장 없이 닫기')).toBeInTheDocument();
     expect(screen.getByText('ESC')).toBeInTheDocument();
+  });
+
+  it('없애기로 한 고정 단축키는 더 이상 보이지 않는다', () => {
+    render(<ShortcutModal isOpen onClose={vi.fn()} />);
+    expect(screen.queryByText('통합 검색 (빠른 키)')).not.toBeInTheDocument();
+    expect(screen.queryByText('일정 빠른 등록')).not.toBeInTheDocument();
+    // 즉시 저장에는 일정도 포함된다
+    expect(screen.getByText('일정 · 메모 · 기록 즉시 저장')).toBeInTheDocument();
   });
 
   it('ESC에는 키 입력칸이 없다 (바꿀 수 없다)', () => {
@@ -124,14 +133,34 @@ describe('단축키 팝업 - 저장', () => {
     expect(useAppStore.getState().shortcutOverrides).toEqual({});
   });
 
-  it('키를 비운 채로는 저장되지 않는다', async () => {
+  it('키를 비우면 그 기능은 단축키 없이 쓴다', async () => {
     const user = userEvent.setup();
     render(<ShortcutModal isOpen onClose={vi.fn()} />);
 
     fireEvent.keyDown(keyBox('통합 검색 열기'), { key: 'Backspace', code: 'Backspace' });
     await user.click(screen.getByRole('button', { name: '저장' }));
 
-    expect(useAppStore.getState().shortcutOverrides).toEqual({});
+    await waitFor(() => expect(useAppStore.getState().shortcutOverrides.search?.key).toBe(''));
+  });
+
+  it('기본값이 없는 메뉴 항목도 목록에 있고 키를 정할 수 있다', async () => {
+    const user = userEvent.setup();
+    render(<ShortcutModal isOpen onClose={vi.fn()} />);
+
+    const box = keyBox('다중 선택 모드');
+    expect(box).toHaveValue('');
+
+    fireEvent.keyDown(box, { key: 'm', code: 'KeyM', ctrlKey: true, altKey: true });
+    await user.click(screen.getByRole('button', { name: '저장' }));
+
+    await waitFor(() =>
+      expect(useAppStore.getState().shortcutOverrides.multiSelect).toEqual({
+        ctrl: true,
+        alt: true,
+        shift: false,
+        key: 'M',
+      })
+    );
   });
 
   it("'기본값으로'는 누른 즉시가 아니라 저장할 때 적용된다", async () => {

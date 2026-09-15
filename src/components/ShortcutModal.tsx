@@ -102,9 +102,9 @@ function ShortcutRow({
         readOnly
         value={KEY_DISPLAY[binding.key] || binding.key}
         onKeyDown={handleKeyDown}
-        placeholder="키"
+        placeholder="없음"
         aria-label={`${label} 키`}
-        title="이 칸을 누른 뒤 원하는 키를 누르세요. 지우려면 Backspace."
+        title="이 칸을 누른 뒤 원하는 키를 누르세요. 비우려면 Backspace (비우면 그 기능은 단축키 없이 씁니다)."
         className={`w-20 shrink-0 px-2 py-1.5 text-center bg-white border rounded-lg text-sm font-bold text-slate-800 cursor-pointer focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 ${
           conflicted ? 'border-red-300' : 'border-slate-200'
         }`}
@@ -136,10 +136,7 @@ export default function ShortcutModal({ isOpen, onClose }: ShortcutModalProps) {
   }, []);
 
   const handleSave = () => {
-    const empty = SHORTCUT_ACTIONS.filter((a) => !draft[a.id].key);
-    if (empty.length > 0) {
-      return showErrorToast(`키를 정하지 않은 항목이 있습니다: ${empty.map((a) => a.label).join(', ')}`);
-    }
+    // 키가 비어 있는 것은 '쓰지 않음'이다. 막지 않는다.
     if (conflicts.length > 0) {
       const [a, b] = conflicts[0];
       return showErrorToast(`같은 조합을 두 기능이 쓰고 있습니다: ${labelOf(a)} / ${labelOf(b)}`);
@@ -202,6 +199,9 @@ export default function ShortcutModal({ isOpen, onClose }: ShortcutModalProps) {
             물론 화살표나 Space도 됩니다. Ctrl / Alt / Shift는 체크로 켜고 끕니다.
             <br />
             켜고 끄는 기능(주말·일정·수업)에 화살표를 쓰면 <strong className="text-slate-800">↑와 ↓가 같이</strong> 동작합니다.
+            <br />
+            '메뉴 열기'는 기본값이 <strong className="text-slate-800">없음</strong>입니다. 자주 쓰는 것만 골라 정해 두세요.
+            비워 두면 그 기능은 메뉴에서만 씁니다.
           </div>
         </div>
 

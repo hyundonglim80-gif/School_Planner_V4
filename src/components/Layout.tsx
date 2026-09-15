@@ -189,14 +189,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // 화면에 무엇을 보여줄지 정하는 토글. 상단 줄과 ⋮ 메뉴가 같은 정의를 쓴다.
   // showEvents는 값과 화면 연결은 되어 있었는데 누르는 자리가 없어서 늘 켜짐이었다.
   // 툴팁의 단축키는 실제 설정값에서 가져온다. 적어두면 환경설정에서 바꿨을 때 거짓말이 된다.
-  const toggleHint = (id: ShortcutId) => {
+  const shortcutHint = (id: ShortcutId) => {
     const action = SHORTCUT_ACTIONS.find((a) => a.id === id)!;
     return formatActionBinding(action, resolveBindings(shortcutOverrides)[id]);
   };
   const viewToggles = [
-    { key: 'weekend', label: '주말', on: showWeekend, set: setShowWeekend, hint: toggleHint('toggleWeekend') },
-    { key: 'events', label: '일정', on: showEvents, set: setShowEvents, hint: toggleHint('toggleEvents') },
-    { key: 'class', label: '수업', on: showClass, set: setShowClass, hint: toggleHint('toggleClass') },
+    { key: 'weekend', label: '주말', on: showWeekend, set: setShowWeekend, hint: shortcutHint('toggleWeekend') },
+    { key: 'events', label: '일정', on: showEvents, set: setShowEvents, hint: shortcutHint('toggleEvents') },
+    { key: 'class', label: '수업', on: showClass, set: setShowClass, hint: shortcutHint('toggleClass') },
   ];
 
   // 단축키 하나가 실제로 하는 일.
@@ -226,6 +226,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       case 'toggleWeekend': setShowWeekend(!store.showWeekend); return;
       case 'toggleEvents': setShowEvents(!store.showEvents); return;
       case 'toggleClass': setShowClass(!store.showClass); return;
+
+      // 메뉴 열기. 기본값이 비어 있어서, 사용자가 키를 정해야 동작한다.
+      case 'multiSelect': setMultiSelectMode(!store.isMultiSelectMode); return;
+      case 'calendar': showToast('구글 캘린더 연동 기능이 준비 중입니다.'); return;
+      case 'dday': setIsDDayModalOpen(true); return;
+      case 'trash': setTrashModalOpen(true); return;
+      case 'labels': openLabelModal('event'); return;
+      case 'recurring': setIsRecurringModalOpen(true); return;
+      case 'forwarding': setIsForwardingModalOpen(true); return;
+      case 'roster': setIsRosterModalOpen(true); return;
+      case 'group': setIsGroupModalOpen(true); return;
+      case 'timetable': setIsTimetableModalOpen(true); return;
+      case 'backup': setIsBackupModalOpen(true); return;
+      case 'help': setIsHelpModalOpen(true); return;
+      case 'settings': setIsSettingsModalOpen(true); return;
     }
   };
 
@@ -236,7 +251,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
 
       // 1. 브라우저 기본 '다른 이름으로 저장' (Ctrl+S / Cmd+S) 잠금
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
         e.preventDefault();
         // V4의 항목 저장은 각 입력창의 onKeyDown 이벤트에서 자체 처리되므로, 
         // 전역(Layout)에서는 브라우저 저장 팝업이 뜨는 것만 완벽히 차단합니다.
@@ -270,14 +285,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // 통합 검색 빠른 키: / 또는 ` 또는 ~ (입력창에 글자를 쓰는 중이 아닐 때)
-      // 이것만 고정이다. 환경설정에서 바꾸는 것은 아래 목록이 맡는다.
-      if ((e.key === '/' || e.key === '`' || e.key === '~') && !isInput) {
-        e.preventDefault();
-        setIsSearchModalOpen(true);
-        return;
-      }
-
       // 환경설정 > 단축키에서 정한 조합들. 정의는 lib/shortcuts.ts 한 곳에 있다.
       if (isModifierOnly(e)) return;
       const bindings = resolveBindings(useAppStore.getState().shortcutOverrides);
@@ -289,6 +296,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         if (isInput && !binding.ctrl && !binding.alt) continue;
 
         e.preventDefault();
+        setIsMoreMenuOpen(false);
         runShortcut(action.id);
         return;
       }
@@ -404,7 +412,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <button
               onClick={() => setIsSearchModalOpen(true)}
               className="p-1 sm:px-2.5 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md sm:rounded-xl text-xs sm:text-xs font-bold transition-all flex items-center gap-0 sm:gap-1 shrink-0"
-              title="통합 검색 (단축키: Ctrl+F 또는 /)"
+              title={`통합 검색 (단축키: ${shortcutHint('search')})`}
             >
               <span>🔍</span>
               <span className="hidden sm:inline">검색</span>

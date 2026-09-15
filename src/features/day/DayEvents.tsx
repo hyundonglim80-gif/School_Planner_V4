@@ -378,7 +378,7 @@ export default function DayEvents({
               onChange={(e) => setNewText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') setIsFormOpen(false);
-                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
                   e.preventDefault();
                   handleSubmit(e as any);
                 }
@@ -523,7 +523,7 @@ export default function DayEvents({
                       onChange={(e) => setEditText(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Escape') setEditingId(null);
-                        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                        if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
                           e.preventDefault();
                           saveEditing(event.id);
                         }

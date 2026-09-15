@@ -29,7 +29,20 @@ export type ShortcutId =
   | 'dateToday'
   | 'toggleWeekend'
   | 'toggleEvents'
-  | 'toggleClass';
+  | 'toggleClass'
+  | 'multiSelect'
+  | 'calendar'
+  | 'dday'
+  | 'trash'
+  | 'labels'
+  | 'recurring'
+  | 'forwarding'
+  | 'roster'
+  | 'group'
+  | 'timetable'
+  | 'backup'
+  | 'help'
+  | 'settings';
 
 export interface ShortcutAction {
   id: ShortcutId;
@@ -70,6 +83,22 @@ export const SHORTCUT_ACTIONS: ShortcutAction[] = [
   { id: 'toggleWeekend', label: '주말 보이기 / 숨기기', group: '화면 표시', def: b('ArrowUp', { shift: true }), pairArrows: true },
   { id: 'toggleEvents', label: '일정 보이기 / 숨기기', group: '화면 표시', def: b('ArrowUp', { ctrl: true }), pairArrows: true },
   { id: 'toggleClass', label: '수업 보이기 / 숨기기', group: '화면 표시', def: b('ArrowUp', { alt: true }), pairArrows: true },
+
+  // 아래는 기본값이 비어 있다. 쓰고 싶은 사람이 직접 정한다.
+  // 자주 쓰는 조합을 미리 차지해 두면 오히려 걸리적거린다.
+  { id: 'multiSelect', label: '다중 선택 모드', group: '메뉴 열기', def: b('') },
+  { id: 'calendar', label: '캘린더', group: '메뉴 열기', def: b('') },
+  { id: 'dday', label: 'D-Day 관리', group: '메뉴 열기', def: b('') },
+  { id: 'trash', label: '휴지통', group: '메뉴 열기', def: b('') },
+  { id: 'labels', label: '통합 라벨 관리', group: '메뉴 열기', def: b('') },
+  { id: 'recurring', label: '반복 일정 등록', group: '메뉴 열기', def: b('') },
+  { id: 'forwarding', label: '미완료 일정 가져오기', group: '메뉴 열기', def: b('') },
+  { id: 'roster', label: '학급 정보(명렬표) 관리', group: '메뉴 열기', def: b('') },
+  { id: 'group', label: '공유 그룹 관리', group: '메뉴 열기', def: b('') },
+  { id: 'timetable', label: '시간표 적용 (주간 템플릿)', group: '메뉴 열기', def: b('') },
+  { id: 'backup', label: '내보내기 / 가져오기 (백업)', group: '메뉴 열기', def: b('') },
+  { id: 'help', label: '사용 설명서 및 단축키', group: '메뉴 열기', def: b('') },
+  { id: 'settings', label: '환경설정', group: '메뉴 열기', def: b('') },
 ];
 
 /** 바꾸지 않는 단축키. 목록에는 보여주되 고칠 수 없다. */
@@ -86,19 +115,9 @@ export const FIXED_SHORTCUTS: FixedShortcut[] = [
     why: '거의 모든 프로그램이 같은 뜻으로 쓰는 키라 바꾸지 않습니다.',
   },
   {
-    label: '통합 검색 (빠른 키)',
-    keys: '/ 또는 `',
-    why: '입력칸 바깥에서만 동작합니다. 위의 통합 검색 단축키와 함께 쓸 수 있습니다.',
-  },
-  {
-    label: '메모 · 기록 즉시 저장',
+    label: '일정 · 메모 · 기록 즉시 저장',
     keys: 'Ctrl + S',
     why: '입력칸 안에서 동작하는 키라 화면 전체 단축키와 따로 움직입니다.',
-  },
-  {
-    label: '일정 빠른 등록',
-    keys: 'Enter',
-    why: '일정 입력칸 안에서만 동작합니다.',
   },
 ];
 
@@ -115,6 +134,7 @@ const KEY_LABEL: Record<string, string> = {
 
 /** 화면에 보여줄 이름 ('Ctrl + ↑') */
 export function formatBinding(binding: Binding): string {
+  if (!binding.key) return '없음';
   const parts: string[] = [];
   if (binding.ctrl) parts.push('Ctrl');
   if (binding.alt) parts.push('Alt');
@@ -125,6 +145,7 @@ export function formatBinding(binding: Binding): string {
 
 /** 화살표 위/아래를 짝으로 보는 기능은 '↑ / ↓' 로 보여준다 */
 export function formatActionBinding(action: ShortcutAction, binding: Binding): string {
+  if (!binding.key) return '없음';
   if (action.pairArrows && (binding.key === 'ArrowUp' || binding.key === 'ArrowDown')) {
     const head = formatBinding({ ...binding, key: 'ArrowUp' }).replace(' + ↑', '');
     return `${head} + ↑ / ↓`;
@@ -170,6 +191,8 @@ export function matchesEvent(
   e: Pick<KeyboardEvent, 'key' | 'code' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey'>,
   action?: ShortcutAction
 ): boolean {
+  // 키를 정하지 않은 기능은 아무 키에도 걸리지 않는다 (기본값이 비어 있는 것들)
+  if (!binding.key) return false;
   if (binding.ctrl !== (e.ctrlKey || e.metaKey)) return false;
   if (binding.alt !== e.altKey) return false;
   if (binding.shift !== e.shiftKey) return false;

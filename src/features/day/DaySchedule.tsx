@@ -214,7 +214,7 @@ export default function DaySchedule({
                   className="grid grid-cols-3 gap-2"
                   onKeyDown={(e) => {
                     if (e.key === 'Escape') handleCancel();
-                    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
                       e.preventDefault();
                       handleSave(period);
                     }
@@ -241,7 +241,7 @@ export default function DaySchedule({
                   onChange={(e) => setEditMemo(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Escape') handleCancel();
-                    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
                       e.preventDefault();
                       handleSave(period);
                     }

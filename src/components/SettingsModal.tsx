@@ -15,7 +15,7 @@ import { useAppStore } from '../store/useAppStore';
 import type { StartupScope } from '../store/useAppStore';
 import { isDeveloper } from '../lib/developers';
 import { MIN_LOOKBACK_DAYS, MAX_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
-import { SHORTCUT_ACTIONS, resolveBindings, formatActionBinding } from '../lib/shortcuts';
+import { SHORTCUT_ACTIONS, resolveBindings } from '../lib/shortcuts';
 import ShortcutModal from './ShortcutModal';
 import { loadAdminConfig, saveAdminGovApiKey } from '../lib/adminConfig';
 import { loadSharedHolidays, saveSharedHolidays } from '../lib/holidays';
@@ -107,6 +107,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   // 저장하면 바로 이 목록에 반영되도록 store를 구독한다
   const shortcutOverrides = useAppStore((s) => s.shortcutOverrides);
   const bindings = resolveBindings(shortcutOverrides);
+  const assignedCount = SHORTCUT_ACTIONS.filter((a) => bindings[a.id].key).length;
 
   // 개발자 설정
   const [yearStatus, setYearStatus] = useState<YearStatus[]>([]);
@@ -288,25 +289,19 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </div>
         </Section>
 
-        <Section title="단축키" desc="지금 등록된 조합입니다. 바꾸려면 아래 버튼을 누르세요.">
-          <div className="flex flex-wrap gap-1.5">
-            {SHORTCUT_ACTIONS.map((action) => (
-              <span
-                key={action.id}
-                className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1"
-              >
-                <span className="text-xs text-slate-500">{action.label}</span>
-                <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-xs font-mono font-bold text-slate-700">
-                  {formatActionBinding(action, bindings[action.id])}
-                </kbd>
-              </span>
-            ))}
-          </div>
+        <Section title="단축키" desc="화면 이동·날짜 이동·표시 토글과 메뉴 열기에 단축키를 지정할 수 있습니다.">
+          <p className="text-xs text-slate-500">
+            지금 <strong className="text-slate-700">{assignedCount}개</strong> 기능에 단축키가 지정되어 있습니다
+            {assignedCount < SHORTCUT_ACTIONS.length && (
+              <span className="text-slate-400"> (지정하지 않은 기능 {SHORTCUT_ACTIONS.length - assignedCount}개)</span>
+            )}
+            .
+          </p>
           <button
             onClick={() => setShortcutOpen(true)}
             className="mt-3 px-4 py-2 bg-white border border-slate-200 hover:border-primary hover:text-primary text-slate-600 rounded-xl text-xs font-bold transition-colors"
           >
-            ⌨️ 단축키 수정
+            ⌨️ 단축키 설정
           </button>
         </Section>
 
