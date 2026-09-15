@@ -14,6 +14,8 @@ import { exportToSheets, importFromSheets, sheetUrlOf } from '../lib/sheetsSync'
 import { useLabels } from '../hooks/useLabels';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
 import { loadHolidaysForYear } from '../lib/holidays';
+import { downloadCsv, parseCsv } from '../lib/csv';
+import { buildRosterCsvRows, parseRosterCsvRows, mergeRosters, ROSTER_CSV_HEADER } from '../lib/rosterCsv';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer } from '../hooks/useModalLayer';
@@ -25,7 +27,7 @@ interface BackupModalProps {
 }
 
 type PeriodType = 'current' | 'today' | 'week' | 'month' | 'sem1' | 'sem2' | 'year' | 'all' | 'custom';
-type ExportTarget = 'calendar' | 'sheets' | 'csv' | 'json';
+type ExportTarget = 'calendar' | 'sheets' | 'csv' | 'json' | 'roster';
 
 export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
   useBodyScrollLock(isOpen);
@@ -442,7 +444,30 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         showToast(`✅ 총 ${rows.length - 1}건의 데이터가 CSV 파일로 내보내졌습니다.`);
       }
 
-      // 4. JSON 전체 백업 다운로드
+      // 4. 조사표만 CSV로
+      else if (exportTarget === 'roster') {
+        if (selectedScope !== 'personal') {
+          setProcessing(false);
+          return showErrorToast('조사표는 개인 공간에만 있습니다. 대상 공간을 개인으로 바꿔 주세요.');
+        }
+
+        setStatusMsg('조사표를 모으는 중...');
+        const snap = await getDoc(doc(db, 'users', user.uid, 'settings', 'rosters'));
+        const classList: any[] = snap.exists()
+          ? snap.data().classList || snap.data().rosters || snap.data().list || []
+          : [];
+
+        const rows = buildRosterCsvRows(classList);
+        if (rows.length <= 1) {
+          setProcessing(false);
+          return showErrorToast('내보낼 조사표가 없습니다.');
+        }
+
+        downloadCsv(rows, `School_Planner_조사표_${formatDate(new Date())}.csv`);
+        showToast(`✅ 학급 ${classList.length}개, 학생 ${rows.length - 1}명을 CSV로 내보냈습니다.`);
+      }
+
+      // 5. JSON 전체 백업 다운로드
       else if (exportTarget === 'json') {
         setStatusMsg('JSON 전체 백업 생성 중...');
         const payload: Record<string, any> = {
@@ -529,7 +554,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
       return;
     }
 
-    // 파일 선택 창 열기
+    // 파일 선택 창 열기 (JSON 백업 또는 조사표 CSV)
     document.getElementById('backup-hidden-file-input')?.click();
   };
 
@@ -663,9 +688,63 @@ ${counts}
           onClose();
           window.location.reload();
         } else {
-          // CSV 복원은 만들어지지 않았다. 예전에는 파일을 읽지도 않고
-          // "성공적으로 추출되어 복원되었습니다"라고 알린 뒤 새로고침했다.
-          showErrorToast('CSV 복원은 아직 지원하지 않습니다. JSON 백업 파일로 복원해 주세요.');
+          // CSV는 조사표만 되읽는다. 일정·수업·기록 CSV는 사람이 보라고 만든 것이라
+          // 되돌릴 수 있을 만큼의 정보(항목 id 등)가 들어 있지 않다.
+          // 예전에는 파일을 읽지도 않고 "복원되었습니다"라고 알린 뒤 새로고침했다.
+          const table = parseCsv(text);
+          const header = (table[0] || []).map((h) => String(h ?? '').trim());
+          const looksLikeRoster = ['번호', '이름'].every((key) => header.includes(key));
+
+          if (!looksLikeRoster) {
+            showErrorToast(
+              `조사표 CSV가 아닙니다. 머리말에 ${ROSTER_CSV_HEADER.join(', ')} 가 있어야 합니다.
+일정·수업·기록은 JSON 백업 파일로 복원해 주세요.`
+            );
+            return;
+          }
+          if (selectedScope !== 'personal') {
+            showErrorToast('조사표는 개인 공간에만 있습니다. 대상 공간을 개인으로 바꿔 주세요.');
+            return;
+          }
+
+          const { classList: incoming, skipped } = parseRosterCsvRows(table);
+          if (incoming.length === 0) {
+            showErrorToast('CSV에서 학생을 찾지 못했습니다. 번호·이름·학년·반이 채워져 있는지 확인해 주세요.');
+            return;
+          }
+
+          const summary = incoming
+            .map((c) => `${c.year}년 ${c.grade}학년 ${c.classNum}반 (${c.students.length}명)`)
+            .join('\n');
+          const ok = confirm(
+            `다음 학급의 명단을 파일 내용으로 바꿉니다.
+
+${summary}
+
+파일에 없는 학급은 그대로 둡니다.
+계속할까요?`
+          );
+          if (!ok) return;
+
+          const rosterRef = doc(db, 'users', user.uid, 'settings', 'rosters');
+          const snap = await getDoc(rosterRef);
+          const current: any[] = snap.exists()
+            ? snap.data().classList || snap.data().rosters || snap.data().list || []
+            : [];
+
+          await setDoc(
+            rosterRef,
+            { classList: mergeRosters(current, incoming), updatedAt: Date.now() },
+            { merge: true }
+          );
+
+          const students = incoming.reduce((sum, c) => sum + c.students.length, 0);
+          showToast(
+            `✅ 학급 ${incoming.length}개, 학생 ${students}명을 되돌렸습니다.` +
+              (skipped > 0 ? ` (읽지 못한 줄 ${skipped}개는 건너뛰었습니다)` : '')
+          );
+          onClose();
+          window.location.reload();
         }
       } catch (err: any) {
         console.error(err);
@@ -740,7 +819,42 @@ ${counts}
                 <span className="text-xl">💾</span>
                 <span>로컬 (CSV)</span>
               </button>
+
+              {/* JSON은 만들어져 있었는데 고르는 버튼이 없어 닿을 수 없었다 */}
+              <button
+                onClick={() => setExportTarget('json')}
+                className={`p-3 rounded-xl border text-center font-bold transition-all flex flex-col items-center gap-1.5 ${
+                  exportTarget === 'json'
+                    ? 'bg-indigo-50 border-indigo-400 text-indigo-800 shadow-xs ring-1 ring-indigo-300'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <span className="text-xl">🗄️</span>
+                <span>전체 백업 (JSON)</span>
+              </button>
+
+              <button
+                onClick={() => setExportTarget('roster')}
+                className={`p-3 rounded-xl border text-center font-bold transition-all flex flex-col items-center gap-1.5 ${
+                  exportTarget === 'roster'
+                    ? 'bg-amber-50 border-amber-400 text-amber-800 shadow-xs ring-1 ring-amber-300'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <span className="text-xl">🧑‍🤝‍🧑</span>
+                <span>조사표 (CSV)</span>
+              </button>
             </div>
+
+            {exportTarget === 'roster' && (
+              <div className="mt-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 leading-relaxed animate-fade-in">
+                모든 학급의 명단을 한 파일에 담습니다. 엑셀에서 고친 뒤 그대로 다시 넣을 수 있습니다.
+                <br />
+                <span className="font-mono text-xs">학년도, 학년, 반, 번호, 이름, 성별, 상태, 특이사항</span>
+                <br />
+                가져올 때는 파일에 있는 학급만 바뀌고, 없는 학급은 그대로 둡니다.
+              </div>
+            )}
 
             {/* 🔥 구글 시트 선택 시 나타나는 연결된 구글 시트 열기 버튼 (사용자 요청 3번) */}
             {exportTarget === 'sheets' && (
