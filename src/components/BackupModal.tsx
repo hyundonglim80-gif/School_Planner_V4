@@ -6,10 +6,11 @@ import { collection, getDocs, doc, setDoc, query, where, documentId, getDoc } fr
 import { db, auth } from '../lib/firebase';
 import { useGroups } from '../hooks/useGroups';
 import { useAppStore } from '../store/useAppStore';
-import { eventDocPayload, readEventList } from '../lib/eventText';
+import { eventDocPayload, readEventList, eventContentOf } from '../lib/eventText';
 import { formatDate } from '../lib/dateUtils';
-import { exportCalendarData } from '../lib/calendarSync';
+import { exportCalendarData, labelNamesOf } from '../lib/calendarSync';
 import { getValidGoogleToken } from '../lib/googleApi';
+import { exportToSheets, importFromSheets, sheetUrlOf } from '../lib/sheetsSync';
 import { useLabels } from '../hooks/useLabels';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
 import { loadHolidaysForYear } from '../lib/holidays';
@@ -23,7 +24,7 @@ interface BackupModalProps {
   onClose: () => void;
 }
 
-type PeriodType = 'current' | 'today' | 'week' | 'month' | 'sem1' | 'sem2' | 'year' | 'custom';
+type PeriodType = 'current' | 'today' | 'week' | 'month' | 'sem1' | 'sem2' | 'year' | 'all' | 'custom';
 type ExportTarget = 'calendar' | 'sheets' | 'csv' | 'json';
 
 export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
@@ -103,8 +104,8 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
   // 2. 내보내기 채널 대상 (구글 캘린더, 구글 시트, 로컬 CSV, JSON)
   const [exportTarget, setExportTarget] = useState<ExportTarget>('sheets');
   const [spreadsheetId, setSpreadsheetId] = useState<string>('');
-  const [showConfigInput, setShowConfigInput] = useState(false);
-  const [configInputId, setConfigInputId] = useState('');
+  // 시트 주소를 손으로 넣는 화면은 없앴다. 만들어 둔 것이 없으면 내보낼 때
+  // 새로 만들고 그 주소를 users/{uid}/settings/backup_config 에 적어 둔다.
 
   // 3. 기간 선택 (🔥 기본값: "current" 현재 화면)
   const [periodType, setPeriodType] = useState<PeriodType>('current');
@@ -131,7 +132,6 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         const snap = await getDoc(doc(db, 'users', user.uid, 'settings', 'backup_config'));
         if (snap.exists() && snap.data().spreadsheetId) {
           setSpreadsheetId(snap.data().spreadsheetId);
-          setConfigInputId(snap.data().spreadsheetId);
         }
       } catch (e) {
         console.error(e);
@@ -200,6 +200,10 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
       const academicYear = curMonth < 3 ? curYear - 1 : curYear;
       setStartDate(`${academicYear}-03-01`);
       setEndDate(`${academicYear + 1}-02-28`);
+    } else if (periodType === 'all') {
+      // 날짜를 비우면 아래에서 기간 조건 없이 전부 읽는다
+      setStartDate('');
+      setEndDate('');
     }
   }, [periodType, appScope, appCurrentDate]);
 
@@ -217,29 +221,6 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
     return selectedScope === 'personal'
       ? collection(db, 'users', user.uid, colName)
       : collection(db, 'groups', selectedScope, colName);
-  };
-
-  // 구글 시트 ID 저장
-  const handleSaveSpreadsheetId = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
-    let cleanId = configInputId.trim();
-    const urlMatch = cleanId.match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-    if (urlMatch) cleanId = urlMatch[1];
-    if (!cleanId) return showErrorToast('유효한 구글 시트 주소 또는 ID를 입력해주세요.');
-
-    try {
-      await setDoc(doc(db, 'users', user.uid, 'settings', 'backup_config'), {
-        spreadsheetId: cleanId,
-        updatedAt: Date.now(),
-      }, { merge: true });
-      setSpreadsheetId(cleanId);
-      setShowConfigInput(false);
-      showToast('✅ 백업 구글 시트 주소가 저장되었습니다.');
-    } catch (e) {
-      console.error(e);
-      showErrorToast('저장 중 오류가 발생했습니다.');
-    }
   };
 
   // 구글 시트 열기
@@ -316,14 +297,37 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         showToast(`✅ [${scopeName}] ${total}건을 구글 캘린더에 반영했습니다.`);
       }
 
-      // 2. 구글 시트 내보내기 — 아직 만들어지지 않았다.
-      // 예전에는 시트에 한 글자도 쓰지 않고 "정상 동기화되었습니다!"라고 알린 뒤
-      // 시트를 열어 주기만 했다. 백업이 된 줄 알고 넘어가면 그게 더 위험하다.
+      // 2. 구글 시트 내보내기
       else if (exportTarget === 'sheets') {
-        setProcessing(false);
-        return showErrorToast(
-          '구글 시트 내보내기는 아직 만들어지지 않았습니다. CSV나 JSON으로 내려받아 주세요.'
-        );
+        if (!startDate || !endDate) {
+          setProcessing(false);
+          return showErrorToast("시트로 보낼 기간을 정해 주세요. ('전체 기간'은 시트에 담기에 너무 큽니다)");
+        }
+
+        setStatusMsg('구글 권한을 확인하는 중...');
+        const token = await getValidGoogleToken();
+        if (!token) {
+          setProcessing(false);
+          return showErrorToast('구글 권한을 받지 못했습니다.');
+        }
+
+        const result = await exportToSheets({
+          token,
+          uid: user.uid,
+          scope: selectedScope,
+          colPathOf: (col) => getColPath(col),
+          startStr: startDate,
+          endStr: endDate,
+          include: { event: incEvents, class: incSchedules, journal: incJournals, memo: incMemos },
+          periodNames: templates[currentTemplateName]?.names || ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'],
+          eventLabels,
+          journalLabels,
+          onProgress: (msg) => setStatusMsg(msg),
+        });
+
+        setSpreadsheetId(result.spreadsheetId);
+        showToast(`✅ [${scopeName}] ${result.days}일치와 메모 ${result.memos}건을 구글 시트에 썼습니다.`);
+        window.open(sheetUrlOf(result.spreadsheetId), '_blank');
       }
 
       // 3. 로컬 CSV 내보내기
@@ -341,15 +345,19 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
             : cRef;
           const snap = await getDocs(q);
           snap.forEach((d) => {
-            const data = d.data();
-            const list = data.eventList || [];
-            if (list.length > 0) {
-              list.forEach((item: any) => {
-                rows.push(['일정', d.id, item.label || '일반', item.text || '', item.time || '']);
-              });
-            } else if (data.eventText) {
-              rows.push(['일정', d.id, '일반', data.eventText, '']);
-            }
+            // readEventList는 V3가 쓰던 eventText 형식도 함께 읽어준다.
+            // 예전에는 eventList만 보고, 라벨도 item.label 하나만 봐서
+            // labelIds로 담긴 대부분의 라벨이 빈칸으로 나갔다.
+            readEventList(d.data()).forEach((item: any) => {
+              const labels = labelNamesOf(item, eventLabels);
+              rows.push([
+                '일정',
+                d.id,
+                labels.length > 0 ? labels.join(', ') : '일반',
+                eventContentOf(item),
+                item.completed ? '완료' : '',
+              ]);
+            });
           });
         }
 
@@ -450,16 +458,26 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
           settings: {},
         };
 
+        // 고른 기간을 따른다. 예전에는 기간을 정해도 JSON만 늘 전체를 담아서,
+        // 화면에서 고른 것과 파일에 든 것이 달랐다.
+        // 기간 전체를 담으려면 '전체 기간'을 고른다.
+        payload.period = startDate && endDate ? { startDate, endDate } : 'all';
+
+        const inRange = (cRef: any) =>
+          startDate && endDate
+            ? query(cRef, where(documentId(), '>=', startDate), where(documentId(), '<=', endDate))
+            : cRef;
+
         if (incEvents) {
-          const snap = await getDocs(getColRef('events'));
+          const snap = await getDocs(inRange(getColRef('events')));
           snap.forEach((d) => (payload.events[d.id] = d.data()));
         }
         if (incSchedules) {
-          const snap = await getDocs(getColRef('schedules'));
+          const snap = await getDocs(inRange(getColRef('schedules')));
           snap.forEach((d) => (payload.schedules[d.id] = d.data()));
         }
         if (incJournals) {
-          const snap = await getDocs(getColRef('journals'));
+          const snap = await getDocs(inRange(getColRef('journals')));
           snap.forEach((d) => (payload.journals[d.id] = d.data()));
         }
         if (incMemos) {
@@ -506,16 +524,62 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
       return showErrorToast('구글 캘린더에서 플래너로 역방향 가져오기는 지원하지 않습니다. (구글 시트 또는 파일 가져오기를 이용하세요)');
     }
 
-    // 시트 가져오기도 아직 없다. 예전에는 아무것도 읽지 않고 "동기화가
-    // 완료되었습니다"라고 알린 뒤 새로고침만 했다.
     if (exportTarget === 'sheets') {
-      return showErrorToast(
-        '구글 시트 가져오기는 아직 만들어지지 않았습니다. 내려받은 JSON 파일로 복원해 주세요.'
-      );
+      void handleImportFromSheets();
+      return;
     }
 
     // 파일 선택 창 열기
     document.getElementById('backup-hidden-file-input')?.click();
+  };
+
+  // 시트에서 되읽기. 시트를 사람이 고쳐서 쓰는 경우가 있어 되읽기가 필요하다.
+  const handleImportFromSheets = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const scopeLabel =
+      selectedScope === 'personal' ? '개인' : groups.find((g) => g.id === selectedScope)?.name || '공유그룹';
+
+    // 시트에 있는 날짜의 내용이 통째로 시트 것으로 바뀐다. 먼저 묻는다.
+    const ok = confirm(
+      `[${scopeLabel}]에 구글 시트의 내용을 되돌립니다.
+
+시트에 적힌 날짜의 일정·수업·기록은 시트 내용으로 바뀝니다.
+되돌릴 수 없습니다. 계속할까요?`
+    );
+    if (!ok) return;
+
+    setProcessing(true);
+    try {
+      setStatusMsg('구글 권한을 확인하는 중...');
+      const token = await getValidGoogleToken();
+      if (!token) {
+        setProcessing(false);
+        return showErrorToast('구글 권한을 받지 못했습니다.');
+      }
+
+      const counts = await importFromSheets({
+        token,
+        uid: user.uid,
+        scope: selectedScope,
+        colPathOf: (col) => getColPath(col),
+        include: { event: incEvents, class: incSchedules, journal: incJournals, memo: incMemos },
+        onProgress: (msg) => setStatusMsg(msg),
+      });
+
+      showToast(
+        `✅ [${scopeLabel}] 일정 ${counts.events}건, 수업 ${counts.schedules}일, 기록 ${counts.journals}건, 메모 ${counts.memos}건을 되돌렸습니다.`
+      );
+      onClose();
+      window.location.reload();
+    } catch (e: any) {
+      console.error(e);
+      showErrorToast('시트에서 가져오는 중 오류가 발생했습니다: ' + (e?.message || e));
+    } finally {
+      setProcessing(false);
+      setStatusMsg('');
+    }
   };
 
   // 파일 업로드 복원 처리
@@ -688,7 +752,8 @@ ${counts}
                       ...{spreadsheetId.slice(-12)}
                     </span>
                   ) : (
-                    <span className="text-amber-600 font-bold">미등록</span>
+                    // 주소를 손으로 넣는 자리는 없앴다. 내보낼 때 없으면 만들어 준다.
+                    <span className="text-slate-500">내보낼 때 자동으로 만들어집니다</span>
                   )}
                 </div>
 
@@ -721,6 +786,13 @@ ${counts}
                 </option>
               ))}
             </select>
+            {/* 조사표와 설정(라벨·시간표·환경설정·D-Day)은 개인 공간에만 있다.
+                예전에는 그룹을 골라도 아무 말 없이 빠져서, 담긴 줄 알기 쉬웠다. */}
+            {selectedScope !== 'personal' && (
+              <p className="mt-1.5 text-amber-600 font-bold">
+                조사표와 설정(라벨·시간표·환경설정·D-Day)은 개인 공간에만 있어 이번 내보내기에 담기지 않습니다.
+              </p>
+            )}
           </div>
 
           {/* 3. 기간 선택 (🔥 기본 선택: 현재 페이지/현재 화면) */}
@@ -739,6 +811,7 @@ ${counts}
                 <option value="sem1">1학기 전체</option>
                 <option value="sem2">2학기 전체</option>
                 <option value="year">해당 학년도 전체</option>
+                <option value="all">전체 기간 (날짜 제한 없음)</option>
                 <option value="custom">기간 직접 설정</option>
               </select>
 
