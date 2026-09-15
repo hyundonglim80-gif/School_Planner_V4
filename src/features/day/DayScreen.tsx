@@ -10,7 +10,7 @@ import DaySchedule from './DaySchedule';
 import DayJournal from './DayJournal';
 
 export default function DayScreen() {
-  const { currentDate, setCurrentDate, selectedGroupId, showClass } = useAppStore();
+  const { currentDate, setCurrentDate, selectedGroupId, showClass, showEvents } = useAppStore();
   const { templates, currentTemplateName } = useTimetableTemplate();
   const maxPeriods = templates[currentTemplateName]?.names.length || 6;
 
@@ -48,8 +48,12 @@ export default function DayScreen() {
         </div>
       ) : (
         <div className="flex flex-col gap-6">
+          {/* 일정과 수업을 둘 다 끄면 윗칸 자체를 걷어낸다(빈 칸이 남아 기록이 밀리지 않게) */}
+          {(showEvents || showClass) && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* 상단 좌측 영역: 오늘 할 일(일정) (수업 숨기면 12열, 아니면 5열) */}
+            {/* 상단 좌측 영역: 오늘 할 일(일정) - showEvents에 따른 조건부 렌더링.
+                둘 다 켜져 있으면 5:7로 나누고, 한쪽만 켜져 있으면 남은 쪽이 12열을 다 쓴다. */}
+            {showEvents && (
             <div className={`${showClass ? 'lg:col-span-5' : 'lg:col-span-12'} flex flex-col gap-6 transition-all duration-300`}>
               <DayEvents
                 events={eventList}
@@ -61,10 +65,11 @@ export default function DayScreen() {
                 onReorderEvents={reorderEvents}
               />
             </div>
+            )}
 
-            {/* 상단 우측 영역: 수업 및 시간표 (7열) - showClass에 따른 조건부 렌더링 */}
+            {/* 상단 우측 영역: 수업 및 시간표 - showClass에 따른 조건부 렌더링 */}
             {showClass && (
-              <div className="lg:col-span-7 transition-all duration-300">
+              <div className={`${showEvents ? 'lg:col-span-7' : 'lg:col-span-12'} transition-all duration-300`}>
                 <DaySchedule 
                   schedules={schedules} 
                   onSavePeriod={savePeriod} 
@@ -75,6 +80,7 @@ export default function DayScreen() {
               </div>
             )}
           </div>
+          )}
 
           {/* 하단 영역: 기록 (메모 페이지 스타일로 가로로 넓게 카드형 배치) */}
           <div className="w-full">
