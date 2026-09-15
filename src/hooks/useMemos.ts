@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { moveToTrash } from '../utils/trashHelper';
+import { syncReverseLinks } from '../utils/linkUtils';
 import { showErrorToast } from '../utils/toast';
 
 export interface MemoAttachment {
@@ -27,6 +28,16 @@ export interface Memo {
   isShared?: boolean;
   linkedItems?: any[];
 }
+
+/** 상대 쪽에 넣을 '이 메모' 표시. 메모는 날짜가 없어서 제목에 '메모'라고 적는다. */
+const memoSourceMeta = (firestoreId: string, content: string, groupId: string | null) =>
+  ({
+    targetType: 'memo',
+    targetId: firestoreId,
+    targetDate: '',
+    title: `[메모] ${(content || '').substring(0, 20)}`,
+    targetFId: groupId || 'personal',
+  }) as any;
 
 export function useMemos(groupId: string | null = null) {
   const [memos, setMemos] = useState<Memo[]>([]);
@@ -98,7 +109,13 @@ export function useMemos(groupId: string | null = null) {
       sharedGroupIds: groupId ? [groupId] : []
     };
 
-    return await addDoc(collectionRef, newMemoData);
+    const ref = await addDoc(collectionRef, newMemoData);
+
+    // 메모에는 역링크 처리가 아예 없었다. 링크 추가 팝업에서 고른 항목이 메모
+    // 쪽에만 붙고 상대(일정·기록·수업) 쪽에서는 연결이 안 보였다.
+    await syncReverseLinks([], data.linkedItems, memoSourceMeta(ref.id, data.content, groupId), groupId || 'personal');
+
+    return ref;
   };
 
   const updateMemo = async (firestoreId: string, data: { content?: string; labels?: string[]; completed?: boolean; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[] }) => {
@@ -120,7 +137,17 @@ export function useMemos(groupId: string | null = null) {
     if (data.attachments !== undefined) updateData.attachments = data.attachments;
     if (data.linkedItems !== undefined) updateData.linkedItems = data.linkedItems;
 
-    return await updateDoc(docRef, updateData);
+    const previous = memos.find((m) => m.firestoreId === firestoreId);
+    const result = await updateDoc(docRef, updateData);
+
+    await syncReverseLinks(
+      previous?.linkedItems,
+      data.linkedItems,
+      memoSourceMeta(firestoreId, data.content ?? previous?.content ?? '', groupId),
+      groupId || 'personal'
+    );
+
+    return result;
   };
 
   const deleteMemo = async (firestoreId: string) => {

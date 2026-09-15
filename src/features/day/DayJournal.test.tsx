@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DayJournal from './DayJournal';
 import type { JournalEntry } from '../../hooks/useDayData';
+import { useAppStore } from '../../store/useAppStore';
 
 const entries: JournalEntry[] = [
   { id: 'jr_1', content: '첫 번째 기록', createdAt: 1, labelIds: [], linkedItems: [], attachments: [] },
@@ -266,5 +267,29 @@ describe('DayJournal - 배너 버튼과 닫기', () => {
     expect(onAddJournal).toHaveBeenCalledTimes(1);
     expect(onUpdateJournal).toHaveBeenCalledTimes(1);
     expect(onUpdateJournal.mock.calls[0][0]).toBe('jr_new');
+  });
+});
+
+describe('DayJournal - 링크 추가 팝업에서 담은 링크', () => {
+  it('팝업이 닫혀도(=화면이 다시 그려져도) 담은 링크가 남는다', async () => {
+    const user = userEvent.setup();
+    renderJournal();
+
+    await user.click(screen.getByText('첫 번째 기록'));
+    await screen.findByRole('heading', { name: '기록 수정' });
+    await user.click(screen.getByRole('button', { name: /링크 추가/ }));
+
+    // 링크 추가 팝업이 '연결 저장'에서 하는 일: 고른 목록을 콜백으로 돌려주고 닫는다.
+    const callback = useAppStore.getState().linkerCallback;
+    expect(callback).toBeTypeOf('function');
+    act(() => {
+      callback!([
+        { targetType: 'event', targetId: 'ev_1', targetDate: '2026-09-16', title: '[2026-09-16] 일정' },
+      ]);
+      useAppStore.getState().closeLinkerModal();
+    });
+
+    expect(await screen.findByText(/첨부 및 링크 \(1개\)/)).toBeInTheDocument();
+    expect(screen.getByText('[2026-09-16] 일정')).toBeInTheDocument();
   });
 });

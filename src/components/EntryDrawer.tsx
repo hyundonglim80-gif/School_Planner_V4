@@ -27,6 +27,9 @@ export interface EntryAttachment {
 
 /** 드로어가 수정 대상으로 받는 값. 메모와 기록의 필드 이름 차이를 모두 받아들인다. */
 export interface EntrySource {
+  /** 수정 대상을 가리키는 값. 기록은 id, 메모는 firestoreId를 쓴다. */
+  id?: string;
+  firestoreId?: string;
   content?: string;
   text?: string;
   labels?: string[];
@@ -144,19 +147,29 @@ export default function EntryDrawer({
 
   const handleSubmitRef = useRef<() => void>(() => {});
 
+  // ⚠️ 이 효과는 '수정 대상이 바뀔 때'만 돌아야 한다. entry 객체 자체를 의존성으로
+  // 잡으면 안 된다. 기록 화면은 라벨을 이름으로 풀어 넘기느라 그릴 때마다 새 객체를
+  // 만드는데, 그러면 화면이 한 번 다시 그려질 때마다 이 효과가 돌아 폼이 통째로
+  // 되돌아간다. 링크 추가 팝업을 열고 닫는 것만으로도 다시 그려지므로, '연결 저장'을
+  // 눌러 담은 링크와 쓰던 글이 창이 닫히는 순간 사라졌다. 대상을 가리키는 값으로만 본다.
+  const entryKey = entry ? String(entry.id ?? entry.firestoreId ?? '') : null;
+  const entryRef = useRef<EntrySource | null>(entry);
+  entryRef.current = entry;
+
   useEffect(() => {
-    if (entry) {
-      setContent(entry.content || entry.text || '');
-      setSelectedLabels(sourceLabels(entry));
-      setLinkedItems(entry.linkedItems || []);
-      setAttachments(normalizeAttachments(entry.attachments, entry.imageUrl));
+    const source = entryRef.current;
+    if (source) {
+      setContent(source.content || source.text || '');
+      setSelectedLabels(sourceLabels(source));
+      setLinkedItems(source.linkedItems || []);
+      setAttachments(normalizeAttachments(source.attachments, source.imageUrl));
     } else {
       setContent('');
       setSelectedLabels(defaultLabel && defaultLabel !== '전체' ? [defaultLabel] : []);
       setAttachments([]);
       setLinkedItems([]);
     }
-  }, [entry, isOpen, defaultLabel]);
+  }, [entryKey, isOpen, defaultLabel]);
 
   useEffect(() => {
     handleSubmitRef.current = () => handleSubmit();

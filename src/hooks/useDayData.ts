@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { doc, onSnapshot, setDoc, getDoc, getDocFromServer, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { addReverseLink } from '../utils/linkUtils';
+import { addReverseLink, syncReverseLinks } from '../utils/linkUtils';
 import { moveToTrash } from '../utils/trashHelper';
 import { DEFAULT_EVENT_LABELS } from './useLabels';
 import { showErrorToast } from '../utils/toast';
@@ -178,93 +178,106 @@ async function doAutoForwarding(groupId: string | null) {
 
   const incompleteItems: EventItem[] = [];
   const pastUpdates: { pDate: string, updatedList: EventItem[] }[] = [];
+  // 이월된 항목의 '이월 전 id'. 연결된 기록·메모 쪽 역링크를 새로 쌓지 않고
+  // 그 자리에 갈아끼우기 위해 기억해 둔다.
+  const previousIdOf = new Map<string, string>();
+  // 훑어본 과거 날짜에 실제로 남아 있는 일정 id 목록.
+  // 이월이 지나가며 끊어진 역링크(9월 1일·9월 2일 것)를 걷어내는 데 쓴다.
+  const liveIdsByDate = new Map<string, Set<string>>();
 
   for (const pDate of pastDates) {
     const docRef = groupId
       ? doc(db, 'groups', groupId, 'events', pDate)
       : doc(db, 'users', user.uid, 'events', pDate);
     const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      const items: EventItem[] = readEventList(snap.data()) as EventItem[];
-      
-      let hasChanges = false;
-      const remainingItems: EventItem[] = [];
+    if (!snap.exists()) {
+      liveIdsByDate.set(pDate, new Set());
+      continue;
+    }
+    const items: EventItem[] = readEventList(snap.data()) as EventItem[];
+    
+    let hasChanges = false;
+    const remainingItems: EventItem[] = [];
 
-      for (const it of items) {
-        if (it.completed || !it.content.trim()) {
+    for (const it of items) {
+      if (it.completed || !it.content.trim()) {
+        remainingItems.push(it);
+        continue;
+      }
+
+      let labelName = '';
+      if (it.label) {
+        labelName = it.label.split(',')[0].trim();
+      } else if (it.labelIds && it.labelIds.length > 0) {
+        const found = rawLabelDefs.find(l => l.id === it.labelIds![0]);
+        if (found) labelName = found.name;
+      } else {
+        const match = it.content.match(/^\[(.*?)\]\s*(.*)$/);
+        if (match) labelName = match[1].trim();
+      }
+
+      const isForwardTarget =
+        it.forward === true || (it.forward !== false && forwardLabelNames.includes(labelName));
+
+      if (isForwardTarget) {
+        // 같은 사슬의 항목이 오늘 이미 완료되었으면 이월을 멈춘다.
+        const chainDone =
+          !!it.forwardChainId &&
+          todayEventList.some((e: any) => e.forwardChainId === it.forwardChainId && e.completed);
+        if (chainDone) {
           remainingItems.push(it);
           continue;
         }
 
-        let labelName = '';
-        if (it.label) {
-          labelName = it.label.split(',')[0].trim();
-        } else if (it.labelIds && it.labelIds.length > 0) {
-          const found = rawLabelDefs.find(l => l.id === it.labelIds![0]);
-          if (found) labelName = found.name;
-        } else {
-          const match = it.content.match(/^\[(.*?)\]\s*(.*)$/);
-          if (match) labelName = match[1].trim();
-        }
-
-        const isForwardTarget =
-          it.forward === true || (it.forward !== false && forwardLabelNames.includes(labelName));
-
-        if (isForwardTarget) {
-          // 같은 사슬의 항목이 오늘 이미 완료되었으면 이월을 멈춘다.
-          const chainDone =
-            !!it.forwardChainId &&
-            todayEventList.some((e: any) => e.forwardChainId === it.forwardChainId && e.completed);
-          if (chainDone) {
-            remainingItems.push(it);
-            continue;
-          }
-
-          // 오늘 목록에 같은 내용이 이미 있으면 이월 복사본을 만들지 않는다.
-          const isDuplicate =
-            todayEventList.some(e => eventContentOf(e) === eventContentOf(it)) ||
-            incompleteItems.some(e => eventContentOf(e) === eventContentOf(it));
-          if (isDuplicate) {
-            // 💡 내용이 같다고 다른 날짜의 원본을 지우면 안 된다. 예전에는 휴지통으로
-            // 보냈는데, 사용자 입장에선 과거 일정이 예고 없이 사라지는 것으로 보였고
-            // 이월이 돌 때마다 같은 항목이 휴지통에 계속 쌓였다. 원본은 그대로 둔다.
-            remainingItems.push(it);
-            continue;
-          }
-          // 이월된 일정은 지난 날짜에 남기지 않는다 (오늘로 옮긴다).
-          // remainingItems에 넣지 않으므로 과거 문서에서 빠진다.
-          const chainId =
-            it.forwardChainId || 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
-          const originalDate = it.originalDate || pDate;
-          hasChanges = true;
-
-          incompleteItems.push({
-            id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5),
-            forwardChainId: chainId,
-            originalDate,
-            content: it.content,
-            completed: false,
-            label: it.label,
-            labelIds: it.labelIds,
-            linkedItems: it.linkedItems || [],
-            attachments: it.attachments || [],
-            imageUrl: it.imageUrl,
-            calendar: it.calendar,
-            forward: it.forward,
-            period: it.period,
-            recur: it.recur,
-            skip: it.skip,
-            authorId: it.authorId,
-            authorName: it.authorName,
-          });
-        } else {
+        // 오늘 목록에 같은 내용이 이미 있으면 이월 복사본을 만들지 않는다.
+        const isDuplicate =
+          todayEventList.some(e => eventContentOf(e) === eventContentOf(it)) ||
+          incompleteItems.some(e => eventContentOf(e) === eventContentOf(it));
+        if (isDuplicate) {
+          // 💡 내용이 같다고 다른 날짜의 원본을 지우면 안 된다. 예전에는 휴지통으로
+          // 보냈는데, 사용자 입장에선 과거 일정이 예고 없이 사라지는 것으로 보였고
+          // 이월이 돌 때마다 같은 항목이 휴지통에 계속 쌓였다. 원본은 그대로 둔다.
           remainingItems.push(it);
+          continue;
         }
-      }
+        // 이월된 일정은 지난 날짜에 남기지 않는다 (오늘로 옮긴다).
+        // remainingItems에 넣지 않으므로 과거 문서에서 빠진다.
+        const chainId =
+          it.forwardChainId || 'chain_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
+        const originalDate = it.originalDate || pDate;
+        hasChanges = true;
 
-      if (hasChanges) {
-        pastUpdates.push({ pDate, updatedList: remainingItems });
+        const newId = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5);
+        previousIdOf.set(newId, String(it.id));
+
+        incompleteItems.push({
+          id: newId,
+          forwardChainId: chainId,
+          originalDate,
+          content: it.content,
+          completed: false,
+          label: it.label,
+          labelIds: it.labelIds,
+          linkedItems: it.linkedItems || [],
+          attachments: it.attachments || [],
+          imageUrl: it.imageUrl,
+          calendar: it.calendar,
+          forward: it.forward,
+          period: it.period,
+          recur: it.recur,
+          skip: it.skip,
+          authorId: it.authorId,
+          authorName: it.authorName,
+        });
+      } else {
+        remainingItems.push(it);
       }
+    }
+
+    liveIdsByDate.set(pDate, new Set(remainingItems.map((i) => String(i.id))));
+
+    if (hasChanges) {
+      pastUpdates.push({ pDate, updatedList: remainingItems });
     }
   }
 
@@ -289,6 +302,12 @@ async function doAutoForwarding(groupId: string | null) {
     });
 
     // 2. 이월된 항목의 링크 타겟 업데이트
+    //
+    // 이월은 날마다 새 id로 일정을 다시 만든다. 예전에는 상대 쪽(기록·메모)에
+    // 역링크를 그냥 밀어 넣기만 해서, 9월 1일 일정을 이월하면 9월 3일에는 기록에
+    // 9월 1일·9월 2일·9월 3일 링크가 나란히 쌓였다. 앞의 둘은 이미 없는 일정을
+    // 가리키는 죽은 링크다. 이월 전 id를 넘겨 그 자리를 갈아끼우고, 이월이
+    // 지나온 날짜에 남아 있지 않은 링크도 함께 걷어낸다.
     for (const newItem of incompleteItems) {
       if (newItem.linkedItems && newItem.linkedItems.length > 0) {
         const sourceMeta = {
@@ -298,8 +317,19 @@ async function doAutoForwarding(groupId: string | null) {
           title: `[${todayStr || ''}] ${newItem.content}`,
           targetFId: groupId || 'personal',
         };
+        const previousId = previousIdOf.get(newItem.id);
+        // 이 사슬이 지나온 날짜만 본다. 그 앞의 링크는 이번 일과 무관하므로 둔다.
+        const chainStart = newItem.originalDate || todayStr;
+        const chainLiveIds = new Map<string, Set<string>>();
+        liveIdsByDate.forEach((ids, date) => {
+          if (date >= chainStart) chainLiveIds.set(date, ids);
+        });
         for (const link of newItem.linkedItems) {
-          await addReverseLink(link, sourceMeta as any, groupId || 'personal');
+          await addReverseLink(link, sourceMeta as any, groupId || 'personal', {
+            replaceIds: previousId ? [previousId] : [],
+            liveIdsByDate: chainLiveIds,
+            liveFId: groupId || 'personal',
+          });
         }
       }
     }
@@ -899,7 +929,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     }
   }, [dateStr, groupId, journals]);
 
-  const updateJournalEntry = useCallback(async (id: string, updates: { content?: string; label?: string; labelIds?: string[]; imageUrl?: string }) => {
+  const updateJournalEntry = useCallback(async (id: string, updates: { content?: string; label?: string; labelIds?: string[]; imageUrl?: string; attachments?: Attachment[]; linkedItems?: any[] }) => {
     const user = auth.currentUser;
     if (!user || !dateStr) return;
     
@@ -944,7 +974,23 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       }, { merge: true });
     } catch (err) {
       showErrorToast('기록 수정에 실패했습니다.', err);
+      return;
     }
+
+    // 기록을 '고쳐' 저장하는 길에는 역링크 처리가 없었다. 그래서 링크 추가 팝업에서
+    // 고른 항목이 기록 쪽에만 붙고, 상대(일정·수업·메모) 쪽에서는 연결이 안 보였다.
+    await syncReverseLinks(
+      target?.linkedItems,
+      updates.linkedItems,
+      {
+        targetType: 'journal',
+        targetId: id,
+        targetDate: dateStr || '',
+        title: `[${dateStr || ''}] ${newContent.substring(0, 20)}`,
+        targetFId: groupId || 'personal',
+      } as any,
+      groupId || 'personal'
+    );
   }, [dateStr, groupId, journals, deleteJournalEntry]);
 
   // 내부적으로 위에서 정의한 전역 이월 함수를 호출하도록 변경

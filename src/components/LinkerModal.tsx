@@ -468,6 +468,10 @@ export default function LinkerModal({
       });
     };
 
+    // 출발지 항목을 못 찾으면 연결이 한쪽도 저장되지 않는다. 예전에는 그래도
+    // '연결되었습니다' 토스트를 띄워서, 안 된 것을 된 것처럼 알려 주고 있었다.
+    let sourceUpdated = false;
+
     try {
       // 1. 출발지(Source) 업데이트
       if (sourceType === 'schedule_header' || sourceType === 'schedule') {
@@ -488,6 +492,7 @@ export default function LinkerModal({
         periods[sp] = item;
         
         await setDoc(ref, { periods, updatedAt: Date.now() }, { merge: true });
+        sourceUpdated = true;
       } else if (sourceType === 'event') {
         const ref = doc(db, colPath('events'), sDateStr);
         const snap = await getDoc(ref);
@@ -503,6 +508,7 @@ export default function LinkerModal({
               item.linkedItems = item.linkedItems || [];
               updateTargetArray(item.linkedItems);
               await setDoc(ref, eventDocPayload(list), { merge: true });
+              sourceUpdated = true;
             }
           }
         }
@@ -516,6 +522,7 @@ export default function LinkerModal({
             item.linkedItems = item.linkedItems || [];
             updateTargetArray(item.linkedItems);
             await setDoc(ref, { entries: list, updatedAt: Date.now() }, { merge: true });
+            sourceUpdated = true;
           }
         }
       } else if (sourceType === 'memo') {
@@ -525,7 +532,13 @@ export default function LinkerModal({
           const linkedItems = snap.data().linkedItems || [];
           updateTargetArray(linkedItems);
           await setDoc(ref, { linkedItems, updatedAt: Date.now() }, { merge: true });
+          sourceUpdated = true;
         }
+      }
+
+      if (!sourceUpdated) {
+        showErrorToast('연결할 항목을 찾지 못해 저장하지 못했습니다. 화면을 새로 고친 뒤 다시 해 주세요.');
+        return;
       }
 
       // 2. 도착지(Target) 역방향 링크 주입
