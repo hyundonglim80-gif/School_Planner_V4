@@ -139,6 +139,8 @@ export default function EntryDrawer({
 
   const [saving, setSaving] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  // saving 상태는 다음 그림에서야 반영되므로, 연달아 들어온 저장을 막는 데는 쓸 수 없다.
+  const savingRef = useRef(false);
 
   const handleSubmitRef = useRef<() => void>(() => {});
 
@@ -166,6 +168,9 @@ export default function EntryDrawer({
       if (!isOpen) return;
       if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
         e.preventDefault();
+        // 키를 누른 채로 두면 브라우저가 keydown을 되풀이해 보낸다.
+        // 되풀이분까지 저장하면 같은 메모가 여러 개 만들어진다.
+        if (e.repeat) return;
         handleSubmitRef.current();
       }
     };
@@ -272,6 +277,10 @@ export default function EntryDrawer({
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!content.trim() && attachments.length === 0) return;
+    // 앞선 저장이 아직 끝나지 않았다면 그냥 흘려보낸다.
+    // 안 그러면 새 항목을 만드는 중에 또 만들어 같은 내용이 두 개가 된다.
+    if (savingRef.current) return;
+    savingRef.current = true;
 
     try {
       setSaving(true);
@@ -287,6 +296,7 @@ export default function EntryDrawer({
     } catch (error) {
       showErrorToast(`${text.noun} 저장에 실패했습니다.`, error);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };

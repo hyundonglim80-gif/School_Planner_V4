@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useMemos } from '../../hooks/useMemos';
 import type { Memo } from '../../hooks/useMemos';
 import { useAppStore } from '../../store/useAppStore';
@@ -16,6 +16,9 @@ export default function MemoScreen() {
   const [hideCompleted, setHideCompleted] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingMemo, setEditingMemo] = useState<Memo | null>(null);
+  // 방금 만든 메모. setEditingMemo는 다음 그림에서야 반영되므로,
+  // 연달아 저장이 들어와도 새로 만들지 않도록 여기에도 담아 둔다.
+  const justCreatedRef = useRef<Memo | null>(null);
 
   const [columnsCount, setColumnsCount] = useState(4);
 
@@ -51,24 +54,27 @@ export default function MemoScreen() {
 
   const handleOpenCreate = useCallback(() => {
     setEditingMemo(null);
+    justCreatedRef.current = null;
     setIsDrawerOpen(true);
   }, []);
 
   const handleOpenEdit = (memo: Memo) => {
     setEditingMemo(memo);
+    justCreatedRef.current = null;
     setIsDrawerOpen(true);
   };
 
   const handleSaveMemo = async (draft: EntryDraft) => {
-    if (editingMemo) {
-      await updateMemo(editingMemo.firestoreId, draft);
+    // 저장해도 배너는 열려 있으므로, 방금 만든 메모가 있으면 그것을 고친다.
+    // 안 그러면 한 번 더 저장할 때 같은 내용이 새로 하나 더 생긴다.
+    const target = editingMemo || justCreatedRef.current;
+    if (target) {
+      await updateMemo(target.firestoreId, draft);
       return;
     }
     const ref = await addMemo(draft);
-    // 저장해도 배너는 열려 있으므로, 방금 만든 메모를 수정 대상으로 잡아둔다.
-    // 안 그러면 한 번 더 저장할 때 같은 내용이 새로 하나 더 생긴다.
     if (ref?.id) {
-      setEditingMemo({
+      const created: Memo = {
         firestoreId: ref.id,
         content: draft.content,
         createdAt: Date.now(),
@@ -76,7 +82,9 @@ export default function MemoScreen() {
         imageUrl: draft.imageUrl,
         attachments: draft.attachments,
         linkedItems: draft.linkedItems,
-      });
+      };
+      justCreatedRef.current = created;
+      setEditingMemo(created);
     }
   };
 
@@ -260,6 +268,7 @@ export default function MemoScreen() {
         onClose={() => {
           setIsDrawerOpen(false);
           setEditingMemo(null);
+          justCreatedRef.current = null;
         }}
         kind="memo"
         entry={editingMemo}

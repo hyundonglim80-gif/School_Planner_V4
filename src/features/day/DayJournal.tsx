@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { JournalEntry, Attachment } from '../../hooks/useDayData';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
@@ -114,13 +114,19 @@ export default function DayJournal({
     setViewerImages(images);
   };
 
+  // 방금 만든 기록. setEditingEntry는 다음 그림에서야 반영되므로,
+  // 연달아 저장이 들어와도 새로 만들지 않도록 여기에도 담아 둔다. (메모도 같은 방식)
+  const justCreatedRef = useRef<JournalEntry | null>(null);
+
   const openCreate = () => {
     setEditingEntry(null);
+    justCreatedRef.current = null;
     setDrawerOpen(true);
   };
 
   const openEdit = (entry: JournalEntry) => {
     setEditingEntry(entry);
+    justCreatedRef.current = null;
     setDrawerOpen(true);
   };
 
@@ -151,8 +157,11 @@ export default function DayJournal({
       size: att.size,
     }));
 
-    if (editingEntry && onUpdateJournal) {
-      await onUpdateJournal(editingEntry.id, {
+    // 저장해도 배너는 열려 있으므로, 방금 만든 기록이 있으면 그것을 고친다.
+    // 안 그러면 한 번 더 저장할 때 같은 내용이 새로 하나 더 생긴다.
+    const target = editingEntry || justCreatedRef.current;
+    if (target && onUpdateJournal) {
+      await onUpdateJournal(target.id, {
         content: draft.content,
         label: mainLabel,
         labelIds,
@@ -167,10 +176,8 @@ export default function DayJournal({
         attachments,
         linkedItems: draft.linkedItems,
       });
-      // 저장해도 배너는 열려 있으므로, 방금 만든 기록을 수정 대상으로 잡아둔다.
-      // 안 그러면 한 번 더 저장할 때 같은 내용이 새로 하나 더 생긴다.
       if (typeof newId === 'string') {
-        setEditingEntry({
+        const created: JournalEntry = {
           id: newId,
           content: draft.content,
           createdAt: Date.now(),
@@ -179,7 +186,9 @@ export default function DayJournal({
           imageUrl: '',
           attachments,
           linkedItems: draft.linkedItems,
-        });
+        };
+        justCreatedRef.current = created;
+        setEditingEntry(created);
       }
     }
   };
@@ -460,6 +469,7 @@ export default function DayJournal({
         onClose={() => {
           setDrawerOpen(false);
           setEditingEntry(null);
+          justCreatedRef.current = null;
         }}
         kind="journal"
         entry={drawerEntry}
