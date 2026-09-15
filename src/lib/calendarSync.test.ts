@@ -7,6 +7,7 @@ import {
   bareSummary,
   labelNamesOf,
   isInternalId,
+  summaryCore,
   buildPayloads,
   isSameItem,
   needsUpdate,
@@ -65,7 +66,7 @@ describe('제목 앞의 보이지 않는 글자', () => {
   });
 
   it('떼어내면 원래 제목만 남는다', () => {
-    expect(bareSummary(`${invisiblePrefix(2)}✅ [회의] 학년 협의회`)).toBe('[회의] 학년 협의회');
+    expect(bareSummary(`${invisiblePrefix(2)}✅ 학년 협의회 [회의]`)).toBe('학년 협의회 [회의]');
   });
 });
 
@@ -99,6 +100,31 @@ describe('labelNamesOf - 라벨이 담긴 자리가 제각각이다', () => {
   });
 });
 
+describe('summaryCore - 라벨 자리가 바뀌어도 같은 것으로 본다', () => {
+  it('라벨을 앞에 두던 옛 제목과 뒤에 두는 새 제목이 같게 나온다', () => {
+    // 형식을 바꾸면서 짝을 못 찾으면 같은 일정이 두 벌이 된다
+    expect(summaryCore('[회의] 학년 협의회')).toBe(summaryCore('학년 협의회 [회의]'));
+  });
+
+  it('보이지 않는 글자와 완료 표시도 함께 뗀다', () => {
+    expect(summaryCore(`${invisiblePrefix(3)}✅ 학년 협의회 [회의]`)).toBe('학년 협의회');
+  });
+
+  it('앞뒤에 모두 붙어 있어도 알맹이만 남긴다', () => {
+    // V3가 본문에 [공문] 을 적어 둔 항목이 있다
+    expect(summaryCore('[일정] [공문] 2026년 조사')).toBe('2026년 조사');
+    expect(summaryCore('[공문] 2026년 조사 [일정]')).toBe('2026년 조사');
+  });
+
+  it('내용이 통째로 [묶음]이면 비우지 않는다', () => {
+    expect(summaryCore('[전달사항]')).toBe('[전달사항]');
+  });
+
+  it('내용이 다르면 다르게 나온다', () => {
+    expect(summaryCore('학년 협의회 [회의]')).not.toBe(summaryCore('교직원 회의 [회의]'));
+  });
+});
+
 describe('isInternalId - 사람이 읽을 수 없는 식별자', () => {
   it('내부 식별자를 알아본다', () => {
     for (const key of ['lbl_ev_mtitpq5d_2Ou1v', 'lbl_jr_mtcgvgos_3cxjq', 'ev_recovered_1789130791044_7', 'j_1']) {
@@ -120,7 +146,8 @@ describe('buildPayloads - 보낼 내용 만들기', () => {
     });
 
     expect(out.event).toHaveLength(1);
-    expect(bareSummary(out.event[0].summary)).toBe('[회의] 학년 협의회');
+    // 라벨은 뒤에 붙인다. 앞에 두면 좋은 칸에서 라벨만 보이고 내용이 잘렸다.
+    expect(bareSummary(out.event[0].summary)).toBe('학년 협의회 [회의]');
     expect(out.event[0].start.date).toBe('2026-09-15');
     expect(out.event[0].end.date).toBe('2026-09-16');
     expect(out.event[0].extendedProperties.private).toMatchObject({
@@ -156,7 +183,7 @@ describe('buildPayloads - 보낼 내용 만들기', () => {
       eventData: { eventList: [{ id: 'ev1', content: '아침 빙고', labelIds: ['lbl_ev_mtitpq5d_2Ou1v'] }] },
     });
 
-    expect(bareSummary(out.event[0].summary)).toBe('[일정] 아침 빙고');
+    expect(bareSummary(out.event[0].summary)).toBe('아침 빙고 [일정]');
     expect(out.event[0].summary).not.toContain('lbl_');
   });
 
@@ -177,7 +204,7 @@ describe('buildPayloads - 보낼 내용 만들기', () => {
     });
 
     expect(out.class).toHaveLength(1);
-    expect(bareSummary(out.class[0].summary)).toBe('[1교시] 국어');
+    expect(bareSummary(out.class[0].summary)).toBe('국어 [1교시]');
     expect(out.class[0].extendedProperties.private.period).toBe('1');
   });
 
@@ -218,9 +245,9 @@ describe('isSameItem - 같은 것을 두 번 넣지 않기', () => {
     expect(isSameItem(existing, payload)).toBe(true);
   });
 
-  it('id가 없던 옛 일정은 제목으로 맞춘다', () => {
+  it('id가 없던 옛 일정은 제목으로 맞춘다 (라벨 자리가 달라도)', () => {
     const existing = {
-      summary: `${invisiblePrefix(9)}✅ [일정] 학년 협의회`,
+      summary: `${invisiblePrefix(9)}✅ [일정] 학년 협의회`, // 라벨을 앞에 두던 시절에 올라간 제목
       extendedProperties: { private: { app: APP_TAG, type: 'event', dateStr: '2026-09-15' } },
     };
     expect(isSameItem(existing, payload)).toBe(true);

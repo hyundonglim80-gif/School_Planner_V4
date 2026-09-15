@@ -85,6 +85,38 @@ export function bareSummary(summary: string): string {
 }
 
 /**
+ * 구글 캘린더에 올릴 제목.
+ *
+ * 라벨을 내용 뒤에 붙인다. 앞에 두면 달력의 좁은 칸에서 라벨만 보이고 정작
+ * 내용이 잘려 무슨 일인지 알 수 없었다. 완료 표시(✅)는 짧으니 앞에 둔다.
+ */
+export function composeSummary(seq: number, completed: boolean, content: string, labelStr: string): string {
+  return `${invisiblePrefix(seq)}${completed ? '✅ ' : ''}${content} [${labelStr}]`;
+}
+
+/**
+ * 같은 항목인지 제목으로 맞춰 볼 때 쓰는 알맹이.
+ *
+ * 우리가 붙인 id가 없는 옛 일정은 제목으로 맞출 수밖에 없는데, 라벨을 앞에 두던
+ * 시절에 올라간 것들이 이미 있다. 앞이든 뒤든 [묶음]은 떼어내고 알맹이만 본다.
+ * 그래야 '[회의] 학년 협의회'와 '학년 협의회 [회의]'를 같은 것으로 본다.
+ */
+export function summaryCore(summary: string): string {
+  const bare = bareSummary(summary);
+  let core = bare;
+  let prev = '';
+  while (core && core !== prev) {
+    prev = core;
+    core = core
+      .replace(/^\[[^\]]*\]\s*/, '')
+      .replace(/\s*\[[^\]]*\]$/, '')
+      .trim();
+  }
+  // 내용이 통째로 [묶음]이었다면 떼어낼 것이 아니다
+  return core || bare;
+}
+
+/**
  * 사람이 읽을 수 없는 내부 식별자인지.
  *
  * 라벨은 이름('회의')으로 담기기도 하고 식별자('lbl_ev_mtitpq5d_2Ou1v')로
@@ -152,7 +184,7 @@ export function buildPayloads(args: BuildArgs): Record<SyncKind, GoogleEventPayl
       const labelStr = names.length > 0 ? names.join(', ') : '일정';
       const content = eventContentOf(e);
       out.event.push({
-        summary: `${invisiblePrefix(seq++)}${e.completed ? '✅ ' : ''}[${labelStr}] ${content}`,
+        summary: composeSummary(seq++, !!e.completed, content, labelStr),
         description: '📌 School Planner에서 관리되는 일정입니다.',
         start: { date: dateStr },
         end: { date: endStr },
@@ -181,7 +213,7 @@ export function buildPayloads(args: BuildArgs): Record<SyncKind, GoogleEventPayl
       if (!subject || subject.toUpperCase() === 'X') continue;
 
       out.class.push({
-        summary: `${invisiblePrefix(seq++)}[${periodNames[i - 1] || `${i}교시`}] ${subject}`,
+        summary: composeSummary(seq++, false, subject, periodNames[i - 1] || `${i}교시`),
         description: '🎒 [수업]',
         start: { date: dateStr },
         end: { date: endStr },
@@ -202,7 +234,7 @@ export function buildPayloads(args: BuildArgs): Record<SyncKind, GoogleEventPayl
       const shown = j.content.length > 25 ? `${j.content.slice(0, 25)}...` : j.content;
 
       out.journal.push({
-        summary: `${invisiblePrefix(seq++)}${j.completed ? '✅ ' : ''}[${labelStr}] ${shown}`,
+        summary: composeSummary(seq++, !!j.completed, shown, labelStr),
         description: `📝 [전체 기록 내용]\n${j.content}`,
         start: { date: dateStr },
         end: { date: endStr },
@@ -237,8 +269,8 @@ export function isSameItem(existing: any, payload: GoogleEventPayload): boolean 
   if (pPriv.type === 'class') return ePriv.period === pPriv.period;
   // 우리가 붙인 id가 양쪽에 다 있으면 그것으로 본다
   if (ePriv.sp_id && pPriv.sp_id) return ePriv.sp_id === pPriv.sp_id;
-  // 옛날에 올라간 것은 id가 없다. 제목으로 맞춰 본다.
-  return bareSummary(existing.summary) === bareSummary(payload.summary);
+  // 옛날에 올라간 것은 id가 없다. 제목의 알맹이로 맞춰 본다.
+  return summaryCore(existing.summary) === summaryCore(payload.summary);
 }
 
 /** 고쳐야 할 내용이 있는지 */
