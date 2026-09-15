@@ -6,6 +6,7 @@ import {
   invisiblePrefix,
   bareSummary,
   labelNamesOf,
+  isInternalId,
   buildPayloads,
   isSameItem,
   needsUpdate,
@@ -73,8 +74,19 @@ describe('labelNamesOf - 라벨이 담긴 자리가 제각각이다', () => {
     expect(labelNamesOf({ labelIds: ['l1'] }, labels)).toEqual(['회의']);
   });
 
-  it('없는 id는 그대로 둔다 (지워진 라벨)', () => {
-    expect(labelNamesOf({ labelIds: ['없는것'] }, labels)).toEqual(['없는것']);
+  it('이름을 못 찾은 식별자는 버린다', () => {
+    // 예전에는 이런 제목이 구글 캘린더에 올라갔다.
+    //   [lbl_ev_mtitpq5d_2Ou1v] 아침 빙고
+    expect(labelNamesOf({ labelIds: ['lbl_ev_mtitpq5d_2Ou1v'] }, labels)).toEqual([]);
+    expect(labelNamesOf({ labels: ['ev_recovered_1789130791044_7'] }, labels)).toEqual([]);
+  });
+
+  it('사람이 읽을 수 있는 것은 못 찾아도 남긴다 (설정에서 지운 라벨)', () => {
+    expect(labelNamesOf({ labelIds: ['공문'] }, labels)).toEqual(['공문']);
+  });
+
+  it('여러 자리에 나뉘어 담겨 있어도 모두 모으고 중복은 뺀다', () => {
+    expect(labelNamesOf({ labelIds: ['l1'], label: '회의,공문' }, labels)).toEqual(['회의', '공문']);
   });
 
   it('labels 배열과 label 하나도 받는다', () => {
@@ -84,6 +96,20 @@ describe('labelNamesOf - 라벨이 담긴 자리가 제각각이다', () => {
 
   it('아무것도 없으면 빈 목록이다', () => {
     expect(labelNamesOf({}, labels)).toEqual([]);
+  });
+});
+
+describe('isInternalId - 사람이 읽을 수 없는 식별자', () => {
+  it('내부 식별자를 알아본다', () => {
+    for (const key of ['lbl_ev_mtitpq5d_2Ou1v', 'lbl_jr_mtcgvgos_3cxjq', 'ev_recovered_1789130791044_7', 'j_1']) {
+      expect(isInternalId(key), key).toBe(true);
+    }
+  });
+
+  it('사람이 붙인 이름은 건드리지 않는다', () => {
+    for (const key of ['회의', '공문', '학급활동', 'ToDo', '수업X', 'Meeting 2026']) {
+      expect(isInternalId(key), key).toBe(false);
+    }
   });
 });
 
@@ -123,6 +149,21 @@ describe('buildPayloads - 보낼 내용 만들기', () => {
 
     expect(out.event).toHaveLength(1);
     expect(bareSummary(out.event[0].summary)).toContain('내가 쓴 일정');
+  });
+
+  it('이름을 모르는 라벨 때문에 제목에 식별자가 찍히지 않는다', () => {
+    const out = build({
+      eventData: { eventList: [{ id: 'ev1', content: '아침 빙고', labelIds: ['lbl_ev_mtitpq5d_2Ou1v'] }] },
+    });
+
+    expect(bareSummary(out.event[0].summary)).toBe('[일정] 아침 빙고');
+    expect(out.event[0].summary).not.toContain('lbl_');
+  });
+
+  it('식별자는 제목에서 빠져도 extendedProperties에는 그대로 남는다', () => {
+    // 같은 항목인지 알아보려면 이 값이 필요하다. 여기 있는 것은 화면에 보이지 않는다.
+    const out = build({ eventData: { eventList: [{ id: 'ev1', content: '아침 빙고' }] } });
+    expect(out.event[0].extendedProperties.private.sp_id).toBe('ev1');
   });
 
   it('빈 내용은 건너뛴다', () => {

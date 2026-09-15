@@ -84,14 +84,40 @@ export function bareSummary(summary: string): string {
     .trim();
 }
 
-/** 항목에 달린 라벨을 이름으로 바꾼다. 담기는 자리가 제각각이라 순서대로 본다. */
+/**
+ * 사람이 읽을 수 없는 내부 식별자인지.
+ *
+ * 라벨은 이름('회의')으로 담기기도 하고 식별자('lbl_ev_mtitpq5d_2Ou1v')로
+ * 담기기도 한다. 식별자가 등록된 라벨 목록에 없으면 이름을 알 길이 없는데,
+ * 예전에는 그럴 때 식별자를 그대로 제목에 찍어서
+ *   [lbl_ev_mtitpq5d_2Ou1v] 아침 빙고
+ * 같은 제목이 구글 캘린더에 올라갔다.
+ */
+export function isInternalId(key: string): boolean {
+  return /^(lbl|ev|jr|j|mem|task)_/i.test(key) || /^[a-z]+_[a-z0-9]{6,}_/i.test(key);
+}
+
+/**
+ * 항목에 달린 라벨을 이름으로 바꾼다. 담기는 자리가 제각각이라 모두 훑는다.
+ *
+ * 이름을 찾지 못한 것은
+ *   식별자처럼 생겼으면  버린다 (제목에 찍혀 봐야 읽을 수 없다)
+ *   사람이 읽을 수 있으면 그대로 둔다 (설정에서 지운 라벨일 수 있다)
+ */
 export function labelNamesOf(item: any, master: LabelDef[]): string[] {
-  if (Array.isArray(item?.labelIds) && item.labelIds.length > 0) {
-    return item.labelIds.map((id: string) => master.find((l) => l.id === id || l.name === id)?.name || id);
+  const keys: string[] = [];
+  if (Array.isArray(item?.labelIds)) keys.push(...item.labelIds.map((k: any) => String(k ?? '').trim()));
+  if (Array.isArray(item?.labels)) keys.push(...item.labels.map((k: any) => String(k ?? '').trim()));
+  if (item?.label) keys.push(...String(item.label).split(',').map((k) => k.trim()));
+
+  const names: string[] = [];
+  for (const key of keys) {
+    if (!key) continue;
+    const found = master.find((l) => l.id === key || l.name === key);
+    const name = found ? found.name : isInternalId(key) ? null : key;
+    if (name && !names.includes(name)) names.push(name);
   }
-  if (Array.isArray(item?.labels) && item.labels.length > 0) return item.labels;
-  if (item?.label) return [item.label];
-  return [];
+  return names;
 }
 
 // ── 보낼 것 만들기 ─────────────────────────────────────────────────────
