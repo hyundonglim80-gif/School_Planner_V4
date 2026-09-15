@@ -6,14 +6,13 @@ import { collection, getDocs, doc, setDoc, query, where, documentId, getDoc } fr
 import { db, auth } from '../lib/firebase';
 import { useGroups } from '../hooks/useGroups';
 import { useAppStore } from '../store/useAppStore';
-import { eventDocPayload, readEventList, eventContentOf } from '../lib/eventText';
+import { readEventList, eventContentOf } from '../lib/eventText';
 import { formatDate } from '../lib/dateUtils';
 import { exportCalendarData, labelNamesOf } from '../lib/calendarSync';
 import { getValidGoogleToken } from '../lib/googleApi';
 import { exportToSheets, importFromSheets, sheetUrlOf } from '../lib/sheetsSync';
 import { useLabels } from '../hooks/useLabels';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
-import { loadHolidaysForYear } from '../lib/holidays';
 import { downloadCsv, parseCsv } from '../lib/csv';
 import { buildRosterCsvRows, parseRosterCsvRows, mergeRosters, ROSTER_CSV_HEADER } from '../lib/rosterCsv';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
@@ -45,64 +44,6 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
   // 1. 개인 or 그룹 선택
   const [selectedScope, setSelectedScope] = useState<'personal' | string>('personal');
   
-  // 공휴일 가져오기 연도 상태
-  const [govYear, setGovYear] = useState<number>(new Date().getFullYear());
-
-  const handleImportHolidays = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    setProcessing(true);
-    setStatusMsg(`${govYear}~${govYear + 1}년 공휴일 정보를 가져오는 중...`);
-
-    try {
-      // data.go.kr을 직접 부르지 않는다. 개발자가 받아둔 holidays/{연도}를 읽는다.
-      const [holidaysThisYear, holidaysNextYear] = await Promise.all([
-        loadHolidaysForYear(govYear),
-        loadHolidaysForYear(govYear + 1)
-      ]);
-
-      const fetchedHolidays = { ...holidaysThisYear, ...holidaysNextYear };
-      const holidayDates = Object.keys(fetchedHolidays);
-
-      if (holidayDates.length === 0) {
-        setProcessing(false);
-        return showErrorToast(`${govYear}~${govYear + 1}년 공휴일 자료가 아직 등록되지 않았습니다.`);
-      }
-
-      let count = 0;
-      for (const dateStr of holidayDates) {
-        const hName = fetchedHolidays[dateStr];
-        // 예전에는 늘 개인 공간에 넣어서, 그룹을 골라 두고 눌러도 개인 일정에 들어갔다
-        const ref = doc(getColRef('events'), dateStr);
-        const snap = await getDoc(ref);
-        const eventList = snap.exists() ? readEventList(snap.data()) : [];
-
-        // 중복 방지: 이미 같은 공휴일 라벨이나 이름이 있으면 추가하지 않음
-        if (!eventList.some((e: any) => e.content === hName || e.label === '공휴일' || e.labelIds?.includes('공휴일'))) {
-          eventList.push({
-            id: 'ev_hol_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
-            content: hName,
-            text: hName, // v3 호환
-            label: '공휴일',
-            labelIds: ['공휴일'],
-            completed: false,
-            createdAt: Date.now()
-          });
-          await setDoc(ref, eventDocPayload(eventList), { merge: true });
-          count++;
-        }
-      }
-      showToast(`학사일정 처리를 위해 ${govYear}년과 ${govYear + 1}년 공휴일 총 ${count}건을 일정에 성공적으로 추가했습니다.`);
-    } catch (e: any) {
-      console.error(e);
-      showErrorToast('공휴일 가져오기 실패: ' + e.message);
-    } finally {
-      setProcessing(false);
-      setStatusMsg('');
-    }
-  };
-
   // 2. 내보내기 채널 대상 (구글 캘린더, 구글 시트, 로컬 CSV, JSON)
   const [exportTarget, setExportTarget] = useState<ExportTarget>('sheets');
   const [spreadsheetId, setSpreadsheetId] = useState<string>('');
@@ -783,66 +724,71 @@ ${summary}
           {/* 1. 데이터 내보내기/가져오기 대상 채널 선택 (🔥 구글 캘린더 / 구글 시트 / 로컬 CSV) */}
           <div>
             <label className="block font-bold text-slate-800 mb-1.5 text-xs">1. 데이터 연동 대상</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-5 gap-1">
               <button
                 onClick={() => setExportTarget('calendar')}
-                className={`p-3 rounded-xl border text-center font-bold transition-all flex flex-col items-center gap-1.5 ${
+                title="캘린더"
+                className={`px-1 py-1.5 rounded-lg border text-center font-bold transition-all flex flex-col items-center gap-0.5 leading-tight ${
                   exportTarget === 'calendar'
                     ? 'bg-rose-50 border-rose-400 text-rose-700 shadow-xs ring-1 ring-rose-300'
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                <span className="text-xl">📅</span>
-                <span>구글 캘린더</span>
+                <span className="text-sm">📅</span>
+                <span className="text-2xs">캘린더</span>
               </button>
 
               <button
                 onClick={() => setExportTarget('sheets')}
-                className={`p-3 rounded-xl border text-center font-bold transition-all flex flex-col items-center gap-1.5 ${
+                title="구글 시트"
+                className={`px-1 py-1.5 rounded-lg border text-center font-bold transition-all flex flex-col items-center gap-0.5 leading-tight ${
                   exportTarget === 'sheets'
                     ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs ring-1 ring-emerald-400'
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                <span className="text-xl">📊</span>
-                <span>구글 시트</span>
+                <span className="text-sm">📊</span>
+                <span className="text-2xs">구글 시트</span>
               </button>
 
               <button
                 onClick={() => setExportTarget('csv')}
-                className={`p-3 rounded-xl border text-center font-bold transition-all flex flex-col items-center gap-1.5 ${
+                title="CSV"
+                className={`px-1 py-1.5 rounded-lg border text-center font-bold transition-all flex flex-col items-center gap-0.5 leading-tight ${
                   exportTarget === 'csv'
                     ? 'bg-slate-800 border-slate-900 text-white shadow-xs'
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                <span className="text-xl">💾</span>
-                <span>로컬 (CSV)</span>
+                <span className="text-sm">💾</span>
+                <span className="text-2xs">CSV</span>
               </button>
 
               {/* JSON은 만들어져 있었는데 고르는 버튼이 없어 닿을 수 없었다 */}
               <button
                 onClick={() => setExportTarget('json')}
-                className={`p-3 rounded-xl border text-center font-bold transition-all flex flex-col items-center gap-1.5 ${
+                title="JSON"
+                className={`px-1 py-1.5 rounded-lg border text-center font-bold transition-all flex flex-col items-center gap-0.5 leading-tight ${
                   exportTarget === 'json'
                     ? 'bg-indigo-50 border-indigo-400 text-indigo-800 shadow-xs ring-1 ring-indigo-300'
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                <span className="text-xl">🗄️</span>
-                <span>전체 백업 (JSON)</span>
+                <span className="text-sm">🗄️</span>
+                <span className="text-2xs">JSON</span>
               </button>
 
               <button
                 onClick={() => setExportTarget('roster')}
-                className={`p-3 rounded-xl border text-center font-bold transition-all flex flex-col items-center gap-1.5 ${
+                title="조사표"
+                className={`px-1 py-1.5 rounded-lg border text-center font-bold transition-all flex flex-col items-center gap-0.5 leading-tight ${
                   exportTarget === 'roster'
                     ? 'bg-amber-50 border-amber-400 text-amber-800 shadow-xs ring-1 ring-amber-300'
                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                <span className="text-xl">🧑‍🤝‍🧑</span>
-                <span>조사표 (CSV)</span>
+                <span className="text-sm">🧑‍🤝‍🧑</span>
+                <span className="text-2xs">조사표</span>
               </button>
             </div>
 
@@ -856,29 +802,16 @@ ${summary}
               </div>
             )}
 
-            {/* 🔥 구글 시트 선택 시 나타나는 연결된 구글 시트 열기 버튼 (사용자 요청 3번) */}
+            {/* 시트 주소를 보여주던 칸은 없앴다. 시트 id는 사람이 알아볼 값이 아니고,
+                손으로 넣는 자리도 없앴으므로(내보낼 때 없으면 만들어 준다) 남길 이유가 없다. */}
             {exportTarget === 'sheets' && (
-              <div className="mt-2.5 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between flex-wrap gap-2 animate-fade-in">
-                <div className="flex items-center gap-2">
-                  <span className="text-emerald-700 font-bold">백업 구글 시트:</span>
-                  {spreadsheetId ? (
-                    <span className="font-mono text-xs text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200">
-                      ...{spreadsheetId.slice(-12)}
-                    </span>
-                  ) : (
-                    // 주소를 손으로 넣는 자리는 없앴다. 내보낼 때 없으면 만들어 준다.
-                    <span className="text-slate-500">내보낼 때 자동으로 만들어집니다</span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={handleOpenCurrentSheet}
-                    className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-bold transition-all shadow-2xs flex items-center gap-1"
-                  >
-                    <span>🔗</span> 구글 시트 열기
-                  </button>
-                </div>
+              <div className="mt-2.5 animate-fade-in">
+                <button
+                  onClick={handleOpenCurrentSheet}
+                  className="w-full px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold transition-all shadow-2xs flex items-center justify-center gap-1.5"
+                >
+                  <span>🔗</span> 구글 시트 열기
+                </button>
               </div>
             )}
 
@@ -952,80 +885,56 @@ ${summary}
           {/* 4. 포함할 데이터 항목 (🔥 일정 / 수업 / 기록 / 조사표 / 메모) */}
           <div>
             <label className="block font-bold text-slate-800 mb-1.5 text-xs">4. 포함할 데이터 항목</label>
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
-              <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-700">
+            <div className="flex items-center justify-between gap-1 bg-slate-50 px-2.5 py-2 rounded-xl border border-slate-200">
+              <label className="flex items-center gap-1 cursor-pointer font-bold text-slate-700 shrink-0">
                 <input
                   type="checkbox"
                   checked={incEvents}
                   onChange={(e) => setIncEvents(e.target.checked)}
-                  className="rounded text-blue-600 focus:ring-0"
+                  className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-0 accent-blue-600"
                 />
                 <span>📅 일정</span>
               </label>
 
-              <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-700">
+              <label className="flex items-center gap-1 cursor-pointer font-bold text-slate-700 shrink-0">
                 <input
                   type="checkbox"
                   checked={incSchedules}
                   onChange={(e) => setIncSchedules(e.target.checked)}
-                  className="rounded text-blue-600 focus:ring-0"
+                  className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-0 accent-blue-600"
                 />
                 <span>⏰ 수업</span>
               </label>
 
-              <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-700">
+              <label className="flex items-center gap-1 cursor-pointer font-bold text-slate-700 shrink-0">
                 <input
                   type="checkbox"
                   checked={incJournals}
                   onChange={(e) => setIncJournals(e.target.checked)}
-                  className="rounded text-blue-600 focus:ring-0"
+                  className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-0 accent-blue-600"
                 />
                 <span>📔 기록</span>
               </label>
 
-              <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-700">
+              <label className="flex items-center gap-1 cursor-pointer font-bold text-slate-700 shrink-0">
                 <input
                   type="checkbox"
                   checked={incRosters}
                   onChange={(e) => setIncRosters(e.target.checked)}
-                  className="rounded text-blue-600 focus:ring-0"
+                  className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-0 accent-blue-600"
                 />
                 <span>📊 조사표</span>
               </label>
 
-              <label className="flex items-center gap-1.5 cursor-pointer font-bold text-slate-700">
+              <label className="flex items-center gap-1 cursor-pointer font-bold text-slate-700 shrink-0">
                 <input
                   type="checkbox"
                   checked={incMemos}
                   onChange={(e) => setIncMemos(e.target.checked)}
-                  className="rounded text-blue-600 focus:ring-0"
+                  className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-0 accent-blue-600"
                 />
                 <span>📝 메모</span>
               </label>
-            </div>
-          </div>
-
-          {/* 🇰🇷 공휴일 가져오기 (여기에 추가됨) */}
-          <div className="p-4 bg-red-50/50 rounded-xl border border-red-100 flex flex-col gap-3 mt-4">
-            <div>
-              <h4 className="text-sm font-bold text-red-800">🇰🇷 공휴일 가져오기</h4>
-              <p className="text-xs text-red-600/80 mt-0.5">공공데이터포털에서 지정한 연도의 휴일을 가져와 '공휴일' 라벨이 붙은 일정으로 추가합니다.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <input 
-                type="number" 
-                value={govYear} 
-                onChange={(e) => setGovYear(Number(e.target.value))}
-                className="w-24 px-3 py-1.5 border border-red-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-1 focus:ring-red-400 font-bold text-red-700"
-              />
-              <span className="text-sm font-bold text-red-700">년</span>
-              <button
-                onClick={handleImportHolidays}
-                disabled={processing}
-                className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-bold transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-              >
-                {processing && statusMsg.includes('가져오는 중') ? '불러오는 중...' : '휴일 일정 적용하기'}
-              </button>
             </div>
           </div>
 
