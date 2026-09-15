@@ -13,6 +13,7 @@ import { addReverseLink } from '../utils/linkUtils';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import { useBackdropClose } from '../hooks/useBackdropClose';
 
 interface LinkerModalProps {
   isOpen: boolean;
@@ -71,6 +72,8 @@ export default function LinkerModal({
   const vv = useVisualViewport(isOpen);
 
   const zIndex = useModalLayer(isOpen, onClose);
+
+  const backdrop = useBackdropClose();
 
   const [currentTab, setCurrentTab] = useState<'event' | 'schedule' | 'journal' | 'memo'>('event');
   const [selectedSourcePeriod, setSelectedSourcePeriod] = useState<number>(
@@ -657,7 +660,7 @@ export default function LinkerModal({
   return (
     <div
       className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
-      onClick={closeAllModals}
+      {...backdrop}
     >
       <div
         className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-full flex flex-col border border-slate-200 overflow-hidden"

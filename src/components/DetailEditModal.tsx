@@ -7,6 +7,7 @@ import { useLabels } from '../hooks/useLabels';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import { useBackdropClose } from '../hooks/useBackdropClose';
 import EventAlarmModal from './EventAlarmModal';
 import AutoTextarea from './AutoTextarea';
 
@@ -46,6 +47,9 @@ export default function DetailEditModal({
 
 
   const zIndex = useModalLayer(isOpen, onClose);
+
+
+  const backdrop = useBackdropClose();
   const { selectedGroupId, openLinkerModal, openLinkViewerModal, openEvaluationModal, openLabelModal } = useAppStore();
   const { updateEventItem, deleteEventItem, savePeriod, eventList, schedules } = useDayData(isOpen ? dateStr : '', selectedGroupId);
   const { eventLabels } = useLabels();
@@ -252,7 +256,7 @@ export default function DetailEditModal({
   const title = type === 'schedule' ? `${itemId}교시 수정` : '일정 수정';
 
   return (
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} onClick={closeAllModals}>
+    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} {...backdrop}>
       <div className="bg-white rounded-2xl w-full max-w-md max-h-full shadow-2xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">

@@ -10,8 +10,7 @@
 //   - 개발자 설정은 등록된 계정으로 로그인했을 때만 보인다.
 import React, { useState, useEffect } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
+import { auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import type { StartupScope } from '../store/useAppStore';
 import { isDeveloper } from '../lib/developers';
@@ -91,7 +90,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const developer = isDeveloper(auth.currentUser?.email);
 
   // 창 안에서만 쓰는 임시 값. '저장'을 눌러야 store/Firestore로 넘어간다.
-  const [periodNames, setPeriodNames] = useState<string[]>(['1', '2', '3', '4', '5', '6']);
   const [showWeekend, setShowWeekend] = useState(true);
   const [showEvents, setShowEvents] = useState(true);
   const [showClass, setShowClass] = useState(true);
@@ -102,7 +100,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   // 개발자 설정
   const [yearStatus, setYearStatus] = useState<YearStatus[]>([]);
@@ -120,28 +117,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setLookbackDays(String(s.forwardLookbackDays));
     setGovApiKey(s.govApiKey);
     setSaveSuccess(false);
-    loadSettings();
     if (developer) {
       loadDeveloperSettings();
       refreshYearStatus();
     }
   }, [isOpen]);
-
-  const loadSettings = async () => {
-    setLoading(true);
-    try {
-      const uid = auth.currentUser?.uid;
-      if (!uid) return;
-      const snap = await getDoc(doc(db, 'users', uid, 'settings', 'preferences'));
-      if (snap.exists() && snap.data().periodNames) {
-        setPeriodNames([...snap.data().periodNames]);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // 키는 소스가 아니라 admin/config에 있다. 기기를 바꿔도 다시 입력하지 않아도 된다.
   const loadDeveloperSettings = async () => {
@@ -195,25 +175,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
-  const handleUpdateName = (idx: number, value: string) => {
-    const updated = [...periodNames];
-    updated[idx] = value;
-    setPeriodNames(updated);
-  };
-
-  const handleAddPeriod = () => {
-    setPeriodNames([...periodNames, `새 시간 ${periodNames.length + 1}`]);
-  };
-
-  const handleRemovePeriod = (idx: number) => {
-    if (periodNames.length <= 1) return showToast('최소 1개의 시간은 존재해야 합니다.');
-    setPeriodNames(periodNames.filter((_, i) => i !== idx));
-  };
-
   const handleSave = async () => {
-    const finalNames = periodNames.map((n) => n.trim()).filter((n) => n !== '');
-    if (finalNames.length === 0) return showToast('최소 1개의 유효한 명칭을 입력해야 합니다.');
-
     setSaving(true);
     try {
       // 1) 이 기기에 남는 설정
@@ -228,23 +190,12 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       // 범위를 넘겨 적었으면 입력칸에도 잘린 값을 되돌려 보여준다
       setLookbackDays(String(clampLookbackDays(lookbackDays)));
 
-      // 2) 계정에 남는 설정 (다른 기기에서도 같아야 하는 것)
-      const uid = auth.currentUser?.uid;
-      if (uid) {
-        await setDoc(
-          doc(db, 'users', uid, 'settings', 'preferences'),
-          { periodNames: finalNames, updatedAt: Date.now() },
-          { merge: true }
-        );
-      }
-
-      // 3) 개발자 키는 admin/config로. 소스에도 이 기기에도 남기지 않는다.
+      // 2) 개발자 키는 admin/config로. 소스에도 이 기기에도 남기지 않는다.
       if (developer) {
         s.setGovApiKey(govApiKey.trim());
         await saveAdminGovApiKey(govApiKey.trim());
       }
 
-      setPeriodNames(finalNames);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (e: any) {
@@ -350,41 +301,16 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </div>
         </Section>
 
-        <Section
-          title="수업 시간 명칭"
-          desc="학교마다 다른 수업 시간을 자유롭게 바꿀 수 있습니다. 여기 등록한 개수와 순서에 맞춰 시간표 칸이 나뉩니다."
-        >
-          {loading ? (
-            <div className="text-center py-6 text-slate-400 text-xs">불러오는 중...</div>
-          ) : (
-            <div className="space-y-2">
-              {periodNames.map((name, idx) => (
-                <div key={idx} className="flex items-center gap-2 bg-slate-50 rounded-xl p-2.5 border border-slate-100">
-                  <span className="text-xs font-black text-slate-500 w-5 text-center">{idx + 1}</span>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => handleUpdateName(idx, e.target.value)}
-                    className="flex-1 min-w-0 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-800 focus:outline-none focus:border-primary"
-                  />
-                  <button
-                    onClick={() => handleRemovePeriod(idx)}
-                    className="text-slate-300 hover:text-red-500 font-black text-sm transition-colors p-1"
-                    title="삭제"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <button
-            onClick={handleAddPeriod}
-            className="w-full mt-3 py-2.5 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:text-primary hover:border-primary text-xs font-bold transition-colors"
-          >
-            + 새로운 시간/활동 추가
-          </button>
+        {/* 교시 이름은 시간표 쪽이 주인이다.
+            예전에는 여기서도 고칠 수 있었지만 그 값(settings/preferences.periodNames)을
+            읽는 화면이 V4에 하나도 없었다. 저장은 되는데 아무 일도 일어나지 않았다.
+            (V3도 timetable_v5가 없을 때만 보는 옛 폴백으로만 쓴다.)
+            그래서 고치는 자리는 한 곳으로 두고, 여기서는 어디로 가면 되는지만 알린다. */}
+        <Section title="수업 시간 명칭" desc="교시 이름과 개수는 시간표 설정에서 정합니다.">
+          <p className="text-xs text-slate-500 leading-relaxed">
+            ⋮ 메뉴 → <strong className="text-slate-700">시간표 적용 (주간 템플릿)</strong> 에서 교시 이름을 바꾸면
+            하루·주간 화면의 칸이 그에 맞춰 나뉩니다.
+          </p>
         </Section>
 
         {/* 등록된 개발자 계정으로 로그인했을 때만 보인다.

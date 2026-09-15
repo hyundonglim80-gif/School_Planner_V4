@@ -6,6 +6,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import { useBackdropClose } from '../hooks/useBackdropClose';
 import { showToast, showErrorToast } from '../utils/toast';
 
 interface EvaluationModalProps {
@@ -26,6 +27,8 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
   const vv = useVisualViewport(isOpen);
 
   const zIndex = useModalLayer(isOpen, onClose);
+
+  const backdrop = useBackdropClose();
   const { selectedGroupId } = useAppStore();
   const { loadEvaluations, saveEvaluations, deleteEvaluation } = useEvaluation(selectedGroupId);
   const { rosterList: rosters } = useRoster();
@@ -170,7 +173,7 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} onClick={closeAllModals}>
+    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} {...backdrop}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-full flex flex-col border border-slate-200" onClick={e => e.stopPropagation()}>
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">

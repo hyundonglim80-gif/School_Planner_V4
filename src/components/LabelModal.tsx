@@ -12,6 +12,7 @@ import {
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import { useBackdropClose } from '../hooks/useBackdropClose';
 import { useGroups } from '../hooks/useGroups';
 import { scanForMissingLabels, pickRecoveryColor } from '../utils/labelRecovery';
 import { applyLabelRenames, diffLabelNames } from '../utils/labelRename';
@@ -173,6 +174,8 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   const vv = useVisualViewport(isOpen);
 
   const zIndex = useModalLayer(isOpen, onClose);
+
+  const backdrop = useBackdropClose();
   const { groups } = useGroups();
   const [activeTab, setActiveTab] = useState<'event' | 'journal' | 'memo'>(initialTab);
   const [scanning, setScanning] = useState(false);
@@ -605,7 +608,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   };
 
   return (
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} onClick={closeAllModals}>
+    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} {...backdrop}>
       <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-full" onClick={(e) => e.stopPropagation()}>
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">

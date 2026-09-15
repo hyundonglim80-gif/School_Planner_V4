@@ -10,6 +10,7 @@ import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
+import HolidayName from '../../components/HolidayName';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { splitHolidayEvents, dayToneOf, DAY_CELL_BG, DAY_NUMBER_COLOR } from '../../lib/holiday';
 import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
@@ -110,9 +111,7 @@ export default function MonthAgenda({
                   <span className={`shrink-0 text-xs font-bold ${DAY_NUMBER_COLOR[tone]}`}>
                     {DAY_NAMES[new Date(dayObj.dateStr + 'T00:00:00').getDay()]}
                   </span>
-                  {holidayName && (
-                    <span className="text-xs font-bold text-red-600 truncate">{holidayName}</span>
-                  )}
+                  {holidayName && <HolidayName name={holidayName} tier="month" />}
                   {isEmpty && <span className="text-xs text-slate-300 truncate">일정 없음</span>}
                 </button>
 

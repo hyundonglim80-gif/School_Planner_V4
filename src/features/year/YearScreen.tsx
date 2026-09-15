@@ -273,7 +273,7 @@ export default function YearScreen() {
                             >
                               <span>{dObj.day}일 ({dayOfWeek})</span>
                               {isTodayEvent && <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full ml-1">오늘</span>}
-                              {holidayName && <span className="text-xs text-red-500 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md ml-1">{holidayName}</span>}
+                              {holidayName && <span title={holidayName} className="text-xs text-red-500 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md ml-1">{holidayName}</span>}
                             </div>
                             <button
                               onClick={(e) => { e.stopPropagation(); setQuickAddDate(dObj.dateStr); }}

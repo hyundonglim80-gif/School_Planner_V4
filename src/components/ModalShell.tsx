@@ -13,7 +13,8 @@
 import React from 'react';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import { useModalLayer } from '../hooks/useModalLayer';
+import { useBackdropClose } from '../hooks/useBackdropClose';
 
 export type ModalWidth = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl';
 
@@ -54,6 +55,7 @@ export default function ModalShell({
   useBodyScrollLock(isOpen);
   const vv = useVisualViewport(isOpen);
   const zIndex = useModalLayer(isOpen, onClose);
+  const backdrop = useBackdropClose();
 
   if (!isOpen) return null;
 
@@ -61,7 +63,7 @@ export default function ModalShell({
     <div
       className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in"
       style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
-      onClick={closeAllModals}
+      {...backdrop}
     >
       <div
         className={`bg-white w-full ${WIDTH_CLASS[width]} max-h-full rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden`}

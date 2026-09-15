@@ -33,8 +33,16 @@ describe('팝업 공통 규칙', () => {
 
   it.each(entries)('$name - 배경을 눌러 닫을 수 있다', ({ src }) => {
     // ModalShell을 쓰면 껍데기가 처리한다. 직접 만든 팝업은 스스로 처리해야 한다.
-    const handled = src.includes('ModalShell') || src.includes('closeAllModals');
+    const handled = src.includes('ModalShell') || src.includes('useBackdropClose');
     expect(handled).toBe(true);
+  });
+
+  it.each(entries)('$name - 배경 닫기를 onClick으로 직접 걸지 않는다', ({ src }) => {
+    // click은 누른 곳과 뗀 곳의 공통 조상에서 일어난다. 배경에 onClick만 걸면
+    // 팝업 안에서 글자를 끌어 선택하다 밖에서 손을 뗐을 때 팝업이 닫힌다.
+    // 누른 곳과 뗀 곳이 둘 다 배경일 때만 닫도록 useBackdropClose를 쓴다.
+    expect(src).not.toMatch(/onClick=\{closeAllModals\}/);
+    expect(src).not.toMatch(/onClick=\{\(\) => closeAllModals\(\)\}/);
   });
 
   it.each(entries.filter((e) => !CENTERED_BY_DESIGN.includes(e.name)))(
@@ -54,7 +62,7 @@ describe('팝업 공통 규칙', () => {
         'TrashModal.tsx',
       ];
       if (NOT_MIGRATED.includes(name)) {
-        expect(src).toContain('closeAllModals');
+        expect(src).toContain('useBackdropClose');
         return;
       }
       expect(src).toContain('ModalShell');

@@ -5,6 +5,7 @@ import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
+import HolidayName from '../../components/HolidayName';
 import { splitHolidayEvents, dayToneOf, DAY_CELL_BG, DAY_NUMBER_COLOR } from '../../lib/holiday';
 import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import { BODY_TEXT } from '../../lib/typeScale';
@@ -93,11 +94,8 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                     <span className={`text-xs font-bold ${DAY_NUMBER_COLOR[tone]}`}>
                       {Number(month)}.{Number(dateNum)}
                     </span>
-                    {holidayName && (
-                      <span className="text-xs font-bold text-red-600 truncate max-w-[65px]">
-                        {holidayName}
-                      </span>
-                    )}
+                    {/* 세로로 쌓이는 자리라 flex-1은 주지 않는다 (세로로 늘어난다) */}
+                    {holidayName && <HolidayName name={holidayName} tier="week" fill={false} />}
                   </div>
                 </div>
               </div>

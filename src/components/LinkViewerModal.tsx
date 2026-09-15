@@ -6,6 +6,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import { useBackdropClose } from '../hooks/useBackdropClose';
 import AutoTextarea from './AutoTextarea';
 import { showToast, showErrorToast } from '../utils/toast';
 
@@ -44,6 +45,8 @@ export default function LinkViewerModal({
   const vv = useVisualViewport(isOpen);
 
   const zIndex = useModalLayer(isOpen, onClose);
+
+  const backdrop = useBackdropClose();
   const { selectedGroupId, setCurrentDate, setScope } = useAppStore();
   const [links, setLinks] = useState<NormalizedLink[]>([]);
   const [loading, setLoading] = useState(false);
@@ -433,7 +436,7 @@ export default function LinkViewerModal({
   return (
     <div
       className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
-      onClick={closeAllModals}
+      {...backdrop}
     >
       <div
         className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-full flex flex-col border border-slate-200 overflow-hidden"

@@ -181,7 +181,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // showEvents는 값과 화면 연결은 되어 있었는데 누르는 자리가 없어서 늘 켜짐이었다.
   const viewToggles = [
     { key: 'weekend', label: '주말', on: showWeekend, set: setShowWeekend, hint: 'Shift + ↑/↓' },
-    { key: 'events', label: '일정', on: showEvents, set: setShowEvents, hint: '' },
+    { key: 'events', label: '일정', on: showEvents, set: setShowEvents, hint: 'Ctrl + ↑/↓' },
     { key: 'class', label: '수업', on: showClass, set: setShowClass, hint: 'Alt + ↑/↓' },
   ];
 
@@ -296,6 +296,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // 일정 보이기/숨기기 토글: Ctrl + ↑ 또는 Ctrl + ↓
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault();
+        const currentShow = useAppStore.getState().showEvents;
+        setShowEvents(!currentShow);
+        return;
+      }
+
       // 이전 날짜: Ctrl + ← (또는 Cmd + ←)
       if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowLeft') {
         e.preventDefault();
@@ -322,6 +330,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, [
     setShowWeekend,
     setShowClass,
+    setShowEvents,
     setScope,
     isForwardingModalOpen,
     closeLinkerModal,

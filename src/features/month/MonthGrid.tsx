@@ -6,6 +6,7 @@ import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
+import HolidayName from '../../components/HolidayName';
 import {
   splitHolidayEvents,
   dayToneOf,
@@ -103,19 +104,17 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
             >
               <div>
                 <div className="flex items-center justify-between gap-1 mb-1.5">
-                  <div className="flex items-center gap-1">
+                  {/* 날짜 뒤에 공휴일 이름. 남는 자리를 다 쓰도록 min-w-0 flex-1 을 준다.
+                      예전에는 max-w-[65px]로 묶어 두어 '대체공휴일'이 '대체공...'으로 잘렸다. */}
+                  <div className="flex items-center gap-1 min-w-0 flex-1">
                     <span
-                      className={`text-xs font-black inline-flex items-center justify-center w-6 h-6 rounded-full ${
+                      className={`text-xs font-black shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full ${
                         dayObj.isToday ? 'bg-primary text-white shadow-xs' : DAY_NUMBER_COLOR[tone]
                       }`}
                     >
                       {dayObj.day}
                     </span>
-                    {holidayName && (
-                      <span className="text-xs font-bold text-red-600 truncate max-w-[65px]">
-                        {holidayName}
-                      </span>
-                    )}
+                    {holidayName && <HolidayName name={holidayName} tier="month" />}
                   </div>
                   
                   <div className="flex items-center gap-1">

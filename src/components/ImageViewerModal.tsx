@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import { useModalLayer } from '../hooks/useModalLayer';
+import { useBackdropClose } from '../hooks/useBackdropClose';
 
 export interface ViewerImage {
   url: string;
@@ -20,6 +21,7 @@ export default function ImageViewerModal({ isOpen, onClose, images, startIndex =
   useBodyScrollLock(isOpen);
   const vv = useVisualViewport(isOpen);
   const zIndex = useModalLayer(isOpen, onClose);
+  const backdrop = useBackdropClose();
   const [index, setIndex] = useState(startIndex);
 
   // 뷰어를 다시 열 때 클릭한 이미지부터 보여준다 (useState 초기값은 최초 1회만 적용되므로).
@@ -37,7 +39,7 @@ export default function ImageViewerModal({ isOpen, onClose, images, startIndex =
     <div
       className="fixed inset-0 flex items-center justify-center overflow-y-auto p-4 bg-black/80 backdrop-blur-sm"
       style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
-      onClick={closeAllModals}
+      {...backdrop}
     >
       <div
         className="relative w-full max-w-3xl max-h-full flex flex-col gap-2"

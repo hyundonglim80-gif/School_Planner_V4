@@ -10,7 +10,8 @@ import {
 import { formatDate } from '../lib/dateUtils';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import { useModalLayer } from '../hooks/useModalLayer';
+import { useBackdropClose } from '../hooks/useBackdropClose';
 
 interface TimetableTemplateModalProps {
   isOpen: boolean;
@@ -31,6 +32,8 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   const vv = useVisualViewport(isOpen);
 
   const zIndex = useModalLayer(isOpen, onClose);
+
+  const backdrop = useBackdropClose();
   const {
     templates,
     currentTemplateName,
@@ -290,7 +293,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   };
 
   return (
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} onClick={closeAllModals}>
+    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} {...backdrop}>
       <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-full" onClick={(e) => e.stopPropagation()}>
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">

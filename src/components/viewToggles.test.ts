@@ -39,3 +39,31 @@ describe('표시 토글은 버튼과 화면이 같이 움직인다', () => {
     }
   });
 });
+
+// 토글 단축키는 세 곳이 어긋나기 쉽다.
+//   Layout의 키 처리 / 버튼 title에 적히는 hint / 사용 설명서의 단축키 목록
+// 실제로 일정 토글은 버튼도 단축키도 없이 값만 있었고, 버튼을 붙인 뒤에도
+// hint가 빈 문자열이라 어떤 키인지 알 수 없었다.
+describe('표시 토글 단축키는 설명서와 같다', () => {
+  const layout = read('/Layout.tsx');
+  const help = read('/HelpModal.tsx');
+
+  const expected = [
+    { label: '주말', key: 'showWeekend', hint: 'Shift + ↑/↓', kbd: 'Shift + ↑ / ↓' },
+    { label: '일정', key: 'showEvents', hint: 'Ctrl + ↑/↓', kbd: 'Ctrl + ↑ / ↓' },
+    { label: '수업', key: 'showClass', hint: 'Alt + ↑/↓', kbd: 'Alt + ↑ / ↓' },
+  ];
+
+  it.each(expected)('$label - 버튼에 단축키가 적혀 있다', ({ hint }) => {
+    expect(layout).toContain(`hint: '${hint}'`);
+  });
+
+  it.each(expected)('$label - 사용 설명서에 단축키가 실려 있다', ({ label, kbd }) => {
+    expect(help).toContain(`${label} 보이기 / 숨기기`);
+    expect(help).toContain(kbd);
+  });
+
+  it.each(expected)('$label - 키를 눌렀을 때 값을 뒤집는 처리가 있다', ({ key }) => {
+    expect(layout).toContain(`useAppStore.getState().${key}`);
+  });
+});

@@ -53,7 +53,7 @@ export default function DayHeader({ dateStr, onDateChange }: DayHeaderProps) {
             {display.fullString}
           </h2>
           {holidayName && (
-            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-600 border border-red-100">
+            <span title={holidayName} className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-600 border border-red-100">
               {holidayName}
             </span>
           )}

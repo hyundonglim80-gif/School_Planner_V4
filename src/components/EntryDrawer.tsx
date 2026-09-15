@@ -10,6 +10,7 @@ import { formatDateStr } from '../lib/dateUtils';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
+import { useBackdropClose } from '../hooks/useBackdropClose';
 import { usePasteImageUpload } from '../hooks/usePasteImageUpload';
 import ImageViewerModal, { type ViewerImage } from './ImageViewerModal';
 import AutoTextarea from './AutoTextarea';
@@ -129,6 +130,7 @@ export default function EntryDrawer({
   useBodyScrollLock(isOpen);
   const vv = useVisualViewport(isOpen);
   const zIndex = useModalLayer(isOpen, onClose);
+  const backdrop = useBackdropClose();
 
   const [content, setContent] = useState('');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
@@ -298,7 +300,7 @@ export default function EntryDrawer({
     >
       <div
         className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300"
-        onClick={closeAllModals}
+        {...backdrop}
       />
 
       <div className="relative w-full max-w-lg bg-white h-full shadow-2xl z-10 flex flex-col transform transition-transform duration-300 ease-in-out">
