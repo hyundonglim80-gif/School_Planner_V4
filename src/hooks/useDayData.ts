@@ -8,6 +8,7 @@ import { DEFAULT_EVENT_LABELS } from './useLabels';
 import { showErrorToast } from '../utils/toast';
 import { parseV3EventText, formatV3EventText, eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
 import { pastDateStrings } from '../lib/forwarding';
+import { useAppStore } from '../store/useAppStore';
 
 // 기존 import 경로 호환을 위해 재수출한다 (직렬화 구현은 lib/eventText.ts로 이동).
 export { parseV3EventText, formatV3EventText };
@@ -149,7 +150,8 @@ async function doAutoForwarding(groupId: string | null) {
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   
-  const pastDates = pastDateStrings(now);
+  // 환경설정 > 이월에서 정한 기간. 훅 밖이라 store를 직접 읽는다.
+  const pastDates = pastDateStrings(now, useAppStore.getState().forwardLookbackDays);
   
   const settingsRef = doc(db, 'users', user.uid, 'settings', 'labels');
   const settingsSnap = await getDoc(settingsRef);

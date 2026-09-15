@@ -1,6 +1,6 @@
 import React from 'react';
 import ModalShell, { ModalCloseButton } from './ModalShell';
-import { FORWARD_LOOKBACK_DAYS } from '../lib/forwarding';
+import { useAppStore } from '../store/useAppStore';
 
 interface HelpModalProps {
   isOpen: boolean;
@@ -8,6 +8,9 @@ interface HelpModalProps {
 }
 
 export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
+  // 안내 문구가 실제 동작과 어긋나지 않게 환경설정 값을 그대로 읽는다
+  const forwardLookbackDays = useAppStore((s) => s.forwardLookbackDays);
+
   return (
     <ModalShell
       isOpen={isOpen}
@@ -82,7 +85,7 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
             <div className="p-3 bg-amber-50/60 border border-amber-100 rounded-xl space-y-1">
               <div className="font-bold text-amber-800">📥 지난 미완료 일정 가져오기</div>
               <p className="text-slate-600">
-                하루 뷰의 오늘 일정 상단에서 <strong>'미완료 일정 가져오기'</strong>를 누르면 최근 {FORWARD_LOOKBACK_DAYS}일간 깜빡하고 완료하지 못한 업무들을 오늘로 이월합니다.
+                하루 뷰의 오늘 일정 상단에서 <strong>'미완료 일정 가져오기'</strong>를 누르면 최근 {forwardLookbackDays}일간 깜빡하고 완료하지 못한 업무들을 오늘로 이월합니다.
               </p>
             </div>
 

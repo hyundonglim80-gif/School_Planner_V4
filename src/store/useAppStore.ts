@@ -5,8 +5,12 @@ import { db, auth } from '../lib/firebase';
 import { formatV3EventText } from '../hooks/useDayData';
 import { moveToTrash } from '../utils/trashHelper';
 import { showErrorToast } from '../utils/toast';
+import { FORWARD_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
 
 type Scope = 'day' | 'week' | 'month' | 'year' | 'memo';
+
+/** 앱을 열었을 때 어느 화면부터 보여줄지. 'last'는 마지막에 보던 화면. */
+export type StartupScope = 'last' | Scope;
 
 interface AppState {
   scope: Scope;
@@ -19,6 +23,9 @@ interface AppState {
   govApiKey: string; 
   // 💡 스크롤 네비게이션 활성화 여부 추가
   enableScrollNav: boolean;
+  // 환경설정에서 조절하는 값들
+  startupScope: StartupScope;
+  forwardLookbackDays: number;
 
   setScope: (scope: Scope) => void;
   setSemesterFilter: (filter: 'all' | 1 | 2) => void;
@@ -29,6 +36,8 @@ interface AppState {
   setSelectedGroupId: (groupId: string | null) => void;
   setGovApiKey: (key: string) => void;
   setEnableScrollNav: (enable: boolean) => void;
+  setStartupScope: (scope: StartupScope) => void;
+  setForwardLookbackDays: (days: number) => void;
   navigatePrevDate: () => void;
   navigateNextDate: () => void;
 
@@ -115,6 +124,8 @@ export const useAppStore = create<AppState>()(
       selectedGroupId: null,
       govApiKey: '',
       enableScrollNav: false,
+      startupScope: 'last',
+      forwardLookbackDays: FORWARD_LOOKBACK_DAYS,
 
       clearAuthData: () => set({
         selectedGroupId: null,
@@ -134,6 +145,8 @@ export const useAppStore = create<AppState>()(
       setSelectedGroupId: (selectedGroupId) => set({ selectedGroupId }),
       setGovApiKey: (govApiKey) => set({ govApiKey }),
       setEnableScrollNav: (enable) => set({ enableScrollNav: enable }),
+      setStartupScope: (startupScope) => set({ startupScope }),
+      setForwardLookbackDays: (days) => set({ forwardLookbackDays: clampLookbackDays(days) }),
 
       navigatePrevDate: () => {
         const state = get();
@@ -388,6 +401,11 @@ export const useAppStore = create<AppState>()(
         showClass: state.showClass,
         showEvents: state.showEvents,
         enableScrollNav: state.enableScrollNav, // 추가됨
+        startupScope: state.startupScope,
+        forwardLookbackDays: state.forwardLookbackDays,
+        // 개발자가 환경설정에 넣은 공공데이터 키. 이걸 빼두면 새로고침할 때마다
+        // 빈 값으로 돌아가서, 입력해도 다음 실행에는 없는 것처럼 보인다.
+        govApiKey: state.govApiKey,
       }),
     }
   )

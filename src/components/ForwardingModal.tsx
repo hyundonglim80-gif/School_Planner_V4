@@ -7,7 +7,7 @@ import ModalShell, { ModalCloseButton } from './ModalShell';
 import DetailEditModal from './DetailEditModal';
 import { moveToTrash } from '../utils/trashHelper';
 import { eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
-import { FORWARD_LOOKBACK_DAYS, pastDateStrings } from '../lib/forwarding';
+import { pastDateStrings } from '../lib/forwarding';
 
 interface ForwardingModalProps {
   isOpen: boolean;
@@ -28,7 +28,7 @@ function formatDate(d: Date): string {
 }
 
 export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProps) {
-  const { selectedGroupId } = useAppStore();
+  const { selectedGroupId, forwardLookbackDays } = useAppStore();
   const [incompleteEvents, setIncompleteEvents] = useState<ForwardEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -59,8 +59,8 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
     const today = new Date();
     const incomplete: ForwardEvent[] = [];
 
-    // 훑는 기간은 자동 이월과 같은 값을 쓴다 (lib/forwarding)
-    for (const dateStr of pastDateStrings(today)) {
+    // 훑는 기간은 자동 이월과 같은 값을 쓴다 (환경설정 > 이월)
+    for (const dateStr of pastDateStrings(today, forwardLookbackDays)) {
       try {
         const colPath = selectedGroupId && selectedGroupId !== 'personal'
           ? `groups/${selectedGroupId}/events`
@@ -252,7 +252,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
         <div className="px-5 py-3">
           <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-800">
             <strong>안내:</strong> '전달' 라벨이 있는 미완료 일정을 오늘 날짜로 자동 이동합니다.<br />
-            지난 {FORWARD_LOOKBACK_DAYS}일간의 미완료 일정을 스캔합니다.
+            지난 {forwardLookbackDays}일간의 미완료 일정을 스캔합니다.
           </div>
         </div>
 

@@ -77,8 +77,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     openLabelModal,
     closeLabelModal,
     // 💡 스크롤 네비게이션 상태 가져오기
-    enableScrollNav,
-    setEnableScrollNav,
   } = useAppStore();
   const { groups, loading: groupsLoading } = useGroups();
   const { primaryDDay } = useDDay();
@@ -110,6 +108,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  // 환경설정 > 시작 화면. 'last'면 마지막에 보던 화면(scope는 이미 저장돼 있다)을
+  // 그대로 두고, 아니면 정해둔 화면으로 한 번만 옮긴다.
+  useEffect(() => {
+    const startupScope = useAppStore.getState().startupScope;
+    if (startupScope !== 'last') setScope(startupScope);
+    // 처음 한 번만. 뒤에 사용자가 탭을 바꾸면 그대로 둬야 한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {
@@ -516,19 +523,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     </button>
                   </div>
 
-                  {/* 💡 스크롤 설정 추가된 부분 */}
-                  <label className="w-full px-4 py-2.5 flex items-center justify-between font-bold text-slate-700 hover:bg-slate-50 cursor-pointer border-b border-dashed border-slate-100">
-                    <div className="flex items-center gap-2">
-                      <span>🖱️</span> 스크롤 페이지 이동
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={enableScrollNav}
-                      onChange={(e) => setEnableScrollNav(e.target.checked)}
-                      className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 accent-primary cursor-pointer"
-                    />
-                  </label>
-
+                  {/* '스크롤 페이지 이동'은 환경설정으로 옮겼다. 켜고 끄는 자리가
+                      두 군데면 어느 쪽이 지금 값인지 헷갈린다. */}
                   <button
                     onClick={() => {
                       setIsMoreMenuOpen(false);
@@ -587,6 +583,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
                   >
                     <span>💾</span> 내보내기 / 가져오기 (백업)
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      setIsSettingsModalOpen(true);
+                    }}
+                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
+                  >
+                    <span>⚙️</span> 환경설정
                   </button>
 
                   <button

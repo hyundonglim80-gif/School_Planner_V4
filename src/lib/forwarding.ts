@@ -10,6 +10,18 @@
 // 설명서 문구도 실제 동작과 달랐다. 한 곳에서만 정한다.
 export const FORWARD_LOOKBACK_DAYS = 14;
 
+// 환경설정에서 바꿀 수 있는 값이라 범위를 정해 둔다.
+// 0이면 이월이 아예 안 돌고, 너무 크면 하루 문서를 그만큼 읽어야 해서 느려진다.
+export const MIN_LOOKBACK_DAYS = 1;
+export const MAX_LOOKBACK_DAYS = 60;
+
+/** 입력칸으로 들어온 값을 쓸 수 있는 범위로 자른다 */
+export function clampLookbackDays(value: unknown): number {
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n)) return FORWARD_LOOKBACK_DAYS;
+  return Math.min(MAX_LOOKBACK_DAYS, Math.max(MIN_LOOKBACK_DAYS, n));
+}
+
 /** 오늘을 뺀, 거슬러 올라갈 날짜 문자열 목록 (어제부터 과거로) */
 export function pastDateStrings(from: Date, days: number = FORWARD_LOOKBACK_DAYS): string[] {
   const list: string[] = [];

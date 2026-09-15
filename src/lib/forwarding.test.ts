@@ -30,17 +30,21 @@ describe('이월 기간은 한 곳에서만 정한다', () => {
     .filter(([p]) => !p.includes('.test.'))
     .map(([p, src]) => ({ name: p.split('/').pop()!, src }));
 
-  it('이월을 다루는 곳은 lib/forwarding을 쓴다', () => {
-    for (const name of ['useDayData.ts', 'ForwardingModal.tsx', 'HelpModal.tsx']) {
+  const users = ['useDayData.ts', 'ForwardingModal.tsx', 'HelpModal.tsx'];
+
+  it('이월을 다루는 곳은 환경설정 값이나 lib/forwarding을 쓴다', () => {
+    for (const name of users) {
       const entry = entries.find((e) => e.name === name);
       expect(entry, `${name} 를 찾지 못했다`).toBeDefined();
-      expect(entry!.src).toContain("from '../lib/forwarding'");
+      const usesShared =
+        entry!.src.includes("from '../lib/forwarding'") || entry!.src.includes('forwardLookbackDays');
+      expect(usesShared, `${name} 가 이월 기간을 제 마음대로 정하고 있다`).toBe(true);
     }
   });
 
   it('날짜 수를 직접 적어두지 않는다', () => {
     const offenders = entries
-      .filter((e) => ['useDayData.ts', 'ForwardingModal.tsx', 'HelpModal.tsx'].includes(e.name))
+      .filter((e) => users.includes(e.name))
       .filter((e) => /지난 7일간|최근 14일간|i <= 7;|i <= 14;/.test(e.src))
       .map((e) => e.name);
 
