@@ -1,6 +1,6 @@
 //src/components/QuickAddModal.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { doc, getDoc, setDoc, getDocs, collection } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { showToast, showErrorToast } from '../utils/toast';
@@ -45,6 +45,18 @@ interface FetchedItem {
   /** 일정/기록은 라벨 이름을 label에도 들고 있다 (콤마로 이은 목록일 수 있다) */
   label?: string;
   period?: string | number;
+}
+
+/**
+ * 'YYYY-MM-DD'만 남긴다.
+ * Layout은 기준 날짜가 없으면 store의 currentDate를 그대로 넘기는데, 그 값은
+ * toISOString()이라 '2026-09-15T10:23:45.123Z' 꼴이다. 이대로 <input type="date">에
+ * 넣으면 칸이 빈 채로 그려져 '기간 설정'을 골라도 날짜를 못 고른다.
+ */
+function toDateOnly(s: string): string {
+  if (!s) return '';
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? s.slice(0, 10) : formatDateStr(d);
 }
 
 function formatDateStr(d: Date): string {
@@ -97,8 +109,8 @@ export default function LinkerModal({
 
   // 필터 및 페이징 상태
   const [dateRange, setDateRange] = useState('1week');
-  const [customStart, setCustomStart] = useState(sourceDateStr);
-  const [customEnd, setCustomEnd] = useState(sourceDateStr);
+  const [customStart, setCustomStart] = useState(() => toDateOnly(sourceDateStr));
+  const [customEnd, setCustomEnd] = useState(() => toDateOnly(sourceDateStr));
   const [searchKeyword, setSearchKeyword] = useState('');
   // 라벨 필터는 탭마다 라벨 종류가 다르므로 "이름"으로 고른다. 종류별로 ID 체계가
   // 달라서(일정 ev_*, 기록 j_*, 메모는 이름만) ID로 비교하면 탭을 바꿀 때 어긋난다.
@@ -307,12 +319,26 @@ export default function LinkerModal({
     }
   }, [computeDateRange, activeFId, getColPath]);
 
-  // 모달 오픈 시 초기화
+  // 조회 함수는 늘 최신 것을 담아 둔다. 아래 초기화 효과가 조회 함수를
+  // 의존성으로 잡으면 안 되기 때문이다 (그 이유는 바로 아래에 적어 두었다).
+  const fetchMemoDataRef = useRef(fetchMemoData);
   useEffect(() => {
-    if (isOpen) {
+    fetchMemoDataRef.current = fetchMemoData;
+  }, [fetchMemoData]);
+
+  // 모달이 닫힘 -> 열림으로 바뀌는 순간에만 초기화한다.
+  // ⚠️ 조회 범위(dateRange)나 조회 함수를 의존성에 넣지 말 것.
+  //    조회 범위를 바꾸면 fetchDateRangeData가 새로 만들어지는데, 그것이 의존성에
+  //    들어 있으면 이 효과가 곧바로 다시 돌아 방금 고른 범위를 '±1주일'로 되돌린다.
+  //    ('기간 설정'을 골라도 날짜 칸이 안 나오던 것도 같은 원인이었다)
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (isOpen && !wasOpenRef.current) {
       setSelectedLinks([]);
       setCurrentTab('event');
       setDateRange('1week');
+      setCustomStart(toDateOnly(sourceDateStr));
+      setCustomEnd(toDateOnly(sourceDateStr));
       setCurrentPage(1);
       setSearchKeyword('');
       setSelectedLabelNames([]);
@@ -320,10 +346,11 @@ export default function LinkerModal({
       setSelectedSourcePeriod(sourcePeriod ? Number(sourcePeriod) : 1);
       setScheduleDate(sourceDateStr || formatDateStr(new Date()));
       setSchedulePeriod(1);
-      fetchDateRangeData();
-      fetchMemoData();
+      // 일정/기록은 아래 '조회 범위 변경 시 자동 재조회'가 맡는다 (두 번 읽지 않도록).
+      fetchMemoDataRef.current();
     }
-  }, [isOpen, sourcePeriod, sourceDateStr, fetchDateRangeData, fetchMemoData]);
+    wasOpenRef.current = isOpen;
+  }, [isOpen, sourcePeriod, sourceDateStr]);
 
   // 기간 범위 변경 시 자동 재조회
   useEffect(() => {
