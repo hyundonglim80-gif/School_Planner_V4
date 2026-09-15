@@ -23,6 +23,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // 등록된 개발자 계정. src/lib/developers.ts 와 같은 목록을 유지해야 한다.
+    function isDeveloper() {
+      return signedIn() && request.auth.token.email in [
+        'hyundonglim@gmail.com',
+        'hyundonglim80@gmail.com',
+        'hyundonglim.work@gmail.com'
+      ];
+    }
+
     function isMember(groupId) {
       return signedIn()
         && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
@@ -32,6 +41,22 @@ service cloud.firestore {
     // events / schedules / journals / tasks / settings / trash 전부 포함
     match /users/{uid}/{document=**} {
       allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // ── 공휴일 (모두가 같이 보는 자료) ─────────────────────────────────
+    // 개발자가 1년에 한 번 공공데이터포털에서 받아 여기에 적어둔다.
+    // 사용자는 읽기만 하므로 API 키를 발급받을 필요도, 가질 필요도 없다.
+    // 이 규칙이 배포되지 않으면 '내려받아 저장'이 권한 오류로 실패한다.
+    match /holidays/{year} {
+      allow read: if signedIn();
+      allow write: if isDeveloper();
+    }
+
+    // ── 개발자 전용 설정 ───────────────────────────────────────────────
+    // 공공데이터 API 키가 여기 들어 있다. 소스에 두면 빌드 결과물에 실려
+    // 누구나 꺼내 쓸 수 있으므로, 읽기까지 개발자로 제한한다.
+    match /admin/{document=**} {
+      allow read, write: if isDeveloper();
     }
 
     // ── 공유 그룹 ──────────────────────────────────────────────────────

@@ -9,7 +9,7 @@ import { useAppStore } from '../store/useAppStore';
 import { eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
 import { formatDate } from '../lib/dateUtils';
 import { exportToGoogleCalendar } from '../lib/googleSync';
-import { fetchHolidaysFromGovApi } from '../lib/govApi'; // API 훅 추가
+import { loadHolidaysForYear } from '../lib/holidays';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
@@ -29,8 +29,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
 
   const zIndex = useModalLayer(isOpen, onClose);
   const { groups } = useGroups();
-  // govApiKey 가져오기 추가
-  const { scope: appScope, currentDate: appCurrentDate, govApiKey, googleAccessToken } = useAppStore();
+  const { scope: appScope, currentDate: appCurrentDate, googleAccessToken } = useAppStore();
 
   // 1. 개인 or 그룹 선택
   const [selectedScope, setSelectedScope] = useState<'personal' | string>('personal');
@@ -46,9 +45,10 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
     setStatusMsg(`${govYear}~${govYear + 1}년 공휴일 정보를 가져오는 중...`);
 
     try {
+      // data.go.kr을 직접 부르지 않는다. 개발자가 받아둔 holidays/{연도}를 읽는다.
       const [holidaysThisYear, holidaysNextYear] = await Promise.all([
-        fetchHolidaysFromGovApi(govYear),
-        fetchHolidaysFromGovApi(govYear + 1)
+        loadHolidaysForYear(govYear),
+        loadHolidaysForYear(govYear + 1)
       ]);
 
       const fetchedHolidays = { ...holidaysThisYear, ...holidaysNextYear };
@@ -56,7 +56,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
 
       if (holidayDates.length === 0) {
         setProcessing(false);
-        return showErrorToast('가져올 공휴일 데이터가 없습니다. API 키를 확인해주세요.');
+        return showErrorToast(`${govYear}~${govYear + 1}년 공휴일 자료가 아직 등록되지 않았습니다.`);
       }
 
       let count = 0;

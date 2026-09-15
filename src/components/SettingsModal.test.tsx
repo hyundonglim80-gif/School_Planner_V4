@@ -29,7 +29,7 @@ describe('환경설정 - 개발자 전용 항목', () => {
     await waitFor(() => expect(screen.getByText('화면 표시')).toBeInTheDocument());
 
     expect(screen.queryByText(/개발자 설정/)).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText(/기본 키 사용/)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/특일정보 서비스 키/)).not.toBeInTheDocument();
   });
 
   it('등록된 개발자 계정에만 보인다', async () => {
@@ -37,7 +37,7 @@ describe('환경설정 - 개발자 전용 항목', () => {
     render(<SettingsModal isOpen onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText(/개발자 설정/)).toBeInTheDocument());
 
-    expect(screen.getByPlaceholderText(/기본 키 사용/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/특일정보 서비스 키/)).toBeInTheDocument();
   });
 });
 

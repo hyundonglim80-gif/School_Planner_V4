@@ -403,9 +403,8 @@ export const useAppStore = create<AppState>()(
         enableScrollNav: state.enableScrollNav, // 추가됨
         startupScope: state.startupScope,
         forwardLookbackDays: state.forwardLookbackDays,
-        // 개발자가 환경설정에 넣은 공공데이터 키. 이걸 빼두면 새로고침할 때마다
-        // 빈 값으로 돌아가서, 입력해도 다음 실행에는 없는 것처럼 보인다.
-        govApiKey: state.govApiKey,
+        // govApiKey는 일부러 넣지 않는다. 키는 Firestore의 admin/config에 있고
+        // 개발자가 환경설정을 열 때 거기서 읽어온다. 이 기기에도 남길 이유가 없다.
       }),
     }
   )

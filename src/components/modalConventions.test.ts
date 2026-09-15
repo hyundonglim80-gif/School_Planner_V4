@@ -74,18 +74,8 @@ const layoutSrc = Object.entries(
   import.meta.glob('./Layout.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 )[0][1];
 
-// 지금도 여는 자리가 없는 팝업들. 만들어져 있고 동작도 하는데 화면에서 닿지 못한다.
-// 메뉴에 넣을지 말지는 정해야 할 문제라 일단 여기 적어두고 표시만 해둔다.
-// 연결하면 이 목록에서 지운다.
-const UNREACHABLE_TODO = [
-  'setIsRecurringModalOpen', // 반복 일정 등록
-  'setIsForwardingModalOpen', // 미완료 일정을 골라서 가져오기 (하루 화면의 자동 이월과는 다른 화면)
-];
-
 describe('Layout - 열 수 없는 팝업이 없다', () => {
-  const openers = [...layoutSrc.matchAll(/const \[\w+, (set\w+)\] = useState\(false\)/g)]
-    .map((m) => m[1])
-    .filter((setter) => !UNREACHABLE_TODO.includes(setter));
+  const openers = [...layoutSrc.matchAll(/const \[\w+, (set\w+)\] = useState\(false\)/g)].map((m) => m[1]);
 
   it('꺼짐으로 시작하는 상태를 여럿 찾았다', () => {
     expect(openers.length).toBeGreaterThan(5);

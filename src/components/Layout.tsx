@@ -545,6 +545,28 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <span>🏷️</span> 통합 라벨 관리
                   </button>
 
+                  {/* 반복 일정 등록 / 미완료 일정 가져오기.
+                      둘 다 만들어져 있었는데 여는 자리가 없어 화면에서 닿을 수 없었다. */}
+                  <button
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      setIsRecurringModalOpen(true);
+                    }}
+                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
+                  >
+                    <span>🔁</span> 반복 일정 등록
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      setIsForwardingModalOpen(true);
+                    }}
+                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
+                  >
+                    <span>📥</span> 미완료 일정 가져오기
+                  </button>
+
                   <button
                     onClick={() => {
                       setIsMoreMenuOpen(false);
