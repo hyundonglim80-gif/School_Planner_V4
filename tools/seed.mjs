@@ -17,6 +17,9 @@ const PASSWORD = 'test1234';
 // 공유 그룹을 둘이서 써 보려면 계정이 두 개 필요하다.
 // 두 번째 계정은 데이터를 심지 않는다 (그룹에 들어가기만 한다).
 const SECOND_EMAIL = 'teacher2@example.com';
+// 개발자 전용 화면(공휴일, 공유 그룹 점검)을 확인하려면 이 계정으로 들어가야 한다.
+// src/lib/developers.ts 의 목록과 같아야 한다.
+const DEVELOPER_EMAIL = 'hyundonglim80@gmail.com';
 
 const app = initializeApp({ projectId: 'schoolplannerv3', apiKey: 'fake-api-key' }, 'seed');
 const db = getFirestore(app);
@@ -193,6 +196,13 @@ async function main() {
     console.log(`두 번째 계정을 만들었습니다: ${SECOND_EMAIL}`);
   } catch {
     console.log(`두 번째 계정은 이미 있습니다: ${SECOND_EMAIL}`);
+  }
+
+  try {
+    await createUserWithEmailAndPassword(auth, DEVELOPER_EMAIL, PASSWORD);
+    console.log(`개발자 계정을 만들었습니다: ${DEVELOPER_EMAIL}`);
+  } catch {
+    console.log(`개발자 계정은 이미 있습니다: ${DEVELOPER_EMAIL}`);
   }
 
   console.log(
