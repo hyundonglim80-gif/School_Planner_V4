@@ -177,7 +177,7 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
         next.delete(item.id);
         return next;
       });
-      showToast('복원되었습니다.');
+      showToast('✅ 복원되었습니다.');
     } catch (err: any) {
       showErrorToast('복원 실패: ' + err.message);
     } finally {
@@ -297,7 +297,8 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
             <span>🗑️</span> 휴지통
           </h2>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200">
+          <button
+            title="닫기" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200">
             ✕
           </button>
         </div>

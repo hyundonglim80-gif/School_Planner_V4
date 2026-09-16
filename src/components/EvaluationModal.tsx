@@ -188,7 +188,8 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
             {viewMode !== 'list' && evalList.length > 0 && (
               <button onClick={() => setViewMode('list')} className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold">목록</button>
             )}
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
+            <button
+            title="닫기" onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
           </div>
         </div>
 

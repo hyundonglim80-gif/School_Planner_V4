@@ -1,7 +1,7 @@
 //src/components/BackupModal.tsx
 
 import React, { useState, useEffect } from 'react';
-import { showToast, showErrorToast } from '../utils/toast';
+import { showToast, showErrorToast, showToastAfterReload } from '../utils/toast';
 import { collection, getDocs, doc, setDoc, query, where, documentId, getDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useGroups } from '../hooks/useGroups';
@@ -625,7 +625,9 @@ ${counts}
               await setDoc(doc(db, 'users', user.uid, 'settings', id), data.rosters[id], { merge: true });
             }
           }
-          showToast(`✅ 백업 파일(${file.name}) 복원이 성공적으로 완료되었습니다.`);
+          // 바로 아래에서 새로고침하므로 지금 띄우면 읽기도 전에 쓸려 나간다.
+          // 새로고침을 건너온 뒤에 띄우도록 맡긴다.
+          showToastAfterReload(`✅ 백업 파일(${file.name}) 복원이 성공적으로 완료되었습니다.`);
           onClose();
           window.location.reload();
         } else {
@@ -712,6 +714,7 @@ ${summary}
             </div>
           </div>
           <button
+            title="닫기"
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 font-black text-lg p-1 transition-colors"
           >
@@ -968,6 +971,7 @@ ${summary}
             </button>
 
             <button
+            title="내보내기"
               onClick={handleExecuteExport}
               disabled={processing}
               className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-extrabold shadow-xs transition-all flex items-center gap-1.5"

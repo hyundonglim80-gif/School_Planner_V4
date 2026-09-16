@@ -617,6 +617,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
             <h2 className="text-base font-extrabold text-slate-800">통합 라벨 관리</h2>
           </div>
           <button
+            title="닫기"
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 font-black text-lg p-1 transition-colors"
           >

@@ -95,3 +95,32 @@ describe('Layout - 열 수 없는 팝업이 없다', () => {
     expect(opened, setter + ' 로 켜는 곳이 없다 - 화면에서 닿을 수 없는 팝업이다').toBe(true);
   });
 });
+
+// 그림만 있는 단추는 화면 낭독기에 "버튼"이라고만 읽히고, 마우스를 올려도
+// 아무 설명이 뜨지 않는다. ✕ 닫기 단추 12곳이 그랬다.
+// ModalShell을 쓰는 팝업은 껍데기가 title="닫기"를 붙여 주지만,
+// 아직 옮기지 못한 팝업은 각자 붙여야 한다.
+describe('그림만 있는 단추에는 설명이 붙어 있다', () => {
+  const allSources = import.meta.glob('../**/*.tsx', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  }) as Record<string, string>;
+
+  const offenders: string[] = [];
+  for (const [path, src] of Object.entries(allSources)) {
+    if (path.includes('.test.')) continue;
+    for (const m of src.matchAll(/<button([\s\S]*?)>([\s\S]*?)<\/button>/g)) {
+      const attrs = m[1];
+      const text = m[2].replace(/<[^>]+>/g, '').replace(/\{[^{}]*\}/g, '').trim();
+      if (!text) continue;
+      if (/[0-9A-Za-z가-힣]/.test(text)) continue;
+      if (attrs.includes('title=') || attrs.includes('aria-label')) continue;
+      offenders.push(`${path.replace('../', '')} — "${text.slice(0, 4)}"`);
+    }
+  }
+
+  it('설명 없는 그림 단추가 없다', () => {
+    expect(offenders, offenders.join(' / ')).toEqual([]);
+  });
+});

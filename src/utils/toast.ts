@@ -53,6 +53,37 @@ export function showErrorToast(message: string, error?: unknown) {
   showToast(marked, 4000, 'error');
 }
 
+const AFTER_RELOAD_KEY = 'sp4_toast_after_reload';
+
+/**
+ * 화면을 새로 그린 다음에 알린다.
+ *
+ * 백업 복원은 showToast 바로 다음 줄에서 window.location.reload()를 부른다.
+ * 그래서 '복원이 완료되었습니다'가 뜨자마자 새로고침에 쓸려 사라졌다.
+ * 사용자 입장에서는 화면만 깜빡이고 됐는지 안 됐는지 알 수 없었다.
+ * 새로고침을 건너온 뒤에 띄우도록 맡겨 둔다.
+ */
+export function showToastAfterReload(message: string) {
+  try {
+    sessionStorage.setItem(AFTER_RELOAD_KEY, message);
+  } catch {
+    /* 저장을 못 하면 그냥 지금 띄운다 */
+    showToast(message);
+  }
+}
+
+/** 앱이 처음 뜰 때 한 번 불러, 맡겨 둔 알림이 있으면 띄운다 */
+export function flushPendingToast() {
+  try {
+    const msg = sessionStorage.getItem(AFTER_RELOAD_KEY);
+    if (!msg) return;
+    sessionStorage.removeItem(AFTER_RELOAD_KEY);
+    showToast(msg, 4000);
+  } catch {
+    /* 못 읽으면 넘어간다 */
+  }
+}
+
 // Window global registration for convenience
 if (typeof window !== 'undefined') {
   (window as any).showToast = showToast;

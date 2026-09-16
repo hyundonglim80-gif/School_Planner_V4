@@ -302,6 +302,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
             <h2 className="text-base font-extrabold text-slate-800">시간표 마스터 모듈 & 템플릿 설정</h2>
           </div>
           <button
+            title="닫기"
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 font-black text-lg p-1 transition-colors"
           >

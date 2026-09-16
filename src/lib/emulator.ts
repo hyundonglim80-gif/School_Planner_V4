@@ -14,9 +14,25 @@ import type { FirebaseStorage } from 'firebase/storage';
 
 export const USING_EMULATOR = import.meta.env.VITE_USE_EMULATOR === '1';
 
-/** 점검용 계정. 시드 스크립트가 같은 값으로 만든다. */
+/**
+ * 점검용 계정. 시드 스크립트가 같은 값으로 만든다.
+ * 공유 그룹을 둘이서 써 보려면 창마다 다른 계정으로 들어가야 한다.
+ * 주소에 ?as=2 를 붙이면 두 번째 계정으로 들어간다.
+ */
+function emulatorEmail(): string {
+  try {
+    const who = new URLSearchParams(window.location.search).get('as');
+    if (who === '2') return 'teacher2@example.com';
+  } catch {
+    /* 주소를 못 읽으면 기본 계정 */
+  }
+  return import.meta.env.VITE_EMULATOR_EMAIL || 'teacher@example.com';
+}
+
 export const EMULATOR_USER = {
-  email: import.meta.env.VITE_EMULATOR_EMAIL || 'teacher@example.com',
+  get email() {
+    return emulatorEmail();
+  },
   password: 'test1234',
 };
 

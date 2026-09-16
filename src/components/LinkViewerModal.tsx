@@ -448,6 +448,7 @@ export default function LinkViewerModal({
             <span>📑</span> 연결된 데이터 확인 (수정/이동 가능)
           </h3>
           <button
+            title="닫기"
             onClick={onClose}
             className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
           >

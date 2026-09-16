@@ -471,6 +471,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
             </div>
           </div>
           <button
+            title="닫기"
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 font-black text-lg p-1 transition-colors"
           >
@@ -753,6 +754,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
             닫기
           </button>
           <button
+            title="저장"
             onClick={handleSave}
             disabled={saving}
             className="px-5 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"

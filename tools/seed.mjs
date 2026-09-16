@@ -14,6 +14,9 @@ import {
 
 const EMAIL = process.env.SEED_EMAIL || 'teacher@example.com';
 const PASSWORD = 'test1234';
+// 공유 그룹을 둘이서 써 보려면 계정이 두 개 필요하다.
+// 두 번째 계정은 데이터를 심지 않는다 (그룹에 들어가기만 한다).
+const SECOND_EMAIL = 'teacher2@example.com';
 
 const app = initializeApp({ projectId: 'schoolplannerv3', apiKey: 'fake-api-key' }, 'seed');
 const db = getFirestore(app);
@@ -183,6 +186,14 @@ async function main() {
     });
   }
   await batch.commit();
+
+  // ── 두 번째 계정 (공유 그룹 점검용) ────────────────────────────
+  try {
+    await createUserWithEmailAndPassword(auth, SECOND_EMAIL, PASSWORD);
+    console.log(`두 번째 계정을 만들었습니다: ${SECOND_EMAIL}`);
+  } catch {
+    console.log(`두 번째 계정은 이미 있습니다: ${SECOND_EMAIL}`);
+  }
 
   console.log(
     `심었습니다 — 날짜 ${days}일 / 일정 ${events}건 / 기록 ${journals}건 / 수업 ${schedules}일 / 메모 ${memoCount}건`

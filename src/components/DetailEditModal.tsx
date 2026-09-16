@@ -263,6 +263,7 @@ export default function DetailEditModal({
           <h2 className="text-lg font-black text-slate-800">{title}</h2>
           <div className="flex items-center gap-2">
             <button
+            title="닫기"
               onClick={onClose}
               className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 font-bold transition-colors cursor-pointer"
             >

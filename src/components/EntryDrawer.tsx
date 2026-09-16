@@ -335,6 +335,7 @@ export default function EntryDrawer({
             <p className="text-xs text-slate-400 mt-0.5">빠른 저장 단축키: Ctrl + S</p>
           </div>
           <button
+            title="닫기"
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
           >
