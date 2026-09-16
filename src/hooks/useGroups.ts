@@ -153,13 +153,31 @@ export function useGroups() {
       createdAt: Date.now(),
     };
 
-    const docRef = await addDoc(collection(db, 'groups'), newGroupData);
-    await setDoc(inviteCodeRef(inviteCode), {
-      groupId: docRef.id,
-      ownerId: user.uid,
-      createdAt: Date.now(),
-    });
+    // ⚠️ 그룹 문서를 만들면 곧바로 위의 onSnapshot이 깨어나 ensureInviteCodeDoc을
+    //    부른다. 그 쪽도 같은 초대 코드 문서를 쓰려 하므로 둘이 맞부딪친다.
+    //    규칙에 inviteCodes의 update가 없어서(create만 있다) 늦게 쓴 쪽이 거부되고,
+    //    그 오류가 그대로 올라와 그룹 만들기가 실패한 것처럼 보였다.
+    //    화면에는 'PERMISSION_DENIED: false for create @ L55'가 그대로 떴다.
+    //    코드를 먼저 찜해 두어 저쪽이 손대지 않게 한다.
     backfilledCodes.add(inviteCode);
+
+    const docRef = await addDoc(collection(db, 'groups'), newGroupData);
+
+    try {
+      const existing = await getDoc(inviteCodeRef(inviteCode));
+      if (!existing.exists()) {
+        await setDoc(inviteCodeRef(inviteCode), {
+          groupId: docRef.id,
+          ownerId: user.uid,
+          createdAt: Date.now(),
+        });
+      }
+    } catch (e) {
+      // 매핑을 못 만들어도 그룹은 이미 만들어졌다. 그룹장이 다음에 앱을 열 때
+      // ensureInviteCodeDoc이 다시 채운다. 여기서 실패로 되돌리면 안 된다.
+      console.warn('초대 코드 매핑 생성 실패(그룹은 만들어짐):', e);
+    }
+
     return { id: docRef.id, ...newGroupData };
   }, []);
 

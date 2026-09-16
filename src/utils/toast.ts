@@ -46,7 +46,11 @@ export function showToast(message: string, duration: number = 2500, type: 'info'
  */
 export function showErrorToast(message: string, error?: unknown) {
   if (error) console.error(message, error);
-  showToast(message, 4000, 'error');
+  // 잘된 알림은 ✅로 시작하는데 실패 알림에는 아무 표시가 없어, 빛깔로만
+  // 구분됐다. 색을 잘 못 가리는 경우나 눈에 안 띄는 자리에서는 실패가
+  // 성공처럼 지나간다. 표시를 붙여 한눈에 갈리게 한다.
+  const marked = /^[✅❌⚠️]/.test(message.trim()) ? message : `❌ ${message}`;
+  showToast(marked, 4000, 'error');
 }
 
 // Window global registration for convenience

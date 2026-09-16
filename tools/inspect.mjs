@@ -219,7 +219,9 @@ async function run() {
   }, { settle: 800 });
 
   await step(page, s, '검색 — 1학기 전체 (검색어 없이)', async () => {
-    await page.getByRole('combobox').first().selectOption('sem1');
+    // ⚠️ getByRole('combobox').first() 는 쓰지 말 것. 공유 그룹을 만들어 두면
+    //    머리말에 그룹 고르는 칸이 생겨 그쪽이 먼저 잡힌다. 값으로 짚는다.
+    await page.locator('select:has(option[value="sem1"])').first().selectOption('sem1');
     await page.getByRole('button', { name: '데이터 찾기' }).click();
     await page.getByText(/총 .*건의 데이터를 찾았습니다/).waitFor({ timeout: 60000 });
   }, { settle: 1200, shot: '06-search' });

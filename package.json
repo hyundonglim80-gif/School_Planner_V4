@@ -12,7 +12,8 @@
     "emu": "firebase emulators:start --only auth,firestore --project schoolplannerv3",
     "seed": "node tools/seed.mjs",
     "dev:emu": "vite --port 5173 --strictPort",
-    "inspect": "node tools/inspect.mjs"
+    "inspect": "node tools/inspect.mjs",
+    "inspect:flows": "node tools/inspect-flows.mjs"
   },
   "dependencies": {
     "firebase": "^12.18.0",

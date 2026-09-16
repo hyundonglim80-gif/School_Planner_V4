@@ -9,6 +9,18 @@ interface GroupModalProps {
   onClose: () => void;
 }
 
+/**
+ * 사용자에게 보여 줄 문구를 고른다.
+ * Firestore가 던지는 말('PERMISSION_DENIED: false for create @ L55' 같은 것)이
+ * 그대로 토스트에 떴다. 우리가 쓴 한글 안내만 그대로 보여 주고, 나머지는
+ * 준비된 문구로 바꾼다. 원문은 showErrorToast가 콘솔에 남긴다.
+ */
+function userMessage(err: any, fallback: string): string {
+  const msg = String(err?.message || '');
+  const ours = msg && /[가-힣]/.test(msg) && !/PERMISSION_DENIED|Firestore|firebase/i.test(msg);
+  return ours ? msg : fallback;
+}
+
 export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
   const { groups, createGroup, joinGroup, leaveGroup, deleteGroup } = useGroups();
   const [activeTab, setActiveTab] = useState<'list' | 'create' | 'join'>('list');
@@ -31,7 +43,7 @@ export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
       setNewGroupName('');
       setActiveTab('list');
     } catch (err: any) {
-      showErrorToast(err.message || '그룹 생성 실패');
+      showErrorToast(userMessage(err, '그룹을 만들지 못했습니다.'), err);
     } finally {
       setLoading(false);
     }
@@ -47,7 +59,7 @@ export default function GroupModal({ isOpen, onClose }: GroupModalProps) {
       setInviteCodeInput('');
       setActiveTab('list');
     } catch (err: any) {
-      showErrorToast(err.message || '그룹 참여 실패');
+      showErrorToast(userMessage(err, '그룹에 참여하지 못했습니다.'), err);
     } finally {
       setLoading(false);
     }

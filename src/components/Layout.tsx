@@ -657,10 +657,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         {/* 🔥 상단 2행: 좌측(옵션 버튼), 중앙(가운데 정렬: ◀ 날짜(클릭 시 오늘) ▶) - 메모 뷰에서는 표시하지 않음 */}
+        {/* 💡 좁은 화면에서는 줄을 바꾼다.
+            예전에는 한 줄에 억지로 밀어 넣느라, 년간 화면에서 '2학기' 칩 위에
+            날짜 이동 '◀'가 그대로 올라앉았다(18px 겹침). 2학기를 누르면 이전
+            학년도로 넘어갔다. 가운데 날짜 칸이 flex-1이라 내용보다 작게 줄면서
+            왼쪽으로 삐져나온 것이 원인이었다.
+            날짜 이동은 모든 화면에 공통이므로 좁은 화면에서도 늘 첫 줄에 둔다. */}
         {scope !== 'memo' && (
-          <div className="flex items-center justify-between border-t border-dashed border-slate-200 pt-2.5 mt-0.5 max-w-7xl mx-auto w-full gap-2 flex-nowrap overflow-x-auto">
-            {/* 좌측 옵션 버튼 (주말 숨기기, 학기 필터) */}
-            <div className="flex items-center gap-1.5 flex-none">
+          <div className="flex flex-wrap sm:flex-nowrap items-center justify-between border-t border-dashed border-slate-200 pt-2.5 mt-0.5 max-w-7xl mx-auto w-full gap-2 sm:overflow-x-auto">
+            {/* 좌측 옵션 버튼 (주말 숨기기, 학기 필터).
+                좁은 화면에서는 년간의 학기 칩만 남고, 그때는 아랫줄로 내린다. */}
+            <div
+              className={`${
+                scope === 'year' ? 'flex order-2 sm:order-1 w-full sm:w-auto' : 'hidden sm:flex'
+              } items-center gap-1.5 flex-none`}
+            >
               {scope === 'year' && (
                 <div className="flex bg-slate-100 p-0.5 rounded-xl gap-0.5">
                   <button
@@ -705,7 +716,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* 중앙 날짜 네비게이션 (가운데 정렬, 왼쪽 이전, 오른쪽 다음, 날짜 클릭 시 오늘) */}
-            <div className="flex items-center justify-center gap-3 sm:gap-4 flex-1 min-w-0">
+            <div className="flex items-center justify-center gap-3 sm:gap-4 basis-full sm:basis-auto sm:flex-1 min-w-0 order-1 sm:order-2">
               <button
                 onClick={handlePrevDate}
                 className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs sm:text-sm transition-all shadow-2xs cursor-pointer"

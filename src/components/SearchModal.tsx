@@ -11,6 +11,7 @@ import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
+import { ModalCloseButton } from './ModalShell';
 
 interface SearchResultItem {
   id: string;
@@ -311,15 +312,30 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
       <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" {...backdrop} />
 
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-full">
-        {/* 상단 검색바 */}
+        {/* 머리말 — 다른 팝업과 같은 모양(제목 + ✕)으로 맞춘다.
+            예전에는 검색만 제목이 없고, 제목 자리에 검색칸이 들어가 있었다.
+            그 줄에 '데이터 찾기'와 ✕까지 함께 밀려 들어가 안내 문구가
+            '...설정' 에서 잘렸다. 검색칸은 아랫줄로 내린다. */}
+        <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50/60 shrink-0">
+          <h2 className="text-base font-black text-slate-800 truncate">🔍 검색</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            title="닫기"
+            className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 font-bold transition-colors cursor-pointer shrink-0"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* 검색어 입력 줄 */}
         <div className="p-4 border-b border-slate-100 flex items-center gap-3">
-          <span className="text-xl">🔍</span>
-          <form onSubmit={handleSearch} className="flex-1">
+          <form onSubmit={handleSearch} className="flex-1 min-w-0">
             <input
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="검색어 입력 후 엔터 (빈 칸으로 검색 시 설정된 기간의 모든 데이터 조회)"
+              placeholder="검색어 입력 후 엔터 (비우면 정한 기간의 모든 데이터)"
               className="w-full text-sm font-bold focus:outline-none placeholder-slate-400"
               autoFocus
             />
@@ -330,12 +346,6 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
             className="px-4 py-1.5 bg-primary text-white text-xs font-bold rounded-xl hover:bg-blue-600 disabled:opacity-40 transition-colors shadow-2xs shrink-0"
           >
             {searching ? '탐색 중...' : '데이터 찾기'}
-          </button>
-          <button
-            onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full text-xs shrink-0"
-          >
-            ✕
           </button>
         </div>
 
@@ -466,6 +476,12 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
               항목과 기간을 설정한 뒤 '데이터 찾기'를 눌러주세요.
             </div>
           )}
+        </div>
+
+        {/* 바닥 닫기 줄 — 다른 팝업과 같은 자리에 둔다.
+            결과가 길 때 맨 위 ✕까지 올라가지 않아도 닫을 수 있다. */}
+        <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
+          <ModalCloseButton onClose={onClose} />
         </div>
       </div>
     </div>

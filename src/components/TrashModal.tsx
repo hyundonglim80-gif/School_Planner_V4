@@ -9,6 +9,7 @@ import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
+import { ModalCloseButton } from './ModalShell';
 
 interface TrashModalProps {
   isOpen: boolean;
@@ -385,6 +386,12 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
               ))}
             </div>
           )}
+        </div>
+
+        {/* 바닥 닫기 줄 — 다른 팝업은 모두 여기에 '닫기'가 있는데 휴지통만 없었다.
+            ✕만 있으면 좁은 화면에서 맨 위까지 올라가야 닫을 수 있다. */}
+        <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
+          <ModalCloseButton onClose={onClose} />
         </div>
       </div>
     </div>
