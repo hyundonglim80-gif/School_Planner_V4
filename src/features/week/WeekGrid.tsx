@@ -30,7 +30,7 @@ interface WeekGridProps {
 }
 
 export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onToggleEvent, onDeleteEvent }: WeekGridProps) {
-  const { getLabelColor, eventLabels } = useLabels();
+  const { getLabelColor, eventLabels, labelsLoaded } = useLabels();
   const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal } = useAppStore();
   const { holidays } = useGovHolidays();
 
@@ -181,7 +181,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                     {events.map((ev) => {
                       // 라벨 해석은 lib/eventLabels 한 곳에서만 한다 (화면마다 다르면
                       // 라벨 이름을 바꿀 때 칩이 보이는 화면과 안 보이는 화면이 갈린다)
-                      const labelDef = resolveEventLabel(ev, eventLabels);
+                      const labelDef = resolveEventLabel(ev, eventLabels, { keepUnknown: !labelsLoaded });
                       const labelName = labelDef?.name || '';
                       const labelColor = labelDef ? getLabelColor(labelName) : null;
                       const forwardLabel = isForwardLabel(labelDef);

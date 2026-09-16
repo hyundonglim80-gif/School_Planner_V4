@@ -40,7 +40,7 @@ export default function MonthAgenda({
 }: MonthAgendaProps) {
   const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal } =
     useAppStore();
-  const { getLabelColor, eventLabels } = useLabels();
+  const { getLabelColor, eventLabels, labelsLoaded } = useLabels();
   const { holidays } = useGovHolidays();
   const { templates, currentTemplateName } = useTimetableTemplate();
 
@@ -154,7 +154,7 @@ export default function MonthAgenda({
                   {/* 일정 - 한 줄에 하나씩, 제목이 잘리지 않게 */}
                   {visibleEvents.map((ev) => {
                     // 라벨 해석은 lib/eventLabels 한 곳에서만 한다
-                    const labelDef = resolveEventLabel(ev, eventLabels);
+                    const labelDef = resolveEventLabel(ev, eventLabels, { keepUnknown: !labelsLoaded });
                     const labelName = labelDef?.name || '';
                     const labelColor = labelDef ? getLabelColor(labelName) : null;
                     const forwardLabel = isForwardLabel(labelDef);

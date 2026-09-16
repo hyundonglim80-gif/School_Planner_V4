@@ -41,7 +41,7 @@ export default function DayEvents({
   const [submitting, setSubmitting] = useState(false);
 
   const { openLinkerModal, openLinkViewerModal, openLabelModal, currentDate, isMultiSelectMode, selectedEventIds, toggleEventSelection } = useAppStore();
-  const { eventLabels, getLabelColor } = useLabels();
+  const { eventLabels, getLabelColor, labelsLoaded } = useLabels();
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
@@ -81,7 +81,7 @@ export default function DayEvents({
   // 라벨 해석은 lib/eventLabels 한 곳에서만 한다. 화면마다 다르게 풀면 라벨 이름을
   // 바꿀 때 칩이 보이는 화면과 안 보이는 화면이 갈린다.
   const getEventLabelInfo = (event: EventItem) => {
-    const names = resolveEventLabelNames(event, eventLabels);
+    const names = resolveEventLabelNames(event, eventLabels, { keepUnknown: !labelsLoaded });
     return {
       names,
       labelDefs: names.map((name) => eventLabels.find((l) => l.name === name)),

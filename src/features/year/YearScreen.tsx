@@ -44,7 +44,7 @@ export default function YearScreen() {
     initialData: any;
   } | null>(null);
 
-  const { getLabelColor, eventLabels } = useLabels();
+  const { getLabelColor, eventLabels, labelsLoaded } = useLabels();
   const { holidays } = useGovHolidays();
   const { templates, currentTemplateName } = useTimetableTemplate();
   const maxPeriods = templates[currentTemplateName]?.names.length || 6;
@@ -344,7 +344,7 @@ export default function YearScreen() {
                               <div className="flex flex-col gap-1">
                                 {visibleEvents.map((ev) => {
                                   // 라벨 해석은 lib/eventLabels 한 곳에서만 한다
-                                  const labelDef = resolveEventLabel(ev, eventLabels);
+                                  const labelDef = resolveEventLabel(ev, eventLabels, { keepUnknown: !labelsLoaded });
                                   const labelName = labelDef?.name || '';
                                   const labelColor = labelDef ? getLabelColor(labelName) : null;
                                   const forwardLabel = isForwardLabel(labelDef);

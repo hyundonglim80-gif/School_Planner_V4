@@ -54,7 +54,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
     return days;
   }, [days, showWeekend]);
 
-  const { getLabelColor, eventLabels } = useLabels();
+  const { getLabelColor, eventLabels, labelsLoaded } = useLabels();
   const { holidays } = useGovHolidays();
   const { templates, currentTemplateName } = useTimetableTemplate();
   
@@ -178,7 +178,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                 <div className="space-y-1">
                   {events.slice(0, 3).map((ev) => {
                     // 라벨 해석은 lib/eventLabels 한 곳에서만 한다
-                    const labelDef = resolveEventLabel(ev, eventLabels);
+                    const labelDef = resolveEventLabel(ev, eventLabels, { keepUnknown: !labelsLoaded });
                     const labelName = labelDef?.name || '';
                     const labelColor = labelDef ? getLabelColor(labelName) : null;
                     const forwardLabel = isForwardLabel(labelDef);

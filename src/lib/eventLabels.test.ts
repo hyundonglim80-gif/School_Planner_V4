@@ -86,3 +86,43 @@ describe('isForwardLabel', () => {
     expect(isForwardLabel({ ...labels[0], forward: false, isForward: true } as any)).toBe(true);
   });
 });
+
+// 라벨 목록을 아직 못 읽었을 때는 거르지 않는다.
+// 걸러 버리면 선생님이 만든 라벨이 전부 사라져, 데이터가 없어진 것처럼 보인다.
+describe('라벨 목록을 못 읽었을 때 (keepUnknown)', () => {
+  const onlyDefaults = [{ id: 'ev_1', name: '달력', color: 'red' }] as any[];
+
+  it('평소에는 목록에 없는 라벨을 거른다 (지운 라벨 감추기)', () => {
+    expect(resolveEventLabelNames({ label: '회의' }, onlyDefaults)).toEqual([]);
+  });
+
+  it('못 읽었을 때는 이름을 그대로 보여 준다', () => {
+    expect(
+      resolveEventLabelNames({ label: '회의' }, onlyDefaults, { keepUnknown: true })
+    ).toEqual(['회의']);
+  });
+
+  it('여러 개도 그대로 (콤마로 이은 것)', () => {
+    expect(
+      resolveEventLabelNames({ label: 'ToDo,완료' }, onlyDefaults, { keepUnknown: true })
+    ).toEqual(['ToDo', '완료']);
+  });
+
+  it('이름이 아니라 id로 저장된 것은 보여 주지 않는다', () => {
+    expect(
+      resolveEventLabelNames({ labelIds: ['ev_abc123'] }, onlyDefaults, { keepUnknown: true })
+    ).toEqual([]);
+  });
+
+  it('아는 라벨은 등록된 이름과 색을 그대로 쓴다', () => {
+    const def = resolveEventLabel({ label: '달력' }, onlyDefaults, { keepUnknown: true });
+    expect(def?.name).toBe('달력');
+    expect(def?.color).toBe('red');
+  });
+
+  it('모르는 라벨은 칩은 보여 주되 색은 중립으로 둔다', () => {
+    const def = resolveEventLabel({ label: 'ToDo' }, onlyDefaults, { keepUnknown: true });
+    expect(def?.name).toBe('ToDo');
+    expect(def?.color).toBe('gray');
+  });
+});

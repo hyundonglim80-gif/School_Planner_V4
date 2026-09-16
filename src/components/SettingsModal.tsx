@@ -15,6 +15,7 @@ import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { useAppStore } from '../store/useAppStore';
 import type { StartupScope } from '../store/useAppStore';
 import { isDeveloper } from '../lib/developers';
+import { labelDiagnostics } from '../hooks/useLabels';
 import { MIN_LOOKBACK_DAYS, MAX_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
 import { SHORTCUT_ACTIONS, resolveBindings } from '../lib/shortcuts';
 import ShortcutModal from './ShortcutModal';
@@ -119,6 +120,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   // 규칙을 조인 뒤에는 '그룹 목록 전체 훑기' 자체가 막힌다. 그게 정상이고,
   // 그 사실이 곧 '규칙이 배포되었다'는 증거가 된다.
   const [rulesTightened, setRulesTightened] = useState(false);
+  // 라벨 칩이 사라졌다는 신고를 가릴 때 쓴다. 클라우드를 못 읽은 것인지,
+  // 클라우드에 아예 없는 것인지에 따라 손쓸 곳이 완전히 다르다.
+  const [labelReport, setLabelReport] = useState<string[] | null>(null);
   const [auditing, setAuditing] = useState(false);
   const [fixing, setFixing] = useState(false);
 
@@ -233,6 +237,47 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     } finally {
       setFixing(false);
     }
+  };
+
+  /** 라벨이 지금 어디서 오고 있는지, 클라우드에 실제로 무엇이 있는지 그대로 보여 준다. */
+  const handleLabelReport = async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    const lines: string[] = [];
+    const d = labelDiagnostics;
+    lines.push(`화면이 쓰는 출처: ${
+      d.source === 'cloud' ? '클라우드' : d.source === 'legacy' ? 'V3 localStorage' :
+      d.source === 'default' ? '기본값 (선생님 라벨을 못 찾음)' : '아직 못 읽음'
+    }`);
+    if (d.error) lines.push(`읽기 오류: ${d.error}`);
+
+    try {
+      const snap = await getDoc(doc(db, 'users', uid, 'settings', 'labels'));
+      if (!snap.exists()) {
+        lines.push('클라우드(settings/labels): 문서 없음');
+      } else {
+        const data = snap.data() as any;
+        const ev = Array.isArray(data.eventLabels) ? data.eventLabels : null;
+        lines.push(`클라우드 일정 라벨: ${ev ? `${ev.length}개 — ${ev.map((l: any) => l.name).join(', ')}` : '없음'}`);
+        const jr = Array.isArray(data.journalLabels) ? data.journalLabels : null;
+        lines.push(`클라우드 기록 라벨: ${jr ? `${jr.length}개` : '없음'}`);
+        const mm = Array.isArray(data.memoLabels) ? data.memoLabels : null;
+        lines.push(`클라우드 메모 라벨: ${mm ? `${mm.length}개` : '없음'}`);
+        if (data.updatedAt) lines.push(`마지막 저장: ${new Date(data.updatedAt).toLocaleString('ko-KR')}`);
+      }
+    } catch (e: any) {
+      lines.push(`클라우드를 읽지 못함: ${e?.code || e?.message}`);
+    }
+
+    try {
+      const raw = localStorage.getItem('workCalendar_eventLabels_v4');
+      const arr = raw ? JSON.parse(raw) : null;
+      lines.push(`이 기기 localStorage(V3 값): ${Array.isArray(arr) ? `${arr.length}개 — ${arr.map((l: any) => l.name).join(', ')}` : '없음'}`);
+    } catch {
+      lines.push('이 기기 localStorage(V3 값): 읽지 못함');
+    }
+
+    setLabelReport(lines);
   };
 
   const handleSyncHolidays = async (year: number) => {
@@ -415,6 +460,25 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             하루·주간 화면의 칸이 그에 맞춰 나뉩니다.
           </p>
         </Section>
+
+        {developer && (
+          <Section
+            title="🔧 개발자 설정 - 라벨 상태"
+            desc="라벨 칩이 안 보일 때 누릅니다. 클라우드를 못 읽은 것인지, 클라우드에 아예 없는 것인지 가려 줍니다."
+          >
+            <button
+              onClick={handleLabelReport}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all"
+            >
+              라벨 상태 보기
+            </button>
+            {labelReport && (
+              <pre className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
+                {labelReport.join(String.fromCharCode(10))}
+              </pre>
+            )}
+          </Section>
+        )}
 
         {developer && (
           <Section

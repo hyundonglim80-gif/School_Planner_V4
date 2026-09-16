@@ -23,8 +23,18 @@ function prefixLabelOf(item: any): string | null {
 /**
  * 항목이 들고 있는 라벨을 등록된 라벨 목록에 맞춰 이름으로 풀어낸다.
  * 등록되지 않은(설정에서 지운) 라벨은 제외한다.
+ *
+ * ⚠️ keepUnknown - '라벨 목록을 아직 못 읽었을 때' 쓴다.
+ *    이 함수는 목록에 없는 라벨을 걸러내는데, 목록을 못 읽어 기본값만 들고 있으면
+ *    선생님이 만든 라벨이 전부 걸러져 화면에서 라벨 칩이 하나도 안 보인다.
+ *    사용자에게는 데이터가 사라진 것으로 보인다. 모르면 거르지 말고 그대로 보여 준다.
+ *    (지운 라벨을 감추는 일은 '목록을 제대로 읽었을 때'만 의미가 있다)
  */
-export function resolveEventLabelNames(item: any, eventLabels: EventLabel[]): string[] {
+export function resolveEventLabelNames(
+  item: any,
+  eventLabels: EventLabel[],
+  opts?: { keepUnknown?: boolean }
+): string[] {
   const keys: string[] = [];
 
   if (item?.label) {
@@ -40,7 +50,13 @@ export function resolveEventLabelNames(item: any, eventLabels: EventLabel[]): st
   for (const key of keys) {
     if (!key) continue;
     const found = eventLabels.find((l) => l.id === key || l.name === key);
-    if (found && !names.includes(found.name)) names.push(found.name);
+    if (found) {
+      if (!names.includes(found.name)) names.push(found.name);
+    } else if (opts?.keepUnknown) {
+      // id로 저장된 것(ev_..., j_...)은 이름이 아니므로 보여 줄 것이 없다
+      const looksLikeId = /^(ev|j|lbl)[_-]/i.test(key);
+      if (!looksLikeId && !names.includes(key)) names.push(key);
+    }
   }
   return names;
 }
@@ -53,9 +69,17 @@ export function eventDisplayContent(item: any): string {
 }
 
 /** 첫 번째 라벨의 정의. 칩 색과 이월 여부를 정할 때 쓴다. */
-export function resolveEventLabel(item: any, eventLabels: EventLabel[]): EventLabel | null {
-  const name = resolveEventLabelNames(item, eventLabels)[0];
-  return name ? eventLabels.find((l) => l.name === name) || null : null;
+export function resolveEventLabel(
+  item: any,
+  eventLabels: EventLabel[],
+  opts?: { keepUnknown?: boolean }
+): EventLabel | null {
+  const name = resolveEventLabelNames(item, eventLabels, opts)[0];
+  if (!name) return null;
+  const found = eventLabels.find((l) => l.name === name);
+  if (found) return found;
+  // 목록을 못 읽어 이름만 아는 경우. 칩은 보여 주되 색은 중립으로 둔다.
+  return opts?.keepUnknown ? { id: name, name, color: 'gray' } as EventLabel : null;
 }
 
 export function isForwardLabel(def: EventLabel | null): boolean {

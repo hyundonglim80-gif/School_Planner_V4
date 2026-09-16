@@ -72,6 +72,20 @@ export function normalizeEventLabel(l: any, i: number): EventLabel {
   };
 }
 
+/**
+ * 마지막으로 라벨을 어디서 가져왔는지. 문제를 살필 때만 쓴다.
+ * '라벨 칩이 사라졌다'는 신고를 받았을 때, 클라우드를 못 읽은 것인지
+ * 클라우드에 아예 없는 것인지 가려야 다음 손을 쓸 수 있다.
+ */
+export const labelDiagnostics: {
+  source: 'cloud' | 'legacy' | 'default' | 'none';
+  docExists: boolean;
+  cloudCount: number;
+  legacyCount: number;
+  at: number;
+  error?: string;
+} = { source: 'none', docExists: false, cloudCount: 0, legacyCount: 0, at: 0 };
+
 export function useLabels() {
   const [eventLabels, setEventLabels] = useState<EventLabel[]>(DEFAULT_EVENT_LABELS);
   const [memoLabels, setMemoLabels] = useState<string[]>(DEFAULT_MEMO_LABELS);
@@ -79,6 +93,9 @@ export function useLabels() {
   const migratedRef = useRef(false);
   // 한 번이라도 라벨을 받아 봤는가. 받은 뒤에 난 오류로 사용자를 놀라게 하지 않는다.
   const loadedRef = useRef(false);
+  // 선생님의 라벨 목록을 실제로 확보했는가(클라우드 또는 V3 localStorage).
+  // 기본값만 들고 있는 상태에서 '목록에 없는 라벨'을 걸러내면 칩이 전부 사라진다.
+  const [labelsLoaded, setLabelsLoaded] = useState(false);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -86,6 +103,7 @@ export function useLabels() {
       setEventLabels(DEFAULT_EVENT_LABELS);
       setMemoLabels(DEFAULT_MEMO_LABELS);
       setJournalLabels(DEFAULT_JOURNAL_LABELS);
+      setLabelsLoaded(false);
       return;
     }
 
@@ -101,6 +119,15 @@ export function useLabels() {
       const rawEvents = cloudEvents || legacyEvents || DEFAULT_EVENT_LABELS;
 
       setEventLabels(rawEvents.map(normalizeEventLabel));
+      // 기본값으로 때운 것이면 '확보했다'고 하면 안 된다.
+      setLabelsLoaded(!!(cloudEvents || legacyEvents));
+
+      labelDiagnostics.source = cloudEvents ? 'cloud' : legacyEvents ? 'legacy' : 'default';
+      labelDiagnostics.docExists = !!data;
+      labelDiagnostics.cloudCount = cloudEvents ? cloudEvents.length : 0;
+      labelDiagnostics.legacyCount = legacyEvents ? legacyEvents.length : 0;
+      labelDiagnostics.at = Date.now();
+      labelDiagnostics.error = undefined;
 
       const cloudMemo =
         Array.isArray(data?.memoLabels) && data!.memoLabels.length > 0 ? data!.memoLabels : null;
@@ -147,6 +174,8 @@ export function useLabels() {
       //    이 값으로 판단하므로 오늘로 와야 할 일정이 오지 않았다.
       //    사용자는 데이터가 사라진 줄 알게 된다. 조용히 넘어가지 않는다.
       console.error('라벨을 불러오지 못했습니다:', err);
+      labelDiagnostics.error = String((err as any)?.code || (err as any)?.message || err);
+      labelDiagnostics.at = Date.now();
       if (!loadedRef.current) {
         showErrorToast('라벨을 불러오지 못했습니다. 새로고침해 주세요. (그때까지 라벨 칩이 보이지 않을 수 있습니다)', err);
       }
@@ -163,5 +192,5 @@ export function useLabels() {
 
   const getLabel = (labelName: string) => eventLabels.find(l => l.name === labelName);
 
-  return { eventLabels, getLabelColor, getLabel, memoLabels, journalLabels };
+  return { eventLabels, getLabelColor, getLabel, memoLabels, journalLabels, labelsLoaded };
 }
