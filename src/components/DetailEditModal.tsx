@@ -31,6 +31,8 @@ export interface DetailEditModalProps {
   dateStr: string;
   itemId: string | number; // period(number) or event id(string)
   initialData: any; // PeriodSchedule or EventItem
+  /** 어느 공간의 것인지. 연결된 링크에서 열 때는 지금 보고 있는 공간과 다를 수 있다. */
+  fId?: string;
 }
 
 export default function DetailEditModal({
@@ -40,6 +42,7 @@ export default function DetailEditModal({
   dateStr,
   itemId,
   initialData,
+  fId,
 }: DetailEditModalProps) {
   useBodyScrollLock(isOpen);
 
@@ -51,7 +54,9 @@ export default function DetailEditModal({
 
   const backdrop = useBackdropClose();
   const { selectedGroupId, openLinkerModal, openLinkViewerModal, openEvaluationModal, openLabelModal } = useAppStore();
-  const { updateEventItem, deleteEventItem, savePeriod, eventList, schedules } = useDayData(isOpen ? dateStr : '', selectedGroupId);
+  // fId를 받으면 그 공간의 것을 고친다 ('personal'은 개인 공간 = groupId 없음).
+  const targetGroupId = fId ? (fId === 'personal' ? null : fId) : selectedGroupId;
+  const { updateEventItem, deleteEventItem, savePeriod, eventList, schedules } = useDayData(isOpen ? dateStr : '', targetGroupId);
   const { eventLabels } = useLabels();
 
   const [saving, setSaving] = useState(false);

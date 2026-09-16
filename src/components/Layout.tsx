@@ -19,6 +19,11 @@ const SettingsModal = lazy(() => import('./SettingsModal'));
 const EvaluationModal = lazy(() => import('./EvaluationModal'));
 const RecurringModal = lazy(() => import('./RecurringModal'));
 const ForwardingModal = lazy(() => import('./ForwardingModal'));
+// 연결된 링크 팝업에서 여는 편집기 (일정/수업은 팝업, 기록/메모는 옆 배너)
+const DetailEditModal = lazy(() => import('./DetailEditModal'));
+const LinkedEntryEditorHost = lazy(() =>
+  import('./LinkedEntryEditor').then((m) => ({ default: m.LinkedEntryEditorHost }))
+);
 const LinkerModal = lazy(() => import('./LinkerModal'));
 const LinkViewerModal = lazy(() => import('./LinkViewerModal'));
 const TrashModal = lazy(() => import('./TrashModal'));
@@ -82,6 +87,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     linkViewerSourcePeriod,
     linkViewerSourceFId,
     closeLinkViewerModal,
+    isDetailEditOpen,
+    detailEditTarget,
+    closeDetailEdit,
     isLabelModalOpen,
     labelModalTab,
     openLabelModal,
@@ -836,6 +844,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             sourceFId={linkViewerSourceFId}
           />
         )}
+
+        {/* 연결된 링크에서 연 편집기. 링크는 다른 날짜·다른 공유 공간을 가리킬 수
+            있으므로 대상을 통째로 넘겨받는다. */}
+        {isDetailEditOpen && detailEditTarget && (
+          <DetailEditModal
+            isOpen
+            onClose={closeDetailEdit}
+            type={detailEditTarget.type}
+            dateStr={detailEditTarget.dateStr}
+            itemId={detailEditTarget.itemId}
+            initialData={detailEditTarget.initialData}
+            fId={detailEditTarget.fId}
+          />
+        )}
+
+        <LinkedEntryEditorHost />
 
         {isTrashModalOpen && (
           <TrashModal isOpen onClose={() => setTrashModalOpen(false)} />

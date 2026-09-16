@@ -7,7 +7,6 @@ import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
-import AutoTextarea from './AutoTextarea';
 import { showToast, showErrorToast } from '../utils/toast';
 
 interface LinkViewerModalProps {
@@ -47,12 +46,9 @@ export default function LinkViewerModal({
   const zIndex = useModalLayer(isOpen, onClose);
 
   const backdrop = useBackdropClose();
-  const { selectedGroupId, setCurrentDate, setScope } = useAppStore();
+  const { selectedGroupId, setCurrentDate, setScope, openDetailEdit, openEntryEditor } = useAppStore();
   const [links, setLinks] = useState<NormalizedLink[]>([]);
   const [loading, setLoading] = useState(false);
-  const [editModeTargetId, setEditModeTargetId] = useState<string | null>(null);
-  const [editText, setEditText] = useState('');
-  const [savingEdit, setSavingEdit] = useState(false);
 
   const getColPath = useCallback((col: string, fId?: string) => {
     const uid = auth.currentUser?.uid;
@@ -216,8 +212,6 @@ export default function LinkViewerModal({
       fetchLinks();
     } else {
       setLinks([]);
-      setEditModeTargetId(null);
-      setEditText('');
     }
   }, [isOpen, fetchLinks]);
 
@@ -239,86 +233,59 @@ export default function LinkViewerModal({
     }
   };
 
-  // 실시간 본문 수정 저장 (V3 updateItemText 이식)
-  const handleSaveEdit = async (link: NormalizedLink) => {
-    const newVal = editText.trim();
-    if (!newVal) {
-      showToast('내용을 입력해주세요.');
+  /**
+   * 연결된 항목을 제대로 된 편집기로 연다.
+   *
+   * 예전에는 여기서 글자만 고칠 수 있는 칸이 열렸다. 그래서 캡처 이미지를 붙이거나
+   * 파일을 달거나 라벨·링크를 손대려면, 그 항목이 있는 날짜로 직접 옮겨 가야 했다.
+   * 화면에서 쓰는 것과 같은 편집기를 그대로 연다.
+   *   일정·수업 -> 일정 수정 팝업
+   *   기록·메모 -> 옆 배너 (첨부·라벨·링크까지 그대로)
+   */
+  const handleEdit = async (link: NormalizedLink) => {
+    const fId = link.targetFId || selectedGroupId || 'personal';
+
+    if (link.targetType === 'journal' || link.targetType === 'memo') {
+      openEntryEditor({
+        kind: link.targetType,
+        dateStr: link.targetDate,
+        id: String(link.targetId),
+        fId,
+      });
       return;
     }
 
-    setSavingEdit(true);
+    if (link.targetType === 'event') {
+      openDetailEdit({
+        type: 'event',
+        dateStr: link.targetDate,
+        itemId: String(link.targetId),
+        // 실제 내용은 팝업이 그 날짜를 읽어 최신으로 채운다. 그 전까지 보여 줄 값만 넘긴다.
+        initialData: { id: link.targetId, content: link.liveText || '' },
+        fId,
+      });
+      return;
+    }
+
+    // 수업은 교시 하나가 통째로 대상이다. 팝업이 initialData를 그대로 쓰므로 먼저 읽어 둔다.
+    const period = link.targetPeriod ?? String(link.targetId).replace(/.*_/, '');
     try {
-      const colPath = getColPath(
-        link.targetType === 'event'
-          ? 'events'
-          : link.targetType === 'journal'
-          ? 'journals'
-          : link.targetType === 'schedule'
-          ? 'schedules'
-          : 'tasks',
-        link.targetFId
-      );
-
-      if (link.targetType === 'event') {
-        const ref = doc(db, colPath, link.targetDate);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const list = snap.data().eventList || [];
-          const item = list.find((e: any) => String(e.id) === String(link.targetId));
-          if (item) {
-            item.content = newVal;
-            await setDoc(ref, eventDocPayload(list), { merge: true });
-          }
-        }
-      } else if (link.targetType === 'journal') {
-        const ref = doc(db, colPath, link.targetDate);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const list = snap.data().entries || [];
-          const item = list.find((e: any) => String(e.id) === String(link.targetId));
-          if (item) {
-            item.content = newVal;
-            await setDoc(ref, { entries: list, updatedAt: Date.now() }, { merge: true });
-          }
-        }
-      } else if (link.targetType === 'schedule') {
-        const ref = doc(db, colPath, link.targetDate);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const periods = snap.data().periods || {};
-          const pKey = link.targetPeriod
-            ? String(link.targetPeriod)
-            : String(link.targetId).replace(/.*_/, '');
-          if (periods[pKey]) {
-            let newMemo = newVal;
-            let newSubj = periods[pKey].subject || '';
-            const match = newMemo.match(/^\[(.*?)\]\s*(.*)$/);
-            if (match) {
-              newSubj = match[1].trim();
-              newMemo = match[2].trim();
-            }
-            periods[pKey].subject = newSubj;
-            periods[pKey].memo = newMemo;
-            periods[pKey].content = newMemo;
-            await setDoc(ref, { periods, updatedAt: Date.now() }, { merge: true });
-          }
-        }
-      } else if (link.targetType === 'memo') {
-        const ref = doc(db, colPath, link.targetId);
-        await setDoc(ref, { text: newVal, content: newVal, updatedAt: Date.now() }, { merge: true });
-      }
-
-      setLinks((prev) =>
-        prev.map((l) => (l.targetId === link.targetId ? { ...l, liveText: newVal } : l))
-      );
-      setEditModeTargetId(null);
-      setEditText('');
-      showToast('✅ 수정한 내용을 저장했습니다.');
-    } catch (e: any) {
-      showErrorToast('저장에 실패했습니다: ' + e.message, e);
-    } finally {
-      setSavingEdit(false);
+      const snap = await getDoc(doc(db, getColPath('schedules', link.targetFId), link.targetDate));
+      const periods = snap.exists() ? snap.data().periods || {} : {};
+      const raw = periods[String(period)];
+      const data =
+        typeof raw === 'string'
+          ? { subject: raw, memo: '', supplies: '' }
+          : raw || { subject: '', memo: '', supplies: '' };
+      openDetailEdit({
+        type: 'schedule',
+        dateStr: link.targetDate,
+        itemId: Number(period),
+        initialData: data,
+        fId,
+      });
+    } catch (e) {
+      showErrorToast('수업 정보를 불러오지 못했습니다.', e);
     }
   };
 
@@ -493,8 +460,6 @@ export default function LinkViewerModal({
                 displayTitle += ` (${link.targetPeriod}교시)`;
               }
 
-              const isEditing = editModeTargetId === link.targetId;
-
               return (
                 <div
                   key={link.targetId}
@@ -523,56 +488,26 @@ export default function LinkViewerModal({
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          if (isEditing) {
-                            setEditModeTargetId(null);
-                          } else {
-                            setEditModeTargetId(link.targetId);
-                            setEditText(link.liveText || '');
-                          }
-                        }}
+                        onClick={() => handleEdit(link)}
                         className="px-2.5 py-1 text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer"
+                        title={
+                          link.targetType === 'journal' || link.targetType === 'memo'
+                            ? '기록·메모 배너를 연다 (첨부·라벨·링크까지)'
+                            : '일정 수정 팝업을 연다'
+                        }
                       >
                         ✏️ 수정
                       </button>
                     </div>
                   </div>
 
-                  {isEditing ? (
-                    <div className="flex flex-col gap-2 mt-2">
-                      <AutoTextarea
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        className="w-full text-xs p-2.5 border border-indigo-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[70px] leading-relaxed"
-                        autoFocus
-                      />
-                      <div className="flex justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setEditModeTargetId(null)}
-                          className="px-3 py-1.5 text-xs bg-slate-100 text-slate-600 rounded-lg font-bold hover:bg-slate-200 transition-colors"
-                        >
-                          닫기
-                        </button>
-                        <button
-                          type="button"
-                          disabled={savingEdit}
-                          onClick={() => handleSaveEdit(link)}
-                          className="px-3.5 py-1.5 text-xs bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 transition-colors disabled:opacity-50"
-                        >
-                          {savingEdit ? '저장 중...' : '수정 내용 반영'}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-2.5 bg-slate-50/70 border border-slate-100 rounded-lg text-xs font-medium text-slate-800 whitespace-pre-wrap break-words leading-relaxed min-h-[36px]">
-                      {link.loadingText ? (
-                        <span className="text-slate-400">데이터를 불러오는 중...</span>
-                      ) : (
-                        link.liveText || <span className="text-slate-400">(내용 없음)</span>
-                      )}
-                    </div>
-                  )}
+                  <div className="p-2.5 bg-slate-50/70 border border-slate-100 rounded-lg text-xs font-medium text-slate-800 whitespace-pre-wrap break-words leading-relaxed min-h-[36px]">
+                    {link.loadingText ? (
+                      <span className="text-slate-400">데이터를 불러오는 중...</span>
+                    ) : (
+                      link.liveText || <span className="text-slate-400">(내용 없음)</span>
+                    )}
+                  </div>
                 </div>
               );
             })

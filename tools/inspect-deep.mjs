@@ -381,6 +381,76 @@ async function run() {
   if (finalLinks.length <= 1) ok(`이월을 두 번 거쳐도 기록의 일정 링크는 ${finalLinks.length}개로 유지된다`);
   else bad(`이월할 때마다 기록에 링크가 쌓인다 — 지금 ${finalLinks.length}개 (${finalLinks.map((l) => l.targetDate).join(', ')})`);
 
+  // ══ 6) 연결된 링크에서 '수정'을 누르면 제대로 된 편집기가 열리는가 ══
+  console.log('');
+  console.log('[6] 연결된 링크 → 수정 → 제대로 된 편집기');
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const p = await ctx.newPage();
+    p.on('pageerror', (e) => bag.errors.push('PAGEERROR ' + e.message.slice(0, 200)));
+    await p.goto(URL, { waitUntil: 'domcontentloaded' });
+    await p.getByRole('heading', { name: '일정' }).waitFor({ timeout: 40000 });
+    await p.waitForTimeout(3000);
+
+    // 오늘 날짜에 서로 이어진 일정 하나와 기록 하나를 새로 심는다.
+    // (5번에서 쓴 것은 이월로 다른 날짜로 옮겨 가 버렸다)
+    // ⚠️ 일정 줄의 🔗는 '링크 추가' 팝업이다. 여기서 눌러야 하는 것은
+    //    링크가 있을 때만 나오는 '📑 연결된 링크 (n)'이다. 처음에 이걸 헷갈렸다.
+    const evId2 = 'ev_link_probe';
+    const jrId2 = 'jr_link_probe';
+    await setDoc(doc(c1.db, 'users', uid, 'events', d0), {
+      eventList: [{
+        id: evId2, content: '링크 점검용 일정', completed: false,
+        linkedItems: [{ targetType: 'journal', targetId: jrId2, targetDate: d0, title: `[${d0}] 링크 점검용 기록`, targetFId: 'personal' }],
+      }],
+      eventText: '링크 점검용 일정',
+      updatedAt: Date.now(),
+    });
+    await setDoc(doc(c1.db, 'users', uid, 'journals', d0), {
+      entries: [{
+        id: jrId2, content: '링크 점검용 기록', createdAt: Date.now(), label: '수업기록', labelIds: [],
+        linkedItems: [{ targetType: 'event', targetId: evId2, targetDate: d0, title: `[${d0}] 일정`, targetFId: 'personal' }],
+      }],
+      updatedAt: Date.now(),
+    });
+    await p.reload({ waitUntil: 'domcontentloaded' });
+    await p.getByRole('heading', { name: '일정' }).waitFor({ timeout: 30000 });
+    await p.waitForTimeout(3000);
+
+    // 목록에서는 '🔗 n'(title="링크된 항목 n개")이고, 수정 폼에서만 '📑 연결된 링크'다.
+    const linkBtn = p.locator('button[title^="링크된 항목"]').first();
+    if (await linkBtn.count() === 0) {
+      bad('연결된 링크를 여는 단추를 찾지 못했다');
+    } else {
+      await linkBtn.click();
+      await p.waitForTimeout(2000);
+      await p.screenshot({ path: `${OUT}/d-08-linkviewer.png` });
+
+      const editBtn = p.getByRole('button', { name: /수정/ }).first();
+      if (await editBtn.count() === 0) bad('연결된 링크 팝업에 수정 단추가 없다');
+      else {
+        await editBtn.click();
+        await p.waitForTimeout(2500);
+        await p.screenshot({ path: `${OUT}/d-09-edit-opened.png` });
+
+        const body = await p.locator('body').innerText();
+        const hasDrawer = /기록 수정|메모 수정/.test(body);
+        const canAttach = body.includes('파일 첨부');
+        const canLink = body.includes('링크 추가');
+        const hasLabels = body.includes('라벨');
+        if (hasDrawer && canAttach && canLink && hasLabels) {
+          ok('기록 링크의 수정을 누르니 배너가 열리고 첨부·링크·라벨을 쓸 수 있다');
+        } else {
+          bad(
+            `수정을 눌렀는데 배너가 제대로 열리지 않았다 ` +
+            `(배너 ${hasDrawer}, 파일첨부 ${canAttach}, 링크추가 ${canLink}, 라벨 ${hasLabels})`
+          );
+        }
+      }
+    }
+    await ctx.close();
+  }
+
   await browser.close();
   writeFileSync(`${OUT}/deep.json`, JSON.stringify({ problems, notes, bag }, null, 2), 'utf-8');
 

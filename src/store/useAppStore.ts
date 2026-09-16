@@ -94,6 +94,31 @@ interface AppState {
   ) => void;
   closeLinkViewerModal: () => void;
 
+  // 연결된 링크 팝업에서 여는 '제대로 된 편집기'.
+  // 예전에는 거기서 글자만 고칠 수 있는 칸이 열려, 첨부·라벨·링크를 손댈 수 없었다.
+  // 일정/수업은 일정 수정 팝업, 기록/메모는 옆 배너를 그대로 연다.
+  isDetailEditOpen: boolean;
+  detailEditTarget: {
+    type: 'schedule' | 'event';
+    dateStr: string;
+    itemId: string | number;
+    initialData: any;
+    fId?: string;
+  } | null;
+  openDetailEdit: (t: {
+    type: 'schedule' | 'event';
+    dateStr: string;
+    itemId: string | number;
+    initialData: any;
+    fId?: string;
+  }) => void;
+  closeDetailEdit: () => void;
+
+  isEntryEditorOpen: boolean;
+  entryEditorTarget: { kind: 'journal' | 'memo'; dateStr: string; id: string; fId?: string } | null;
+  openEntryEditor: (t: { kind: 'journal' | 'memo'; dateStr: string; id: string; fId?: string }) => void;
+  closeEntryEditor: () => void;
+
   // Evaluation Modal State
   isEvaluationModalOpen: boolean;
   evalDateStr: string;
@@ -376,6 +401,16 @@ export const useAppStore = create<AppState>()(
         linkViewerSourcePeriod: undefined,
         linkViewerSourceFId: undefined,
       }),
+
+      isDetailEditOpen: false,
+      detailEditTarget: null,
+      openDetailEdit: (t) => set({ isDetailEditOpen: true, detailEditTarget: t }),
+      closeDetailEdit: () => set({ isDetailEditOpen: false, detailEditTarget: null }),
+
+      isEntryEditorOpen: false,
+      entryEditorTarget: null,
+      openEntryEditor: (t) => set({ isEntryEditorOpen: true, entryEditorTarget: t }),
+      closeEntryEditor: () => set({ isEntryEditorOpen: false, entryEditorTarget: null }),
 
       isEvaluationModalOpen: false,
       evalDateStr: '',
