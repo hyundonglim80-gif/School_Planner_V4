@@ -10,7 +10,8 @@
 //   - 개발자 설정은 등록된 계정으로 로그인했을 때만 보인다.
 import React, { useState, useEffect } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
-import { auth } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
+import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { useAppStore } from '../store/useAppStore';
 import type { StartupScope } from '../store/useAppStore';
 import { isDeveloper } from '../lib/developers';
@@ -109,6 +110,15 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const bindings = resolveBindings(shortcutOverrides);
   const assignedCount = SHORTCUT_ACTIONS.filter((a) => bindings[a.id].key).length;
 
+  // 개발자 설정 - 공유 그룹 점검
+  // 보안 규칙을 조이려면 '초대 코드 -> 그룹' 매핑이 모든 그룹에 있어야 한다.
+  // 매핑이 없는 그룹은 '그룹 목록을 훑는' 폴백에 기대는데, 규칙을 조이면 그게 막힌다.
+  const [groupAudit, setGroupAudit] = useState<
+    { total: number; missing: { id: string; name: string; owner: string; mine: boolean }[] } | null
+  >(null);
+  const [auditing, setAuditing] = useState(false);
+  const [fixing, setFixing] = useState(false);
+
   // 개발자 설정
   const [yearStatus, setYearStatus] = useState<YearStatus[]>([]);
   const [syncingYear, setSyncingYear] = useState<number | null>(null);
@@ -156,6 +166,65 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   };
 
   /** 개발자만 누른다. 여기서만 data.go.kr을 부르고, 결과를 모두가 읽는 자리에 적는다. */
+  /**
+   * 그룹마다 '초대 코드 -> 그룹' 매핑 문서가 있는지 살핀다.
+   *
+   * 지금 규칙은 로그인한 사람이면 그룹 목록을 훑을 수 있어서 이 점검이 된다.
+   * 규칙을 조이고 나면 이 점검 자체도 내 그룹만 보이게 되므로, 조이기 전에 한다.
+   */
+  const handleAuditGroups = async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    setAuditing(true);
+    try {
+      const snap = await getDocs(collection(db, 'groups'));
+      const missing: { id: string; name: string; owner: string; mine: boolean }[] = [];
+      for (const g of snap.docs) {
+        const data = g.data() as any;
+        if (!data.inviteCode) continue;
+        const mapped = await getDoc(doc(db, 'inviteCodes', data.inviteCode));
+        if (!mapped.exists()) {
+          missing.push({
+            id: g.id,
+            name: data.name || '(이름 없음)',
+            owner: data.ownerName || '알 수 없음',
+            mine: data.ownerId === uid,
+          });
+        }
+      }
+      setGroupAudit({ total: snap.size, missing });
+    } catch (e) {
+      showErrorToast('그룹을 살펴보지 못했습니다.', e);
+    } finally {
+      setAuditing(false);
+    }
+  };
+
+  /** 규칙상 매핑 문서는 그룹장만 만들 수 있다. 내가 그룹장인 것만 채운다. */
+  const handleFixMyGroups = async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || !groupAudit) return;
+    setFixing(true);
+    let made = 0;
+    try {
+      const snap = await getDocs(collection(db, 'groups'));
+      for (const g of snap.docs) {
+        const data = g.data() as any;
+        if (data.ownerId !== uid || !data.inviteCode) continue;
+        const ref = doc(db, 'inviteCodes', data.inviteCode);
+        if ((await getDoc(ref)).exists()) continue;
+        await setDoc(ref, { groupId: g.id, ownerId: uid, createdAt: Date.now() });
+        made++;
+      }
+      showToast(`✅ 매핑 ${made}개를 만들었습니다.`);
+      await handleAuditGroups();
+    } catch (e) {
+      showErrorToast('매핑을 만들지 못했습니다.', e);
+    } finally {
+      setFixing(false);
+    }
+  };
+
   const handleSyncHolidays = async (year: number) => {
     const key = govApiKey.trim();
     if (!key) return showToast('먼저 공공데이터 API 키를 입력하고 저장해 주세요.');
@@ -336,6 +405,61 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             하루·주간 화면의 칸이 그에 맞춰 나뉩니다.
           </p>
         </Section>
+
+        {developer && (
+          <Section
+            title="🔧 개발자 설정 - 공유 그룹 점검"
+            desc="보안 규칙을 조이기 전에 확인합니다. 초대 코드로 참여하려면 '코드 → 그룹' 매핑 문서가 있어야 하는데, 옛 그룹에는 없을 수 있습니다. 매핑이 없는 그룹은 규칙을 조인 뒤 참여가 막힙니다."
+          >
+            <button
+              onClick={handleAuditGroups}
+              disabled={auditing}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-60"
+            >
+              {auditing ? '살펴보는 중...' : '지금 점검하기'}
+            </button>
+
+            {groupAudit && (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs font-bold text-slate-700">
+                  그룹 {groupAudit.total}개 중 매핑이 없는 그룹 {groupAudit.missing.length}개
+                </p>
+                {groupAudit.missing.length === 0 ? (
+                  <p className="text-xs text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                    모든 그룹에 매핑이 있습니다. 규칙을 조여도 초대 코드 참여가 막히지 않습니다.
+                  </p>
+                ) : (
+                  <>
+                    <div className="space-y-1.5">
+                      {groupAudit.missing.map((g) => (
+                        <div
+                          key={g.id}
+                          className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-xs"
+                        >
+                          <span className="font-bold text-amber-900 truncate flex-1">{g.name}</span>
+                          <span className="text-amber-700 shrink-0">
+                            {g.mine ? '내 그룹' : `${g.owner} 님의 그룹`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={handleFixMyGroups}
+                      disabled={fixing || groupAudit.missing.every((g) => !g.mine)}
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-40"
+                    >
+                      {fixing ? '만드는 중...' : '내 그룹의 매핑 만들기'}
+                    </button>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      남의 그룹 매핑은 규칙상 그룹장만 만들 수 있습니다. 그 그룹장이 앱을 한 번 열면
+                      자동으로 채워집니다. 여기 목록이 비워진 뒤에 규칙을 조이세요.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+          </Section>
+        )}
 
         {/* 등록된 개발자 계정으로 로그인했을 때만 보인다.
             사용자는 키를 발급받을 일도, 입력할 일도 없다. 여기서 한 해에 한 번

@@ -35,9 +35,13 @@ describe('환경설정 - 개발자 전용 항목', () => {
   it('등록된 개발자 계정에만 보인다', async () => {
     setUser('hyundonglim80@gmail.com');
     render(<SettingsModal isOpen onClose={vi.fn()} />);
-    await waitFor(() => expect(screen.getByText(/개발자 설정/)).toBeInTheDocument());
+    // 개발자 전용 구역이 둘이다 (공휴일, 공유 그룹 점검)
+    await waitFor(() => expect(screen.getAllByText(/개발자 설정/).length).toBeGreaterThan(0));
 
+    expect(screen.getByText(/개발자 설정 - 공휴일/)).toBeInTheDocument();
+    expect(screen.getByText(/개발자 설정 - 공유 그룹 점검/)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/특일정보 서비스 키/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '지금 점검하기' })).toBeInTheDocument();
   });
 });
 

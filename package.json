@@ -13,7 +13,8 @@
     "seed": "node tools/seed.mjs",
     "dev:emu": "vite --port 5173 --strictPort",
     "inspect": "node tools/inspect.mjs",
-    "inspect:flows": "node tools/inspect-flows.mjs"
+    "inspect:flows": "node tools/inspect-flows.mjs",
+    "check:rules": "node tools/check-rules.mjs"
   },
   "dependencies": {
     "firebase": "^12.18.0",

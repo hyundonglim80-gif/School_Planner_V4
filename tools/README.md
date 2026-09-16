@@ -43,6 +43,12 @@ INSPECT_URL=http://localhost:4173/ npm run inspect   # 배포본 대상
 | `inspect.mjs` | 하루·주간·월간·년간·메모를 돌며 속도·오류·모바일 |
 | `inspect-flows.mjs` | 팝업 13개 생김새, 공유 그룹 만들기, 내보내기 |
 | `inspect-deep.mjs` | 계정 둘이서 공유 그룹, 가져오기 왕복, 휴지통 복원, 날짜를 넘긴 이월, 연결된 링크 편집 |
+| `check-rules.mjs` | 보안 규칙 — 되어야 하는 일 / 막혀야 하는 일 30가지 (`npm run check:rules`) |
+
+`check-rules.mjs`는 규칙을 고칠 때마다 돌릴 것. 규칙만 눈으로 읽어서는 무엇이
+깨지는지 알 수 없다. 실제로 이 검사가 '구성원이면 누구나 그룹을 지울 수 있다'는
+구멍을 잡아냈다 — `match /{document=**}` 가 그룹 문서 자신까지 걸려서,
+하위 컬렉션 규칙이 그룹 문서의 규칙을 덮어쓰고 있었다.
 
 `inspect-deep.mjs`는 계정을 둘 쓴다. 주소에 `?as=2`를 붙이면 두 번째 계정
 (teacher2@example.com)으로 들어간다. 날짜를 넘길 때는 `addInitScript`로

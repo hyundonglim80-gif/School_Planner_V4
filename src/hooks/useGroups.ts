@@ -195,31 +195,67 @@ export function useGroups() {
       groupId = mapSnap.data().groupId || null;
     } else {
       // 매핑이 아직 없는 예전 그룹을 위한 폴백.
-      // 모든 그룹에 매핑이 생기면 이 경로는 지워도 된다.
-      const q = query(collection(db, 'groups'), where('inviteCode', '==', cleanCode));
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) groupId = snapshot.docs[0].id;
+      // ⚠️ 이 조회는 그룹 목록을 훑는 것이라, 규칙을 조이면 권한 거부가 난다.
+      //    그때 여기서 예외가 터지면 참여 자체가 막히므로 반드시 감싸 둔다.
+      //    모든 그룹에 매핑이 생기면 이 경로는 지워도 된다.
+      try {
+        const q = query(collection(db, 'groups'), where('inviteCode', '==', cleanCode));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) groupId = snapshot.docs[0].id;
+      } catch (e) {
+        console.warn('옛 그룹 폴백 조회 실패(매핑이 있으면 문제 없음):', e);
+      }
     }
 
     if (!groupId) {
       throw new Error('일치하는 초대 코드의 그룹을 찾을 수 없습니다.');
     }
 
-    const groupSnap = await getDoc(doc(db, 'groups', groupId));
-    if (!groupSnap.exists()) {
-      throw new Error('삭제되었거나 존재하지 않는 그룹입니다.');
+    // ⚠️ 참여하기 전에 그룹 문서를 읽을 수 있다고 가정하면 안 된다.
+    //    규칙을 조이면 '아직 구성원이 아닌 사람'은 그룹을 읽을 수 없다.
+    //    읽히면 이미 구성원인지 가려내고, 안 읽히면 그냥 참여를 시도한다.
+    const groupRef = doc(db, 'groups', groupId);
+    let name = '공유 그룹';
+    try {
+      const snap = await getDoc(groupRef);
+      if (snap.exists()) {
+        const data = snap.data() as GroupItem;
+        name = data.name || name;
+        if (data.members && data.members.includes(user.uid)) {
+          throw new Error('이미 참여 중인 그룹입니다.');
+        }
+      }
+    } catch (e: any) {
+      if (e?.message === '이미 참여 중인 그룹입니다.') throw e;
+      // 못 읽었다 = 아직 구성원이 아니다. 계속 진행한다.
     }
-    const data = groupSnap.data() as GroupItem;
 
-    if (data.members && data.members.includes(user.uid)) {
-      throw new Error('이미 참여 중인 그룹입니다.');
+    try {
+      await updateDoc(groupRef, {
+        members: arrayUnion(user.uid),
+        // 누가 들어왔는지 그룹장이 볼 수 있게 남긴다. V3가 쓰는 모양과 맞춘다.
+        // 점이 든 키는 updateDoc에서만 '하위 필드'로 해석된다 (setDoc은 그 이름의
+        // 필드를 통째로 만든다). 규칙이 바뀐 필드를 볼 때 이 차이가 갈린다.
+        [`memberDetails.${user.uid}`]: {
+          name: user.displayName || '이름 없음',
+          joinedAt: Date.now(),
+          photoURL: user.photoURL || '',
+        },
+      });
+    } catch (e) {
+      console.error('그룹 참여 실패:', e);
+      throw new Error('그룹에 참여하지 못했습니다. 초대 코드를 다시 확인해 주세요.');
     }
 
-    await updateDoc(doc(db, 'groups', groupId), {
-      members: arrayUnion(user.uid),
-    });
+    // 이제는 구성원이므로 이름을 읽을 수 있다
+    try {
+      const after = await getDoc(groupRef);
+      if (after.exists()) name = (after.data() as GroupItem).name || name;
+    } catch {
+      /* 이름을 못 읽어도 참여는 끝났다 */
+    }
 
-    return { id: groupId, name: data.name };
+    return { id: groupId, name };
   }, []);
 
   // 그룹 탈퇴
