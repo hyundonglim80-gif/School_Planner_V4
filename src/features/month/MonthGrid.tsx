@@ -14,6 +14,7 @@ import {
   DAY_NUMBER_COLOR,
   WEEKDAY_HEADER_COLOR,
 } from '../../lib/holiday';
+import { fitToWidthFontSize } from '../../lib/typeScale';
 import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import { BODY_TEXT } from '../../lib/typeScale';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
@@ -135,12 +136,9 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                       const text = item?.subject?.trim() || '';
                       
                       if (text && text.toUpperCase() !== 'X') {
-                        let fontSize = "text-xs";
-                        let tracking = "tracking-normal";
-                        if (text.length >= 5) { fontSize = "text-2xs"; tracking = "tracking-tighter"; }
-                        else if (text.length === 4) { fontSize = "text-2xs"; tracking = "tracking-tighter"; }
-                        else if (text.length === 3) { fontSize = "text-xs"; tracking = "tracking-tight"; }
-
+                        // 예전에는 글자 수만 보고 단계를 골랐다. 칸이 얼마나 좁은지는
+                        // 보지 않아서, 교시가 6~7개면 칩이 20px 남짓인데 16~18px 글자가
+                        // 들어가 잘려 보였다. 칩 너비에 맞춰 줄어들게 한다.
                         return (
                           <div
                             key={p}
@@ -154,10 +152,15 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                                 initialData: item
                               });
                             }}
-                            className={`flex-1 min-w-0 h-[20px] flex items-center justify-center border border-emerald-300 rounded-[3px] bg-emerald-50 text-emerald-700 font-bold ${fontSize} ${tracking} whitespace-nowrap overflow-hidden cursor-pointer hover:bg-emerald-200 transition-colors`}
+                            className="flex-1 min-w-0 h-[20px] flex items-center justify-center border border-emerald-300 rounded-[3px] bg-emerald-50 text-emerald-700 font-bold overflow-hidden cursor-pointer hover:bg-emerald-200 transition-colors [container-type:inline-size]"
                             title={`${text} (${p}교시)`}
                           >
-                            {text}
+                            <span
+                              className="text-2xs tracking-tighter whitespace-nowrap leading-none"
+                              style={{ fontSize: fitToWidthFontSize(text) }}
+                            >
+                              {text}
+                            </span>
                           </div>
                         );
                       }

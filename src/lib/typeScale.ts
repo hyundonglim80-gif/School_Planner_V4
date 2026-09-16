@@ -39,3 +39,37 @@ export const META_TEXT: Record<DensityTier, string> = {
 
 /** 섹션 제목 - 화면과 무관하게 같다 */
 export const SECTION_TITLE = 'text-base';
+
+// ── 칸에 맞춰 줄어드는 글자 (달력의 수업 칩) ──────────────────────────
+//
+// 위 단계들은 '읽기 좋은 크기'를 정한 것이고, 그게 맞다. 그런데 월간 달력의
+// 수업 칩은 사정이 다르다. 한 칸을 교시 수(6~7개)로 나눠 쓰므로 칩 하나가
+// 20px 남짓이다. 거기에 가장 작은 단계(text-2xs = 16px)를 넣어도 '국어'가
+// 안 들어가 글자가 잘렸다. 글자 수만 보고 단계를 고르고 있어서, 칸이 얼마나
+// 좁은지는 아무도 보지 않았다.
+//
+// 그렇다고 text-[8px]처럼 px를 박으면 안 된다. 그 값만 150% 확대에서 빠져
+// 화면을 키우거나 줄일 때 혼자 어긋난다.
+//
+// 그래서 '고정된 크기'가 아니라 '칸 너비에 대한 비율'로 준다.
+//   cqw = 칩 너비의 1%  (칩에 container-type: inline-size 를 걸어야 한다)
+//   한글은 글자 하나가 대략 정사각형이라, n글자가 들어가려면 글자 크기가
+//   칩 너비의 1/n 이면 된다 -> 100cqw / n
+// 위로는 정해진 단계(text-2xs)를 넘지 않고, 아래로는 읽을 수 있는 선에서 멈춘다.
+// 그보다 길어지면 예전처럼 잘리는데, 그건 글자를 더 줄이는 것보다 낫다.
+
+/** 이보다 작아지면 읽을 수 없다 */
+const MIN_FIT_PX = 7;
+
+/** 글자 사이 여백 몫 (1.0이면 글자가 칩에 딱 붙는다) */
+const FIT_RATIO = 0.92;
+
+/**
+ * 칩 너비에 맞춰 줄어드는 글자 크기.
+ * 쓰는 쪽에서 칩에 `[container-type:inline-size]` 를 걸어야 cqw가 동작한다.
+ * 브라우저가 cqw를 모르면 이 값이 통째로 무시되므로, 함께 둔 text-2xs가 그대로 쓰인다.
+ */
+export function fitToWidthFontSize(text: string): string {
+  const chars = Math.max(1, text.trim().length);
+  return `clamp(${MIN_FIT_PX}px, calc(100cqw / ${chars} * ${FIT_RATIO}), var(--text-2xs))`;
+}
