@@ -155,6 +155,24 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
         return text.toLowerCase().includes(queryTerm);
       };
 
+      // 메모는 날짜마다 문서가 하나인 다른 항목들과 달리 한 건에 문서 하나라,
+      // 문서 이름으로 기간을 자를 수 없다. 만든 날(createdAt)로 거른다.
+      // createdAt이 없던 옛 메모는 메모 화면과 같은 방식으로 order에서 되살린다.
+      const memoCreatedAt = (data: any): number =>
+        data.createdAt || (data.order ? Math.abs(data.order) : 0);
+
+      const memoDateOf = (data: any): string => {
+        const ms = memoCreatedAt(data);
+        return ms ? formatDateStr(new Date(ms)) : '';
+      };
+
+      const memoInRange = (dateStr: string) => {
+        if (!range || !range.start || !range.end) return true;
+        // 만든 때를 알 수 없는 메모는 기간 때문에 사라지지 않도록 남긴다.
+        if (!dateStr) return true;
+        return dateStr >= range.start && dateStr <= range.end;
+      };
+
       const promises: Promise<any>[] = [];
 
       // 1. 메모 (tasks)
@@ -193,9 +211,17 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
         if (type === 'tasks') {
           snap.forEach((d: any) => {
             const data = d.data();
+            const dateStr = memoDateOf(data);
+            if (!memoInRange(dateStr)) return;
             const text = data.content || data.text || '';
             if (checkMatch(text)) {
-              searchResults.push({ id: d.id, type: 'memo', title: '전체 메모', snippet: text });
+              searchResults.push({
+                id: d.id,
+                type: 'memo',
+                dateStr: dateStr || undefined,
+                title: dateStr ? `메모 (${dateStr})` : '메모 (만든 날 모름)',
+                snippet: text,
+              });
             }
           });
         } else if (type === 'events') {
@@ -340,7 +366,10 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
           
           {/* 검색 기간 선택 */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <span className="text-xs font-bold text-slate-700 whitespace-nowrap">검색 기간:</span>
+            <span className="text-xs font-bold text-slate-700 whitespace-nowrap">
+              검색 기간:
+              <span className="ml-1 font-semibold text-slate-500">(메모는 만든 날 기준)</span>
+            </span>
             <select
               value={searchScope}
               onChange={(e) => setSearchScope(e.target.value)}
