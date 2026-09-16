@@ -7,6 +7,7 @@ import {
   readLegacyMemoLabels,
 } from '../lib/legacyLabels';
 import { subscribeDocWithServerFallback } from '../lib/firestoreSubscribe';
+import { showErrorToast } from '../utils/toast';
 import { db, auth } from '../lib/firebase';
 
 export interface EventLabel {
@@ -76,6 +77,8 @@ export function useLabels() {
   const [memoLabels, setMemoLabels] = useState<string[]>(DEFAULT_MEMO_LABELS);
   const [journalLabels, setJournalLabels] = useState<JournalLabel[]>(DEFAULT_JOURNAL_LABELS);
   const migratedRef = useRef(false);
+  // 한 번이라도 라벨을 받아 봤는가. 받은 뒤에 난 오류로 사용자를 놀라게 하지 않는다.
+  const loadedRef = useRef(false);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -88,6 +91,7 @@ export function useLabels() {
 
     const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
     const unsub = subscribeDocWithServerFallback(docRef, (data) => {
+      loadedRef.current = true;
       // Firestore에 라벨이 없으면 V3가 쓰던 localStorage 값을 쓴다.
       const cloudEvents =
         (Array.isArray(data?.eventLabels) && data!.eventLabels.length > 0 && data!.eventLabels) ||
@@ -134,6 +138,17 @@ export function useLabels() {
         setDoc(docRef, payload, { merge: true }).catch((e) =>
           console.warn('라벨 이전 실패(로컬 값은 계속 사용됩니다):', e)
         );
+      }
+    },
+    (err) => {
+      // ⚠️ 여기가 비어 있었다. 라벨 읽기가 실패해도 아무 말 없이 기본 라벨에
+      //    머물렀고, 그 상태에서는 등록되지 않은 라벨이 전부 걸러져 화면에서
+      //    라벨 칩이 하나도 안 보였다. 이월도 '어떤 라벨이 이월 대상인지'를
+      //    이 값으로 판단하므로 오늘로 와야 할 일정이 오지 않았다.
+      //    사용자는 데이터가 사라진 줄 알게 된다. 조용히 넘어가지 않는다.
+      console.error('라벨을 불러오지 못했습니다:', err);
+      if (!loadedRef.current) {
+        showErrorToast('라벨을 불러오지 못했습니다. 새로고침해 주세요. (그때까지 라벨 칩이 보이지 않을 수 있습니다)', err);
       }
     });
 

@@ -154,8 +154,19 @@ async function doAutoForwarding(groupId: string | null) {
   const pastDates = pastDateStrings(now, useAppStore.getState().forwardLookbackDays);
   
   const settingsRef = doc(db, 'users', user.uid, 'settings', 'labels');
-  const settingsSnap = await getDoc(settingsRef);
-  
+  // ⚠️ 라벨 정의를 못 읽었는데 기본값으로 대신 판단하면 안 된다.
+  //    이월은 '어떤 라벨이 이월 대상인가'로 지난 일정을 오늘로 옮기는 일이다.
+  //    남의 기준으로 판단하면 와야 할 일정이 안 오거나(사용자는 사라진 줄 안다),
+  //    오지 말아야 할 일정이 지난 날짜에서 뽑혀 나온다. 차라리 이번 판은 건너뛴다.
+  //    (라벨 문서가 아예 없는 새 사용자는 기본값으로 판단하는 것이 맞다)
+  let settingsSnap;
+  try {
+    settingsSnap = await getDoc(settingsRef);
+  } catch (err) {
+    console.warn('라벨 설정을 읽지 못해 이월을 건너뜁니다:', err);
+    return 0;
+  }
+
   let rawLabelDefs: any[] = [...DEFAULT_EVENT_LABELS];
   if (settingsSnap.exists()) {
     const data = settingsSnap.data();

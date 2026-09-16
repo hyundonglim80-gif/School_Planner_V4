@@ -39,13 +39,28 @@ export function subscribeDocWithServerFallback(
           .then((serverSnap) => {
             if (!cancelled && serverSnap.exists()) onData(serverSnap.data());
           })
-          .catch(() => {
-            /* 오프라인 등 - 캐시 결과를 그대로 둔다 */
+          .catch((err) => {
+            // 오프라인이면 캐시 결과를 그대로 두는 것이 맞다. 다만 조용히 삼키면
+            // '서버에 있는데 화면에는 없다'가 영영 드러나지 않는다. 알려는 준다.
+            onError?.(err);
           });
       }
     },
     (error) => {
-      if (!cancelled) onError?.(error);
+      // ⚠️ 여기서 끝내면 안 된다. onSnapshot은 한 번 오류가 나면 더 이상
+      //    콜백을 부르지 않는다. 그대로 두면 화면은 '아무것도 없음'에 머문 채
+      //    영영 복구되지 않는다. 라벨이 그래서 기본값에 갇혔다.
+      //    서버에 한 번 더 직접 물어본다.
+      if (cancelled) return;
+      getDocFromServer(ref)
+        .then((serverSnap) => {
+          if (cancelled) return;
+          if (serverSnap.exists()) onData(serverSnap.data());
+          else onError?.(error);
+        })
+        .catch(() => {
+          if (!cancelled) onError?.(error);
+        });
     }
   );
 
