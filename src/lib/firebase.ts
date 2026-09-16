@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
+import { connectEmulators } from './emulator';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBd1z4RZnSbZWdwAIFvPOue5AaZ8wQ9ka0',
@@ -23,6 +24,9 @@ export const db = initializeFirestore(app, {
 
 export const auth = getAuth(app);
 export const storage = getStorage(app);
+
+// 점검용 에뮬레이터. VITE_USE_EMULATOR=1 일 때만 붙는다(운영 빌드에서는 빠진다).
+connectEmulators(auth, db, storage);
 export const googleProvider = new GoogleAuthProvider();
 // V3와 같은 범위를 요청한다. 캘린더가 빠져 있어서 캘린더 API는 부를 수 없었고,
 // 시트(명렬표/백업)도 같은 이유로 401이 났다.
