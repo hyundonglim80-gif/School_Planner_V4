@@ -293,3 +293,38 @@ describe('DayJournal - 링크 추가 팝업에서 담은 링크', () => {
     expect(screen.getByText('[2026-09-16] 일정')).toBeInTheDocument();
   });
 });
+
+describe('DayJournal - 긴 기록은 접은 채로 시작한다', () => {
+  const longEntry: JournalEntry = {
+    id: 'jr_long',
+    content: '나'.repeat(400),
+    createdAt: 3,
+    labelIds: [],
+    linkedItems: [],
+    attachments: [],
+  };
+
+  it('긴 기록은 본문이 접혀 있고 한 줄만 보인다', () => {
+    renderJournal([longEntry]);
+
+    expect(screen.queryByText('나'.repeat(400))).toBeNull();
+    expect(screen.getByTitle('펼치기')).toBeInTheDocument();
+    expect(screen.getByText(/나{10,}…/)).toBeInTheDocument();
+  });
+
+  it('짧은 기록은 그대로 펼쳐져 있다', () => {
+    renderJournal();
+
+    expect(screen.getByText('첫 번째 기록')).toBeInTheDocument();
+    expect(screen.getAllByTitle('접기').length).toBeGreaterThan(0);
+  });
+
+  it('펼치면 전체가 나온다', async () => {
+    const user = userEvent.setup();
+    renderJournal([longEntry]);
+
+    await user.click(screen.getByTitle('펼치기'));
+
+    expect(screen.getByText('나'.repeat(400))).toBeInTheDocument();
+  });
+});

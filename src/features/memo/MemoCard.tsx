@@ -7,6 +7,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
 import { showToast } from '../../utils/toast';
 import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
+import { isLongEntry, previewLine } from '../../lib/entryCollapse';
 
 interface MemoCardProps {
   memo: Memo;
@@ -92,6 +93,14 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
   // 💡 등록된 라벨인지 확인하여 삭제된 라벨 거르기
   const validLabels = (memo.labels || []).filter(label => memoLabels.includes(label));
 
+  // 접기/펼치기. 기록 카드와 같은 삼각형 토글, 같은 기준을 쓴다.
+  // 직접 누르기 전에는 길이를 보고 정한다(긴 것은 접은 채로 시작).
+  // 처음 값을 state에 담아 두면 내용이 바뀌어도 그 값이 그대로 남는다.
+  const body = memo.content || memo.text || '';
+  const [manualCollapsed, setManualCollapsed] = React.useState<boolean | null>(null);
+  const isCollapsed = manualCollapsed ?? isLongEntry(body);
+  const preview = previewLine(body);
+
   return (
     <div
       onClick={(e) => {
@@ -107,6 +116,15 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
         {/* 상단 액션 바 */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
+            {/* 항목 접기/펼치기 삼각형 토글 (기록 카드와 같은 모양) */}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setManualCollapsed(!isCollapsed); }}
+              className="text-slate-400 hover:text-primary transition-colors p-0.5 text-xs cursor-pointer shrink-0"
+              title={isCollapsed ? '펼치기' : '접기'}
+            >
+              {isCollapsed ? '▶' : '▼'}
+            </button>
             <input
               type="checkbox"
               checked={isCompleted}
@@ -168,8 +186,39 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
           </div>
         </div>
 
+        {/* 접혀 있을 때는 첨부가 있다는 표시만 남기고 한 줄로 줄인다.
+            펼치면 아래의 그림·파일·본문이 그대로 나온다. */}
+        {isCollapsed && (
+          <>
+            {(viewerImages.length > 0 || fileAttachments.length > 0) && (
+              <div className="flex items-center gap-1.5 mb-2">
+                {viewerImages.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setViewerIndex(0); setViewerOpen(true); }}
+                    className="bg-indigo-50 text-indigo-700 text-xs px-1.5 py-0.5 rounded font-bold border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer"
+                    title="첨부 이미지 보기"
+                  >
+                    🖼️ {viewerImages.length}
+                  </button>
+                )}
+                {fileAttachments.length > 0 && (
+                  <span className="bg-slate-100 text-slate-600 text-xs px-1.5 py-0.5 rounded font-bold border border-slate-200">
+                    📎 {fileAttachments.length}
+                  </span>
+                )}
+              </div>
+            )}
+            {preview && (
+              <p className={`text-sm truncate leading-relaxed ${isCompleted ? 'line-through text-slate-400' : 'text-slate-500'}`}>
+                {preview}
+              </p>
+            )}
+          </>
+        )}
+
         {/* 미디어 / 파일 영역 */}
-        {normalizedAttachments.length > 0 ? (
+        {!isCollapsed && normalizedAttachments.length > 0 ? (
           <div className="mb-3 space-y-2">
             {/* 1. 이미지 렌더링 */}
             {imageAttachments.map((imgAtt, idx) => (
@@ -219,7 +268,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
               );
             })}
           </div>
-        ) : memo.imageUrl ? (
+        ) : !isCollapsed && memo.imageUrl ? (
           <div
             className="mb-3 rounded-xl overflow-hidden border border-slate-100 bg-slate-50 cursor-pointer"
             onClick={(e) => { e.stopPropagation(); setViewerIndex(0); setViewerOpen(true); }}
@@ -234,13 +283,15 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
         ) : null}
 
         {/* 본문 텍스트 */}
-        <p
-          className={`text-sm whitespace-pre-wrap leading-relaxed ${
-            isCompleted ? 'line-through text-slate-400' : 'text-slate-800'
-          }`}
-        >
-          {renderFormattedText(memo.content || memo.text || '')}
-        </p>
+        {!isCollapsed && (
+          <p
+            className={`text-sm whitespace-pre-wrap leading-relaxed ${
+              isCompleted ? 'line-through text-slate-400' : 'text-slate-800'
+            }`}
+          >
+            {renderFormattedText(body)}
+          </p>
+        )}
       </div>
 
       {/* 💡 하단 라벨 (필터링된 validLabels만 렌더링) */}

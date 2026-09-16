@@ -116,6 +116,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [groupAudit, setGroupAudit] = useState<
     { total: number; missing: { id: string; name: string; owner: string; mine: boolean }[] } | null
   >(null);
+  // 규칙을 조인 뒤에는 '그룹 목록 전체 훑기' 자체가 막힌다. 그게 정상이고,
+  // 그 사실이 곧 '규칙이 배포되었다'는 증거가 된다.
+  const [rulesTightened, setRulesTightened] = useState(false);
   const [auditing, setAuditing] = useState(false);
   const [fixing, setFixing] = useState(false);
 
@@ -193,8 +196,15 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         }
       }
       setGroupAudit({ total: snap.size, missing });
-    } catch (e) {
-      showErrorToast('그룹을 살펴보지 못했습니다.', e);
+      setRulesTightened(false);
+    } catch (e: any) {
+      if (e?.code === 'permission-denied') {
+        // 조인 규칙에서는 구성원만 그룹을 읽을 수 있어, 목록 전체 조회가 막힌다.
+        setRulesTightened(true);
+        setGroupAudit(null);
+      } else {
+        showErrorToast('그룹을 살펴보지 못했습니다.', e);
+      }
     } finally {
       setAuditing(false);
     }
@@ -409,7 +419,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         {developer && (
           <Section
             title="🔧 개발자 설정 - 공유 그룹 점검"
-            desc="보안 규칙을 조이기 전에 확인합니다. 초대 코드로 참여하려면 '코드 → 그룹' 매핑 문서가 있어야 하는데, 옛 그룹에는 없을 수 있습니다. 매핑이 없는 그룹은 규칙을 조인 뒤 참여가 막힙니다."
+            desc="조이기 전에는 매핑이 빠진 그룹을 찾아 줍니다. 조인 뒤에는 목록 조회 자체가 막히므로, 이 단추가 권한 거부를 내는 것이 곧 규칙이 배포되었다는 뜻입니다."
           >
             <button
               onClick={handleAuditGroups}
@@ -418,6 +428,17 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             >
               {auditing ? '살펴보는 중...' : '지금 점검하기'}
             </button>
+
+            {rulesTightened && (
+              <p className="mt-3 text-xs text-emerald-800 font-bold bg-emerald-50 border border-emerald-200 rounded-xl p-3 leading-relaxed">
+                ✅ 규칙이 이미 조여져 있습니다.
+                <br />
+                <span className="font-semibold text-emerald-700">
+                  그룹 목록 전체 조회가 권한 거부로 막혔습니다. 조이기 전에는 로그인한 사람이면
+                  누구나 이 목록을 볼 수 있었습니다. 지금은 내가 속한 그룹만 보입니다.
+                </span>
+              </p>
+            )}
 
             {groupAudit && (
               <div className="mt-3 space-y-2">

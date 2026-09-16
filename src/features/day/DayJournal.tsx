@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { JournalEntry, Attachment } from '../../hooks/useDayData';
 import { useAppStore } from '../../store/useAppStore';
+import { isLongEntry, previewLine } from '../../lib/entryCollapse';
 import { useLabels } from '../../hooks/useLabels';
 import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
 import EntryDrawer, { type EntryDraft } from '../../components/EntryDrawer';
@@ -35,10 +36,15 @@ export default function DayJournal({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(null);
 
-  // 항목별 접기/펼치기 상태
+  // 항목별 접기/펼치기 상태.
+  // 여기에는 '사용자가 직접 누른 것'만 담는다. 손대지 않은 항목은 길이를 보고
+  // 정한다(긴 것은 접은 채로 시작). 처음 상태를 여기에 미리 채워 넣으면,
+  // 기록이 새로 들어오거나 내용이 길어질 때 그 값이 낡아 버린다.
   const [collapsedIds, setCollapsedIds] = useState<Record<string, boolean>>({});
-  const toggleCollapse = (id: string) => {
-    setCollapsedIds(prev => ({ ...prev, [id]: !prev[id] }));
+  const isEntryCollapsed = (entry: JournalEntry) =>
+    collapsedIds[entry.id] ?? isLongEntry(entry.content);
+  const toggleCollapse = (id: string, current: boolean) => {
+    setCollapsedIds(prev => ({ ...prev, [id]: !current }));
   };
 
   const [currentFilter, setCurrentFilter] = useState('전체');
@@ -297,7 +303,7 @@ export default function DayJournal({
               <div key={colIndex} className="flex flex-col gap-4">
                 {col.map(({ entry }) => {
                   const linkCount = (entry.linkedItems || []).length;
-                  const isCollapsedItem = !!collapsedIds[entry.id];
+                  const isCollapsedItem = isEntryCollapsed(entry);
                   const origIdx = journals.findIndex(j => j.id === entry.id);
 
                   return (
@@ -312,8 +318,9 @@ export default function DayJournal({
                           {/* 항목 접기/펼치기 삼각형 토글 버튼 */}
                           <button
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); toggleCollapse(entry.id); }}
+                            onClick={(e) => { e.stopPropagation(); toggleCollapse(entry.id, isCollapsedItem); }}
                             className="text-slate-400 hover:text-primary transition-colors p-0.5 text-xs cursor-pointer"
+                            title={isCollapsedItem ? '펼치기' : '접기'}
                           >
                             {isCollapsedItem ? '▶' : '▼'}
                           </button>
@@ -401,6 +408,14 @@ export default function DayJournal({
                           </button>
                         </div>
                       </div>
+
+                      {/* 접혀 있을 때는 한 줄만 보여 준다. 아무것도 안 보이면
+                          어느 기록인지 알 수 없어 하나씩 펼쳐 봐야 한다. */}
+                      {isCollapsedItem && previewLine(entry.content) && (
+                        <p className="text-sm text-slate-500 truncate leading-relaxed">
+                          {previewLine(entry.content)}
+                        </p>
+                      )}
 
                       {/* 항목이 접히지 않았을 때만 본문 및 첨부파일 표시 */}
                       {!isCollapsedItem && (
