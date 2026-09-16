@@ -20,6 +20,9 @@ interface SearchResultItem {
   snippet: string;
 }
 
+/** 한 번에 그릴 결과 수. '더 보기'로 이만큼씩 늘린다. */
+const PAGE_SIZE = 50;
+
 interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -45,6 +48,10 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const backdrop = useBackdropClose();
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<SearchResultItem[]>([]);
+  // 찾은 것을 한꺼번에 다 그리지 않는다. 검색어를 비우고 한 학기를 고르면 수업만으로도
+  // 3천 건이 넘는다(하루 6교시 x 과목·메모·비고). 그 카드를 전부 만들고 그리느라
+  // 조회는 벌써 끝났는데도 화면이 한참 멈춰 있었다. 조회가 느린 것이 아니었다.
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
@@ -125,6 +132,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
     try {
       setSearching(true);
       setHasSearched(true);
+      setVisibleCount(PAGE_SIZE);
       const searchResults: SearchResultItem[] = [];
 
       const range = getTargetDateRange();
@@ -368,8 +376,11 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
             <>
               <div className="text-xs font-bold text-slate-700 mb-2 pl-1">
                 총 {results.length}건의 데이터를 찾았습니다.
+                {results.length > visibleCount && (
+                  <span className="font-semibold text-slate-500"> (앞에서 {visibleCount}건 표시 중)</span>
+                )}
               </div>
-              {results.map((res) => {
+              {results.slice(0, visibleCount).map((res) => {
                 let badgeClass = 'bg-slate-50 text-slate-700 border-slate-200';
                 let badgeText = '';
 
@@ -407,6 +418,15 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                   </div>
                 );
               })}
+              {results.length > visibleCount && (
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                  className="w-full py-2.5 bg-white hover:bg-blue-50/40 border border-slate-200 hover:border-primary/50 rounded-xl text-xs font-bold text-slate-700 transition-colors cursor-pointer"
+                >
+                  더 보기 (남은 {results.length - visibleCount}건)
+                </button>
+              )}
             </>
           ) : hasSearched ? (
             <div className="py-12 text-center text-red-500 font-bold text-xs">
