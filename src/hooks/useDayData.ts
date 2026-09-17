@@ -13,7 +13,7 @@ import { parseV3EventText, formatV3EventText, eventContentOf, eventDocPayload, r
 import { pastDateStrings, isForwardTarget, chooseForwardingLabels } from '../lib/forwarding';
 import { readLegacyEventLabels } from '../lib/legacyLabels';
 import { useAppStore } from '../store/useAppStore';
-import { noteCacheLied, markFirestoreAlive } from '../lib/firestoreRecovery';
+import { noteCacheLied, markFirestoreAlive, noteFirestoreError } from '../lib/firestoreRecovery';
 import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 
 // 기존 import 경로 호환을 위해 재수출한다 (직렬화 구현은 lib/eventText.ts로 이동).
@@ -622,11 +622,13 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
             }
           })
           .catch((err: any) => {
+            noteFirestoreError(err);
             report({ server: 'error', serverError: String(err?.code || err?.message || err) });
           });
       }
     }, (error) => {
       console.error('DayScreen Event Snapshot Error:', error);
+      noteFirestoreError(error);
       eventFired = true;
       report({ liveError: String((error as any)?.code || error) });
       setLoading(false);

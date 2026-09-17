@@ -47,6 +47,21 @@ export default function EmptyDayReport({ report }: { report: EventReadReport | n
   const uid = ownerOfPath(report.path);
   const who = `${report.email || '(메일 없음)'} · ${uid.slice(0, 10)}…`;
 
+  // ⓪ 같은 컬렉션을 두 가지 방식으로 물었는데 답이 갈렸다 = 읽는 길이 깨진 것이다
+  if (probe?.state === 'disagree') {
+    return (
+      <div className="rounded-xl border-2 border-amber-400 bg-amber-50 px-4 py-3 text-amber-900">
+        <p className="text-2xs font-bold mb-1">⚠️ 서버가 같은 질문에 다르게 답하고 있습니다</p>
+        <p className="text-2xs leading-relaxed">
+          같은 계정, 같은 일정 보관함인데 조회 방식에 따라 답이 갈립니다 ({probe.detail}).
+          자료가 없는 것이 아니라 <b>읽어오는 길이 잘못된 것</b>입니다.
+          브라우저의 사이트 데이터를 한 번 더 지우고 들어오시면 정상으로 돌아옵니다.
+        </p>
+        <p className="text-2xs mt-1.5 text-amber-800/80 break-all">지금 계정: {who}</p>
+      </div>
+    );
+  }
+
   // ① 이 계정에 일정이 단 한 건도 없다 → 거의 확실히 다른 계정으로 들어온 것이다
   if (probe?.state === 'empty') {
     return (
@@ -57,7 +72,7 @@ export default function EmptyDayReport({ report }: { report: EventReadReport | n
           평소 쓰시던 계정과 <b>다른 구글 계정으로 로그인</b>되었을 가능성이 큽니다.
           (V3와 V4는 로그인이 따로 걸려 있어 서로 다른 계정으로 들어갈 수 있습니다.)
         </p>
-        <p className="text-2xs mt-1.5 text-amber-800/80 break-all">지금 계정: {who}</p>
+        <p className="text-2xs mt-1.5 text-amber-800/80 break-all">지금 계정: {who} · {probe.detail}</p>
         <button
           onClick={() => { void logout(); }}
           className="mt-2 px-3 py-1.5 rounded-lg bg-amber-600 text-white font-bold text-2xs hover:bg-amber-700"
@@ -69,10 +84,17 @@ export default function EmptyDayReport({ report }: { report: EventReadReport | n
   }
 
   if (probe?.state === 'error') {
+    const lock = probe.code.includes('failed-precondition');
     return (
-      <div className="rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
-        <p className="text-2xs font-bold mb-1">⚠️ 일정을 확인하지 못했습니다</p>
-        <p className="text-2xs leading-relaxed break-all">서버에 묻다가 막혔습니다 ({probe.code}).</p>
+      <div className="rounded-xl border-2 border-amber-400 bg-amber-50 px-4 py-3 text-amber-900">
+        <p className="text-2xs font-bold mb-1">
+          {lock ? '⚠️ 이 브라우저의 저장 공간을 열지 못했습니다' : '⚠️ 일정을 확인하지 못했습니다'}
+        </p>
+        <p className="text-2xs leading-relaxed break-all">
+          {lock
+            ? '자료가 없어진 것이 아닙니다. 앱이 쓰는 브라우저 저장 공간이 잠겨 있어 아무것도 읽어오지 못하는 상태입니다. 잠시 뒤 스스로 비우고 다시 시작합니다.'
+            : `서버에 묻다가 막혔습니다 (${probe.code}).`}
+        </p>
         <p className="text-2xs mt-1.5 text-amber-800/80 break-all">지금 계정: {who}</p>
       </div>
     );
@@ -128,7 +150,7 @@ export default function EmptyDayReport({ report }: { report: EventReadReport | n
     return (
       <p className="text-2xs text-slate-400 break-all">
         계정은 정상입니다. 다만 <b>오늘({today(report.path)}) 문서가 서버에 없습니다</b>
-        {' '}· 서버에 있는 최근 일정 날짜: {probe.recent.join(', ')} · {who}
+        {' '}· 서버에 있는 최근 일정 날짜: {probe.recent.join(', ')} · {probe.detail} · {who}
       </p>
     );
   }

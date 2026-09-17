@@ -14,32 +14,43 @@
 // 한 건도 없다면 새 계정이거나 남의 계정이다.
 import { collection, query, limit, orderBy, documentId, getDocsFromServer } from 'firebase/firestore';
 import { db } from './firebase';
+import { noteFirestoreError } from './firestoreRecovery';
 
 export type AccountProbe =
-  | { state: 'empty' }        // 이 계정에는 일정이 하나도 없다
-  | { state: 'has-data'; recent: string[]; todayThere: boolean }
+  | { state: 'empty'; detail: string }
+  | { state: 'has-data'; recent: string[]; todayThere: boolean; detail: string }
+  | { state: 'disagree'; detail: string }   // 조회 방식에 따라 답이 다르다 = 읽는 길이 깨졌다
   | { state: 'error'; code: string };
 
 /**
- * 하루 일정 문서 경로(users/{uid}/events/2026-09-17)를 받아
- * 그 컬렉션에 무엇이든 들어 있는지 서버에 직접 물어본다.
+ * 같은 컬렉션을 서로 다른 두 가지 방식으로 서버에 물어본다.
+ *
+ * 실제로 이런 일이 있었다. 같은 계정, 같은 컬렉션인데
+ *   limit(1)만 건 조회            -> 문서가 있다
+ *   문서 이름 역순 정렬 조회       -> 하나도 없다
+ * 두 답이 갈렸다. 그러면 둘 중 하나는 거짓이고, 화면이 비는 이유도 그것이다.
+ * 그래서 한쪽 답만 믿지 않고 둘 다 물어 본 뒤, 어긋나면 어긋났다고 말한다.
  */
 export async function probeAccountHasEvents(docPath: string): Promise<AccountProbe> {
   const parts = docPath.split('/');
   const wanted = parts[parts.length - 1];
   const colPath = parts.slice(0, -1).join('/');
+  const col = collection(db, colPath);
   try {
-    // 날짜가 곧 문서 이름이므로, 이름 역순으로 몇 개만 받아 보면
-    // '오늘 문서가 서버에 정말 없는지'를 눈으로 확인할 수 있다.
-    // 문서 하나만 읽는 길과 목록으로 읽는 길은 서로 다른 통로라서,
-    // 한쪽은 없다고 하고 다른 쪽엔 있는 경우를 이걸로 잡아낸다.
-    const snap = await getDocsFromServer(
-      query(collection(db, colPath), orderBy(documentId(), 'desc'), limit(5))
-    );
-    if (snap.empty) return { state: 'empty' };
-    const recent = snap.docs.map((d) => d.id);
-    return { state: 'has-data', recent, todayThere: recent.includes(wanted) };
+    const [plain, ordered] = await Promise.all([
+      getDocsFromServer(query(col, limit(3))),
+      getDocsFromServer(query(col, orderBy(documentId(), 'desc'), limit(5))),
+    ]);
+    const detail = `그냥조회 ${plain.size}건 / 이름순조회 ${ordered.size}건`;
+
+    if (plain.empty && ordered.empty) return { state: 'empty', detail };
+    if (plain.empty !== ordered.empty) return { state: 'disagree', detail };
+
+    const recent = ordered.docs.map((d) => d.id);
+    return { state: 'has-data', recent, todayThere: recent.includes(wanted), detail };
   } catch (err: any) {
+    // 저장소를 못 잡은 것이면 여기서 앱이 스스로 되살아난다
+    noteFirestoreError(err);
     return { state: 'error', code: String(err?.code || err?.message || err) };
   }
 }

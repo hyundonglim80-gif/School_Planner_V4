@@ -151,3 +151,39 @@ export function startPersistenceWatchdog(db: Firestore, ms = 10000) {
     void recover(db);
   }, ms);
 }
+
+
+// ── 저장소를 잡지 못한 경우 (failed-precondition) ────────────────────
+//
+// 실제로 화면에 이렇게 찍혔다.
+//   서버에 묻다가 막혔습니다 (failed-precondition).
+//
+// Firestore가 이 코드를 내는 경우는 둘이다.
+//   1) 복합 색인이 필요한 조회인데 색인이 없다
+//   2) 오프라인 저장소(IndexedDB)를 잡지 못했다
+// 우리가 낸 조회는 색인이 필요 없는 단순한 것이므로 2번이다.
+//
+// 탭을 열어 둔 채로 브라우저의 사이트 데이터를 지우면, 그 탭이 붙잡고 있던
+// IndexedDB는 지워지지 않고 잠긴 채 남는다. 다시 들어오면 Firestore가 그
+// 저장소를 잡지 못하고, 그 상태에서는 구독이 아무 답도 주지 않는다.
+// 오류도 안 나고 그냥 빈 화면이 된다. 일정도 수업도 D-Day도 전부.
+// 사용 기록을 한 번 더 지우면(이번엔 붙잡는 탭이 없으니) 멀쩡해지던 것이 이것이다.
+//
+// 저장소를 비우고 한 번 다시 시작하면 풀린다. 사람이 두 번 지워서 풀던 것을
+// 앱이 스스로 하게 한다.
+function looksLikePersistenceLock(code: string, message: string): boolean {
+  if (code !== 'failed-precondition') return false;
+  // 색인이 없어서 나는 failed-precondition 과는 구분한다 (그건 우리가 고칠 문제다)
+  if (/index/i.test(message)) return false;
+  return true;
+}
+
+/** Firestore 작업이 실패했을 때 부른다. 저장소 문제로 보이면 스스로 되살린다. */
+export function noteFirestoreError(err: unknown): boolean {
+  const code = String((err as any)?.code || '');
+  const message = String((err as any)?.message || err || '');
+  if (!looksLikePersistenceLock(code, message) && !isBrokenPersistence(message)) return false;
+  console.warn('[SP4] 오프라인 저장소를 잡지 못했습니다. 비우고 다시 시작합니다.', code, message);
+  if (dbRef) void recover(dbRef);
+  return true;
+}
