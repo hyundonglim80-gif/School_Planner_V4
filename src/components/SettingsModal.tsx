@@ -108,6 +108,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [shortcutOpen, setShortcutOpen] = useState(false);
   // 저장하면 바로 이 목록에 반영되도록 store를 구독한다
   const shortcutOverrides = useAppStore((s) => s.shortcutOverrides);
+  const selectedGroupId = useAppStore((s) => s.selectedGroupId);
   const bindings = resolveBindings(shortcutOverrides);
   const assignedCount = SHORTCUT_ACTIONS.filter((a) => bindings[a.id].key).length;
 
@@ -275,6 +276,41 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       lines.push(`이 기기 localStorage(V3 값): ${Array.isArray(arr) ? `${arr.length}개 — ${arr.map((l: any) => l.name).join(', ')}` : '없음'}`);
     } catch {
       lines.push('이 기기 localStorage(V3 값): 읽지 못함');
+    }
+
+    lines.push(`로그인 계정: ${auth.currentUser?.email || '알 수 없음'}`);
+    lines.push(`보고 있는 공간: ${selectedGroupId ? `공유 그룹 (${selectedGroupId})` : '개인 공간'}`);
+
+    // 일정이 라벨을 '이름'으로 들고 있는지 'ID'로만 들고 있는지.
+    // 이름이면 정의가 없어도 칩을 보여 줄 수 있고, ID뿐이면 정의 없이는 복구가 안 된다.
+    try {
+      const col = selectedGroupId
+        ? collection(db, 'groups', selectedGroupId, 'events')
+        : collection(db, 'users', uid, 'events');
+      const snap = await getDocs(col);
+      const keys = new Set<string>();
+      let withLabel = 0;
+      let total = 0;
+      snap.forEach((d) => {
+        const list = (d.data() as any).eventList;
+        if (!Array.isArray(list)) return;
+        for (const e of list) {
+          total++;
+          let had = false;
+          if (e.label) { String(e.label).split(',').forEach((k: string) => { const t = k.trim(); if (t) { keys.add(t); had = true; } }); }
+          if (Array.isArray(e.labelIds)) { e.labelIds.forEach((k: any) => { const t = String(k ?? '').trim(); if (t) { keys.add(t); had = true; } }); }
+          const m = String(e.content || '').match(/^\[(.*?)\]/);
+          if (m) { keys.add(m[1].trim()); had = true; }
+          if (had) withLabel++;
+        }
+      });
+      const all = [...keys];
+      const idLike = all.filter((k) => /^(ev|j|lbl)[_-]/i.test(k));
+      lines.push(`일정 ${total}건 중 라벨이 붙은 것 ${withLabel}건`);
+      lines.push(`일정이 들고 있는 라벨 값 ${all.length}가지: ${all.slice(0, 12).join(', ')}${all.length > 12 ? ' …' : ''}`);
+      lines.push(`그중 이름이 아니라 ID처럼 보이는 것: ${idLike.length}가지`);
+    } catch (e: any) {
+      lines.push(`일정을 훑지 못함: ${e?.code || e?.message}`);
     }
 
     setLabelReport(lines);
