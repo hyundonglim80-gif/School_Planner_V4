@@ -443,6 +443,8 @@ export interface EventReadReport {
   serverError?: string;
   /** 구독 자체가 오류로 끊겼는가 */
   liveError?: string;
+  /** 구독이 답이 없어 서버에서 직접 받아 왔는가 */
+  rescued?: boolean;
 }
 
 export function useDayData(dateStr: string, groupId: string | null = null) {
@@ -552,6 +554,10 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
 
     // 같은 날짜에서 서버 재확인은 한 번만 한다 (불필요한 읽기 방지)
     let serverRecheckDone = false;
+    // 세 구독이 각각 한 번이라도 답을 줬는가. 답이 없으면 아래에서 직접 받아 온다.
+    let eventFired = false;
+    let scheduleFired = false;
+    let journalFired = false;
 
     const basePath = eventDocRef.path;
     const report = (patch: Partial<EventReadReport>) =>
@@ -568,6 +574,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
 
     const unsubEvent = onSnapshot(eventDocRef, (snap) => {
       markFirestoreAlive();
+      eventFired = true;
       if (snap.exists()) {
         report({ liveExists: true, fromCache: snap.metadata.fromCache });
         applyEventData(snap.data());
@@ -602,14 +609,17 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       }
     }, (error) => {
       console.error('DayScreen Event Snapshot Error:', error);
+      eventFired = true;
       report({ liveError: String((error as any)?.code || error) });
       setLoading(false);
     });
 
-    const unsubSchedule = onSnapshot(scheduleDocRef, (snap) => {
-      markFirestoreAlive();
-      if (snap.exists()) {
-        const data = snap.data();
+    const applyScheduleData = (data: any | null) => {
+      if (!data) {
+        setSchedules({});
+        return;
+      }
+      {
         const rawPeriods = data.periods || {};
         const normalized: Record<number, PeriodSchedule> = {};
         for (const p in rawPeriods) {
@@ -627,18 +637,26 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           }
         }
         setSchedules(normalized);
-      } else {
-        setSchedules({});
       }
+    };
+
+    const unsubSchedule = onSnapshot(scheduleDocRef, (snap) => {
+      markFirestoreAlive();
+      scheduleFired = true;
+      applyScheduleData(snap.exists() ? snap.data() : null);
     }, (error) => {
       console.error('DayScreen Schedule Snapshot Error:', error);
+      scheduleFired = true;
       setLoading(false);
     });
 
-    const unsubJournal = onSnapshot(journalDocRef, (snap) => {
-      markFirestoreAlive();
-      if (snap.exists()) {
-        const data = snap.data();
+    const applyJournalData = (data: any | null) => {
+      if (!data) {
+        setJournals([]);
+        setLoading(false);
+        return;
+      }
+      {
         const rawEntries = data.entries || [];
         const mapped: JournalEntry[] = rawEntries.map((j: any, idx: number) => ({
           id: j.id || 'jr_' + idx,
@@ -659,17 +677,51 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           (j.linkedItems && j.linkedItems.length > 0)
         );
         setJournals(mapped);
-      } else {
-        setJournals([]);
+        setLoading(false);
       }
-      setLoading(false);
+    };
+
+    const unsubJournal = onSnapshot(journalDocRef, (snap) => {
+      markFirestoreAlive();
+      journalFired = true;
+      applyJournalData(snap.exists() ? snap.data() : null);
     }, (error) => {
       console.error('DayScreen Journal Snapshot Error:', error);
+      journalFired = true;
       setLoading(false);
     });
 
+    // ⚠️ 구독이 아무 답도 주지 않는 경우가 있다.
+    //    실제로 하루 화면만 통째로 비어 있는데(일정 0, 수업 전부 미등록),
+    //    같은 날짜가 월간 화면에서는 멀쩡히 나오는 일이 있었다. 월간은 범위
+    //    조회를 쓰고 하루는 문서 하나짜리 구독을 쓴다. 즉 데이터는 서버에
+    //    있는데 이쪽 구독만 조용히 멈춰 있었던 것이다.
+    //    구독이 살아나기를 기다리지 말고, 몇 초 안에 답이 없으면 그냥 서버에서
+    //    직접 받아 온다. 나중에 구독이 깨어나면 그때 값으로 덮인다.
+    const rescue = setTimeout(() => {
+      if (!eventFired) {
+        getDocFromServer(eventDocRef)
+          .then((snap) => {
+            report({ liveExists: snap.exists(), server: snap.exists() ? 'exists' : 'missing', rescued: true });
+            applyEventData(snap.exists() ? snap.data() : null);
+          })
+          .catch((err: any) => report({ server: 'error', serverError: String(err?.code || err), rescued: true }));
+      }
+      if (!scheduleFired) {
+        getDocFromServer(scheduleDocRef)
+          .then((snap) => applyScheduleData(snap.exists() ? snap.data() : null))
+          .catch(() => { /* 그대로 둔다 */ });
+      }
+      if (!journalFired) {
+        getDocFromServer(journalDocRef)
+          .then((snap) => applyJournalData(snap.exists() ? snap.data() : null))
+          .catch(() => setLoading(false));
+      }
+    }, 4000);
+
     return () => {
       clearTimeout(fallbackTimeout);
+      clearTimeout(rescue);
       unsubEvent();
       unsubSchedule();
       unsubJournal();

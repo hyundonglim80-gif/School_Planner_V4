@@ -75,7 +75,16 @@ export default function EmptyDayReport({ report }: { report: EventReadReport | n
     );
   }
 
-  // ② 읽다가 오류가 났거나, 서버엔 있는데 못 읽은 경우
+  // ② 구독이 답이 없어 직접 받아 온 경우 — 이게 뜨면 구독 쪽이 멈춰 있다는 뜻이다
+  if (report.rescued && report.server === 'exists') {
+    return (
+      <p className="text-2xs text-slate-400 break-all">
+        실시간 연결이 응답하지 않아 서버에서 직접 받아왔습니다 · {who}
+      </p>
+    );
+  }
+
+  // ③ 읽다가 오류가 났거나, 서버엔 있는데 못 읽은 경우
   if (report.liveError || report.server === 'error' || report.server === 'exists') {
     const what =
       report.server === 'exists'
