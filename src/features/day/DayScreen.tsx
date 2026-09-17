@@ -8,6 +8,7 @@ import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import DayEvents from './DayEvents';
 import DaySchedule from './DaySchedule';
 import DayJournal from './DayJournal';
+import EmptyDayReport from './EmptyDayReport';
 
 export default function DayScreen() {
   const { currentDate, setCurrentDate, selectedGroupId, showClass, showEvents } = useAppStore();
@@ -33,6 +34,7 @@ export default function DayScreen() {
     reorderJournals,
     reorderPeriods,
     forwardIncompleteEvents,
+    readReport,
   } = useDayData(dateStr, selectedGroupId);
 
   const handleDateChange = (newDateStr: string) => {
@@ -48,6 +50,9 @@ export default function DayScreen() {
         </div>
       ) : (
         <div className="flex flex-col gap-6">
+          {/* 비어 보이는 것이 '일정이 없는 날'인지 '못 읽은 것'인지 화면에서 가른다 */}
+          {eventList.length === 0 && <EmptyDayReport report={readReport} />}
+
           {/* 일정과 수업을 둘 다 끄면 윗칸 자체를 걷어낸다(빈 칸이 남아 기록이 밀리지 않게) */}
           {(showEvents || showClass) && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

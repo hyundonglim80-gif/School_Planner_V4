@@ -13,6 +13,7 @@ import { parseV3EventText, formatV3EventText, eventContentOf, eventDocPayload, r
 import { pastDateStrings, isForwardTarget } from '../lib/forwarding';
 import { readLegacyEventLabels } from '../lib/legacyLabels';
 import { useAppStore } from '../store/useAppStore';
+import { noteCacheLied } from '../lib/firestoreRecovery';
 
 // 기존 import 경로 호환을 위해 재수출한다 (직렬화 구현은 lib/eventText.ts로 이동).
 export { parseV3EventText, formatV3EventText };
@@ -399,12 +400,31 @@ async function doAutoForwarding(groupId: string | null) {
   return incompleteItems.length;
 }
 
+/** 하루 일정 문서를 읽은 결과. 비어 보일 때 원인을 가리키는 데 쓴다. */
+export interface EventReadReport {
+  path: string;
+  uid: string;
+  email: string | null;
+  /** 실시간 구독이 문서를 봤는가 */
+  liveExists: boolean;
+  /** 그 답이 기기 캐시에서 온 것인가 */
+  fromCache: boolean;
+  /** 서버에 직접 물어본 결과 */
+  server: 'not-checked' | 'exists' | 'missing' | 'error';
+  serverError?: string;
+  /** 구독 자체가 오류로 끊겼는가 */
+  liveError?: string;
+}
+
 export function useDayData(dateStr: string, groupId: string | null = null) {
   const [eventText, setEventText] = useState('');
   const [eventList, setEventList] = useState<EventItem[]>([]);
   const [schedules, setSchedules] = useState<Record<number, PeriodSchedule>>({});
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  // 오늘 일정이 비어 보일 때, '왜 비었는지'를 화면에서 바로 알 수 있게 남긴다.
+  // 콘솔을 뒤지게 하지 않으려는 것이다.
+  const [readReport, setReadReport] = useState<EventReadReport | null>(null);
 
   // 저장할 때 "내가 마지막으로 본 목록"을 기준선으로 삼아, 그 사이 다른 기기나
   // V3에서 추가된 항목을 지우지 않도록 한다. state 대신 ref를 쓰는 이유는
@@ -504,11 +524,26 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     // 같은 날짜에서 서버 재확인은 한 번만 한다 (불필요한 읽기 방지)
     let serverRecheckDone = false;
 
+    const basePath = eventDocRef.path;
+    const report = (patch: Partial<EventReadReport>) =>
+      setReadReport((prev) => ({
+        path: basePath,
+        uid: user.uid,
+        email: user.email ?? null,
+        liveExists: false,
+        fromCache: false,
+        server: 'not-checked',
+        ...prev,
+        ...patch,
+      }));
+
     const unsubEvent = onSnapshot(eventDocRef, (snap) => {
       if (snap.exists()) {
+        report({ liveExists: true, fromCache: snap.metadata.fromCache });
         applyEventData(snap.data());
         return;
       }
+      report({ liveExists: false, fromCache: snap.metadata.fromCache });
       applyEventData(null);
       // ⚠️ '문서 없음'은 fromCache가 아닐 때도 거짓일 수 있다.
       //    사이트 데이터를 지운 직후에는 캐시가 비고 로그인도 막 끝난 참이라,
@@ -521,12 +556,23 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         serverRecheckDone = true;
         getDocFromServer(eventDocRef)
           .then((serverSnap) => {
-            if (serverSnap.exists()) applyEventData(serverSnap.data());
+            if (serverSnap.exists()) {
+              // 기기 캐시는 '없다'고 했는데 서버에는 있다. 캐시가 거짓말을 한 것이다.
+              // 이 상태는 이 문서 하나로 끝나지 않으므로 캐시를 통째로 버리게 한다.
+              report({ server: 'exists' });
+              applyEventData(serverSnap.data());
+              noteCacheLied(basePath);
+            } else {
+              report({ server: 'missing' });
+            }
           })
-          .catch(() => { /* 오프라인 등 - 캐시 결과를 유지한다 */ });
+          .catch((err: any) => {
+            report({ server: 'error', serverError: String(err?.code || err?.message || err) });
+          });
       }
     }, (error) => {
       console.error('DayScreen Event Snapshot Error:', error);
+      report({ liveError: String((error as any)?.code || error) });
       setLoading(false);
     });
 
@@ -1088,5 +1134,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     deleteJournalEntry,
     updateJournalEntry,
     reorderJournals,
+    readReport,
   };
 }

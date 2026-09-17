@@ -54,6 +54,7 @@ async function recover(db: Firestore) {
 /** 앱이 처음 뜰 때 한 번 건다. */
 export function watchForBrokenPersistence(db: Firestore) {
   if (typeof window === 'undefined') return;
+  dbRef = db;
 
   window.addEventListener('error', (e) => {
     const msg = String(e?.message || (e as any)?.error?.message || '');
@@ -74,3 +75,32 @@ export function markFirestoreHealthy() {
     /* 무시 */
   }
 }
+
+// ── 캐시가 거짓말을 한 경우 ──────────────────────────────────────────
+//
+// 기기 캐시는 '그 문서 없다'고 하는데 서버에 직접 물으면 있다. 이러면 화면에는
+// 그 날짜 일정이 통째로 사라진 것으로 보인다. 문서 하나만의 일이 아니다.
+// 같은 캐시를 쓰는 다른 것(라벨, 시간표 설정)도 같이 비어 보인다.
+//
+// 읽을 때마다 서버에 확인하는 것으로는 못 고친다. 캐시 자체가 틀린 것이므로
+// 버리고 새로 받는 편이 낫다. 되풀이하지 않도록 한 번만 한다.
+const LIED = 'sp4-cache-lied';
+
+/** 캐시가 '없다'고 했지만 서버에는 있었다 */
+export function noteCacheLied(path: string) {
+  let already = false;
+  try {
+    already = sessionStorage.getItem(LIED) === '1';
+    sessionStorage.setItem(LIED, '1');
+  } catch {
+    /* 세션 저장소를 못 쓰면 한 번만 시도한다 */
+  }
+  if (already) return;
+  console.warn(
+    `[SP4] 기기 캐시가 "${path} 없음"이라고 했지만 서버에는 있었습니다. ` +
+    '캐시를 버리고 다시 받습니다.'
+  );
+  if (dbRef) void recover(dbRef);
+}
+
+let dbRef: Firestore | null = null;
