@@ -29,7 +29,7 @@ export function subscribeDocWithServerFallback(
   const unsub = onSnapshot(
     ref,
     (snap) => {
-      markFirestoreAlive(); // Firestore가 살아서 답을 준다는 신호
+      markFirestoreAlive(!snap.metadata.fromCache); // 서버에서 온 답만 신호로 친다
       if (cancelled) return;
       if (snap.exists()) {
         recheckDone = true; // 한 번이라도 내용을 받았으면 재확인이 필요 없다

@@ -126,8 +126,15 @@ let dbRef: Firestore | null = null;
 let aliveSeen = false;
 let watchdog: ReturnType<typeof setTimeout> | null = null;
 
-/** 구독이 답을 한 번이라도 주면 부른다 (캐시에서 온 답이어도 좋다) */
-export function markFirestoreAlive() {
+/**
+ * 구독이 답을 줬을 때 부른다.
+ *
+ * ⚠️ 예전에는 캐시에서 온 답도 '살아 있다'로 쳤다. 그런데 임대권을 못 얻은
+ *    상태에서는 캐시 답은 오고 서버 답만 영영 안 온다. 그래서 감시가 캐시 답에
+ *    만족해 버리고, 정작 화면은 빈 채로 남았다. 서버에서 온 답만 인정한다.
+ */
+export function markFirestoreAlive(fromServer: boolean = true) {
+  if (!fromServer) return;
   aliveSeen = true;
   if (watchdog) {
     clearTimeout(watchdog);
@@ -225,4 +232,29 @@ function recoverByGivingUpPersistence(code: string, message: string) {
     ? terminate(dbRef).then(() => clearIndexedDbPersistence(dbRef!)).catch(() => {})
     : Promise.resolve();
   void cleanup.then(() => window.location.reload());
+}
+
+
+// ── Firestore가 콘솔로만 알려 주는 실패 ──────────────────────────────
+//
+// 이 오류는 우리 코드의 catch로 오지 않는다. SDK가 콘솔에만 남긴다.
+//   Failed to obtain primary lease for action 'Apply remote event'.
+// 그래서 여태 어떤 장치로도 잡히지 않았다. 화면은 조용히 비어 있었다.
+// 콘솔을 한 겹 감싸서 이 말이 나오면 알아차린다.
+const LEASE_FAIL = 'Failed to obtain primary lease';
+
+export function watchForLeaseFailure() {
+  if (typeof console === 'undefined' || typeof window === 'undefined') return;
+  const original = console.error;
+  console.error = function (...args: unknown[]) {
+    try {
+      const text = args.map((a) => String((a as any)?.message ?? a)).join(' ');
+      if (text.includes(LEASE_FAIL)) {
+        recoverByGivingUpPersistence('primary-lease', LEASE_FAIL);
+      }
+    } catch {
+      /* 감시가 원래 로그를 막아서는 안 된다 */
+    }
+    original.apply(console, args as []);
+  };
 }

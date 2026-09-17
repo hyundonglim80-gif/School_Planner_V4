@@ -575,7 +575,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       }));
 
     const unsubEvent = onSnapshot(eventDocRef, (snap) => {
-      markFirestoreAlive();
+      markFirestoreAlive(!snap.metadata.fromCache);
       eventFired = true;
       if (snap.exists()) {
         report({ liveExists: true, fromCache: snap.metadata.fromCache });
@@ -661,7 +661,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     };
 
     const unsubSchedule = onSnapshot(scheduleDocRef, (snap) => {
-      markFirestoreAlive();
+      markFirestoreAlive(!snap.metadata.fromCache);
       scheduleFired = true;
       applyScheduleData(snap.exists() ? snap.data() : null);
     }, (error) => {
@@ -702,7 +702,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     };
 
     const unsubJournal = onSnapshot(journalDocRef, (snap) => {
-      markFirestoreAlive();
+      markFirestoreAlive(!snap.metadata.fromCache);
       journalFired = true;
       applyJournalData(snap.exists() ? snap.data() : null);
     }, (error) => {

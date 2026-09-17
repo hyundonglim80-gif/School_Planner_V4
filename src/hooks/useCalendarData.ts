@@ -186,7 +186,7 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
     const unsubEvents = onSnapshot(
       eventsQuery,
       (snap) => {
-        markFirestoreAlive();
+        markFirestoreAlive(!snap.metadata.fromCache);
         applyEvents(snap);
         // ⚠️ 캐시에서 온 것이 아니어도, 비어 있으면 한 번은 서버에 확인한다.
         //    사이트 데이터를 지운 직후에는 서버에 있는 날짜가 통째로 비어
@@ -212,7 +212,7 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
     const unsubSchedules = onSnapshot(
       schedulesQuery,
       (snap) => {
-        markFirestoreAlive();
+        markFirestoreAlive(!snap.metadata.fromCache);
         applySchedules(snap);
         if (snap.metadata.fromCache || snap.empty) scheduleServerRecheck();
       },

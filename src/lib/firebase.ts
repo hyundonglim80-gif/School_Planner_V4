@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, memoryLocalCache } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 import { connectEmulators } from './emulator';
@@ -47,10 +47,27 @@ if (usingMemoryCache) {
   console.warn('[SP4] 오프라인 저장소를 쓸 수 없어 온라인 전용(메모리 캐시)으로 시작합니다.');
 }
 
+// ⚠️ 예전에는 persistentMultipleTabManager()(여러 탭 공유 모드)를 썼다.
+//    그 모드에서는 탭 하나가 '주 탭 임대권'을 쥐고 서버 연결을 담당한다.
+//    그런데 탭을 열어 둔 채 브라우저의 사이트 데이터를 지우면 그 임대 기록이
+//    죽은 탭 앞으로 잠긴 채 남는다. 새로 뜬 탭은 임대권을 얻지 못하고,
+//    콘솔에 이렇게 찍힌다.
+//      Failed to obtain primary lease for action 'Apply remote event'.
+//    'Apply remote event'는 서버에서 온 데이터를 반영하는 바로 그 동작이다.
+//    그래서 연결도 로그인도 멀쩡한데 서버 데이터만 영영 도착하지 않는다.
+//    일정도 수업도 D-Day도 시간표 설정도 전부 빈 화면이 된다. 오류 하나 없이.
+//
+//    forceOwnership: true 는 '기다리지 말고 내가 임대권을 가져간다'는 뜻이다.
+//    죽은 탭이 쥐고 있던 임대 기록이 새 탭을 막지 못한다.
+//    이 앱은 한 사람이 쓰는 도구라 여러 탭이 동시에 쓰기를 다툴 일이 드물고,
+//    설령 탭을 여럿 열어도 데이터가 깨지지는 않는다(뒤 탭이 오프라인 캐시를
+//    양보할 뿐이다). 화면이 통째로 비는 쪽이 훨씬 나쁘다.
 export const db = initializeFirestore(app, {
   localCache: usingMemoryCache
     ? memoryLocalCache()
-    : persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    : persistentLocalCache({
+        tabManager: persistentSingleTabManager({ forceOwnership: true }),
+      }),
 });
 
 export const auth = getAuth(app);
