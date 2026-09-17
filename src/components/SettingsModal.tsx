@@ -11,11 +11,11 @@
 import React, { useState, useEffect } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
 import { auth, db } from '../lib/firebase';
-import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocFromServer, getDocs, setDoc } from 'firebase/firestore';
 import { useAppStore } from '../store/useAppStore';
 import type { StartupScope } from '../store/useAppStore';
 import { isDeveloper } from '../lib/developers';
-import { labelDiagnostics, useLabels } from '../hooks/useLabels';
+import { labelDiagnostics, useLabels, toSharedEventLabel } from '../hooks/useLabels';
 import { MIN_LOOKBACK_DAYS, MAX_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
 import { SHORTCUT_ACTIONS, resolveBindings } from '../lib/shortcuts';
 import ShortcutModal from './ShortcutModal';
@@ -256,9 +256,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     if (d.migratedAt) lines.push(`클라우드로 옮긴 시각: ${new Date(d.migratedAt).toLocaleString('ko-KR')}`);
 
     try {
-      const snap = await getDoc(doc(db, 'users', uid, 'settings', 'labels'));
+      // ⚠️ getDoc은 캐시 때문에 '없다'고 거짓으로 답할 수 있다.
+      //    진단은 서버에 직접 물어야 의미가 있다.
+      const snap = await getDocFromServer(doc(db, 'users', uid, 'settings', 'labels'));
       if (!snap.exists()) {
-        lines.push('클라우드(settings/labels): 문서 없음');
+        lines.push('클라우드(settings/labels): 문서 없음 (서버에 직접 확인함)');
       } else {
         const data = snap.data() as any;
         const ev = Array.isArray(data.eventLabels) ? data.eventLabels : null;
@@ -343,7 +345,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     try {
       await setDoc(
         doc(db, 'users', uid, 'settings', 'labels'),
-        { eventLabels, journalLabels, memoLabels, updatedAt: Date.now() },
+        { eventLabels: eventLabels.map(toSharedEventLabel), journalLabels, memoLabels, updatedAt: Date.now() },
         { merge: true }
       );
       showToast(`✅ 라벨 ${eventLabels.length}개를 공용 저장소에 올렸습니다. V3와 V4가 이제 같은 것을 봅니다.`);

@@ -70,3 +70,37 @@ describe('문서 구독 - 실패해도 조용히 멈추지 않는다', () => {
     expect(getDocFromServer).not.toHaveBeenCalled();
   });
 });
+
+// 사이트 데이터를 지운 직후에는 캐시가 비어 있고 로그인도 막 끝난 참이라,
+// 서버에 멀쩡히 있는 문서를 '없다'고 답하는 일이 생긴다. 예전에는 fromCache일
+// 때만 다시 물어봐서, 그 경우 라벨이 통째로 기본값에 갇혔다.
+describe('문서 없음 - 캐시에서 온 것이 아니어도 서버에 확인한다', () => {
+  it('fromCache가 아니어도 한 번은 서버에 물어본다', async () => {
+    (onSnapshot as any).mockImplementation((_r: any, next: any) => {
+      next(snapOf(null, false)); // fromCache = false 인데 '없음'
+      return () => {};
+    });
+    (getDocFromServer as any).mockResolvedValue(snapOf({ eventLabels: [{ name: '회의' }] }));
+
+    const seen: any[] = [];
+    subscribeDocWithServerFallback(ref, (d) => seen.push(d));
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(getDocFromServer).toHaveBeenCalled();
+    expect(seen.at(-1)).toEqual({ eventLabels: [{ name: '회의' }] });
+  });
+
+  it('서버에도 정말 없으면 없는 대로 둔다', async () => {
+    (onSnapshot as any).mockImplementation((_r: any, next: any) => {
+      next(snapOf(null, false));
+      return () => {};
+    });
+    (getDocFromServer as any).mockResolvedValue(snapOf(null));
+
+    const seen: any[] = [];
+    subscribeDocWithServerFallback(ref, (d) => seen.push(d));
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(seen).toEqual([null]);
+  });
+});

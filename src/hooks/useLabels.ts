@@ -73,6 +73,34 @@ export function normalizeEventLabel(l: any, i: number): EventLabel {
 }
 
 /**
+ * 클라우드에 쓸 모양으로 바꾼다.
+ *
+ * ⚠️ V3는 isForward/isSkip/isPeriod/isRecur를 보고, V4는 forward/skip/period/recur를
+ *    쓴다. V4가 자기 이름만 써 두면 V3는 '시스템 라벨이 하나도 없다'고 보고
+ *    완료·주간·반복·휴일을 새로 만들어 덧붙인다. 실제로 선생님 라벨 목록이
+ *    8개에서 12개로 늘며 완료/주간/반복/휴일이 두 번씩 들어갔다.
+ *    두 이름을 함께 적어 두 앱이 같은 것을 보게 한다.
+ */
+export function toSharedEventLabel(l: EventLabel): Record<string, any> {
+  return {
+    id: l.id,
+    name: l.name,
+    color: l.color,
+    calendar: l.calendar,
+    skip: l.skip,
+    forward: l.forward,
+    period: l.period,
+    recur: l.recur,
+    // V3가 읽는 이름
+    showInCalendar: l.calendar,
+    isSkip: l.skip,
+    isForward: l.forward,
+    isPeriod: l.period,
+    isRecur: l.recur,
+  };
+}
+
+/**
  * 마지막으로 라벨을 어디서 가져왔는지. 문제를 살필 때만 쓴다.
  * '라벨 칩이 사라졌다'는 신고를 받았을 때, 클라우드를 못 읽은 것인지
  * 클라우드에 아예 없는 것인지 가려야 다음 손을 쓸 수 있다.
@@ -161,6 +189,7 @@ export function useLabels() {
       if (!migratedRef.current && (legacyEvents || legacyMemo || legacyJournal)) {
         migratedRef.current = true;
         const payload: Record<string, any> = { updatedAt: Date.now() };
+        // V3 값을 그대로 올린다 (이미 isForward 등 V3 이름을 갖고 있다)
         if (legacyEvents) payload.eventLabels = legacyEvents;
         if (legacyMemo) payload.memoLabels = legacyMemo;
         if (legacyJournal) payload.journalLabels = legacyJournal;

@@ -33,7 +33,14 @@ export function subscribeDocWithServerFallback(
         return;
       }
       onData(null);
-      if (snap.metadata.fromCache && !recheckDone) {
+      // ⚠️ '문서 없음'은 fromCache가 아닐 때도 거짓일 수 있다.
+      //    사이트 데이터를 지운 직후에는 캐시가 비어 있고 로그인도 막 끝난
+      //    참이라, 서버에 멀쩡히 있는 문서를 '없다'고 답하는 일이 생긴다.
+      //    예전에는 fromCache일 때만 다시 물어봐서, 그 경우 라벨이 통째로
+      //    기본값에 갇히고 아무도 다시 확인하지 않았다.
+      //    '없다'는 답은 데이터가 통째로 사라져 보이는 답이므로, 캐시에서
+      //    왔든 아니든 서버에 한 번은 직접 확인한다. (문서당 딱 한 번)
+      if (!recheckDone) {
         recheckDone = true;
         getDocFromServer(ref)
           .then((serverSnap) => {

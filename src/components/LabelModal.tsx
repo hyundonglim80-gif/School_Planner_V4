@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { DEFAULT_EVENT_LABELS, normalizeEventLabel, type EventLabel } from '../hooks/useLabels';
+import { DEFAULT_EVENT_LABELS, normalizeEventLabel, type EventLabel, toSharedEventLabel } from '../hooks/useLabels';
 import {
   readLegacyEventLabels,
   readLegacyJournalLabels,
@@ -298,7 +298,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     try {
       const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
       const payload = {
-        eventLabels: nextEvents,
+        eventLabels: nextEvents.map(toSharedEventLabel),
         memoLabels: nextMemos,
         journalLabels: nextJournals,
         labels: nextEvents, // V3 호환성
@@ -586,7 +586,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
       await setDoc(
         docRef,
         {
-          eventLabels: restoredEventLabels,
+          eventLabels: restoredEventLabels.map(toSharedEventLabel),
           memoLabels: restoredMemoLabels,
           journalLabels: restoredJournalLabels,
           labels: restoredEventLabels, // V3 호환성
