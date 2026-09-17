@@ -33,7 +33,10 @@ self.addEventListener('fetch', event => {
   // HTML 문서는 Network First 전략으로 항상 최신 버전 확인
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).then(response => {
+      // cache: 'reload' 로 브라우저의 HTTP 캐시까지 건너뛴다.
+      // 이게 없으면 오래된 index.html이 재사용되어, 새로 배포한 앱 대신
+      // 예전 앱이 계속 뜰 수 있다. 화면은 멀쩡해 보이므로 알아채기 어렵다.
+      fetch(event.request, { cache: 'reload' }).then(response => {
         const clonedResponse = response.clone();
         caches.open(CACHE_NAME).then(cache => {
           cache.put(event.request, clonedResponse);

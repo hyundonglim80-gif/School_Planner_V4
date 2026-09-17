@@ -102,6 +102,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   // 어느 계정으로 들어와 있는지 언제든 확인할 수 있게 한다. 계정이 여럿인 경우
   // V3와 다른 계정으로 들어와도 화면만 봐서는 알 수가 없었다.
+  // 지금 이 브라우저가 돌리고 있는 빌드. 고친 것이 실제로 그 기기에 닿았는지를
+  // 화면만 보고 알 수 있어야 한다.
+  const buildId = typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : '?';
+
   const accountTitle = user?.email
     ? `${user.displayName || '사용자'} (${user.email})`
     : user?.displayName || '사용자';
@@ -648,6 +652,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* 사용자 프로필 및 로그아웃 */}
             <div className="flex items-center gap-2 pl-1">
+              <span
+                className="hidden sm:inline text-2xs text-slate-300 font-mono select-all"
+                title={`이 화면이 돌리고 있는 빌드 (${buildId})`}
+              >
+                {buildId}
+              </span>
               {/* ✨ 구글 프로필 사진 출력 */}
               {user?.photoURL ? (
                 <img 
