@@ -100,6 +100,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { groups, loading: groupsLoading } = useGroups();
   const { primaryDDay } = useDDay();
 
+  // 어느 계정으로 들어와 있는지 언제든 확인할 수 있게 한다. 계정이 여럿인 경우
+  // V3와 다른 계정으로 들어와도 화면만 봐서는 알 수가 없었다.
+  const accountTitle = user?.email
+    ? `${user.displayName || '사용자'} (${user.email})`
+    : user?.displayName || '사용자';
+
   // 💡 그룹을 탈퇴/삭제해도 selectedGroupId가 그 그룹을 계속 가리켰다. 이후 모든
   // 읽기/쓰기가 권한 거부로 조용히 실패해서 화면에는 텅 빈 달력만 보였다.
   useEffect(() => {
@@ -648,10 +654,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   src={user.photoURL} 
                   alt="Profile" 
                   className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border-2 border-white shadow-sm object-cover"
-                  title={user?.displayName || '사용자'}
+                  title={accountTitle}
                 />
               ) : (
-                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-xs font-bold text-slate-500 shadow-sm">
+                <div
+                  className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-xs font-bold text-slate-500 shadow-sm"
+                  title={accountTitle}
+                >
                   {(user?.displayName || '선').charAt(0)}
                 </div>
               )}
