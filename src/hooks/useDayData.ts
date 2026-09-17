@@ -36,6 +36,8 @@ export interface EventItem {
   attachments?: Attachment[];
   calendar?: boolean;
   forward?: boolean;
+  /** 이월 라벨이 붙었는데도 이 건만 이월하지 않겠다고 직접 끈 표시 */
+  forwardOptOut?: boolean;
   period?: boolean;
   recur?: boolean;
   skip?: boolean;
@@ -113,6 +115,7 @@ function normalizeEventForWrite(
     createdAt: item.createdAt || Date.now(),
     ...(item.calendar !== undefined ? { calendar: item.calendar } : {}),
     ...(item.forward !== undefined ? { forward: item.forward } : {}),
+    ...(item.forwardOptOut !== undefined ? { forwardOptOut: item.forwardOptOut } : {}),
     ...(item.period !== undefined ? { period: item.period } : {}),
     ...(item.recur !== undefined ? { recur: item.recur } : {}),
     ...(item.skip !== undefined ? { skip: item.skip } : {}),
@@ -464,6 +467,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
               imageUrl: e.imageUrl,
               calendar: e.calendar,
               forward: e.forward,
+              forwardOptOut: e.forwardOptOut,
               period: e.period,
               recur: e.recur,
               skip: e.skip,
@@ -650,6 +654,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       // 일정은 라벨에서 유추한 속성만 갖고 폼에서 고친 값은 버려졌다.
       ...(options?.calendar !== undefined ? { calendar: options.calendar } : {}),
       ...(options?.forward !== undefined ? { forward: options.forward } : {}),
+    ...(options?.forwardOptOut !== undefined ? { forwardOptOut: options.forwardOptOut } : {}),
       ...(options?.period !== undefined ? { period: options.period } : {}),
       ...(options?.recur !== undefined ? { recur: options.recur } : {}),
       ...(options?.skip !== undefined ? { skip: options.skip } : {}),

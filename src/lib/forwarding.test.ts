@@ -84,9 +84,23 @@ describe('이월 대상 판단', () => {
     expect(isForwardTarget({ label: '회의,ToDo', content: '공문' }, defs)).toBe(true);
   });
 
-  it('항목에 직접 정해 둔 값이 라벨보다 세다', () => {
+  it('항목에 직접 켜 둔 값은 라벨보다 세다', () => {
     expect(isForwardTarget({ label: '회의', forward: true }, defs)).toBe(true);
-    expect(isForwardTarget({ label: 'ToDo', forward: false }, defs)).toBe(false);
+  });
+
+  // ⚠️ 예전에는 여기서 { label: 'ToDo', forward: false } 가 false 여야 한다고
+  //    적어 두었다. 그 줄이 진짜 버그를 지켜 주고 있었다.
+  //    V4는 일정을 만들 때마다 forward에 값을 박아 넣었고, 라벨 정의를 아직
+  //    못 읽은 상태에서는 이월 라벨을 골라도 false가 굳어 버렸다. 그 뒤로는
+  //    라벨이 멀쩡히 읽혀도 이 값이 이월을 먼저 잘라 냈다.
+  //    V3는 forward를 아예 보지 않고 라벨만 본다. 이제 V4도 그렇게 한다.
+  it('저장된 forward: false는 이월 라벨을 이기지 못한다', () => {
+    expect(isForwardTarget({ label: 'ToDo', forward: false }, defs)).toBe(true);
+  });
+
+  it('사용자가 이 건만 직접 끈 것(forwardOptOut)은 라벨보다 세다', () => {
+    expect(isForwardTarget({ label: 'ToDo', forwardOptOut: true }, defs)).toBe(false);
+    expect(isForwardTarget({ label: 'ToDo', forward: true, forwardOptOut: true }, defs)).toBe(false);
   });
 
   it('라벨 정의가 없으면 라벨로는 판단하지 않는다', () => {
@@ -123,7 +137,12 @@ describe('이월 대상 판단 - 라벨을 못 읽을 때', () => {
     expect(isForwardTarget({ label: 'lbl_ev_bbb_222' }, defs)).toBe(true);
   });
 
-  it('항목에 직접 끈 것은 흔적보다 세다', () => {
-    expect(isForwardTarget({ forward: false, originalDate: '2026-09-01' }, noDefs)).toBe(false);
+  it('직접 끈 것(forwardOptOut)은 흔적보다 세다', () => {
+    expect(isForwardTarget({ forwardOptOut: true, originalDate: '2026-09-01' }, noDefs)).toBe(false);
+  });
+
+  // 라벨을 못 읽던 때 V4가 만든 일정이 딱 이 모양이다.
+  it('forward: false가 굳어 있어도 이월 흔적이 있으면 이어 간다', () => {
+    expect(isForwardTarget({ forward: false, originalDate: '2026-09-01' }, noDefs)).toBe(true);
   });
 });

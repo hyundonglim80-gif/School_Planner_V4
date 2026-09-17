@@ -90,6 +90,37 @@ export default function DayEvents({
   };
 
   // 라벨에 딸린 기본 속성. 개별 일정에 값이 없으면 이걸로 판단한다.
+  // 라벨이 '이월'을 뜻하는가 (선택된 라벨 기준)
+  const labelSaysForward = (names: string[]) =>
+    labelPropOf(names, (d) => !!(d.forward || d.isForward));
+
+  /** 화면에 켜진 것으로 보여야 하는가 — isForwardTarget과 같은 순서로 판단한다 */
+  const forwardStateOf = (event: any, names: string[]) => {
+    if (event?.forwardOptOut === true) return false;
+    if (event?.forward === true) return true;
+    return labelSaysForward(names);
+  };
+
+  /**
+   * 이월 토글을 저장할 모양으로 바꾼다.
+   *
+   * 끈 상태를 forward: false로 적어 두면 안 된다. 라벨 정의를 아직 못 읽은
+   * 채로 일정을 만들면 이월 라벨을 골라도 토글이 꺼진 채 저장되어, 그 일정은
+   * 영영 이월되지 않는다. 실제로 그 일로 며칠치 일정이 통째로 멈췄다.
+   * 그래서 '끈다'는 뜻은 사용자가 이월 라벨을 달고도 일부러 끈 경우에만,
+   * forwardOptOut으로 분명하게 남긴다.
+   */
+  const forwardFieldsFor = (on: boolean, names: string[]) => {
+    if (on) return { forward: true, forwardOptOut: false };
+    // 끈 상태에서 '이월하지 않겠다'고 단정할 수 있는 건, 붙은 라벨이 이월
+    // 라벨인 줄 알면서도 껐을 때뿐이다. 라벨을 아직 모르면 forward: false만
+    // 남는데, 이 값은 더 이상 이월을 막지 않으므로 나중에 라벨이 읽히면
+    // 그때 라벨이 제대로 판단한다.
+    return labelSaysForward(names)
+      ? { forwardOptOut: true }
+      : { forward: false, forwardOptOut: false };
+  };
+
   const labelPropOf = (names: string[], pick: (def: any) => boolean) =>
     names.some((name) => {
       const def = eventLabels.find((l) => l.name === name);
@@ -112,9 +143,11 @@ export default function DayEvents({
         ? labelPropOf(info.names, (d) => d.calendar !== false)
         : true
     );
-    setEditForward(
-      event.forward !== undefined ? !!event.forward : labelPropOf(info.names, (d) => !!(d.forward || d.isForward))
-    );
+    // 이월 여부를 푸는 규칙은 실제 이월 엔진(lib/forwarding의 isForwardTarget)과
+    // 같아야 한다. 예전에는 저장된 forward를 먼저 봤는데, 라벨을 못 읽던 때 만든
+    // 일정에는 forward: false가 굳어 있어 실제로는 이월되는 일정이 화면에서는
+    // 꺼진 것으로 보였다.
+    setEditForward(forwardStateOf(event, info.names));
     setEditPeriod(event.period !== undefined ? !!event.period : labelPropOf(info.names, (d) => !!d.period));
     setEditRecur(event.recur !== undefined ? !!event.recur : labelPropOf(info.names, (d) => !!d.recur));
     setEditSkip(event.skip !== undefined ? !!event.skip : labelPropOf(info.names, (d) => !!d.skip));
@@ -132,7 +165,7 @@ export default function DayEvents({
         content: editText.trim(),
         label: editLabel || undefined,
         calendar: editCalendar,
-        forward: editForward,
+        ...forwardFieldsFor(editForward, editLabel ? editLabel.split(',') : []),
         period: editPeriod,
         recur: editRecur,
         skip: editSkip,
@@ -192,7 +225,7 @@ export default function DayEvents({
         linkedItems: newLinkedItems,
         time: newAlarmTime || undefined,
         calendar: newCalendar,
-        forward: newForward,
+        ...forwardFieldsFor(newForward, newLabels),
         period: newPeriod,
         recur: newRecur,
         skip: newSkip,

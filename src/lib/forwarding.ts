@@ -61,9 +61,20 @@ function wasForwardedBefore(item: any): boolean {
 }
 
 export function isForwardTarget(item: any, labelDefs: EventLabel[]): boolean {
-  // 항목에 직접 정해 둔 값이 가장 세다 (V4에서 켜고 끈 것)
+  // 사용자가 '이 건은 이월하지 않겠다'고 직접 끈 것만 존중한다.
+  if (item?.forwardOptOut === true) return false;
+
+  // 항목에 직접 켜 둔 값은 그대로 따른다
   if (item?.forward === true) return true;
-  if (item?.forward === false) return false;
+
+  // ⚠️ 예전에는 여기에 `if (item?.forward === false) return false;`가 있었다.
+  //    그런데 V4는 일정을 만들 때마다 forward에 true/false를 '반드시' 박아 넣었다.
+  //    라벨 정의를 아직 못 읽은 상태에서 일정을 만들면, 이월 라벨을 골라도
+  //    그 라벨이 이월용인지 알 길이 없어 forward: false가 영구히 굳어 버린다.
+  //    그 뒤로는 라벨이 제대로 읽히든 말든 이 한 줄이 이월을 먼저 잘라 냈다.
+  //    V3는 ev.forward를 아예 보지 않고 라벨만으로 판단한다. 그래서 같은 일정이
+  //    V3에서는 이월되고 V4에서는 안 되는, 두 앱이 어긋나는 일이 벌어졌다.
+  //    이제 V3와 같이 라벨을 정답으로 삼고, 끄는 것은 위의 forwardOptOut으로만 받는다.
 
   // 라벨이 풀리면 라벨이 정답이다. 라벨을 껐다 켰다 한 것이 그대로 반영돼야 한다.
   const names = resolveEventLabelNames(item, labelDefs);
