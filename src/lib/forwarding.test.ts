@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FORWARD_LOOKBACK_DAYS, pastDateStrings } from './forwarding';
+import { FORWARD_LOOKBACK_DAYS, pastDateStrings, isForwardTarget } from './forwarding';
 
 describe('pastDateStrings - 이월이 훑는 기간', () => {
   it('어제부터 거슬러 올라간다 (오늘은 넣지 않는다)', () => {
@@ -49,5 +49,48 @@ describe('이월 기간은 한 곳에서만 정한다', () => {
       .map((e) => e.name);
 
     expect(offenders).toEqual([]);
+  });
+});
+
+// 이월이 라벨을 화면과 다르게 풀던 문제.
+// V3가 만든 일정은 label 자리에 이름이 아니라 id(lbl_ev_...)가 들어 있다.
+// 이월은 그것을 이름으로 단정해서, 이월 라벨이 붙은 일정을 못 알아봤다.
+// 화면은 id와 이름을 둘 다 맞춰 보므로 라벨 칩은 멀쩡히 보였다.
+describe('이월 대상 판단', () => {
+  const defs = [
+    { id: 'lbl_ev_aaa_111', name: '회의', color: 'blue', forward: false, skip: false, period: false, recur: false, calendar: true },
+    { id: 'lbl_ev_bbb_222', name: 'ToDo', color: 'orange', forward: true, skip: false, period: false, recur: false, calendar: true },
+  ] as any[];
+
+  it('라벨을 이름으로 들고 있으면 알아본다', () => {
+    expect(isForwardTarget({ label: 'ToDo', content: '공문' }, defs)).toBe(true);
+    expect(isForwardTarget({ label: '회의', content: '협의회' }, defs)).toBe(false);
+  });
+
+  it('label 자리에 id가 들어 있어도 알아본다 (V3가 만든 일정)', () => {
+    expect(isForwardTarget({ label: 'lbl_ev_bbb_222', content: '공문' }, defs)).toBe(true);
+    expect(isForwardTarget({ label: 'lbl_ev_aaa_111', content: '협의회' }, defs)).toBe(false);
+  });
+
+  it('labelIds로 들고 있어도 알아본다', () => {
+    expect(isForwardTarget({ labelIds: ['lbl_ev_bbb_222'], content: '공문' }, defs)).toBe(true);
+  });
+
+  it('본문 앞 [라벨] 접두어도 본다', () => {
+    expect(isForwardTarget({ content: '[ToDo] 공문 처리' }, defs)).toBe(true);
+  });
+
+  it('콤마로 이은 것 중 하나만 이월이어도 대상이다', () => {
+    expect(isForwardTarget({ label: '회의,ToDo', content: '공문' }, defs)).toBe(true);
+  });
+
+  it('항목에 직접 정해 둔 값이 라벨보다 세다', () => {
+    expect(isForwardTarget({ label: '회의', forward: true }, defs)).toBe(true);
+    expect(isForwardTarget({ label: 'ToDo', forward: false }, defs)).toBe(false);
+  });
+
+  it('라벨 정의가 없으면 라벨로는 판단하지 않는다', () => {
+    expect(isForwardTarget({ label: 'ToDo' }, [])).toBe(false);
+    expect(isForwardTarget({ label: 'ToDo', forward: true }, [])).toBe(true);
   });
 });

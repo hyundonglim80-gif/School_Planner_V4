@@ -4,10 +4,10 @@ import { doc, onSnapshot, setDoc, getDoc, getDocFromServer, runTransaction } fro
 import { db, auth } from '../lib/firebase';
 import { addReverseLink, syncReverseLinks } from '../utils/linkUtils';
 import { moveToTrash } from '../utils/trashHelper';
-import { DEFAULT_EVENT_LABELS } from './useLabels';
+import { DEFAULT_EVENT_LABELS, normalizeEventLabel } from './useLabels';
 import { showErrorToast } from '../utils/toast';
 import { parseV3EventText, formatV3EventText, eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
-import { pastDateStrings } from '../lib/forwarding';
+import { pastDateStrings, isForwardTarget } from '../lib/forwarding';
 import { readLegacyEventLabels } from '../lib/legacyLabels';
 import { useAppStore } from '../store/useAppStore';
 
@@ -185,7 +185,8 @@ async function doAutoForwarding(groupId: string | null) {
   const legacyDefs = cloudDefs ? null : readLegacyEventLabels();
   const rawLabelDefs: any[] = cloudDefs || legacyDefs || [...DEFAULT_EVENT_LABELS];
   
-  const forwardLabelNames = rawLabelDefs.filter((l: any) => l.forward || l.isForward).map((l: any) => l.name);
+  // V3는 isForward/isSkip, V4는 forward/skip을 쓴다. 한 모양으로 맞춘 뒤 쓴다.
+  const labelDefs = rawLabelDefs.map((l: any, i: number) => normalizeEventLabel(l, i));
   
   // 오늘 날짜의 이월 중복 방지를 위해 오늘 목록 미리 조회
   const todayDocRef = groupId
@@ -226,21 +227,11 @@ async function doAutoForwarding(groupId: string | null) {
         continue;
       }
 
-      let labelName = '';
-      if (it.label) {
-        labelName = it.label.split(',')[0].trim();
-      } else if (it.labelIds && it.labelIds.length > 0) {
-        const found = rawLabelDefs.find(l => l.id === it.labelIds![0]);
-        if (found) labelName = found.name;
-      } else {
-        const match = it.content.match(/^\[(.*?)\]\s*(.*)$/);
-        if (match) labelName = match[1].trim();
-      }
+      // 화면과 같은 함수로 푼다. label 자리에 id가 들어 있는 일정(V3가 만든 것)도
+      // 여기서 제대로 풀린다. 자세한 사정은 lib/forwarding.ts에 적어 두었다.
+      const isForwardTargetItem = isForwardTarget(it, labelDefs);
 
-      const isForwardTarget =
-        it.forward === true || (it.forward !== false && forwardLabelNames.includes(labelName));
-
-      if (isForwardTarget) {
+      if (isForwardTargetItem) {
         // 같은 사슬의 항목이 오늘 이미 완료되었으면 이월을 멈춘다.
         const chainDone =
           !!it.forwardChainId &&
