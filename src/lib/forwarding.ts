@@ -94,3 +94,41 @@ export function isForwardTarget(item: any, labelDefs: EventLabel[]): boolean {
   //    한 번 이월되던 것은 계속 이월한다.
   return wasForwardedBefore(item);
 }
+
+
+// ── 어떤 라벨 기준으로 이월을 판단할 것인가 ─────────────────────────
+//
+// 이월은 '어떤 라벨이 이월 대상인가'로 지난 일정을 오늘로 옮기는 일이다.
+// 그러니 라벨 목록을 잘못 알면 판단 전체가 틀린다. 그런데 이월은 앱을 켤 때
+// 딱 한 번 도는 작업이라, 그 한 번이 틀리면 되돌릴 기회가 없다.
+//
+// 사이트 데이터를 지운 직후에는 기기 캐시가 비어 있어 '라벨 문서 없음'이라는
+// 거짓 답이 나온다. 그 답을 '이 사람은 라벨이 없구나'로 받아들여 기본 라벨로
+// 판단하면, 실제로 쓰던 라벨(ToDo 등)은 기본값에 없으므로 이월 대상이 하나도
+// 없는 것으로 나온다. 그러면 오늘 문서가 만들어지지 않고 하루 화면은
+// '오늘의 일정이 없습니다'가 된다. 실제로 그 일이 일어났다.
+export interface LabelSourceInput {
+  /** 클라우드에서 읽은 라벨 (없으면 null) */
+  cloudDefs: unknown[] | null;
+  /** V3가 쓰던 localStorage의 라벨 (없으면 null) */
+  legacyDefs: unknown[] | null;
+  /** 라벨 문서의 '없음'이라는 답이 서버에서 온 것인가 */
+  serverAnswered: boolean;
+}
+
+/**
+ * 이월에 쓸 라벨 목록을 고른다.
+ * null을 돌려주면 '지금은 판단하지 말고 건너뛰라'는 뜻이다.
+ */
+export function chooseForwardingLabels(
+  input: LabelSourceInput,
+  defaults: unknown[]
+): unknown[] | null {
+  if (input.cloudDefs && input.cloudDefs.length > 0) return input.cloudDefs;
+  if (input.legacyDefs && input.legacyDefs.length > 0) return input.legacyDefs;
+  // 라벨이 정말 없는 새 사용자라면 기본값으로 시작하는 것이 맞다.
+  // 다만 그건 서버가 '없다'고 확인해 준 경우에만이다.
+  if (input.serverAnswered) return defaults;
+  // 모르는 것이지 없는 것이 아니다.
+  return null;
+}

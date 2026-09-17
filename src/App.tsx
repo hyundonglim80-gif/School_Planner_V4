@@ -11,6 +11,7 @@ import { useAppStore } from './store/useAppStore';
 import { runAutoForwarding } from './hooks/useDayData';
 import { markFirestoreHealthy } from './lib/firestoreRecovery';
 import { useEventAlarms } from './hooks/useEventAlarms';
+import { useLabels } from './hooks/useLabels';
 import EventAlarmPopup from './components/EventAlarmPopup';
 import AccountMismatchBanner from './components/AccountMismatchBanner';
 
@@ -18,6 +19,9 @@ function App() {
   const { user, loading } = useAuth();
   const { scope, selectedGroupId } = useAppStore();
   const { ringingAlarms, dismissAlarms } = useEventAlarms();
+  // 라벨을 아직 못 읽었으면 이월은 판단을 미루고 건너뛴다. 그러니 라벨이 읽힌
+  // 순간 한 번 더 불러 줘야 한다. 그러지 않으면 그날은 영영 이월되지 않는다.
+  const { labelsLoaded } = useLabels();
 
   // 💡 추가된 부분: 앱 구동 시 전역으로 이월 실행 (주간, 월간, 년간 화면 등 전체 반영)
   useEffect(() => {
@@ -26,7 +30,7 @@ function App() {
       markFirestoreHealthy();
       runAutoForwarding(selectedGroupId).catch(console.error);
     }
-  }, [user, selectedGroupId]);
+  }, [user, selectedGroupId, labelsLoaded]);
 
   if (loading) {
     return (

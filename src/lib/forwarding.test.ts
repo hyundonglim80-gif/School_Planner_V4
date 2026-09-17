@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FORWARD_LOOKBACK_DAYS, pastDateStrings, isForwardTarget } from './forwarding';
+import { FORWARD_LOOKBACK_DAYS, pastDateStrings, isForwardTarget, chooseForwardingLabels } from './forwarding';
 
 describe('pastDateStrings - 이월이 훑는 기간', () => {
   it('어제부터 거슬러 올라간다 (오늘은 넣지 않는다)', () => {
@@ -144,5 +144,44 @@ describe('이월 대상 판단 - 라벨을 못 읽을 때', () => {
   // 라벨을 못 읽던 때 V4가 만든 일정이 딱 이 모양이다.
   it('forward: false가 굳어 있어도 이월 흔적이 있으면 이어 간다', () => {
     expect(isForwardTarget({ forward: false, originalDate: '2026-09-01' }, noDefs)).toBe(true);
+  });
+});
+
+
+// 하루 화면이 '오늘의 일정이 없습니다'만 남던 진짜 원인이 여기였다.
+// 사이트 데이터를 지운 직후에는 기기 캐시가 비어 있어 라벨 문서가 '없음'으로
+// 온다. 그걸 '라벨이 없는 사람'으로 받아들여 기본 라벨로 이월을 판단하면,
+// 실제로 쓰던 라벨(ToDo 등)은 기본값에 없으니 이월 대상이 하나도 없게 되고,
+// 오늘 문서가 아예 만들어지지 않는다. 이월은 앱을 켤 때 한 번만 도는 작업이라
+// 그 한 번이 틀리면 되돌릴 기회도 없었다.
+describe('이월에 쓸 라벨을 고르는 기준', () => {
+  const defaults = [{ name: '기본' }];
+  const cloud = [{ name: 'ToDo' }];
+  const legacy = [{ name: 'V3라벨' }];
+
+  it('클라우드 라벨이 있으면 그것을 쓴다', () => {
+    expect(chooseForwardingLabels({ cloudDefs: cloud, legacyDefs: null, serverAnswered: true }, defaults))
+      .toBe(cloud);
+  });
+
+  it('클라우드가 없으면 V3가 쓰던 라벨을 쓴다', () => {
+    expect(chooseForwardingLabels({ cloudDefs: null, legacyDefs: legacy, serverAnswered: true }, defaults))
+      .toBe(legacy);
+  });
+
+  it('서버가 "정말 없다"고 답했을 때만 기본 라벨로 시작한다', () => {
+    expect(chooseForwardingLabels({ cloudDefs: null, legacyDefs: null, serverAnswered: true }, defaults))
+      .toBe(defaults);
+  });
+
+  it('서버가 답해 주지 않았으면 기본 라벨로 판단하지 않고 건너뛴다', () => {
+    // 이것이 핵심이다. 모르는 것이지 없는 것이 아니다.
+    expect(chooseForwardingLabels({ cloudDefs: null, legacyDefs: null, serverAnswered: false }, defaults))
+      .toBeNull();
+  });
+
+  it('빈 배열은 "있다"로 치지 않는다', () => {
+    expect(chooseForwardingLabels({ cloudDefs: [], legacyDefs: [], serverAnswered: false }, defaults))
+      .toBeNull();
   });
 });

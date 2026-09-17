@@ -1,8 +1,10 @@
 import {
   onSnapshot,
+  getDoc,
   getDocFromServer,
   type DocumentReference,
   type DocumentData,
+  type DocumentSnapshot,
 } from 'firebase/firestore';
 
 /**
@@ -75,4 +77,24 @@ export function subscribeDocWithServerFallback(
     cancelled = true;
     unsub();
   };
+}
+
+
+/**
+ * '서버에 물어보고, 안 되면 캐시라도' 읽기.
+ *
+ * 그냥 getDoc을 쓰면 기기 캐시가 비어 있을 때 "그런 문서 없다"고 답한다.
+ * 서버에는 멀쩡히 있는데도 그렇다. 화면을 그리는 구독 쪽은 그 답을 의심하게
+ * 고쳤지만, 딱 한 번만 도는 작업(예: 앱 시작할 때의 이월)에서 이 답을 믿으면
+ * 그 판은 통째로 틀린 채 끝난다. 다시 물어볼 기회도 없다.
+ */
+export async function getDocTrustingServer<T>(
+  ref: DocumentReference<T>
+): Promise<{ snap: DocumentSnapshot<T>; fromServer: boolean }> {
+  try {
+    return { snap: await getDocFromServer(ref), fromServer: true };
+  } catch {
+    // 오프라인 등 - 캐시 답이라도 받아 온다. 다만 '서버가 답한 것은 아니다'를 함께 알린다.
+    return { snap: await getDoc(ref), fromServer: false };
+  }
 }

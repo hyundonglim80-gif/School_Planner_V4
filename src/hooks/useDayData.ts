@@ -10,10 +10,11 @@ import { moveToTrash } from '../utils/trashHelper';
 import { DEFAULT_EVENT_LABELS, normalizeEventLabel } from './useLabels';
 import { showErrorToast } from '../utils/toast';
 import { parseV3EventText, formatV3EventText, eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
-import { pastDateStrings, isForwardTarget } from '../lib/forwarding';
+import { pastDateStrings, isForwardTarget, chooseForwardingLabels } from '../lib/forwarding';
 import { readLegacyEventLabels } from '../lib/legacyLabels';
 import { useAppStore } from '../store/useAppStore';
 import { noteCacheLied } from '../lib/firestoreRecovery';
+import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 
 // 기존 import 경로 호환을 위해 재수출한다 (직렬화 구현은 lib/eventText.ts로 이동).
 export { parseV3EventText, formatV3EventText };
@@ -167,9 +168,22 @@ async function doAutoForwarding(groupId: string | null) {
   //    남의 기준으로 판단하면 와야 할 일정이 안 오거나(사용자는 사라진 줄 안다),
   //    오지 말아야 할 일정이 지난 날짜에서 뽑혀 나온다. 차라리 이번 판은 건너뛴다.
   //    (라벨 문서가 아예 없는 새 사용자는 기본값으로 판단하는 것이 맞다)
+  //    ⚠️ 여기는 오래도록 그냥 getDoc이었다. 그게 이 모든 소동의 원인이었다.
+  //    사이트 데이터를 지운 직후에는 기기 캐시가 비어 있어서, 서버에 라벨이
+  //    멀쩡히 있어도 getDoc은 "그런 문서 없다"고 답한다. 그러면 아래에서
+  //    기본 라벨로 판단하게 되는데, 선생님이 쓰시는 'ToDo' 같은 라벨은 기본값에
+  //    없으므로 이월 대상이 하나도 없는 것으로 나온다. 그래서 오늘 문서가
+  //    아예 만들어지지 않고, 하루 화면에는 '오늘의 일정이 없습니다'만 남는다.
+  //    화면을 그리는 구독은 '없음'을 의심하도록 이미 고쳤지만, 이월은 앱을 켤 때
+  //    딱 한 번만 도는 작업이라 그 한 번이 틀리면 다시 물어볼 기회가 없었다.
+  //    (V3를 열면 V3가 제 라벨로 제대로 이월해 데이터베이스에 써 주므로,
+  //     그제야 V4에도 오늘 일정이 나타났다. V3의 캐시를 읽은 것이 아니었다.)
   let settingsSnap;
+  let labelsAnsweredByServer = false;
   try {
-    settingsSnap = await getDoc(settingsRef);
+    const got = await getDocTrustingServer(settingsRef);
+    settingsSnap = got.snap;
+    labelsAnsweredByServer = got.fromServer;
   } catch (err) {
     console.warn('라벨 설정을 읽지 못해 이월을 건너뜁니다:', err);
     return 0;
@@ -190,7 +204,20 @@ async function doAutoForwarding(groupId: string | null) {
     cloudDefs = fromCloud || null;
   }
   const legacyDefs = cloudDefs ? null : readLegacyEventLabels();
-  const rawLabelDefs: any[] = cloudDefs || legacyDefs || [...DEFAULT_EVENT_LABELS];
+
+  // 기본 라벨로 판단해도 되는 건 '이 사람은 정말 라벨이 없다'가 확실할 때뿐이다.
+  // 서버가 답해 주지 않았다면 그건 모르는 것이지 없는 것이 아니다. 모르는 채로
+  // 남의 기준을 들이대면 와야 할 일정이 안 온다. 이번 판은 건너뛰고, 다음 기회
+  // (라벨이 읽힌 뒤 화면이 다시 부른다)에 제대로 한다.
+  const chosen = chooseForwardingLabels(
+    { cloudDefs, legacyDefs, serverAnswered: labelsAnsweredByServer },
+    [...DEFAULT_EVENT_LABELS]
+  );
+  if (!chosen) {
+    console.warn('라벨을 확인하지 못해 이월을 건너뜁니다. 라벨을 읽은 뒤 다시 시도합니다.');
+    return 0;
+  }
+  const rawLabelDefs: any[] = chosen as any[];
   
   // V3는 isForward/isSkip, V4는 forward/skip을 쓴다. 한 모양으로 맞춘 뒤 쓴다.
   const labelDefs = rawLabelDefs.map((l: any, i: number) => normalizeEventLabel(l, i));
@@ -199,7 +226,9 @@ async function doAutoForwarding(groupId: string | null) {
   const todayDocRef = groupId
     ? doc(db, 'groups', groupId, 'events', todayStr)
     : doc(db, 'users', user.uid, 'events', todayStr);
-  const todaySnap = await getDoc(todayDocRef);
+  // 오늘 문서도 같은 이유로 서버에 확인한다. 캐시가 '없다'고 하면 이미 이월해 둔
+  // 일정을 또 얹어 같은 일정이 두 번 생긴다.
+  const todaySnap = (await getDocTrustingServer(todayDocRef)).snap;
   let todayEventList: EventItem[] = [];
   if (todaySnap.exists()) {
     todayEventList = readEventList(todaySnap.data()) as EventItem[];
