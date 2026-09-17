@@ -84,6 +84,8 @@ export const labelDiagnostics: {
   legacyCount: number;
   at: number;
   error?: string;
+  migratedAt?: number;
+  migrateError?: string;
 } = { source: 'none', docExists: false, cloudCount: 0, legacyCount: 0, at: 0 };
 
 export function useLabels() {
@@ -162,9 +164,22 @@ export function useLabels() {
         if (legacyEvents) payload.eventLabels = legacyEvents;
         if (legacyMemo) payload.memoLabels = legacyMemo;
         if (legacyJournal) payload.journalLabels = legacyJournal;
-        setDoc(docRef, payload, { merge: true }).catch((e) =>
-          console.warn('라벨 이전 실패(로컬 값은 계속 사용됩니다):', e)
-        );
+        // ⚠️ 이 한 번의 쓰기가 실패하면 라벨 정의는 이 기기의 localStorage에만
+        //    남는다. 사용기록을 지우는 순간 통째로 사라지고, 일정은 라벨을
+        //    id(lbl_ev_...)로 들고 있어서 대응표 없이는 이름을 알 길이 없다.
+        //    조용히 넘길 일이 아니다.
+        setDoc(docRef, payload, { merge: true })
+          .then(() => {
+            labelDiagnostics.migratedAt = Date.now();
+          })
+          .catch((e) => {
+            console.error('라벨을 클라우드로 옮기지 못했습니다:', e);
+            labelDiagnostics.migrateError = String((e as any)?.code || (e as any)?.message || e);
+            showErrorToast(
+              '라벨을 클라우드에 저장하지 못했습니다. 이 기기 기록을 지우면 라벨이 사라질 수 있습니다.',
+              e
+            );
+          });
       }
     },
     (err) => {

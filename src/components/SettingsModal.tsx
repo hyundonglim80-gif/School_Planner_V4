@@ -15,7 +15,7 @@ import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { useAppStore } from '../store/useAppStore';
 import type { StartupScope } from '../store/useAppStore';
 import { isDeveloper } from '../lib/developers';
-import { labelDiagnostics } from '../hooks/useLabels';
+import { labelDiagnostics, useLabels } from '../hooks/useLabels';
 import { MIN_LOOKBACK_DAYS, MAX_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
 import { SHORTCUT_ACTIONS, resolveBindings } from '../lib/shortcuts';
 import ShortcutModal from './ShortcutModal';
@@ -109,6 +109,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   // 저장하면 바로 이 목록에 반영되도록 store를 구독한다
   const shortcutOverrides = useAppStore((s) => s.shortcutOverrides);
   const selectedGroupId = useAppStore((s) => s.selectedGroupId);
+  const { eventLabels, journalLabels, memoLabels, labelsLoaded } = useLabels();
   const bindings = resolveBindings(shortcutOverrides);
   const assignedCount = SHORTCUT_ACTIONS.filter((a) => bindings[a.id].key).length;
 
@@ -251,6 +252,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       d.source === 'default' ? '기본값 (선생님 라벨을 못 찾음)' : '아직 못 읽음'
     }`);
     if (d.error) lines.push(`읽기 오류: ${d.error}`);
+    if (d.migrateError) lines.push(`클라우드로 옮기기 실패: ${d.migrateError}`);
+    if (d.migratedAt) lines.push(`클라우드로 옮긴 시각: ${new Date(d.migratedAt).toLocaleString('ko-KR')}`);
 
     try {
       const snap = await getDoc(doc(db, 'users', uid, 'settings', 'labels'));
@@ -277,6 +280,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     } catch {
       lines.push('이 기기 localStorage(V3 값): 읽지 못함');
     }
+
+    try {
+      const keys = Object.keys(localStorage).filter((k) => k.startsWith('workCalendar'));
+      lines.push(`이 기기의 V3 저장값 ${keys.length}개: ${keys.join(', ') || '없음'}`);
+    } catch { /* 무시 */ }
 
     lines.push(`로그인 계정: ${auth.currentUser?.email || '알 수 없음'}`);
     lines.push(`보고 있는 공간: ${selectedGroupId ? `공유 그룹 (${selectedGroupId})` : '개인 공간'}`);
@@ -314,6 +322,35 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
 
     setLabelReport(lines);
+  };
+
+  /**
+   * 지금 화면이 쓰고 있는 라벨 정의를 공용 저장소(settings/labels)에 올린다.
+   *
+   * V3와 V4는 이 문서 하나를 같이 본다. 사본을 따로 두면 시간이 지나며 갈라지므로,
+   * 사본을 만드는 것이 아니라 이 기기에만 있던 값을 공용 자리에 올리는 것이다.
+   * V3가 라벨을 localStorage에 두고 클라우드에는 바뀔 때만 써 온 탓에 그 자리가
+   * 비어 있을 수 있다. 비면 사용기록을 지우는 순간 라벨 정의가 사라지고,
+   * 일정은 라벨을 id(lbl_ev_...)로 들고 있어서 대응표 없이는 이름을 알 길이 없다.
+   */
+  const handlePinLabels = async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    if (!labelsLoaded) {
+      showErrorToast('지금은 선생님 라벨을 못 찾은 상태라 저장할 것이 없습니다. V3를 먼저 열어 라벨이 보이게 한 뒤 눌러 주세요.');
+      return;
+    }
+    try {
+      await setDoc(
+        doc(db, 'users', uid, 'settings', 'labels'),
+        { eventLabels, journalLabels, memoLabels, updatedAt: Date.now() },
+        { merge: true }
+      );
+      showToast(`✅ 라벨 ${eventLabels.length}개를 공용 저장소에 올렸습니다. V3와 V4가 이제 같은 것을 봅니다.`);
+      await handleLabelReport();
+    } catch (e) {
+      showErrorToast('라벨을 저장하지 못했습니다.', e);
+    }
   };
 
   const handleSyncHolidays = async (year: number) => {
@@ -500,13 +537,19 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         {developer && (
           <Section
             title="🔧 개발자 설정 - 라벨 상태"
-            desc="라벨 칩이 안 보일 때 누릅니다. 클라우드를 못 읽은 것인지, 클라우드에 아예 없는 것인지 가려 줍니다."
+            desc="V3와 V4는 라벨을 한 문서(settings/labels)에서 같이 씁니다. 그 자리가 비어 있으면 라벨 칩이 사라집니다. 상태를 보고, 비어 있으면 올릴 수 있습니다."
           >
             <button
               onClick={handleLabelReport}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all"
             >
               라벨 상태 보기
+            </button>
+            <button
+              onClick={handlePinLabels}
+              className="ml-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all"
+            >
+              라벨을 공용 저장소에 올리기
             </button>
             {labelReport && (
               <pre className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
