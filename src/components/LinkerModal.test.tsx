@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import LinkerModal from './LinkerModal';
-import { getDocs as getDocsMock } from 'firebase/firestore';
+import { getDocs as getDocsMock, getDoc as getDocMock } from 'firebase/firestore';
 
 vi.mock('../hooks/useLabels', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../hooks/useLabels')>();
@@ -72,5 +72,26 @@ describe('링크 추가 - 조회 범위', () => {
     await waitFor(() =>
       expect(container.querySelectorAll('input[type="date"]').length).toBe(2)
     );
+  });
+});
+
+// 링크 추가가 '데이터를 불러오는 중'에서 1분 넘게 멈춰 있었다. 시작일부터
+// 종료일까지 하루씩 돌면서 일정 문서와 기록 문서를 하나씩 줄 세워 기다렸기
+// 때문이다. 1년 범위면 왕복이 700번을 넘었다. 에뮬레이터에서 재 보니
+// 예전 방식 10.7초 / 범위 조회 0.1초였고, 실제 인터넷에서는 그 차이가 훨씬 크다.
+// 날짜가 곧 문서 이름이므로 범위 조회로 한 번에 받아야 한다.
+describe('링크 추가 - 날짜마다 한 건씩 읽지 않는다', () => {
+  it('범위를 넓게 골라도 문서를 하나씩 읽지 않는다', async () => {
+    const user = userEvent.setup();
+    render(<LinkerModal {...props} />);
+
+    const wide = screen.queryByRole('button', { name: /1개월/ });
+    if (wide) await user.click(wide);
+
+    await waitFor(() => expect(getDocsMock).toHaveBeenCalled());
+
+    // 하루씩 읽으면 getDoc이 날짜 수만큼 불린다. 범위 조회는 그럴 일이 없다.
+    expect((getDocMock as unknown as { mock: { calls: unknown[] } }).mock.calls.length)
+      .toBeLessThan(10);
   });
 });

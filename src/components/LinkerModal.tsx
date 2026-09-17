@@ -1,7 +1,7 @@
 //src/components/QuickAddModal.tsx
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { doc, getDoc, setDoc, getDocs, collection } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, collection, query, where, documentId } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { showToast, showErrorToast } from '../utils/toast';
 import { eventDocPayload } from '../lib/eventText';
@@ -242,69 +242,66 @@ export default function LinkerModal({
     const journals: FetchedItem[] = [];
 
     try {
-      const cur = new Date(start);
-      const endD = new Date(end);
-      const maxDays = 370;
-      let days = 0;
+      // ⚠️ 예전에는 시작일부터 종료일까지 하루씩 돌면서
+      //      await getDoc(일정/그날)  ->  await getDoc(기록/그날)
+      //    을 줄 세워 기다렸다. 1년 범위면 왕복이 740번이다. 한 번에 100ms만
+      //    잡아도 74초. 실제로 '데이터를 불러오는 중'에서 1분 넘게 멈춰 있었다.
+      //    날짜가 곧 문서 이름이므로 범위 조회 두 번이면 끝난다.
+      //    (이월과 검색은 이미 같은 이유로 고쳤는데 여기만 남아 있었다)
+      //    370일 제한도 함께 걷어냈다. 그건 느린 방식을 견디려고 둔 것이었고,
+      //    그 바람에 더 긴 범위를 고르면 뒷부분이 조용히 빠졌다.
+      const rangeOf = (col: string) =>
+        getDocs(
+          query(
+            collection(db, getColPath(col, activeFId)),
+            where(documentId(), '>=', start),
+            where(documentId(), '<=', end)
+          )
+        );
 
-      while (cur <= endD && days < maxDays) {
-        const dStr = formatDateStr(cur);
-        const colFId = activeFId;
+      const [evSnaps, jrSnaps] = await Promise.all([rangeOf('events'), rangeOf('journals')]);
 
-        // 일정 로드
-        try {
-          const evSnap = await getDoc(doc(db, getColPath('events', colFId), dStr));
-          if (evSnap.exists()) {
-            const data = evSnap.data();
-            let list = data.eventList;
-            if (!list || list.length === 0) {
-              if (data.eventText) list = parseV3EventText(data.eventText);
-            }
-            if (list) {
-              list.forEach((e: any, idx: number) => {
-                const content = e.content || e.text || '';
-                if (content.trim()) {
-                  events.push({
-                    id: e.id || `ev_${dStr}_${idx}`,
-                    type: 'event',
-                    title: content,
-                    date: dStr,
-                    fId: colFId,
-                    labelIds: e.labelIds || [],
-                    // 라벨 필터가 label(콤마로 이은 이름)도 봐야 한다
-                    label: e.label,
-                  });
-                }
-              });
-            }
-          }
-        } catch {}
+      evSnaps.forEach((docSnap) => {
+        const dStr = docSnap.id;
+        const data = docSnap.data();
+        let list = data.eventList;
+        if (!list || list.length === 0) {
+          if (data.eventText) list = parseV3EventText(data.eventText);
+        }
+        if (!list) return;
+        list.forEach((e: any, idx: number) => {
+          const content = e.content || e.text || '';
+          if (!content.trim()) return;
+          events.push({
+            id: e.id || `ev_${dStr}_${idx}`,
+            type: 'event',
+            title: content,
+            date: dStr,
+            fId: activeFId,
+            labelIds: e.labelIds || [],
+            // 라벨 필터가 label(콤마로 이은 이름)도 봐야 한다
+            label: e.label,
+          });
+        });
+      });
 
-        // 기록(일지) 로드
-        try {
-          const jrSnap = await getDoc(doc(db, getColPath('journals', colFId), dStr));
-          if (jrSnap.exists()) {
-            const entries = jrSnap.data().entries || [];
-            entries.forEach((j: any, idx: number) => {
-              const content = j.content || '';
-              if (content.trim()) {
-                journals.push({
-                  id: j.id || `jr_${dStr}_${idx}`,
-                  type: 'journal',
-                  title: content,
-                  date: dStr,
-                  fId: colFId,
-                  labelIds: j.labelIds || [],
-                  label: j.label,
-                });
-              }
-            });
-          }
-        } catch {}
-
-        cur.setDate(cur.getDate() + 1);
-        days++;
-      }
+      jrSnaps.forEach((docSnap) => {
+        const dStr = docSnap.id;
+        const entries = docSnap.data().entries || [];
+        entries.forEach((j: any, idx: number) => {
+          const content = j.content || '';
+          if (!content.trim()) return;
+          journals.push({
+            id: j.id || `jr_${dStr}_${idx}`,
+            type: 'journal',
+            title: content,
+            date: dStr,
+            fId: activeFId,
+            labelIds: j.labelIds || [],
+            label: j.label,
+          });
+        });
+      });
 
       setTabItems((prev) => ({
         ...prev,
