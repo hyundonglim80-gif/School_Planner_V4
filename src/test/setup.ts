@@ -13,7 +13,7 @@ vi.mock('../lib/firebase', () => ({
   auth: { currentUser: { uid: 'test-uid', displayName: '테스트' } },
   storage: {},
   app: {},
-  googleProvider: {},
+  googleProvider: { addScope: () => {}, setCustomParameters: () => {} },
 }));
 
 vi.mock('firebase/firestore', () => ({
@@ -36,6 +36,19 @@ vi.mock('firebase/firestore', () => ({
   orderBy: vi.fn(() => ({})),
   arrayUnion: vi.fn(() => ({})),
   arrayRemove: vi.fn(() => ({})),
+}));
+
+vi.mock('firebase/auth', () => ({
+  getAuth: vi.fn(() => ({ currentUser: { uid: 'test-uid', email: 't@example.com' } })),
+  GoogleAuthProvider: class { addScope() {} setCustomParameters() {} static credentialFromResult() { return null; } },
+  signInWithPopup: vi.fn(async () => ({ user: { uid: 'test-uid' } })),
+  signInWithRedirect: vi.fn(async () => {}),
+  getRedirectResult: vi.fn(async () => null),
+  signOut: vi.fn(async () => {}),
+  onAuthStateChanged: vi.fn(() => () => {}),
+  connectAuthEmulator: vi.fn(),
+  signInWithEmailAndPassword: vi.fn(async () => ({ user: { uid: 'test-uid' } })),
+  createUserWithEmailAndPassword: vi.fn(async () => ({ user: { uid: 'test-uid' } })),
 }));
 
 vi.mock('firebase/storage', () => ({
