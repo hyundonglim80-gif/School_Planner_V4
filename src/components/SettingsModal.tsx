@@ -343,12 +343,26 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       return;
     }
     try {
+      const ref = doc(db, 'users', uid, 'settings', 'labels');
       await setDoc(
-        doc(db, 'users', uid, 'settings', 'labels'),
+        ref,
         { eventLabels: eventLabels.map(toSharedEventLabel), journalLabels, memoLabels, updatedAt: Date.now() },
         { merge: true }
       );
-      showToast(`✅ 라벨 ${eventLabels.length}개를 공용 저장소에 올렸습니다. V3와 V4가 이제 같은 것을 봅니다.`);
+
+      // ⚠️ '저장했다'를 그대로 믿으면 안 된다. Firestore는 오프라인 저장소에
+      //    먼저 쓰고 나중에 서버로 보낸다. 그 층이 깨져 있으면 화면에는 저장된
+      //    것처럼 보이는데 서버에는 영영 안 간다. 실제로 그렇게 라벨이 사라졌다.
+      //    서버에 직접 읽어 확인한다.
+      const check = await getDocFromServer(ref);
+      const saved = (check.data()?.eventLabels || []).length;
+      if (saved > 0) {
+        showToast(`✅ 라벨 ${saved}개를 공용 저장소에 올렸습니다. 서버에서 확인했습니다.`);
+      } else {
+        showErrorToast(
+          '저장은 했는데 서버에서 확인되지 않습니다. 이 기기의 오프라인 저장소가 깨졌을 수 있습니다. 새로고침한 뒤 다시 시도해 주세요.'
+        );
+      }
       await handleLabelReport();
     } catch (e) {
       showErrorToast('라벨을 저장하지 못했습니다.', e);

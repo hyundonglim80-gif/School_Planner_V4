@@ -1,5 +1,6 @@
 //src/components/Layout.tsx
 
+import { lazyWithReload } from '../lib/lazyWithReload';
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { useAuth } from '../features/auth/useAuth';
 import { useAppStore } from '../store/useAppStore';
@@ -7,27 +8,27 @@ import { useGroups } from '../hooks/useGroups';
 import { useDDay } from '../hooks/useDDay';
 // 모달은 처음 열 때 받아오면 충분하다. 전부 첫 화면 번들에 넣으면
 // 초기 로딩만 느려지므로, 열릴 때만 그려서 그때 청크를 내려받는다.
-const GroupModal = lazy(() => import('./GroupModal'));
-const DDayModal = lazy(() => import('./DDayModal'));
-const SearchModal = lazy(() => import('./SearchModal'));
-const RosterModal = lazy(() => import('./RosterModal'));
-const LabelModal = lazy(() => import('./LabelModal'));
-const BackupModal = lazy(() => import('./BackupModal'));
-const HelpModal = lazy(() => import('./HelpModal'));
-const TimetableTemplateModal = lazy(() => import('./TimetableTemplateModal'));
-const SettingsModal = lazy(() => import('./SettingsModal'));
-const EvaluationModal = lazy(() => import('./EvaluationModal'));
-const RecurringModal = lazy(() => import('./RecurringModal'));
-const ForwardingModal = lazy(() => import('./ForwardingModal'));
+const GroupModal = lazyWithReload(() => import('./GroupModal'));
+const DDayModal = lazyWithReload(() => import('./DDayModal'));
+const SearchModal = lazyWithReload(() => import('./SearchModal'));
+const RosterModal = lazyWithReload(() => import('./RosterModal'));
+const LabelModal = lazyWithReload(() => import('./LabelModal'));
+const BackupModal = lazyWithReload(() => import('./BackupModal'));
+const HelpModal = lazyWithReload(() => import('./HelpModal'));
+const TimetableTemplateModal = lazyWithReload(() => import('./TimetableTemplateModal'));
+const SettingsModal = lazyWithReload(() => import('./SettingsModal'));
+const EvaluationModal = lazyWithReload(() => import('./EvaluationModal'));
+const RecurringModal = lazyWithReload(() => import('./RecurringModal'));
+const ForwardingModal = lazyWithReload(() => import('./ForwardingModal'));
 // 연결된 링크 팝업에서 여는 편집기 (일정/수업은 팝업, 기록/메모는 옆 배너)
-const DetailEditModal = lazy(() => import('./DetailEditModal'));
+const DetailEditModal = lazyWithReload(() => import('./DetailEditModal'));
 const LinkedEntryEditorHost = lazy(() =>
   import('./LinkedEntryEditor').then((m) => ({ default: m.LinkedEntryEditorHost }))
 );
-const LinkerModal = lazy(() => import('./LinkerModal'));
-const LinkViewerModal = lazy(() => import('./LinkViewerModal'));
-const TrashModal = lazy(() => import('./TrashModal'));
-const CalendarSyncModal = lazy(() => import('./CalendarSyncModal'));
+const LinkerModal = lazyWithReload(() => import('./LinkerModal'));
+const LinkViewerModal = lazyWithReload(() => import('./LinkViewerModal'));
+const TrashModal = lazyWithReload(() => import('./TrashModal'));
+const CalendarSyncModal = lazyWithReload(() => import('./CalendarSyncModal'));
 
 import MultiEventActionBar from './MultiEventActionBar';
 import MiniCalendarPicker from './MiniCalendarPicker';

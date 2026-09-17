@@ -9,6 +9,7 @@ import MemoScreen from './features/memo/MemoScreen';
 import { useAuth } from './features/auth/useAuth';
 import { useAppStore } from './store/useAppStore';
 import { runAutoForwarding } from './hooks/useDayData';
+import { markFirestoreHealthy } from './lib/firestoreRecovery';
 import { useEventAlarms } from './hooks/useEventAlarms';
 import EventAlarmPopup from './components/EventAlarmPopup';
 
@@ -20,6 +21,8 @@ function App() {
   // 💡 추가된 부분: 앱 구동 시 전역으로 이월 실행 (주간, 월간, 년간 화면 등 전체 반영)
   useEffect(() => {
     if (user) {
+      // 여기까지 왔으면 Firestore가 제대로 돌고 있는 것이다.
+      markFirestoreHealthy();
       runAutoForwarding(selectedGroupId).catch(console.error);
     }
   }, [user, selectedGroupId]);
