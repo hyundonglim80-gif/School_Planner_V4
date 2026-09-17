@@ -323,6 +323,27 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       lines.push(`일정을 훑지 못함: ${e?.code || e?.message}`);
     }
 
+    // ── 쓰기가 서버까지 닿는지 직접 재 본다 ────────────────────────
+    // 여기까지 오게 된 사정: 라벨을 저장해도 다음에 보면 서버에 없었다.
+    // 지우는 코드는 어디에도 없다. 그러면 애초에 서버에 닿지 않았다는 뜻인데,
+    // Firestore는 오프라인 저장소에 먼저 쓰고 나중에 보내기 때문에 화면에서는
+    // 저장된 것처럼 보인다. 작은 문서를 하나 써 보고 서버에서 도로 읽어 확인한다.
+    try {
+      const probeRef = doc(db, 'users', uid, 'settings', '_writeprobe');
+      const stamp = Date.now();
+      const t0 = performance.now();
+      await setDoc(probeRef, { t: stamp }, { merge: true });
+      const took = Math.round(performance.now() - t0);
+      const back = await getDocFromServer(probeRef);
+      if (back.exists() && back.data()?.t === stamp) {
+        lines.push(`쓰기 시험: 서버까지 닿음 (${took}ms)`);
+      } else {
+        lines.push(`쓰기 시험: ❌ 저장은 됐다는데 서버에 없음 (${took}ms) — 오프라인 저장소가 깨진 상태`);
+      }
+    } catch (e: any) {
+      lines.push(`쓰기 시험: ❌ 실패 — ${e?.code || e?.message}`);
+    }
+
     setLabelReport(lines);
   };
 

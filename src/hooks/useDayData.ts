@@ -274,7 +274,11 @@ async function doAutoForwarding(groupId: string | null) {
           attachments: it.attachments || [],
           imageUrl: it.imageUrl,
           calendar: it.calendar,
-          forward: it.forward,
+          // ⚠️ 한 번 이월하기로 판단했으면 그 사실을 항목에 적어 둔다.
+          //    이월은 매일 어제 것을 오늘로 '옮기는' 일이라, 라벨을 못 읽어
+          //    하루라도 멈추면 그 일정은 옛 날짜에 발이 묶인다. 사용자에게는
+          //    사라진 것으로 보인다. 적어 두면 다음부터는 라벨 없이도 이어진다.
+          forward: true,
           period: it.period,
           recur: it.recur,
           skip: it.skip,
