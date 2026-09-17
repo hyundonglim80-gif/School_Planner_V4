@@ -94,3 +94,36 @@ describe('이월 대상 판단', () => {
     expect(isForwardTarget({ label: 'ToDo', forward: true }, [])).toBe(true);
   });
 });
+
+// 이월은 옮길 때마다 일정에 흔적을 남긴다 (V4: forwardChainId+originalDate, V3: originalDate).
+// 라벨로 판단할 수 없을 때는 그 흔적을 믿어야 한다. 예전에는 무조건 '아니다'로 보아,
+// 며칠째 이월되던 일정이 라벨을 못 읽는 순간 지난 날짜에 발이 묶였다.
+describe('이월 대상 판단 - 라벨을 못 읽을 때', () => {
+  const noDefs: any[] = [];
+  const defs = [
+    { id: 'lbl_ev_bbb_222', name: 'ToDo', color: 'orange', forward: true, skip: false, period: false, recur: false, calendar: true },
+  ] as any[];
+
+  it('전에 이월되던 일정은 라벨 정의가 없어도 계속 이월된다', () => {
+    expect(isForwardTarget({ content: '공문', originalDate: '2026-09-01' }, noDefs)).toBe(true);
+    expect(isForwardTarget({ content: '공문', forwardChainId: 'chain_1' }, noDefs)).toBe(true);
+  });
+
+  it('이월된 적 없는 일정은 그대로 두지 않는다', () => {
+    expect(isForwardTarget({ content: '그냥 일정' }, noDefs)).toBe(false);
+  });
+
+  it('라벨이 풀리면 라벨이 정답이다 (흔적보다 세다)', () => {
+    // 이월 흔적이 있어도, 지금 라벨이 이월 라벨이 아니면 더 이상 이월하지 않는다
+    const notForward = [{ id: 'l1', name: '회의', color: 'blue', forward: false, skip: false, period: false, recur: false, calendar: true }] as any[];
+    expect(isForwardTarget({ label: '회의', originalDate: '2026-09-01' }, notForward)).toBe(false);
+  });
+
+  it('라벨이 풀리고 이월 라벨이면 이월한다', () => {
+    expect(isForwardTarget({ label: 'lbl_ev_bbb_222' }, defs)).toBe(true);
+  });
+
+  it('항목에 직접 끈 것은 흔적보다 세다', () => {
+    expect(isForwardTarget({ forward: false, originalDate: '2026-09-01' }, noDefs)).toBe(false);
+  });
+});

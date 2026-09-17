@@ -49,15 +49,37 @@ export function pastDateStrings(from: Date, days: number = FORWARD_LOOKBACK_DAYS
 import { resolveEventLabelNames, isForwardLabel } from './eventLabels';
 import type { EventLabel } from '../hooks/useLabels';
 
+/**
+ * 이 일정이 전에도 이월되던 것인가.
+ *
+ * 이월은 지난 날짜의 일정을 오늘로 '옮기는' 일이고, 옮길 때마다 그 흔적을
+ * 일정에 남긴다. V4는 forwardChainId와 originalDate를, V3는 originalDate를 찍는다.
+ * 그러니 일정 스스로가 '나는 이월되던 것'이라는 증거를 들고 있다.
+ */
+function wasForwardedBefore(item: any): boolean {
+  return !!(item?.forwardChainId || item?.originalDate);
+}
+
 export function isForwardTarget(item: any, labelDefs: EventLabel[]): boolean {
   // 항목에 직접 정해 둔 값이 가장 세다 (V4에서 켜고 끈 것)
   if (item?.forward === true) return true;
   if (item?.forward === false) return false;
 
-  const forwardNames = new Set(
-    labelDefs.filter((l) => isForwardLabel(l)).map((l) => l.name)
-  );
-  if (forwardNames.size === 0) return false;
+  // 라벨이 풀리면 라벨이 정답이다. 라벨을 껐다 켰다 한 것이 그대로 반영돼야 한다.
+  const names = resolveEventLabelNames(item, labelDefs);
+  if (names.length > 0) {
+    const forwardNames = new Set(
+      labelDefs.filter((l) => isForwardLabel(l)).map((l) => l.name)
+    );
+    return names.some((n) => forwardNames.has(n));
+  }
 
-  return resolveEventLabelNames(item, labelDefs).some((n) => forwardNames.has(n));
+  // ⚠️ 여기가 비어 있었다.
+  //    라벨이 하나도 안 풀리면(라벨 정의를 못 읽었거나, 일정이 라벨을
+  //    id로만 들고 있는데 그 id를 아는 사람이 없을 때) 무조건 '아니다'로 봤다.
+  //    그래서 며칠째 이월되던 일정이 어느 날 갑자기 멈추고 지난 날짜에 남았다.
+  //    사용자에게는 일정이 사라진 것으로 보인다.
+  //    라벨로 판단할 수 없을 때는, 일정이 스스로 들고 있는 이월 흔적을 믿는다.
+  //    한 번 이월되던 것은 계속 이월한다.
+  return wasForwardedBefore(item);
 }

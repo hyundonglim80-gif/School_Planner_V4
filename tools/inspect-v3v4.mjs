@@ -162,16 +162,23 @@ async function run() {
   // ── 상황 3: 라벨을 아예 못 읽어도 이월이 이어지는가 ──────────────
   console.log('\n[상황 3] 라벨 없이도 이미 이월된 일정은 계속 이어지는가');
   await setupLikeUser({ cloudLabels: false });
+  // V3가 이월한 일정의 모양: originalDate만 찍혀 있고 forward 표시는 없다.
+  // 라벨은 id로만 들고 있어서, 라벨 정의가 없으면 아무도 못 알아본다.
   await setDoc(doc(db, 'users', uid, 'events', past), {
-    eventList: [{ id: 'ev_marked', content: '이미 이월되던 일정', completed: false, forward: true }],
-    eventText: '이미 이월되던 일정',
+    eventList: [
+      { id: 'ev_v3fwd', content: 'V3가 이월하던 일정', completed: false, label: 'lbl_ev_bbb_222', originalDate: '2026-09-01' },
+      { id: 'ev_plain', content: '이월된 적 없는 일정', completed: false, label: 'lbl_ev_aaa_111' },
+    ],
+    eventText: ['V3가 이월하던 일정', '이월된 적 없는 일정'].join(String.fromCharCode(10)),
     updatedAt: Date.now(),
   });
   await openV4(browser, '3-marked');
-  const moved = await todayHas('이미 이월되던 일정');
-  console.log(`  항목에 forward가 적힌 일정이 오늘로 왔나: ${moved ? '왔다' : '안 왔다'}`);
-  if (moved) console.log('  ✔ 라벨을 못 읽어도 이어진다');
-  else { console.log('  ✘ 라벨이 없으면 끊긴다'); fails++; }
+  const moved = await todayHas('V3가 이월하던 일정');
+  const plainMoved = await todayHas('이월된 적 없는 일정');
+  console.log(`  전에 이월되던 일정이 오늘로 왔나: ${moved ? '왔다' : '안 왔다'}`);
+  console.log(`  이월된 적 없는 일정도 왔나: ${plainMoved ? '왔다(틀림)' : '안 왔다(맞음)'}`);
+  if (moved && !plainMoved) console.log('  ✔ 라벨 정의 없이도 이어지고, 아닌 것은 건드리지 않는다');
+  else { console.log('  ✘ 기대와 다르다'); fails++; }
 
   await browser.close();
   console.log(`\n──────── ${fails === 0 ? '전부 통과' : `${fails}건 실패`} ────────`);
