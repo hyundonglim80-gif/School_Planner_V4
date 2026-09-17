@@ -18,6 +18,7 @@
 // 저장소를 비우고 한 번 새로고침하면 정상으로 돌아온다. 사용자가 F5를 눌러
 // 해결하던 것을 앱이 스스로 하게 한다. 되풀이하지 않도록 표시를 남긴다.
 import { terminate, clearIndexedDbPersistence, type Firestore } from 'firebase/firestore';
+import { MEMORY_CACHE_MARK } from './firebase';
 
 const MARK = 'sp4-firestore-recovered';
 
@@ -146,9 +147,11 @@ export function startPersistenceWatchdog(db: Firestore, ms = 10000) {
     if (aliveSeen) return;
     console.warn(
       '[SP4] 로그인은 됐는데 Firestore가 10초 동안 아무 답도 주지 않았습니다. ' +
-      '로컬 캐시가 깨진 것으로 보고 비우고 다시 시작합니다.'
+      '오프라인 저장소를 못 잡은 것으로 보고 저장소 없이 다시 시작합니다.'
     );
-    void recover(db);
+    // 이 증상의 원인도 결국 저장소가 잠긴 것이었다. 비우기는 잠겨 있으면 실패하므로
+    // 아예 저장소를 안 쓰고 다시 뜨게 한다.
+    recoverByGivingUpPersistence('no-response', '구독이 답을 주지 않음');
   }, ms);
 }
 
@@ -183,7 +186,43 @@ export function noteFirestoreError(err: unknown): boolean {
   const code = String((err as any)?.code || '');
   const message = String((err as any)?.message || err || '');
   if (!looksLikePersistenceLock(code, message) && !isBrokenPersistence(message)) return false;
-  console.warn('[SP4] 오프라인 저장소를 잡지 못했습니다. 비우고 다시 시작합니다.', code, message);
-  if (dbRef) void recover(dbRef);
+  recoverByGivingUpPersistence(code, message);
   return true;
+}
+
+/**
+ * 저장소가 잠겨 있을 때의 진짜 해법.
+ *
+ * ⚠️ 예전에는 여기서 clearIndexedDbPersistence로 저장소를 비우려 했다.
+ *    그런데 저장소가 잠겨 있어서 못 읽는 상황이므로, 그 비우기도 똑같이 실패한다.
+ *    실패한 채로 새로고침하니 같은 자리로 돌아올 뿐이었다. 제자리걸음이었다.
+ *
+ * 잠긴 문을 억지로 열 것이 아니라 그 문을 안 쓰면 된다. 다음 시작 때
+ * 오프라인 저장소 없이(메모리 캐시로) 뜨도록 표시를 남기고 새로고침한다.
+ * 그러면 앱은 온라인에서 정상으로 돌아간다. 비우기는 되면 좋고 안 돼도 그만이라
+ * 곁다리로만 해 본다.
+ */
+function recoverByGivingUpPersistence(code: string, message: string) {
+  let already = false;
+  try {
+    already = sessionStorage.getItem(MEMORY_CACHE_MARK) === '1';
+    sessionStorage.setItem(MEMORY_CACHE_MARK, '1');
+  } catch {
+    /* 세션 저장소를 못 쓰면 더 할 수 있는 것이 없다 */
+  }
+  // 이미 메모리 캐시로 돌고 있는데 또 났다면 저장소 문제가 아니다. 새로고침 반복은 더 나쁘다.
+  if (already) {
+    console.warn('[SP4] 메모리 캐시로도 같은 오류가 납니다. 새로고침하지 않습니다.', code, message);
+    return;
+  }
+
+  console.warn(
+    '[SP4] 오프라인 저장소를 잡지 못했습니다(' + code + '). ' +
+    '저장소 없이 온라인 전용으로 다시 시작합니다.'
+  );
+  // 되면 좋고 안 돼도 그만 — 어차피 다음 시작은 저장소를 안 쓴다
+  const cleanup = dbRef
+    ? terminate(dbRef).then(() => clearIndexedDbPersistence(dbRef!)).catch(() => {})
+    : Promise.resolve();
+  void cleanup.then(() => window.location.reload());
 }
