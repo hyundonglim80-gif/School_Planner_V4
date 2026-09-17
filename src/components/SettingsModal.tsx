@@ -288,7 +288,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       lines.push(`이 기기의 V3 저장값 ${keys.length}개: ${keys.join(', ') || '없음'}`);
     } catch { /* 무시 */ }
 
+    // ⚠️ 계정 주소가 같아도 uid가 다르면 서로 다른 문서를 보게 된다.
+    //    V3와 V4는 Firebase 앱 이름이 달라 로그인 세션도 따로 갖는다.
+    //    V3에서도 같은 값이 나와야 한 곳을 보고 있는 것이다.
     lines.push(`로그인 계정: ${auth.currentUser?.email || '알 수 없음'}`);
+    lines.push(`내 uid: ${uid}`);
     lines.push(`보고 있는 공간: ${selectedGroupId ? `공유 그룹 (${selectedGroupId})` : '개인 공간'}`);
 
     // 일정이 라벨을 '이름'으로 들고 있는지 'ID'로만 들고 있는지.

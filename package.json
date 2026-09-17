@@ -14,7 +14,9 @@
     "dev:emu": "vite --port 5173 --strictPort",
     "inspect": "node tools/inspect.mjs",
     "inspect:flows": "node tools/inspect-flows.mjs",
-    "check:rules": "node tools/check-rules.mjs"
+    "check:rules": "node tools/check-rules.mjs",
+    "serve:both": "node tools/serve-both.mjs",
+    "inspect:v3v4": "node tools/inspect-v3v4.mjs"
   },
   "dependencies": {
     "firebase": "^12.18.0",

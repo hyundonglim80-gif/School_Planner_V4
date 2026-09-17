@@ -29,3 +29,4 @@ firebase-debug.log
 firestore-debug.log
 ui-debug.log
 tools/report
+tools/.site
