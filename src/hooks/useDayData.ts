@@ -8,6 +8,7 @@ import { DEFAULT_EVENT_LABELS } from './useLabels';
 import { showErrorToast } from '../utils/toast';
 import { parseV3EventText, formatV3EventText, eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
 import { pastDateStrings } from '../lib/forwarding';
+import { readLegacyEventLabels } from '../lib/legacyLabels';
 import { useAppStore } from '../store/useAppStore';
 
 // 기존 import 경로 호환을 위해 재수출한다 (직렬화 구현은 lib/eventText.ts로 이동).
@@ -167,13 +168,22 @@ async function doAutoForwarding(groupId: string | null) {
     return 0;
   }
 
-  let rawLabelDefs: any[] = [...DEFAULT_EVENT_LABELS];
+  // ⚠️ 화면과 같은 순서로 찾아야 한다.
+  //    화면(useLabels)은 클라우드에 없으면 V3가 쓰던 localStorage까지 보는데,
+  //    이월은 클라우드만 봤다. 그래서 라벨이 localStorage에만 있는 사용자는
+  //    화면에는 'ToDo' 칩이 보이는데 이월은 그 라벨을 모르는 상태가 됐다.
+  //    이월 대상으로 안 잡히니 지난 일정이 오늘로 오지 않았고,
+  //    사용자에게는 일정이 사라진 것으로 보였다.
+  let cloudDefs: any[] | null = null;
   if (settingsSnap.exists()) {
     const data = settingsSnap.data();
-    if (Array.isArray(data.eventLabels) || Array.isArray(data.labels)) {
-      rawLabelDefs = data.eventLabels || data.labels;
-    }
+    const fromCloud = (Array.isArray(data.eventLabels) && data.eventLabels.length > 0 && data.eventLabels)
+      || (Array.isArray(data.labels) && data.labels.length > 0 && data.labels)
+      || null;
+    cloudDefs = fromCloud || null;
   }
+  const legacyDefs = cloudDefs ? null : readLegacyEventLabels();
+  const rawLabelDefs: any[] = cloudDefs || legacyDefs || [...DEFAULT_EVENT_LABELS];
   
   const forwardLabelNames = rawLabelDefs.filter((l: any) => l.forward || l.isForward).map((l: any) => l.name);
   
