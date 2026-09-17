@@ -186,7 +186,10 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
       eventsQuery,
       (snap) => {
         applyEvents(snap);
-        if (snap.metadata.fromCache) scheduleServerRecheck();
+        // ⚠️ 캐시에서 온 것이 아니어도, 비어 있으면 한 번은 서버에 확인한다.
+        //    사이트 데이터를 지운 직후에는 서버에 있는 날짜가 통째로 비어
+        //    오는 일이 있었다. 그러면 그 날의 일정이 화면에서 사라진다.
+        if (snap.metadata.fromCache || snap.empty) scheduleServerRecheck();
         else cancelServerRecheck();
 
         // 과거 날짜 데이터가 바뀌었으면 이월 로직을 다시 돌린다.
@@ -208,7 +211,7 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
       schedulesQuery,
       (snap) => {
         applySchedules(snap);
-        if (snap.metadata.fromCache) scheduleServerRecheck();
+        if (snap.metadata.fromCache || snap.empty) scheduleServerRecheck();
       },
       (error) => {
         console.error('Calendar Schedule Snapshot Error:', error);

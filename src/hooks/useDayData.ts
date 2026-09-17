@@ -1,6 +1,9 @@
 //src/hooks/useDayData.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { doc, onSnapshot, setDoc, getDoc, getDocFromServer, runTransaction } from 'firebase/firestore';
+import {
+  doc, onSnapshot, setDoc, getDoc, getDocFromServer, runTransaction,
+  collection, query, where, documentId, getDocs,
+} from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { addReverseLink, syncReverseLinks } from '../utils/linkUtils';
 import { moveToTrash } from '../utils/trashHelper';
@@ -207,16 +210,33 @@ async function doAutoForwarding(groupId: string | null) {
   // 이월이 지나가며 끊어진 역링크(9월 1일·9월 2일 것)를 걷어내는 데 쓴다.
   const liveIdsByDate = new Map<string, Set<string>>();
 
-  for (const pDate of pastDates) {
-    const docRef = groupId
-      ? doc(db, 'groups', groupId, 'events', pDate)
-      : doc(db, 'users', user.uid, 'events', pDate);
-    const snap = await getDoc(docRef);
-    if (!snap.exists()) {
-      liveIdsByDate.set(pDate, new Set());
-      continue;
-    }
-    const items: EventItem[] = readEventList(snap.data()) as EventItem[];
+  // ⚠️ 예전에는 환경설정의 '이월 기간'(기본 14일)만큼만 날짜를 하나씩 읽었다.
+  //    그래서 그보다 오래 전에 발이 묶인 일정은 V4 눈에 아예 안 들어왔다.
+  //    한번 멈추면 날이 갈수록 멀어져 영영 돌아오지 못한다. 사용자에게는
+  //    '과거에도 없고 오늘에도 없는' 사라진 일정이 된다.
+  //    (V3는 events 전체를 훑어서 그런 것까지 데려온다. 그래서 V3를 열면
+  //     그제야 오늘로 오는 것처럼 보였다)
+  //
+  //    이제 지난 날짜를 한 번의 범위 조회로 전부 본다. 날짜마다 따로 읽던 것을
+  //    합친 것이라 읽기 횟수는 오히려 준다.
+  //    기간 설정은 그대로 쓴다. 다만 그 밖의 오래된 것은 '이미 이월 사슬에 든
+  //    일정'만 데려온다. 설정은 '얼마나 거슬러 찾아 나설까'를 정하는 것이지,
+  //    이미 나선 일정을 버리라는 뜻이 아니다.
+  const windowDates = new Set(pastDates);
+  const eventsCol = groupId
+    ? collection(db, 'groups', groupId, 'events')
+    : collection(db, 'users', user.uid, 'events');
+  let pastSnaps;
+  try {
+    pastSnaps = await getDocs(query(eventsCol, where(documentId(), '<', todayStr)));
+  } catch (err) {
+    console.warn('지난 일정을 훑지 못해 이월을 건너뜁니다:', err);
+    return 0;
+  }
+
+  for (const pastDoc of pastSnaps.docs) {
+    const pDate = pastDoc.id;
+    const items: EventItem[] = readEventList(pastDoc.data()) as EventItem[];
     
     let hasChanges = false;
     const remainingItems: EventItem[] = [];
@@ -229,7 +249,14 @@ async function doAutoForwarding(groupId: string | null) {
 
       // 화면과 같은 함수로 푼다. label 자리에 id가 들어 있는 일정(V3가 만든 것)도
       // 여기서 제대로 풀린다. 자세한 사정은 lib/forwarding.ts에 적어 두었다.
-      const isForwardTargetItem = isForwardTarget(it, labelDefs);
+      let isForwardTargetItem = isForwardTarget(it, labelDefs);
+
+      // 기간 설정 밖의 오래된 날짜에서는, 이미 이월 사슬에 든 일정만 데려온다.
+      // 그 전에 만들어 두고 잊은 일정까지 오늘로 쓸어오면 놀랄 일이다.
+      if (isForwardTargetItem && !windowDates.has(pDate)) {
+        const alreadyChained = !!(it.forwardChainId || it.originalDate || it.forward === true);
+        if (!alreadyChained) isForwardTargetItem = false;
+      }
 
       if (isForwardTargetItem) {
         // 같은 사슬의 항목이 오늘 이미 완료되었으면 이월을 멈춘다.
@@ -479,9 +506,14 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         return;
       }
       applyEventData(null);
-      // 캐시에만 근거해 "문서 없음"으로 판단하지 않고 서버에 한 번 직접 물어본다.
-      // 오프라인이면 실패하므로 캐시 결과를 그대로 둔다.
-      if (snap.metadata.fromCache && !serverRecheckDone) {
+      // ⚠️ '문서 없음'은 fromCache가 아닐 때도 거짓일 수 있다.
+      //    사이트 데이터를 지운 직후에는 캐시가 비고 로그인도 막 끝난 참이라,
+      //    서버에 멀쩡히 있는 문서를 '없다'고 답하는 일이 생긴다.
+      //    예전에는 fromCache일 때만 다시 물어봐서, 그 경우 그 날짜의 일정이
+      //    통째로 안 보인 채 아무도 다시 확인하지 않았다. 오늘 일정이 비어
+      //    보이던 것이 이것이다.
+      //    '없다'는 답은 데이터가 사라져 보이는 답이므로 한 번은 서버에 확인한다.
+      if (!serverRecheckDone) {
         serverRecheckDone = true;
         getDocFromServer(eventDocRef)
           .then((serverSnap) => {
