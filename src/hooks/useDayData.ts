@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   doc, onSnapshot, setDoc, getDoc, getDocFromServer, runTransaction,
-  collection, query, where, documentId, getDocs,
+  collection, query, where, documentId, getDocs, getDocsFromServer, orderBy, limit,
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { addReverseLink, syncReverseLinks } from '../utils/linkUtils';
@@ -445,6 +445,8 @@ export interface EventReadReport {
   liveError?: string;
   /** 구독이 답이 없어 서버에서 직접 받아 왔는가 */
   rescued?: boolean;
+  /** 문서 하나로는 '없다'는데 목록으로는 있었는가 */
+  viaList?: boolean;
 }
 
 export function useDayData(dateStr: string, groupId: string | null = null) {
@@ -600,7 +602,23 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
               applyEventData(serverSnap.data());
               noteCacheLied(basePath);
             } else {
-              report({ server: 'missing' });
+              // ⚠️ 마지막 수단. 문서 하나로 읽는 길과 목록으로 읽는 길은 서로 다르다.
+              //    한쪽이 '없다'고 할 때 다른 쪽엔 멀쩡히 있는 경우가 실제로 있었다.
+              //    (월간 화면에서는 같은 날짜가 잘 나오는데 하루 화면만 비던 일)
+              //    그러니 '없다'는 답을 한 번 더 다른 길로 확인한다.
+              getDocsFromServer(
+                query(eventDocRef.parent, orderBy(documentId(), 'desc'), limit(8))
+              )
+                .then((qs) => {
+                  const hit = qs.docs.find((d) => d.id === dateStr);
+                  if (hit) {
+                    report({ server: 'exists', viaList: true });
+                    applyEventData(hit.data());
+                  } else {
+                    report({ server: 'missing' });
+                  }
+                })
+                .catch(() => report({ server: 'missing' }));
             }
           })
           .catch((err: any) => {

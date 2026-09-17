@@ -10,6 +10,9 @@ import type { EventReadReport } from '../../hooks/useDayData';
 import { probeAccountHasEvents, ownerOfPath, type AccountProbe } from '../../lib/accountProbe';
 import { useAuth } from '../auth/useAuth';
 
+/** 읽고 있던 문서 경로에서 날짜만 뽑는다 */
+const today = (path: string) => path.split('/').pop() || '';
+
 export default function EmptyDayReport({ report }: { report: EventReadReport | null }) {
   const { logout } = useAuth();
   const [probe, setProbe] = useState<AccountProbe | null>(null);
@@ -103,9 +106,29 @@ export default function EmptyDayReport({ report }: { report: EventReadReport | n
 
   // ③ 계정에 자료는 있고 오늘만 비어 있다 = 정상일 수 있다. 조용히 한 줄만 남긴다.
   if (probe?.state === 'has-data') {
+    // 목록으로는 오늘 문서가 보이는데 문서 하나로 읽을 때는 '없다'고 했다면,
+    // 그건 읽는 통로 하나가 거짓말을 하고 있는 것이다. 그때는 그냥 넘어가면 안 된다.
+    if (probe.todayThere) {
+      return (
+        <div className="rounded-xl border-2 border-amber-400 bg-amber-50 px-4 py-3 text-amber-900">
+          <p className="text-2xs font-bold mb-1">⚠️ 오늘 일정이 서버에 있는데 읽지 못했습니다</p>
+          <p className="text-2xs leading-relaxed break-all">
+            목록으로 보면 오늘({today(report.path)}) 문서가 서버에 있는데, 문서 하나로 읽으면 없다고 답합니다.
+            읽는 통로 하나가 잘못된 것입니다. 잠시 뒤 다시 받아옵니다.
+          </p>
+          <p className="text-2xs mt-1.5 text-amber-800/80 break-all">
+            서버의 최근 문서: {probe.recent.join(', ')} · {who}
+          </p>
+        </div>
+      );
+    }
+    // ⚠️ 여기 문구를 '이 계정에 일정 자료는 있습니다'라고만 써 두었더니,
+    //    '오늘 일정이 있는데 왜 안 나오냐'로 읽혔다. 오해를 부르는 말이었다.
+    //    계정이 맞다는 뜻일 뿐, 오늘 문서가 있다는 뜻이 아니다. 분명히 적는다.
     return (
       <p className="text-2xs text-slate-400 break-all">
-        이 계정에 일정 자료는 있습니다 · {who}
+        계정은 정상입니다. 다만 <b>오늘({today(report.path)}) 문서가 서버에 없습니다</b>
+        {' '}· 서버에 있는 최근 일정 날짜: {probe.recent.join(', ')} · {who}
       </p>
     );
   }

@@ -12,12 +12,12 @@
 //
 // 그래서 계정 자체에 물어본다. 이 계정에 일정이 단 한 건이라도 있는가.
 // 한 건도 없다면 새 계정이거나 남의 계정이다.
-import { collection, query, limit, getDocsFromServer } from 'firebase/firestore';
+import { collection, query, limit, orderBy, documentId, getDocsFromServer } from 'firebase/firestore';
 import { db } from './firebase';
 
 export type AccountProbe =
   | { state: 'empty' }        // 이 계정에는 일정이 하나도 없다
-  | { state: 'has-data'; note: string } // 자료는 있다 (그러면 오늘만의 문제다)
+  | { state: 'has-data'; recent: string[]; todayThere: boolean }
   | { state: 'error'; code: string };
 
 /**
@@ -25,11 +25,20 @@ export type AccountProbe =
  * 그 컬렉션에 무엇이든 들어 있는지 서버에 직접 물어본다.
  */
 export async function probeAccountHasEvents(docPath: string): Promise<AccountProbe> {
-  const colPath = docPath.split('/').slice(0, -1).join('/');
+  const parts = docPath.split('/');
+  const wanted = parts[parts.length - 1];
+  const colPath = parts.slice(0, -1).join('/');
   try {
-    const snap = await getDocsFromServer(query(collection(db, colPath), limit(1)));
+    // 날짜가 곧 문서 이름이므로, 이름 역순으로 몇 개만 받아 보면
+    // '오늘 문서가 서버에 정말 없는지'를 눈으로 확인할 수 있다.
+    // 문서 하나만 읽는 길과 목록으로 읽는 길은 서로 다른 통로라서,
+    // 한쪽은 없다고 하고 다른 쪽엔 있는 경우를 이걸로 잡아낸다.
+    const snap = await getDocsFromServer(
+      query(collection(db, colPath), orderBy(documentId(), 'desc'), limit(5))
+    );
     if (snap.empty) return { state: 'empty' };
-    return { state: 'has-data', note: snap.docs[0].id };
+    const recent = snap.docs.map((d) => d.id);
+    return { state: 'has-data', recent, todayThere: recent.includes(wanted) };
   } catch (err: any) {
     return { state: 'error', code: String(err?.code || err?.message || err) };
   }
