@@ -104,3 +104,50 @@ export function noteCacheLied(path: string) {
 }
 
 let dbRef: Firestore | null = null;
+
+
+// ── 아무 말도 없이 멈추는 경우 ──────────────────────────────────────
+//
+// 위의 감시는 '오류가 올라올 때'만 동작한다. 그런데 더 고약한 경우가 있다.
+// 오류를 내지 않고 그냥 아무 답도 주지 않는 것이다.
+//
+// 브라우저의 '인터넷 사용 기록 삭제'는 그 순간 열려 있는 탭이 붙잡고 있는
+// IndexedDB를 지우지 못하고 넘어갈 수 있다. 그러면 Firestore의 로컬 캐시가
+// 반쯤 지워진 채 남는다. 그 상태로 다시 켜면 SDK가 그 캐시를 열다가 조용히
+// 멈춘다. 구독을 걸어도 콜백이 한 번도 불리지 않는다.
+//
+// 화면에는 일정도, 수업도, D-Day도 전부 빈 채로 나온다. 오류 한 줄 없이.
+// 사용기록을 한 번 더 지우면(이번엔 탭이 안 붙잡고 있으니 완전히 지워진다)
+// 멀쩡해지는 것이 그래서다.
+//
+// 그래서 '살아 있다는 신호'를 기다린다. 로그인까지 끝났는데 그 신호가 한 번도
+// 오지 않으면 캐시가 깨진 것으로 보고 비우고 다시 시작한다.
+let aliveSeen = false;
+let watchdog: ReturnType<typeof setTimeout> | null = null;
+
+/** 구독이 답을 한 번이라도 주면 부른다 (캐시에서 온 답이어도 좋다) */
+export function markFirestoreAlive() {
+  aliveSeen = true;
+  if (watchdog) {
+    clearTimeout(watchdog);
+    watchdog = null;
+  }
+  // 제대로 한 바퀴 돌았으니 다음에 또 깨지면 다시 고칠 수 있게 표시를 지운다.
+  markFirestoreHealthy();
+}
+
+/** 로그인이 끝난 뒤 건다. 정해진 시간 안에 아무 답도 없으면 캐시를 버린다. */
+export function startPersistenceWatchdog(db: Firestore, ms = 10000) {
+  if (typeof window === 'undefined') return;
+  if (aliveSeen || watchdog) return;
+  dbRef = db;
+  watchdog = setTimeout(() => {
+    watchdog = null;
+    if (aliveSeen) return;
+    console.warn(
+      '[SP4] 로그인은 됐는데 Firestore가 10초 동안 아무 답도 주지 않았습니다. ' +
+      '로컬 캐시가 깨진 것으로 보고 비우고 다시 시작합니다.'
+    );
+    void recover(db);
+  }, ms);
+}

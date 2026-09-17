@@ -8,8 +8,9 @@ import YearScreen from './features/year/YearScreen';
 import MemoScreen from './features/memo/MemoScreen';
 import { useAuth } from './features/auth/useAuth';
 import { useAppStore } from './store/useAppStore';
+import { db } from './lib/firebase';
 import { runAutoForwarding } from './hooks/useDayData';
-import { markFirestoreHealthy } from './lib/firestoreRecovery';
+import { startPersistenceWatchdog } from './lib/firestoreRecovery';
 import { useEventAlarms } from './hooks/useEventAlarms';
 import { useLabels } from './hooks/useLabels';
 import EventAlarmPopup from './components/EventAlarmPopup';
@@ -26,8 +27,11 @@ function App() {
   // 💡 추가된 부분: 앱 구동 시 전역으로 이월 실행 (주간, 월간, 년간 화면 등 전체 반영)
   useEffect(() => {
     if (user) {
-      // 여기까지 왔으면 Firestore가 제대로 돌고 있는 것이다.
-      markFirestoreHealthy();
+      // ⚠️ 여기서 '제대로 돌고 있다'고 단정하면 안 된다. 로그인이 됐다는 것과
+      //    Firestore가 답을 준다는 것은 다른 이야기다. 캐시가 반쯤 지워진 채
+      //    남으면 로그인은 되는데 구독이 한 번도 안 불린다. 그래서 답이 오는지를
+      //    지켜보고, 한참을 안 오면 캐시를 비우고 다시 시작한다.
+      startPersistenceWatchdog(db);
       runAutoForwarding(selectedGroupId).catch(console.error);
     }
   }, [user, selectedGroupId, labelsLoaded]);

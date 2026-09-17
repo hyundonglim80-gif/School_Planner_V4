@@ -13,7 +13,7 @@ import { parseV3EventText, formatV3EventText, eventContentOf, eventDocPayload, r
 import { pastDateStrings, isForwardTarget, chooseForwardingLabels } from '../lib/forwarding';
 import { readLegacyEventLabels } from '../lib/legacyLabels';
 import { useAppStore } from '../store/useAppStore';
-import { noteCacheLied } from '../lib/firestoreRecovery';
+import { noteCacheLied, markFirestoreAlive } from '../lib/firestoreRecovery';
 import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 
 // 기존 import 경로 호환을 위해 재수출한다 (직렬화 구현은 lib/eventText.ts로 이동).
@@ -567,6 +567,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       }));
 
     const unsubEvent = onSnapshot(eventDocRef, (snap) => {
+      markFirestoreAlive();
       if (snap.exists()) {
         report({ liveExists: true, fromCache: snap.metadata.fromCache });
         applyEventData(snap.data());
@@ -606,6 +607,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     });
 
     const unsubSchedule = onSnapshot(scheduleDocRef, (snap) => {
+      markFirestoreAlive();
       if (snap.exists()) {
         const data = snap.data();
         const rawPeriods = data.periods || {};
@@ -634,6 +636,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     });
 
     const unsubJournal = onSnapshot(journalDocRef, (snap) => {
+      markFirestoreAlive();
       if (snap.exists()) {
         const data = snap.data();
         const rawEntries = data.entries || [];
