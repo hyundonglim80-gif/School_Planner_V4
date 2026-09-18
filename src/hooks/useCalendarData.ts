@@ -25,6 +25,8 @@ export interface DaySummary {
   eventText?: string;
   eventList?: EventItem[];
   schedules?: Record<number, PeriodSchedule>;
+  /** 그날 기록(일지)이 몇 건인지. 달력에서 아이콘과 숫자로 보여 준다. */
+  journalCount?: number;
 }
 
 // 캐시만 보고 있을 때 서버에 다시 물어보기까지 기다리는 시간.
@@ -96,6 +98,9 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
     const schedulesCol = groupId
       ? collection(db, 'groups', groupId, 'schedules')
       : collection(db, 'users', user.uid, 'schedules');
+    const journalsCol = groupId
+      ? collection(db, 'groups', groupId, 'journals')
+      : collection(db, 'users', user.uid, 'journals');
 
     const eventsQuery = query(
       eventsCol,
@@ -107,10 +112,17 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
       where(documentId(), '>=', startStr),
       where(documentId(), '<=', endStr)
     );
+    // 기록은 개수만 필요하다. 내용은 아이콘을 눌렀을 때 그때 읽는다.
+    const journalsQuery = query(
+      journalsCol,
+      where(documentId(), '>=', startStr),
+      where(documentId(), '<=', endStr)
+    );
 
     let cancelled = false;
     let eventsByDate: Record<string, { text: string; list: EventItem[] }> = {};
     let periodsByDate: Record<string, Record<number, PeriodSchedule>> = {};
+    let journalCountByDate: Record<string, number> = {};
     let eventsReady = false;
     let schedulesReady = false;
 
@@ -122,6 +134,7 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
           eventText: eventsByDate[dStr]?.text ?? '',
           eventList: eventsByDate[dStr]?.list ?? [],
           schedules: periodsByDate[dStr] ?? {},
+          journalCount: journalCountByDate[dStr] ?? 0,
         };
       }
       setDataMap(next);
@@ -148,6 +161,24 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
       });
       periodsByDate = next;
       schedulesReady = true;
+      rebuild();
+    };
+
+    const applyJournals = (snap: QuerySnapshot<DocumentData>) => {
+      const next: typeof journalCountByDate = {};
+      snap.forEach((d) => {
+        if (!wanted.has(d.id)) return;
+        // 빈 항목은 세지 않는다. 화면에서 지운 뒤 껍데기만 남는 경우가 있다.
+        const entries = (d.data().entries || []) as any[];
+        const count = entries.filter(
+          (j) =>
+            (j?.content && String(j.content).trim().length > 0) ||
+            j?.imageUrl ||
+            (j?.attachments && j.attachments.length > 0)
+        ).length;
+        if (count > 0) next[d.id] = count;
+      });
+      journalCountByDate = next;
       rebuild();
     };
 
@@ -223,6 +254,18 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
       }
     );
 
+    const unsubJournals = onSnapshot(
+      journalsQuery,
+      (snap) => {
+        markFirestoreAlive(!snap.metadata.fromCache);
+        applyJournals(snap);
+      },
+      (error) => {
+        // 기록 개수는 곁다리 정보다. 못 읽어도 달력 자체는 그대로 보여야 한다.
+        console.error('Calendar Journal Snapshot Error:', error);
+      }
+    );
+
     // 리스너가 아무 응답도 주지 않는 경우를 대비한 안전장치
     const loadingFallback = setTimeout(() => setLoading(false), 3000);
 
@@ -232,6 +275,7 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
       clearTimeout(loadingFallback);
       unsubEvents();
       unsubSchedules();
+      unsubJournals();
     };
   }, [dateKey, groupId, auth.currentUser?.uid]);
 

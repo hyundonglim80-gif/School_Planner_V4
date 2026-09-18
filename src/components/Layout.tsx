@@ -25,6 +25,9 @@ const DetailEditModal = lazyWithReload(() => import('./DetailEditModal'));
 const LinkedEntryEditorHost = lazy(() =>
   import('./LinkedEntryEditor').then((m) => ({ default: m.LinkedEntryEditorHost }))
 );
+const JournalPeekHost = lazy(() =>
+  import('./JournalPeekModal').then((m) => ({ default: m.JournalPeekHost }))
+);
 const LinkerModal = lazyWithReload(() => import('./LinkerModal'));
 const LinkViewerModal = lazyWithReload(() => import('./LinkViewerModal'));
 const TrashModal = lazyWithReload(() => import('./TrashModal'));
@@ -870,6 +873,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         <LinkedEntryEditorHost />
+        <JournalPeekHost />
 
         {isTrashModalOpen && (
           <TrashModal isOpen onClose={() => setTrashModalOpen(false)} />

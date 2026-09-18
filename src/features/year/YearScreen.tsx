@@ -19,6 +19,7 @@ import { showToast, showErrorToast } from '../../utils/toast';
 import DetailEditModal from '../../components/DetailEditModal';
 import EventItemActions from '../../components/EventItemActions';
 import QuickAddModal from '../../components/QuickAddModal';
+import JournalCountBadge from '../../components/JournalCountBadge';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -26,6 +27,8 @@ export default function YearScreen() {
   const { currentDate, setCurrentDate, setScope, semesterFilter, showWeekend, showClass, showEvents, selectedGroupId, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal } = useAppStore();
   const [eventsMap, setEventsMap] = useState<Record<string, any[]>>({});
   const [schedulesMap, setSchedulesMap] = useState<Record<string, any>>({});
+  // 그날 기록이 몇 건인지. 내용은 아이콘을 눌렀을 때 그때 읽는다.
+  const [journalCountMap, setJournalCountMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [quickAddDate, setQuickAddDate] = useState<string | null>(null);
   const isMobile = useIsMobile();
@@ -107,7 +110,25 @@ export default function YearScreen() {
       setSchedulesMap(map);
     });
 
-    return () => { unsubEvents(); unsubSchedules(); };
+    const unsubJournals = onSnapshot(
+      query(collection(db, colPath('journals')), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)),
+      (snap) => {
+        const map: Record<string, number> = {};
+        snap.forEach(d => {
+          // 빈 항목은 세지 않는다 (지운 뒤 껍데기만 남는 경우가 있다)
+          const entries = (d.data().entries || []) as any[];
+          const count = entries.filter(
+            (j) => (j?.content && String(j.content).trim()) || j?.imageUrl || (j?.attachments || []).length > 0
+          ).length;
+          if (count > 0) map[d.id] = count;
+        });
+        setJournalCountMap(map);
+      },
+      // 기록 개수는 곁다리 정보다. 못 읽어도 달력 자체는 그대로 보여야 한다.
+      (err) => console.error('Year Journal Snapshot Error:', err)
+    );
+
+    return () => { unsubEvents(); unsubSchedules(); unsubJournals(); };
   }, [defaultAcademicYear, selectedGroupId]);
 
   const handleDateClick = (dateStr: string) => {
@@ -278,12 +299,19 @@ export default function YearScreen() {
                               {isTodayEvent && <span className="text-2xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full ml-1">오늘</span>}
                               {holidayName && <span title={holidayName} className="text-2xs text-red-500 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md ml-1">{holidayName}</span>}
                             </div>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setQuickAddDate(dObj.dateStr); }}
-                              className="text-2xs font-bold text-slate-400 hover:text-primary bg-slate-50 hover:bg-slate-100 px-1.5 py-0.5 rounded transition-colors"
-                            >
-                              + 일정
-                            </button>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <JournalCountBadge
+                                dateStr={dObj.dateStr}
+                                count={journalCountMap[dObj.dateStr] || 0}
+                                fId={selectedGroupId}
+                              />
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setQuickAddDate(dObj.dateStr); }}
+                                className="text-2xs font-bold text-slate-400 hover:text-primary bg-slate-50 hover:bg-slate-100 px-1.5 py-0.5 rounded transition-colors"
+                              >
+                                + 일정
+                              </button>
+                            </div>
                           </div>
 
                           <div className="flex flex-col gap-2">

@@ -114,6 +114,11 @@ interface AppState {
   }) => void;
   closeDetailEdit: () => void;
 
+  /** 달력에서 기록 아이콘을 눌러 그날 기록을 들여다보는 창 */
+  journalPeek: { dateStr: string; fId?: string | null } | null;
+  openJournalPeek: (dateStr: string, fId?: string | null) => void;
+  closeJournalPeek: () => void;
+
   isEntryEditorOpen: boolean;
   entryEditorTarget: { kind: 'journal' | 'memo'; dateStr: string; id: string; fId?: string } | null;
   openEntryEditor: (t: { kind: 'journal' | 'memo'; dateStr: string; id: string; fId?: string }) => void;
@@ -406,6 +411,10 @@ export const useAppStore = create<AppState>()(
       detailEditTarget: null,
       openDetailEdit: (t) => set({ isDetailEditOpen: true, detailEditTarget: t }),
       closeDetailEdit: () => set({ isDetailEditOpen: false, detailEditTarget: null }),
+
+      journalPeek: null,
+      openJournalPeek: (dateStr, fId) => set({ journalPeek: { dateStr, fId: fId ?? null } }),
+      closeJournalPeek: () => set({ journalPeek: null }),
 
       isEntryEditorOpen: false,
       entryEditorTarget: null,

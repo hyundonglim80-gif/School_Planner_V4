@@ -17,6 +17,7 @@ import {
 import { fitToWidthFontSize } from '../../lib/typeScale';
 import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import { BODY_TEXT } from '../../lib/typeScale';
+import JournalCountBadge from '../../components/JournalCountBadge';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import DetailEditModal from '../../components/DetailEditModal';
 import EventItemActions from '../../components/EventItemActions';
@@ -45,7 +46,7 @@ const ALL_WEEKDAYS = [
 
 export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, showWeekend = true, onToggleEvent, onDeleteEvent }: MonthGridProps) {
   const currentWeekdays = showWeekend ? ALL_WEEKDAYS : ALL_WEEKDAYS.slice(1, 6);
-  const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal } = useAppStore();
+  const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal, selectedGroupId } = useAppStore();
 
   const displayDays = React.useMemo(() => {
     if (!showWeekend) {
@@ -119,6 +120,11 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                   </div>
                   
                   <div className="flex items-center gap-1">
+                    <JournalCountBadge
+                      dateStr={dayObj.dateStr}
+                      count={dataMap[dayObj.dateStr]?.journalCount || 0}
+                      fId={selectedGroupId}
+                    />
                     <button
                       onClick={(e) => { e.stopPropagation(); onQuickAdd(dayObj.dateStr); }}
                       className="w-5 h-5 rounded hover:bg-slate-200 text-slate-400 hover:text-primary flex items-center justify-center transition-colors text-xs font-bold leading-none opacity-0 group-hover:opacity-100"
