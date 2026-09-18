@@ -16,6 +16,12 @@ const firebaseConfig = {
 // V3와의 IndexedDB(로컬 오프라인 캐시) 충돌을 방지하기 위해 App 이름을 'SchoolPlannerV4'로 명시적으로 지정
 export const app = initializeApp(firebaseConfig, 'SchoolPlannerV4');
 
+// 구글 파일 선택창(Picker)이 요구하는 두 값. 같은 구글 클라우드 프로젝트의
+// 것이라 firebaseConfig에 이미 들어 있는 것을 그대로 쓴다. 브라우저에 나가는
+// 값이라 숨길 대상이 아니다(도메인 제한으로 지킨다).
+export const GOOGLE_API_KEY = firebaseConfig.apiKey;
+export const GOOGLE_APP_ID = firebaseConfig.messagingSenderId;
+
 /**
  * 오프라인 저장소를 못 쓰는 상태로 들어왔는가.
  *
