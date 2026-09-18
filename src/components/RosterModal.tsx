@@ -12,22 +12,25 @@ import { useBackdropClose } from '../hooks/useBackdropClose';
 import { moveToTrash } from '../utils/trashHelper';
 
 /**
- * 학급별 명단이 들어 있는 시트 탭 이름.
+ * 학급별 탭 이름.
  *
- * 예전에는 같은 탭을 '조사표_'로 불렀다. 안에 든 것은 그때나 지금이나 학급
- * 명단이라 이름만 바꾼다. 옛 이름의 탭은 [migrateLegacyRosterSheetTitles]가
- * 새 이름으로 고쳐 놓으므로, 읽는 쪽은 새 이름 하나만 알면 된다.
+ * 한동안 이 탭을 '명렬표_'로 부르려 했다. 그런데 이 탭에는 학급 명단만이
+ * 아니라 V3가 내보낸 조사표(평가) 자료도 같이 들어간다. 안에 든 것이 명단
+ * 하나가 아니므로 '조사표_'라는 원래 이름을 그대로 둔다.
  */
-const ROSTER_SHEET_PREFIX = '명렬표_';
-const LEGACY_ROSTER_SHEET_PREFIX = '조사표_';
+const ROSTER_SHEET_PREFIX = '조사표_';
+/** 이름을 바꿨던 동안 만들어진 탭. [restoreRosterSheetTitles]가 되돌린다. */
+const RENAMED_ROSTER_SHEET_PREFIX = '명렬표_';
 
 /**
- * 연결된 스프레드시트에서 '조사표_'로 시작하는 탭을 모두 '명렬표_'로 바꾼다.
+ * '명렬표_'로 바뀐 탭을 다시 '조사표_'로 되돌린다.
  *
- * 탭 이름만 고칠 뿐 칸 안의 값은 건드리지 않는다. 새 이름이 이미 있는 탭은
- * 이름이 겹치므로 그냥 둔다. 이름을 바꾼 탭 수를 돌려준다.
+ * 탭 이름을 바꾸는 판을 한 번 내보냈다가 물렀다. 그 사이에 시트 동기화를 누른
+ * 사람은 탭 이름이 이미 바뀌어 있어, 그대로 두면 명단을 못 찾는다. 탭 이름만
+ * 고칠 뿐 칸 안의 값은 건드리지 않는다. 되돌릴 것이 없으면 아무 일도 하지
+ * 않으므로, 바뀐 탭이 다 돌아온 뒤에는 이 함수를 지워도 된다.
  */
-async function migrateLegacyRosterSheetTitles(token: string, spreadsheetId: string): Promise<number> {
+async function restoreRosterSheetTitles(token: string, spreadsheetId: string): Promise<number> {
   try {
     const metaRes = await fetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties(sheetId,title)`,
@@ -40,10 +43,10 @@ async function migrateLegacyRosterSheetTitles(token: string, spreadsheetId: stri
     const titles = new Set(sheets.map((s) => s?.properties?.title).filter(Boolean));
 
     const requests = sheets
-      .filter((s) => String(s?.properties?.title || '').startsWith(LEGACY_ROSTER_SHEET_PREFIX))
+      .filter((s) => String(s?.properties?.title || '').startsWith(RENAMED_ROSTER_SHEET_PREFIX))
       .map((s) => {
         const title = String(s.properties.title);
-        const newTitle = ROSTER_SHEET_PREFIX + title.slice(LEGACY_ROSTER_SHEET_PREFIX.length);
+        const newTitle = ROSTER_SHEET_PREFIX + title.slice(RENAMED_ROSTER_SHEET_PREFIX.length);
         if (titles.has(newTitle)) return null;
         titles.add(newTitle);
         return {
@@ -64,7 +67,7 @@ async function migrateLegacyRosterSheetTitles(token: string, spreadsheetId: stri
     });
     return res.ok ? requests.length : 0;
   } catch (e) {
-    console.warn('옛 명렬표 탭 이름 바꾸기 실패:', e);
+    console.warn('조사표 탭 이름 되돌리기 실패:', e);
     return 0;
   }
 }
@@ -221,11 +224,11 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     setLoadingSheet(true);
 
     try {
-      // 0. 옛 이름('조사표_')의 탭이 남아 있으면 먼저 새 이름으로 바꾼다.
-      //    한 번 바꿔 두면 다음부터는 바꿀 것이 없어 그냥 지나간다.
-      const renamedCount = await migrateLegacyRosterSheetTitles(token, spreadsheetId);
-      if (renamedCount > 0) {
-        showToast(`📊 시트 탭 ${renamedCount}개의 이름을 '명렬표_'로 바꿨습니다.`);
+      // 0. 잠깐 '명렬표_'로 바뀌었던 탭이 있으면 '조사표_'로 되돌린다.
+      //    되돌릴 것이 없으면 아무 일도 하지 않고 지나간다.
+      const restoredCount = await restoreRosterSheetTitles(token, spreadsheetId);
+      if (restoredCount > 0) {
+        showToast(`📊 시트 탭 ${restoredCount}개의 이름을 '조사표_'로 되돌렸습니다.`);
       }
 
       // 1. Google Sheets API v4로 데이터 요청 (V3와 동일한 방식)
@@ -641,7 +644,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                 onClick={handleImportFromGoogleSheet}
                 disabled={loadingSheet}
                 className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-all flex items-center gap-1"
-                title="연결된 구글 시트의 [명렬표_학년도-학년-반] 탭에서 명단을 가져옵니다"
+                title="연결된 구글 시트의 [조사표_학년-반] 탭에서 명단과 조사표를 가져옵니다"
               >
                 <span>📊</span>
                 {loadingSheet ? '시트 읽는 중...' : '시트 동기화'}
