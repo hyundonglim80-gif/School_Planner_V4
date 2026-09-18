@@ -21,8 +21,10 @@ export interface PhotoDiagnosis {
   message: string;
   /** 무엇을 하면 되는가 (없을 수 있다) */
   hint?: string;
-  /** '폴더 다시 고르기'를 내밀어야 하는가 */
+  /** '폴더 다시 고르기'(위쪽 폴더)를 내밀어야 하는가 */
   offerRepick: boolean;
+  /** '이 학급 폴더 고르기'를 내밀어야 하는가 */
+  offerPickClass: boolean;
 }
 
 export interface DiagnoseArgs {
@@ -48,8 +50,25 @@ export function diagnosePhotos({
   matchedCount,
 }: DiagnoseArgs): PhotoDiagnosis {
   if (!scan) {
-    return { tone: 'warn', message: '사진을 불러오는 중...', offerRepick: false };
+    return {
+      tone: 'warn',
+      message: '사진을 불러오는 중...',
+      offerRepick: false,
+      offerPickClass: false,
+    };
   }
+
+  /**
+   * 구글 권한이 손자까지 안 닿는다는 이야기.
+   *
+   * drive.file 권한에서는 선택창으로 고른 폴더와 그 바로 아래 자식까지만
+   * 앱에 열린다. 위쪽 폴더를 골랐을 때 학급 폴더는 보여도 그 안의 사진은
+   * 보이지 않는다. 목록이 빈 채로 오고 오류도 나지 않아 사진을 안 올린 것과
+   * 구별되지 않으므로, 두 가지 가능성을 다 적고 할 일을 내민다.
+   */
+  const grandchildHint =
+    `사진을 아직 안 올리셨거나, 구글 권한이 폴더 안쪽까지 닿지 않아 안 보이는 것입니다. ` +
+    `'이 학급 폴더 고르기'로 ${className} 폴더를 직접 골라 주세요.`;
 
   // ── 사진을 찾을 곳을 아예 못 잡은 경우 ──────────────────────
   if (!scan.folderId) {
@@ -57,10 +76,9 @@ export function diagnosePhotos({
       return {
         tone: 'error',
         message: '고른 폴더 안이 비어 보입니다.',
-        hint:
-          '구글 권한 때문에, 고른 폴더의 하위 폴더까지는 앱에 보이지 않을 수 있습니다. ' +
-          `'폴더 다시 고르기'로 ${className} 폴더를 바로 골라 주세요.`,
+        hint: grandchildHint,
         offerRepick: true,
+        offerPickClass: true,
       };
     }
     if (scan.subfolderNames.length > 0) {
@@ -69,26 +87,40 @@ export function diagnosePhotos({
         message: `고른 폴더 안에 '${className}' 폴더가 없습니다. (보이는 폴더: ${samples(
           scan.subfolderNames
         )})`,
-        hint: `폴더 이름을 ${className} 로 맞추시거나, '폴더 다시 고르기'로 그 폴더를 바로 골라 주세요.`,
+        hint: `폴더 이름을 ${className} 로 맞추시거나, 그 폴더를 직접 골라 주세요.`,
         offerRepick: true,
+        offerPickClass: true,
       };
     }
     return {
       tone: 'error',
       message: '고른 폴더 안에 사진 파일이 없습니다. (png · jpg · jpeg · webp만 읽습니다)',
-      hint: `'폴더 다시 고르기'로 ${className} 폴더를 바로 골라 보세요.`,
+      hint: grandchildHint,
       offerRepick: true,
+      offerPickClass: true,
     };
   }
 
   // ── 폴더는 잡았다 ───────────────────────────────────────────
-  const where = scan.source === 'root' ? '고른 폴더' : `${className} 폴더`;
+  const where =
+    scan.source === 'root' ? '고른 폴더' : scan.source === 'picked' ? '고르신 학급 폴더' : `${className} 폴더`;
 
   if (scan.files.length === 0) {
+    // 직접 골라 준 폴더가 비었다면 권한 문제가 아니다. 정말 안 올린 것이다.
+    if (scan.source === 'picked') {
+      return {
+        tone: 'warn',
+        message: `${where}에 사진 파일이 없습니다. 빈 칸을 눌러 올려 주세요.`,
+        offerRepick: false,
+        offerPickClass: true,
+      };
+    }
     return {
-      tone: 'warn',
-      message: `${where}는 찾았는데 사진 파일이 없습니다. 빈 칸을 눌러 올려 주세요.`,
+      tone: 'error',
+      message: `${where}는 보이는데 그 안의 사진이 보이지 않습니다.`,
+      hint: grandchildHint,
       offerRepick: false,
+      offerPickClass: true,
     };
   }
 
@@ -100,6 +132,7 @@ export function diagnosePhotos({
       )})`,
       hint: `파일 이름은 ${className}-번호-이름 이어야 합니다. 번호 없이 ${className}-이름 이어도 찾습니다.`,
       offerRepick: false,
+      offerPickClass: false,
     };
   }
 
@@ -108,6 +141,7 @@ export function diagnosePhotos({
       tone: 'warn',
       message: `사진 ${matchedCount}/${studentCount}명 — 없는 학생은 빈 칸을 눌러 바로 올릴 수 있습니다.`,
       offerRepick: false,
+      offerPickClass: false,
     };
   }
 
@@ -115,5 +149,6 @@ export function diagnosePhotos({
     tone: 'ok',
     message: `모든 학생의 사진이 연결되었습니다. (${matchedCount}명)`,
     offerRepick: false,
+    offerPickClass: false,
   };
 }

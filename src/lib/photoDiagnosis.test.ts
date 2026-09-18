@@ -8,6 +8,7 @@ const scan = (over: Partial<PhotoScan> = {}): PhotoScan => ({
   files: [],
   subfolderNames: [],
   rootEmpty: false,
+  classFolderLooksEmpty: false,
   ...over,
 });
 
@@ -29,8 +30,9 @@ describe('사진을 찾을 곳을 못 잡았을 때', () => {
     });
     expect(d.tone).toBe('error');
     expect(d.message).toContain('비어 보입니다');
-    expect(d.hint).toContain('하위 폴더까지는');
+    expect(d.hint).toContain('구글 권한');
     expect(d.hint).toContain('2026-3-1');
+    expect(d.offerPickClass).toBe(true);
     expect(d.offerRepick).toBe(true);
   });
 
@@ -69,11 +71,20 @@ describe('사진을 찾을 곳을 못 잡았을 때', () => {
 });
 
 describe('폴더는 잡았을 때', () => {
-  it('사진이 한 장도 없으면 올리라고 한다', () => {
-    const d = diagnosePhotos({ ...base, scan: scan({ files: [] }) });
+  it('위쪽 폴더로 찾은 학급 폴더가 비면 권한일 수 있다고 말한다', () => {
+    // 손자까지 권한이 안 닿아 안 보이는 것일 수 있다. 실제로 이 경우에 막혔다.
+    const d = diagnosePhotos({ ...base, scan: scan({ source: 'subfolder', files: [] }) });
+    expect(d.tone).toBe('error');
+    expect(d.message).toContain('그 안의 사진이 보이지 않습니다');
+    expect(d.hint).toContain('구글 권한');
+    expect(d.offerPickClass).toBe(true);
+  });
+
+  it('직접 골라 준 폴더가 비었으면 권한 탓을 하지 않는다', () => {
+    const d = diagnosePhotos({ ...base, scan: scan({ source: 'picked', files: [] }) });
     expect(d.tone).toBe('warn');
     expect(d.message).toContain('사진 파일이 없습니다');
-    expect(d.offerRepick).toBe(false);
+    expect(d.hint).toBeUndefined();
   });
 
   it('사진은 있는데 하나도 안 맞으면 이름 규칙을 알려 준다', () => {

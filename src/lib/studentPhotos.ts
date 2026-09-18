@@ -41,55 +41,86 @@ export interface PhotoFolderConfig {
   name: string;
 }
 
-export async function loadPhotoFolder(): Promise<PhotoFolderConfig | null> {
+/**
+ * 기억해 둔 폴더들.
+ *
+ * ⚠️ 왜 학급마다 따로 기억하는가.
+ *    drive.file 권한에서 선택창으로 고른 폴더는 그 폴더와 '바로 아래 자식'까지만
+ *    앱에 열린다. 손자는 열리지 않는다. 그래서 School_Planner_Students_Poto를
+ *    고르면 그 안의 2026-3-1 폴더는 보이지만, 정작 그 안의 사진 파일은 보이지
+ *    않는다. 목록이 빈 채로 오고 오류도 나지 않아서, 사진을 안 올린 것과
+ *    구별되지 않는다. 실제로 그렇게 막혔다.
+ *
+ *    풀려면 학급 폴더를 직접 고르게 해야 한다. 그러면 사진이 '바로 아래 자식'이
+ *    되어 보인다. 대신 학급마다 한 번씩 골라야 하므로, 고른 것을 학급 이름을
+ *    열쇠로 기억해 둔다. 한 번 고른 학급은 다시 묻지 않는다.
+ */
+export interface PhotoFolders {
+  /** 위쪽 폴더. 학급 폴더가 그 아래에 보이면 이것만으로도 된다. */
+  root: PhotoFolderConfig | null;
+  /** '2026-3-1' -> 그 학급을 위해 따로 고른 폴더 */
+  byClass: Record<string, PhotoFolderConfig>;
+}
+
+export const EMPTY_FOLDERS: PhotoFolders = { root: null, byClass: {} };
+
+export async function loadPhotoFolders(): Promise<PhotoFolders> {
   const user = auth.currentUser;
-  if (!user) return null;
+  if (!user) return EMPTY_FOLDERS;
   try {
     const snap = await getDoc(configRef(user.uid));
-    if (!snap.exists()) return null;
+    if (!snap.exists()) return EMPTY_FOLDERS;
     const data = snap.data();
     const id = (data.studentPhotoFolderId as string) || '';
-    if (!id) return null;
-    return { id, name: (data.studentPhotoFolderName as string) || '' };
+    return {
+      root: id ? { id, name: (data.studentPhotoFolderName as string) || '' } : null,
+      byClass: (data.studentPhotoFoldersByClass as Record<string, PhotoFolderConfig>) || {},
+    };
   } catch (e) {
     console.warn('사진 폴더 설정을 읽지 못했습니다.', e);
-    return null;
+    return EMPTY_FOLDERS;
   }
 }
 
-export async function savePhotoFolder(folder: PhotoFolderConfig): Promise<void> {
+async function writeConfig(patch: Record<string, unknown>): Promise<void> {
   const user = auth.currentUser;
   if (!user) throw new Error('로그인이 필요합니다.');
-  await setDoc(
-    configRef(user.uid),
-    {
-      studentPhotoFolderId: folder.id,
-      studentPhotoFolderName: folder.name,
-      updatedAt: Date.now(),
-    },
-    { merge: true }
-  );
+  await setDoc(configRef(user.uid), { ...patch, updatedAt: Date.now() }, { merge: true });
 }
 
-/** 연결을 끊는다 (다른 폴더로 바꾸고 싶을 때) */
+/** 연결을 끊는다 (학급별로 골라 둔 것까지 모두) */
 export async function clearPhotoFolder(): Promise<void> {
   const user = auth.currentUser;
   if (!user) return;
-  await setDoc(
-    configRef(user.uid),
-    { studentPhotoFolderId: '', studentPhotoFolderName: '', updatedAt: Date.now() },
-    { merge: true }
-  );
+  await writeConfig({
+    studentPhotoFolderId: '',
+    studentPhotoFolderName: '',
+    studentPhotoFoldersByClass: {},
+  });
   folderIdCache.clear();
 }
 
-/** 선택창을 띄워 폴더를 고르고 저장한다. 취소하면 null. */
+/** 선택창을 띄워 위쪽 폴더를 고른다. 취소하면 null. */
 export async function connectPhotoFolder(): Promise<PhotoFolderConfig | null> {
   const token = await getValidGoogleToken();
   if (!token) throw new Error('구글 계정 연결이 필요합니다.');
   const picked = await pickDriveFolder(token);
   if (!picked) return null;
-  await savePhotoFolder(picked);
+  await writeConfig({ studentPhotoFolderId: picked.id, studentPhotoFolderName: picked.name });
+  folderIdCache.clear();
+  return picked;
+}
+
+/** 선택창을 띄워 이 학급의 폴더를 고른다. 취소하면 null. */
+export async function connectClassFolder(
+  className: string
+): Promise<PhotoFolderConfig | null> {
+  const token = await getValidGoogleToken();
+  if (!token) throw new Error('구글 계정 연결이 필요합니다.');
+  const picked = await pickDriveFolder(token);
+  if (!picked) return null;
+  // 점(.)이 든 열쇠는 Firestore가 중첩 필드로 알아듣는다. 문서 통째로 합친다.
+  await writeConfig({ studentPhotoFoldersByClass: { [className]: picked } });
   folderIdCache.clear();
   return picked;
 }
@@ -173,13 +204,26 @@ async function listFolder(folderId: string, token: string): Promise<FolderConten
 export interface PhotoScan {
   /** 사진을 찾아낸 폴더. 못 찾았으면 null */
   folderId: string | null;
-  /** 어디서 찾았는가 */
-  source: 'subfolder' | 'root' | 'none';
+  /**
+   * 어디서 찾았는가.
+   *   picked    학급을 위해 따로 골라 둔 폴더
+   *   subfolder 위쪽 폴더 아래의 '2026-3-1'
+   *   root      위쪽 폴더 자체
+   *   none      못 찾음
+   */
+  source: 'picked' | 'subfolder' | 'root' | 'none';
   files: DrivePhotoFile[];
   /** 뿌리 폴더 안에서 본 하위 폴더 이름들 (없으면 빈 배열) */
   subfolderNames: string[];
   /** 뿌리 폴더 안이 통째로 비어 보이는가 */
   rootEmpty: boolean;
+  /**
+   * 학급 폴더는 눈에 보이는데 그 안이 비어 보이는가.
+   *
+   * 사진을 안 올린 것일 수도 있고, 권한이 손자까지 닿지 않아 안 보이는 것일
+   * 수도 있다. 여기서는 가릴 수 없으므로 표시만 남기고 화면에서 둘 다 말한다.
+   */
+  classFolderLooksEmpty: boolean;
 }
 
 /**
@@ -195,11 +239,37 @@ export interface PhotoScan {
  * 그럴 때는 선생님이 학급 폴더를 바로 고르면 되게 길을 열어 둔다.
  */
 export async function scanClassPhotos(
-  rootId: string,
+  rootId: string | null,
   cls: ClassKey,
-  token: string
+  token: string,
+  /** 이 학급을 위해 따로 골라 둔 폴더가 있으면 그것부터 본다 */
+  pickedFolderId?: string
 ): Promise<PhotoScan> {
   const wanted = classFolderName(cls);
+
+  if (pickedFolderId) {
+    const inner = await listFolder(pickedFolderId, token);
+    return {
+      folderId: pickedFolderId,
+      source: 'picked',
+      files: inner.photos,
+      subfolderNames: [],
+      rootEmpty: false,
+      classFolderLooksEmpty: inner.photos.length === 0,
+    };
+  }
+
+  if (!rootId) {
+    return {
+      folderId: null,
+      source: 'none',
+      files: [],
+      subfolderNames: [],
+      rootEmpty: true,
+      classFolderLooksEmpty: false,
+    };
+  }
+
   const root = await listFolder(rootId, token);
   const subfolderNames = root.folders.map((f) => f.name);
 
@@ -212,6 +282,8 @@ export async function scanClassPhotos(
       files: inner.photos,
       subfolderNames,
       rootEmpty: false,
+      // 폴더는 보이는데 안이 비었다. 권한이 손자까지 안 닿는 경우가 여기다.
+      classFolderLooksEmpty: inner.photos.length === 0,
     };
   }
 
@@ -223,6 +295,7 @@ export async function scanClassPhotos(
       files: root.photos,
       subfolderNames,
       rootEmpty: false,
+      classFolderLooksEmpty: false,
     };
   }
 
@@ -232,6 +305,7 @@ export async function scanClassPhotos(
     files: [],
     subfolderNames,
     rootEmpty: root.total === 0,
+    classFolderLooksEmpty: false,
   };
 }
 
@@ -242,8 +316,11 @@ const folderIdCache = new Map<string, string>();
 export async function ensureClassFolderId(
   rootId: string,
   cls: ClassKey,
-  token: string
+  token: string,
+  pickedFolderId?: string
 ): Promise<string> {
+  if (pickedFolderId) return pickedFolderId;
+
   const cacheKey = `${rootId}/${classFolderName(cls)}`;
   const known = folderIdCache.get(cacheKey);
   if (known) return known;
@@ -403,12 +480,13 @@ export async function uploadStudentPhoto(
   rootId: string,
   cls: ClassKey,
   student: { num: number; name: string },
-  file: File
+  file: File,
+  pickedFolderId?: string
 ): Promise<DrivePhotoFile> {
   const token = await getValidGoogleToken();
   if (!token) throw new Error('구글 계정 연결이 필요합니다.');
 
-  const folderId = await ensureClassFolderId(rootId, cls, token);
+  const folderId = await ensureClassFolderId(rootId, cls, token, pickedFolderId);
   const name = photoFileName(cls, student.num, student.name, file.name);
 
   const existing = await findByExactName(folderId, name, token);

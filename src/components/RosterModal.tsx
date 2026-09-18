@@ -18,6 +18,7 @@ import RosterManageTab, { type RosterView } from './roster/RosterManageTab';
 import RosterSearchTab from './roster/RosterSearchTab';
 import RosterMemorizeTab from './roster/RosterMemorizeTab';
 import PhotoFolderNotice from './roster/PhotoFolderNotice';
+import PhotoStatusBar from './roster/PhotoStatusBar';
 import { useStudentPhotos } from '../hooks/useStudentPhotos';
 import {
   yearOptions,
@@ -249,6 +250,24 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   const handleRepickPhotoFolder = async () => {
     const picked = await handleConnectPhotoFolder();
     if (picked) showToast(`✅ '${picked.name}' 폴더로 바꿨습니다.`);
+  };
+
+  /**
+   * 이 학급의 폴더를 직접 고른다.
+   *
+   * drive.file 권한은 고른 폴더의 바로 아래 자식까지만 열어 준다. 위쪽 폴더를
+   * 골랐을 때 2026-3-1 폴더는 보여도 그 안의 사진은 안 보이는 까닭이다.
+   * 학급마다 한 번씩 고르면 그 뒤로는 기억해 두고 다시 묻지 않는다.
+   */
+  const handlePickClassFolder = async () => {
+    try {
+      const picked = await photoState.connectForClass();
+      if (picked) {
+        showToast(`✅ ${classFolderName(currentClass)} 사진을 '${picked.name}' 폴더에서 읽습니다.`);
+      }
+    } catch (e: any) {
+      showErrorToast(e?.message || '폴더를 연결하지 못했습니다.');
+    }
   };
 
   const handleUploadPhoto = async (student: Student, file: File) => {
@@ -1145,46 +1164,12 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
               /* 사진이 안 붙었을 때 '없음'이라고만 하면 아직 안 올린 것인지,
                  폴더를 못 읽은 것인지, 이름이 틀린 것인지 가릴 수 없다.
                  어디서 끊겼는지는 lib/photoDiagnosis.ts가 가린다. */
-              <div
-                className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 flex-wrap ${
-                  diagnosis.tone === 'error'
-                    ? 'bg-red-50 border border-red-200'
-                    : diagnosis.tone === 'warn'
-                      ? 'bg-slate-50 border border-slate-200'
-                      : 'bg-emerald-50 border border-emerald-200'
-                }`}
-              >
-                <div className="flex flex-col gap-0.5 min-w-0">
-                  <span
-                    className={`text-2xs font-bold ${
-                      diagnosis.tone === 'error'
-                        ? 'text-red-700'
-                        : diagnosis.tone === 'warn'
-                          ? 'text-slate-600'
-                          : 'text-emerald-700'
-                    }`}
-                  >
-                    {diagnosis.message}
-                  </span>
-                  {diagnosis.hint && (
-                    <span className="text-2xs text-slate-500 font-semibold">{diagnosis.hint}</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-2xs text-slate-400 font-semibold">
-                    {photoState.folder?.name || '폴더'} / {classFolderName(currentClass)}
-                  </span>
-                  {diagnosis.offerRepick && (
-                    <button
-                      type="button"
-                      onClick={handleRepickPhotoFolder}
-                      className="px-2.5 py-1 bg-white border border-red-300 rounded text-2xs font-bold text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
-                    >
-                      폴더 다시 고르기
-                    </button>
-                  )}
-                </div>
-              </div>
+              <PhotoStatusBar
+                diagnosis={diagnosis}
+                where={`${photoState.folder?.name || '폴더'} / ${classFolderName(currentClass)}`}
+                onPickClassFolder={handlePickClassFolder}
+                onRepickRoot={handleRepickPhotoFolder}
+              />
             )}
           </>
         )}
@@ -1206,14 +1191,25 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
               onConnect={handleConnectPhotoFolder}
             />
           ) : (
-            <RosterMemorizeTab
-              cls={currentClass}
-              candidates={quizCandidates}
-              withoutPhoto={
-                students.filter((s) => s.isActive !== false && !photoState.photos.has(s.num)).length
-              }
-              hint={diagnosis.tone === 'error' ? `${diagnosis.message} ${diagnosis.hint || ''}` : undefined}
-            />
+            <>
+              {/* 판이 비었는데 까닭을 안 알려 주면 '사진을 안 올렸나' 하고
+                  드라이브를 뒤지러 간다. 관리 탭과 같은 띠를 여기에도 낸다. */}
+              {quizCandidates.length === 0 && photoState.status === 'ready' && (
+                <PhotoStatusBar
+                  diagnosis={diagnosis}
+                  onPickClassFolder={handlePickClassFolder}
+                  onRepickRoot={handleRepickPhotoFolder}
+                />
+              )}
+              <RosterMemorizeTab
+                cls={currentClass}
+                candidates={quizCandidates}
+                withoutPhoto={
+                  students.filter((s) => s.isActive !== false && !photoState.photos.has(s.num))
+                    .length
+                }
+              />
+            </>
           ))}
       </div>
     </ModalShell>

@@ -7,19 +7,22 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getValidGoogleToken } from '../lib/googleApi';
 import {
-  loadPhotoFolder,
+  loadPhotoFolders,
   connectPhotoFolder,
+  connectClassFolder,
   clearPhotoFolder,
   scanClassPhotos,
   getPhotoUrl,
   uploadStudentPhoto,
   forgetFolderCache,
   PhotoAccessError,
+  EMPTY_FOLDERS,
+  type PhotoFolders,
   type PhotoFolderConfig,
   type DrivePhotoFile,
   type PhotoScan,
 } from '../lib/studentPhotos';
-import { matchClassPhotos, type ClassKey } from '../lib/studentPhotoNames';
+import { matchClassPhotos, classFolderName, type ClassKey } from '../lib/studentPhotoNames';
 
 export type PhotoStatus =
   /** 아직 폴더를 고르지 않았다 */
@@ -47,7 +50,7 @@ interface Student {
 }
 
 export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
-  const [folder, setFolder] = useState<PhotoFolderConfig | null>(null);
+  const [folders, setFolders] = useState<PhotoFolders>(EMPTY_FOLDERS);
   const [status, setStatus] = useState<PhotoStatus>('checking');
   const [error, setError] = useState<string>('');
   /** 학생 번호 -> 사진 */
@@ -60,7 +63,14 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
   // 이름을 고치는 동안 드라이브를 수십 번 부르게 되므로, 사진 찾기에 실제로
   // 쓰이는 값만 뽑아 문자열로 견준다.
   const rosterKey = students.map((s) => `${s.num}:${s.name}`).join('|');
-  const clsKey = cls ? `${cls.year}-${cls.grade}-${cls.classNum}` : '';
+  const className = cls ? classFolderName(cls) : '';
+
+  /** 이 학급을 위해 따로 골라 둔 폴더 (없으면 위쪽 폴더에서 찾는다) */
+  const classFolder: PhotoFolderConfig | null = className
+    ? folders.byClass[className] || null
+    : null;
+  /** 지금 이 학급이 실제로 보고 있는 폴더 */
+  const folder = classFolder || folders.root;
 
   // 비동기로 받아온 결과가 뒤늦게 도착해 다른 학급 화면을 덮어쓰지 않게
   // 마지막 요청만 반영한다.
@@ -72,11 +82,11 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
   useEffect(() => {
     let alive = true;
     setStatus('checking');
-    loadPhotoFolder()
+    loadPhotoFolders()
       .then((f) => {
         if (!alive) return;
-        setFolder(f);
-        if (!f) setStatus('no-folder');
+        setFolders(f);
+        if (!f.root && Object.keys(f.byClass).length === 0) setStatus('no-folder');
       })
       .catch(() => {
         if (alive) setStatus('no-folder');
@@ -86,8 +96,15 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
     };
   }, []);
 
+  const rootId = folders.root?.id || null;
+  const pickedId = classFolder?.id;
+
   const load = useCallback(async () => {
-    if (!folder || !cls || !clsKey) return;
+    if (!cls || !className) return;
+    if (!rootId && !pickedId) {
+      setStatus('no-folder');
+      return;
+    }
     const runId = ++runIdRef.current;
 
     setStatus('loading');
@@ -96,7 +113,7 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
       const token = await getValidGoogleToken();
       if (!token) throw new Error('구글 계정 연결이 필요합니다.');
 
-      const found = await scanClassPhotos(folder.id, cls, token);
+      const found = await scanClassPhotos(rootId, cls, token, pickedId);
       if (runId !== runIdRef.current) return;
       setScan(found);
 
@@ -113,7 +130,7 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
       const byId = new Map(files.map((f) => [f.id, f] as const));
 
       // 주소 만들기는 파일마다 따로 실패할 수 있다. 한 장이 안 되어도
-      // 나머지는 보여야 하므로 allSettled로 받는다.
+      // 나머지는 보여야 하므로 하나씩 감싸서 받는다.
       const entries = await Promise.all(
         [...matched.entries()].map(async ([num, hit]) => {
           const file = byId.get(hit.id) as DrivePhotoFile;
@@ -131,39 +148,59 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
       setStatus('ready');
     } catch (e: any) {
       if (runId !== runIdRef.current) return;
-      if (e instanceof PhotoAccessError) {
-        setStatus('error');
-        setError(e.message);
-      } else {
-        setStatus('error');
-        setError(e?.message || '사진을 불러오지 못했습니다.');
-      }
+      setStatus('error');
+      setError(
+        e instanceof PhotoAccessError ? e.message : e?.message || '사진을 불러오지 못했습니다.'
+      );
     }
-  }, [folder, cls, clsKey]);
+  }, [cls, className, rootId, pickedId]);
 
   /** 폴더가 정해졌고 학급이나 명단이 바뀌면 다시 읽는다 */
   useEffect(() => {
-    if (!folder || !clsKey) return;
+    if (!className) return;
+    if (!rootId && !pickedId) return;
     void load();
     // rosterKey를 넣어 두면 전입생을 넣거나 이름을 고쳤을 때 사진이 따라온다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folder, clsKey, rosterKey]);
+  }, [rootId, pickedId, className, rosterKey]);
 
+  /** 고른 폴더가 바뀌었으니 지난 진단을 버린다 (새 폴더 이야기인 것처럼 보인다) */
+  const resetView = () => {
+    setScan(null);
+    setPhotos(new Map());
+    setStatus('checking');
+  };
+
+  /** 위쪽 폴더를 고른다 */
   const connect = useCallback(async () => {
     const picked = await connectPhotoFolder();
     if (picked) {
-      // 지난 폴더를 훑은 결과가 남아 있으면 새 폴더에 대한 진단인 것처럼 보인다
-      setScan(null);
-      setPhotos(new Map());
-      setFolder(picked);
-      setStatus('checking');
+      resetView();
+      setFolders((f) => ({ ...f, root: picked }));
     }
     return picked;
   }, []);
 
+  /**
+   * 이 학급의 폴더를 직접 고른다.
+   *
+   * drive.file 권한은 고른 폴더의 바로 아래 자식까지만 열어 준다. 위쪽 폴더를
+   * 골랐을 때 학급 폴더는 보여도 그 안의 사진은 안 보이는 까닭이다.
+   * 학급 폴더를 직접 고르면 사진이 바로 아래 자식이 되어 보인다.
+   */
+  const connectForClass = useCallback(async () => {
+    if (!className) return null;
+    const picked = await connectClassFolder(className);
+    if (picked) {
+      resetView();
+      setFolders((f) => ({ ...f, byClass: { ...f.byClass, [className]: picked } }));
+    }
+    return picked;
+  }, [className]);
+
   const disconnect = useCallback(async () => {
     await clearPhotoFolder();
-    setFolder(null);
+    setFolders(EMPTY_FOLDERS);
     setScan(null);
     setPhotos(new Map());
     setStatus('no-folder');
@@ -174,20 +211,24 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
       if (!folder || !cls) throw new Error('사진 폴더를 먼저 연결해 주세요.');
       setUploading(student.num);
       try {
-        await uploadStudentPhoto(folder.id, cls, student, file);
+        await uploadStudentPhoto(rootId || folder.id, cls, student, file, pickedId);
         forgetFolderCache();
         await load();
       } finally {
         setUploading(null);
       }
     },
-    [folder, cls, load]
+    [folder, cls, rootId, pickedId, load]
   );
 
   const missing = students.filter((s) => !photos.has(s.num));
 
   return {
+    /** 지금 이 학급이 보고 있는 폴더 */
     folder,
+    /** 이 학급을 위해 따로 골라 둔 폴더가 있는가 */
+    classFolder,
+    folders,
     status,
     error,
     photos,
@@ -197,6 +238,7 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
     /** 폴더를 훑은 결과 (사진이 안 붙는 까닭을 짚는 데 쓴다) */
     scan,
     connect,
+    connectForClass,
     disconnect,
     reload: load,
     upload,
