@@ -13,6 +13,12 @@
 //
 //   '메모' 시트
 //     데이터분류 | ID | 내용/이름 | 완료여부(O/X) | 라벨 | 주소/URL | 생성일자
+//
+//   '조사표_2026-4-1' 시트 (학급마다 하나)
+//     머리말 여덟 줄이 조사표 하나하나를 가리키고, 그 아래로 학생 한 명이 한
+//     줄이다. 조사표가 무엇인지(제목·유형·학생 명단)는 '일정기록' 시트의
+//     조사표 칸에 JSON으로 들어 있고, 이 탭에는 학생별 결과만 담긴다. 사람이
+//     손으로 고치는 자리가 이 표다.
 import { doc, getDoc, setDoc, getDocs, collection, query, where, documentId } from 'firebase/firestore';
 import { db } from './firebase';
 import { googleFetch } from './googleApi';
@@ -25,13 +31,14 @@ const SHEET_MEMO = '메모';
 export interface SheetsScope {
   /** 'personal' 또는 그룹 id */
   scope: string;
-  colPathOf: (col: 'events' | 'schedules' | 'journals' | 'tasks') => string;
+  colPathOf: (col: 'events' | 'schedules' | 'journals' | 'tasks' | 'evaluations') => string;
 }
 
 export interface SheetsInclude {
   event: boolean;
   class: boolean;
   journal: boolean;
+  evaluation: boolean;
   memo: boolean;
 }
 
@@ -111,6 +118,7 @@ export interface ScheduleSheetArgs {
   events: Record<string, any>;
   schedules: Record<string, any>;
   journals: Record<string, any>;
+  evaluations: Record<string, any>;
   include: SheetsInclude;
   periodNames: string[];
   eventLabels: LabelDef[];
@@ -118,12 +126,13 @@ export interface ScheduleSheetArgs {
 }
 
 export function buildScheduleRows(args: ScheduleSheetArgs): string[][] {
-  const { dates, events, schedules, journals, include, periodNames, eventLabels, journalLabels } = args;
+  const { dates, events, schedules, journals, evaluations, include, periodNames, eventLabels, journalLabels } = args;
 
   const header = ['날짜'];
   if (include.event) header.push('일정');
   if (include.class) periodNames.forEach((p) => header.push(p));
   if (include.journal) header.push('기록');
+  if (include.evaluation) header.push('조사표');
   if (include.event) header.push('일정 메타데이터 (수정금지)');
   if (include.journal) header.push('기록 메타데이터 (수정금지)');
 
@@ -166,6 +175,9 @@ export function buildScheduleRows(args: ScheduleSheetArgs): string[][] {
       journalMeta = JSON.stringify(entries.map((j: any) => ({ id: j.id || '', authorId: j.authorId || null })));
     }
 
+    // 조사표가 무엇인지는 이 칸에 JSON 한 덩이로 담는다. 학생별 결과는 학급별
+    // 탭에 표로 한 번 더 들어간다. 사람이 고치는 자리는 그 표다.
+    if (include.evaluation) row.push(JSON.stringify(readEvalList(evaluations[dateStr])));
     if (include.event) row.push(eventMeta);
     if (include.journal) row.push(journalMeta);
 
@@ -179,11 +191,12 @@ export interface ParsedSchedule {
   events: Record<string, any[]>;
   schedules: Record<string, Record<number, any>>;
   journals: Record<string, any[]>;
+  evaluations: Record<string, any[]>;
 }
 
 /** 시트에서 읽은 줄들을 앱이 쓰는 모양으로 되돌린다 */
 export function parseScheduleRows(rows: string[][], include: SheetsInclude): ParsedSchedule {
-  const out: ParsedSchedule = { events: {}, schedules: {}, journals: {} };
+  const out: ParsedSchedule = { events: {}, schedules: {}, journals: {}, evaluations: {} };
   if (!rows || rows.length < 2) return out;
 
   const header = rows[0].map((h) => String(h ?? ''));
@@ -194,10 +207,14 @@ export function parseScheduleRows(rows: string[][], include: SheetsInclude): Par
   const journalIdx = findIdx((h) => h.includes('기록') && !h.includes('메타'));
   const eventMetaIdx = findIdx((h) => h.includes('일정 메타'));
   const journalMetaIdx = findIdx((h) => h.includes('기록 메타'));
+  const evalIdx = findIdx((h) => h.trim() === '조사표');
   if (dateIdx === -1) return out;
 
   // 남는 칸이 교시다. 머리말에 교시 이름이 그대로 적혀 있으므로 자리로 센다.
-  const known = new Set([dateIdx, eventIdx, journalIdx, eventMetaIdx, journalMetaIdx].filter((i) => i !== -1));
+  // 조사표 칸을 여기 빠뜨리면 그 칸까지 교시로 세어 수업이 한 칸씩 밀린다.
+  const known = new Set(
+    [dateIdx, eventIdx, journalIdx, eventMetaIdx, journalMetaIdx, evalIdx].filter((i) => i !== -1)
+  );
   const periodCols: number[] = [];
   for (let i = 0; i < header.length; i++) if (!known.has(i)) periodCols.push(i);
 
@@ -252,6 +269,10 @@ export function parseScheduleRows(rows: string[][], include: SheetsInclude): Par
     if (include.journal && journalIdx !== -1) {
       out.journals[dateStr] = toItems(row[journalIdx], journalMetaIdx !== -1 ? row[journalMetaIdx] : '', 'journal');
     }
+    if (include.evaluation && evalIdx !== -1) {
+      const list = readEvalJson(row[evalIdx]);
+      if (list.length > 0) out.evaluations[dateStr] = list;
+    }
     if (include.class && periodCols.length > 0) {
       const periods: Record<number, any> = {};
       periodCols.forEach((col, i) => {
@@ -262,6 +283,245 @@ export function parseScheduleRows(rows: string[][], include: SheetsInclude): Par
   }
 
   return out;
+}
+
+// ── '조사표_학년도-학년-반' 시트 ──────────────────────────────────────
+
+export const EVAL_SHEET_PREFIX = '조사표_';
+
+const COL_GROUP_NAME = '조이름';
+const COL_GROUP_SCORE = '조별결과';
+const COL_INDIV_SCORE = '개별결과';
+const COL_REASON = '미평가사유(메모)';
+const COL_CHECK = '체크결과';
+const COL_MEMO = '메모내용';
+
+/** V3는 evalList, V4는 list라는 이름으로 같은 목록을 담는다 */
+export function readEvalList(data: any): any[] {
+  if (!data) return [];
+  const list = data.list || data.evalList || [];
+  return Array.isArray(list) ? list : [];
+}
+
+/** 일정기록 시트의 조사표 칸(JSON 한 덩이)을 목록으로 되돌린다 */
+export function readEvalJson(cell: string): any[] {
+  let text = String(cell ?? '').trim();
+  if (!text) return [];
+  // 시트가 앞에 작은따옴표를 붙여 두는 일이 있다. V3도 같은 것을 벗겨 낸다.
+  if (text.startsWith("'")) text = text.slice(1);
+  if (text.endsWith("'")) text = text.slice(0, -1);
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 조사표가 어느 학급 탭으로 가는지. 학급을 모르면 '조사표_기타'로 모은다. */
+export function evalSheetNameOf(rosterMeta: any): string {
+  if (rosterMeta?.year) {
+    return `${EVAL_SHEET_PREFIX}${rosterMeta.year}-${rosterMeta.grade}-${rosterMeta.classNum}`;
+  }
+  return `${EVAL_SHEET_PREFIX}기타`;
+}
+
+/**
+ * 평가 방식.
+ *
+ * V3는 한때 method라는 글자 하나로 적었고 지금은 methodObj를 쓴다. 옛 자료가
+ * 그대로 남아 있어 둘 다 읽는다.
+ */
+function methodOf(ev: any): { indiv: boolean; group: boolean } {
+  if (ev?.type !== 'eval') return { indiv: false, group: false };
+  if (ev.methodObj) return { indiv: !!ev.methodObj.indiv, group: !!ev.methodObj.group };
+  return { indiv: ev.method !== 'group', group: ev.method === 'group' };
+}
+
+/** 조사표 하나가 표에서 차지하는 칸 이름들 */
+function columnsOf(ev: any): string[] {
+  if (ev?.type === 'eval') {
+    const { indiv, group } = methodOf(ev);
+    const cols: string[] = [];
+    if (group) cols.push(COL_GROUP_NAME, COL_GROUP_SCORE);
+    if (indiv) cols.push(COL_INDIV_SCORE);
+    cols.push(COL_REASON);
+    return cols;
+  }
+  if (ev?.type === 'check') return [COL_CHECK, COL_REASON];
+  return [COL_MEMO];
+}
+
+/** 날짜별 조사표를 학급별 탭으로 나눈다 */
+export function groupEvalsBySheet(evaluations: Record<string, any>): Record<string, any[]> {
+  const bySheet: Record<string, any[]> = {};
+  for (const [dateStr, data] of Object.entries(evaluations)) {
+    for (const ev of readEvalList(data)) {
+      const name = evalSheetNameOf(ev.rosterMeta);
+      if (!bySheet[name]) bySheet[name] = [];
+      bySheet[name].push({ ...ev, dateStr: ev.dateStr || dateStr });
+    }
+  }
+  return bySheet;
+}
+
+/**
+ * 학급 탭 하나를 만든다.
+ *
+ * 머리말이 여덟 줄인 것은 조사표 하나가 칸을 여럿 차지하기 때문이다. 제목과
+ * id는 첫 칸에만 적고 나머지는 비워 둔다. 읽을 때는 빈 칸을 바로 앞 조사표에
+ * 딸린 것으로 본다. V3가 쓰는 모양 그대로다.
+ */
+export function buildEvalRows(evals: any[]): string[][] {
+  const studentMap = new Map<number, any>();
+  for (const ev of evals) {
+    for (const st of ev.studentsSnapshot || []) {
+      if (!studentMap.has(st.num)) studentMap.set(st.num, st);
+    }
+  }
+  const students = Array.from(studentMap.values()).sort((a, b) => a.num - b.num);
+
+  const rows: string[][] = [
+    ['상위 항목(조사표 제목)', '', ''],
+    ['조사표 ID (수정금지)', '', ''],
+    ['하위 항목(날짜)', '', ''],
+    ['하위 항목(교시)', '', ''],
+    ['하위 항목(유형)', '', ''],
+    ['하위 항목(교과)', '', ''],
+    ['하위 항목(방식)', '', ''],
+    ['번호', '이름', '성별'],
+  ];
+
+  for (const ev of evals) {
+    const cols = columnsOf(ev);
+    const { indiv, group } = methodOf(ev);
+    // 첫 칸에만 적고 나머지는 빈 칸으로 채운다
+    const spread = (v: string) => [v, ...Array(cols.length - 1).fill('')];
+
+    rows[0].push(...spread(ev.title || ''));
+    rows[1].push(...spread(ev.id || ''));
+    rows[2].push(...spread(ev.dateStr || ''));
+    rows[3].push(...spread(ev.periodStr ? `${ev.periodStr}교시` : ''));
+    rows[4].push(...spread(ev.type === 'eval' ? '평가' : ev.type === 'check' ? '체크' : '메모'));
+    rows[5].push(...spread(ev.subject || ''));
+    rows[6].push(...spread([indiv ? '개인' : '', group ? '조별' : ''].filter(Boolean).join(', ')));
+    rows[7].push(...cols);
+  }
+
+  for (const st of students) {
+    const row = [String(st.num), st.name || '', st.gender || ''];
+    for (const ev of evals) {
+      const rec = (ev.records || {})[st.num] || {};
+      if (ev.type === 'eval') {
+        const { indiv, group } = methodOf(ev);
+        if (group) row.push(rec.groupName || '', rec.groupScore || '');
+        if (indiv) row.push(rec.indivScore || rec.score || '');
+        row.push(rec.reason || '');
+      } else if (ev.type === 'check') {
+        row.push(rec.checked === true ? 'O' : rec.checked === false ? 'X' : '', rec.reason || '');
+      } else {
+        row.push(rec.memo || '');
+      }
+    }
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+/** 학급 탭의 한 칸이 누구의 무슨 값인지 */
+export interface EvalCellUpdate {
+  evalId: string;
+  studentNum: number;
+  colName: string;
+  value: string;
+}
+
+/** 학급 탭을 읽어 학생별 결과를 뽑는다 */
+export function parseEvalRows(rows: string[][]): EvalCellUpdate[] {
+  const out: EvalCellUpdate[] = [];
+  if (!rows || rows.length < 8) return out;
+
+  const idRow = rows.find((r) => r[0] === '조사표 ID (수정금지)');
+  const headerRow = rows.find((r) => r[0] === '번호' && r[1] === '이름');
+  if (!idRow || !headerRow) return out;
+
+  // 조사표 하나가 칸을 여럿 차지한다. id는 첫 칸에만 적혀 있으므로, 빈 칸은
+  // 바로 앞에 나온 id에 딸린 것으로 본다.
+  const colMap: Record<number, { evalId: string; colName: string }> = {};
+  let currentId = '';
+  for (let c = 3; c < headerRow.length; c++) {
+    const cell = String(idRow[c] ?? '').trim();
+    if (cell) currentId = cell;
+    if (currentId) colMap[c] = { evalId: currentId, colName: String(headerRow[c] ?? '').trim() };
+  }
+
+  for (const row of rows.slice(rows.indexOf(headerRow) + 1)) {
+    const num = parseInt(String(row[0] ?? ''), 10);
+    if (isNaN(num)) continue;
+    for (let c = 3; c < row.length; c++) {
+      const m = colMap[c];
+      if (!m) continue;
+      out.push({ evalId: m.evalId, studentNum: num, colName: m.colName, value: String(row[c] ?? '').trim() });
+    }
+  }
+
+  return out;
+}
+
+/**
+ * 표에서 읽은 값을 조사표에 되붙인다.
+ *
+ * 조사표가 무엇인지는 '일정기록' 시트의 조사표 칸에 들어 있다. 학급 탭에는
+ * 결과만 있어 id로 짝을 맞춰 얹는다. 짝이 없는 값은 버린다. 시트에만 남아
+ * 있는 조사표를 되살리지 않기 위해서다.
+ */
+export function applyEvalUpdates(evaluations: Record<string, any[]>, updates: EvalCellUpdate[]): number {
+  if (updates.length === 0) return 0;
+
+  const byEval: Record<string, Record<number, Record<string, string>>> = {};
+  for (const u of updates) {
+    if (!byEval[u.evalId]) byEval[u.evalId] = {};
+    if (!byEval[u.evalId][u.studentNum]) byEval[u.evalId][u.studentNum] = {};
+    byEval[u.evalId][u.studentNum][u.colName] = u.value;
+  }
+
+  let touched = 0;
+  for (const list of Object.values(evaluations)) {
+    for (const ev of list) {
+      const perStudent = byEval[ev.id];
+      if (!perStudent) continue;
+      if (!ev.records) ev.records = {};
+
+      for (const [numStr, cells] of Object.entries(perStudent)) {
+        const num = Number(numStr);
+        if (!ev.records[num]) ev.records[num] = {};
+        const rec = ev.records[num];
+
+        if (ev.type === 'eval') {
+          if (cells[COL_GROUP_NAME] !== undefined) rec.groupName = cells[COL_GROUP_NAME];
+          if (cells[COL_GROUP_SCORE] !== undefined) rec.groupScore = cells[COL_GROUP_SCORE];
+          if (cells[COL_INDIV_SCORE] !== undefined) {
+            rec.indivScore = cells[COL_INDIV_SCORE];
+            rec.score = cells[COL_INDIV_SCORE]; // V3 호환
+          }
+          if (cells[COL_REASON] !== undefined) rec.reason = cells[COL_REASON];
+        } else if (ev.type === 'check') {
+          if (cells[COL_CHECK] !== undefined) {
+            if (cells[COL_CHECK] === 'O') rec.checked = true;
+            else if (cells[COL_CHECK] === 'X') rec.checked = false;
+            else delete rec.checked;
+          }
+          if (cells[COL_REASON] !== undefined) rec.reason = cells[COL_REASON];
+        } else if (cells[COL_MEMO] !== undefined) {
+          rec.memo = cells[COL_MEMO];
+        }
+        touched++;
+      }
+    }
+  }
+
+  return touched;
 }
 
 // ── '메모' 시트 ────────────────────────────────────────────────────────
@@ -362,6 +622,20 @@ async function ensureSheetExists(token: string, spreadsheetId: string, title: st
   }
 }
 
+/** 시트 파일 안에 든 탭 이름들. 학급 탭이 몇 개인지 미리 알 수 없어 물어본다. */
+async function listSheetTitles(token: string, spreadsheetId: string): Promise<string[]> {
+  try {
+    const meta = await googleFetch<any>(
+      `${SHEETS_API}/${spreadsheetId}?fields=sheets.properties.title`,
+      'GET',
+      token
+    );
+    return (meta?.sheets || []).map((s: any) => String(s?.properties?.title || '')).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 async function writeValues(token: string, spreadsheetId: string, sheet: string, values: string[][], clear: boolean) {
   if (clear) {
     await googleFetch(`${SHEETS_API}/${spreadsheetId}/values/${encodeURIComponent(`${sheet}!A:Z`)}:clear`, 'POST', token, {});
@@ -405,29 +679,45 @@ async function readRange(colPath: string, startStr: string, endStr: string) {
   return map;
 }
 
-export async function exportToSheets(args: SheetsExportArgs): Promise<{ spreadsheetId: string; days: number; memos: number }> {
+export async function exportToSheets(
+  args: SheetsExportArgs
+): Promise<{ spreadsheetId: string; days: number; memos: number; evaluations: number }> {
   const { token, uid, startStr, endStr, include, colPathOf, onProgress } = args;
 
   onProgress?.('시트 파일을 확인하는 중...');
   const spreadsheetId = await getOrCreateSpreadsheet(token, uid);
 
   let days = 0;
-  if (include.event || include.class || include.journal) {
-    onProgress?.('일정·수업·기록을 모으는 중...');
-    const [events, schedules, journals] = await Promise.all([
+  let evaluations = 0;
+  if (include.event || include.class || include.journal || include.evaluation) {
+    onProgress?.('일정·수업·기록·조사표를 모으는 중...');
+    const [events, schedules, journals, evals] = await Promise.all([
       include.event ? readRange(colPathOf('events'), startStr, endStr) : Promise.resolve({}),
       include.class ? readRange(colPathOf('schedules'), startStr, endStr) : Promise.resolve({}),
       include.journal ? readRange(colPathOf('journals'), startStr, endStr) : Promise.resolve({}),
+      include.evaluation ? readRange(colPathOf('evaluations'), startStr, endStr) : Promise.resolve({}),
     ]);
 
     const dates = dateRange(startStr, endStr);
     days = dates.length;
-    const rows = buildScheduleRows({ ...args, dates, events, schedules, journals });
+    const rows = buildScheduleRows({ ...args, dates, events, schedules, journals, evaluations: evals });
 
     onProgress?.('시트에 쓰는 중...');
     await ensureSheetExists(token, spreadsheetId, SHEET_SCHEDULE);
     // 기간 안의 모든 날짜를 다시 쓰므로, 남아 있던 옛 줄은 지우고 시작한다
     await writeValues(token, spreadsheetId, SHEET_SCHEDULE, rows, true);
+
+    // 조사표는 학급별 탭에 표로 한 번 더 쓴다. 위의 조사표 칸은 JSON이라
+    // 사람이 고칠 수 없다. 점수를 손으로 고치는 자리가 이 표다.
+    if (include.evaluation) {
+      const bySheet = groupEvalsBySheet(evals);
+      for (const [sheetName, list] of Object.entries(bySheet)) {
+        onProgress?.(`조사표를 [${sheetName}]에 쓰는 중...`);
+        await ensureSheetExists(token, spreadsheetId, sheetName);
+        await writeValues(token, spreadsheetId, sheetName, buildEvalRows(list), true);
+        evaluations += list.length;
+      }
+    }
   }
 
   let memos = 0;
@@ -443,7 +733,7 @@ export async function exportToSheets(args: SheetsExportArgs): Promise<{ spreadsh
     await writeValues(token, spreadsheetId, SHEET_MEMO, buildMemoRows(tasks), true);
   }
 
-  return { spreadsheetId, days, memos };
+  return { spreadsheetId, days, memos, evaluations };
 }
 
 export interface SheetsImportArgs extends SheetsScope {
@@ -455,7 +745,7 @@ export interface SheetsImportArgs extends SheetsScope {
 
 export async function importFromSheets(
   args: SheetsImportArgs
-): Promise<{ events: number; schedules: number; journals: number; memos: number }> {
+): Promise<{ events: number; schedules: number; journals: number; memos: number; evaluations: number }> {
   const { token, uid, include, colPathOf, onProgress } = args;
 
   const snap = await getDoc(doc(db, 'users', uid, 'settings', 'backup_config'));
@@ -464,11 +754,34 @@ export async function importFromSheets(
     throw new Error("연결된 시트가 없습니다. 먼저 '내보내기'를 한 번 해주세요.");
   }
 
-  const counts = { events: 0, schedules: 0, journals: 0, memos: 0 };
+  const counts = { events: 0, schedules: 0, journals: 0, memos: 0, evaluations: 0 };
 
-  if (include.event || include.class || include.journal) {
+  if (include.event || include.class || include.journal || include.evaluation) {
     onProgress?.('시트를 읽는 중...');
     const parsed = parseScheduleRows(await readValues(token, spreadsheetId, SHEET_SCHEDULE), include);
+
+    // 조사표가 무엇인지는 위에서 읽은 JSON에 들어 있고, 학생별 결과는 학급별
+    // 탭에 표로 들어 있다. 사람이 고치는 자리가 표이므로 표를 나중에 얹는다.
+    if (include.evaluation) {
+      const updates: EvalCellUpdate[] = [];
+      for (const title of await listSheetTitles(token, spreadsheetId)) {
+        if (!title.startsWith(EVAL_SHEET_PREFIX)) continue;
+        onProgress?.(`[${title}]를 읽는 중...`);
+        updates.push(...parseEvalRows(await readValues(token, spreadsheetId, title)));
+      }
+      applyEvalUpdates(parsed.evaluations, updates);
+
+      onProgress?.('조사표를 되돌리는 중...');
+      for (const [dateStr, list] of Object.entries(parsed.evaluations)) {
+        // 두 이름에 같이 쓴다. 한쪽만 쓰면 다른 앱이 옛 목록을 계속 보게 된다.
+        await setDoc(
+          doc(db, colPathOf('evaluations'), dateStr),
+          { list, evalList: list, updatedAt: Date.now() },
+          { merge: true }
+        );
+        counts.evaluations += list.length;
+      }
+    }
 
     onProgress?.('일정·수업·기록을 되돌리는 중...');
     for (const [dateStr, list] of Object.entries(parsed.events)) {

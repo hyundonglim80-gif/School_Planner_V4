@@ -55,11 +55,16 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // 4. 포함할 데이터 항목 (일정, 수업, 기록, 조사표, 메모)
+  // 4. 포함할 데이터 항목 (일정, 수업, 기록, 명렬표, 조사표, 메모)
+  //
+  // 명렬표(학급 명단)와 조사표(평가·체크·메모)는 다른 것이다. 예전에는 명렬표를
+  // 담는 칸 하나를 '조사표'라 불러, 조사표를 골랐다고 여긴 사람이 실제로는
+  // 명단만 내보냈다. 둘을 갈라 둔다.
   const [incEvents, setIncEvents] = useState(true);
   const [incSchedules, setIncSchedules] = useState(true);
   const [incJournals, setIncJournals] = useState(true);
   const [incRosters, setIncRosters] = useState(true);
+  const [incEvals, setIncEvals] = useState(true);
   const [incMemos, setIncMemos] = useState(true);
 
   const [processing, setProcessing] = useState(false);
@@ -261,7 +266,13 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
           colPathOf: (col) => getColPath(col),
           startStr: startDate,
           endStr: endDate,
-          include: { event: incEvents, class: incSchedules, journal: incJournals, memo: incMemos },
+          include: {
+            event: incEvents,
+            class: incSchedules,
+            journal: incJournals,
+            evaluation: incEvals,
+            memo: incMemos,
+          },
           periodNames: templates[currentTemplateName]?.names || ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'],
           eventLabels,
           journalLabels,
@@ -269,7 +280,9 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         });
 
         setSpreadsheetId(result.spreadsheetId);
-        showToast(`✅ [${scopeName}] ${result.days}일치와 메모 ${result.memos}건을 구글 시트에 썼습니다.`);
+        showToast(
+          `✅ [${scopeName}] ${result.days}일치와 메모 ${result.memos}건, 조사표 ${result.evaluations}건을 구글 시트에 썼습니다.`
+        );
         window.open(sheetUrlOf(result.spreadsheetId), '_blank');
       }
 
@@ -420,6 +433,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
           schedules: {},
           journals: {},
           tasks: {},
+          evaluations: {},
           rosters: {},
           settings: {},
         };
@@ -445,6 +459,10 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         if (incJournals) {
           const snap = await getDocs(inRange(getColRef('journals')));
           snap.forEach((d) => (payload.journals[d.id] = d.data()));
+        }
+        if (incEvals) {
+          const snap = await getDocs(inRange(getColRef('evaluations')));
+          snap.forEach((d) => (payload.evaluations[d.id] = d.data()));
         }
         if (incMemos) {
           const snap = await getDocs(getColRef('tasks'));
@@ -530,12 +548,18 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         uid: user.uid,
         scope: selectedScope,
         colPathOf: (col) => getColPath(col),
-        include: { event: incEvents, class: incSchedules, journal: incJournals, memo: incMemos },
+        include: {
+          event: incEvents,
+          class: incSchedules,
+          journal: incJournals,
+          evaluation: incEvals,
+          memo: incMemos,
+        },
         onProgress: (msg) => setStatusMsg(msg),
       });
 
       showToast(
-        `✅ [${scopeLabel}] 일정 ${counts.events}건, 수업 ${counts.schedules}일, 기록 ${counts.journals}건, 메모 ${counts.memos}건을 되돌렸습니다.`
+        `✅ [${scopeLabel}] 일정 ${counts.events}건, 수업 ${counts.schedules}일, 기록 ${counts.journals}건, 조사표 ${counts.evaluations}건, 메모 ${counts.memos}건을 되돌렸습니다.`
       );
       onClose();
       window.location.reload();
@@ -612,6 +636,11 @@ ${counts}
           if (data.tasks) {
             for (const id in data.tasks) {
               await setDoc(doc(getColRef('tasks'), id), data.tasks[id], { merge: true });
+            }
+          }
+          if (data.evaluations) {
+            for (const id in data.evaluations) {
+              await setDoc(doc(getColRef('evaluations'), id), data.evaluations[id], { merge: true });
             }
           }
           // 설정과 명렬표는 개인 공간에만 있다. 예전에는 백업에 담기지도,
@@ -924,6 +953,16 @@ ${summary}
                   type="checkbox"
                   checked={incRosters}
                   onChange={(e) => setIncRosters(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-0 accent-blue-600"
+                />
+                <span>🧑‍🤝‍🧑 명렬표</span>
+              </label>
+
+              <label className="flex items-center gap-1 cursor-pointer font-bold text-slate-700 shrink-0">
+                <input
+                  type="checkbox"
+                  checked={incEvals}
+                  onChange={(e) => setIncEvals(e.target.checked)}
                   className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-0 accent-blue-600"
                 />
                 <span>📊 조사표</span>

@@ -8,9 +8,14 @@ import {
   parseScheduleRows,
   buildMemoRows,
   parseMemoRows,
+  buildEvalRows,
+  parseEvalRows,
+  applyEvalUpdates,
+  evalSheetNameOf,
+  groupEvalsBySheet,
 } from './sheetsSync';
 
-const include = { event: true, class: true, journal: true, memo: true };
+const include = { event: true, class: true, journal: true, evaluation: false, memo: true };
 const periodNames = ['1교시', '2교시', '3교시'];
 const eventLabels = [{ id: 'l1', name: '회의' }];
 const journalLabels = [{ id: 'j1', name: '상담' }];
@@ -79,6 +84,7 @@ describe('일정기록 시트', () => {
     events: { '2026-09-15': { eventList: [{ id: 'ev1', content: '학년 협의회', labelIds: ['l1'], completed: true }] } },
     schedules: { '2026-09-15': { periods: { 1: { subject: '국어', memo: '단원평가' } } } },
     journals: { '2026-09-15': { entries: [{ id: 'jr1', content: '상담 기록', label: '상담' }] } },
+    evaluations: {},
     include,
     periodNames,
     eventLabels,
@@ -150,7 +156,12 @@ describe('일정기록 시트', () => {
   });
 
   it('머리말만 있으면 빈 값이다', () => {
-    expect(parseScheduleRows([['날짜', '일정']], include)).toEqual({ events: {}, schedules: {}, journals: {} });
+    expect(parseScheduleRows([['날짜', '일정']], include)).toEqual({
+      events: {},
+      schedules: {},
+      journals: {},
+      evaluations: {},
+    });
   });
 
   it('고르지 않은 종류는 칸을 만들지 않는다', () => {
@@ -159,12 +170,60 @@ describe('일정기록 시트', () => {
       events: {},
       schedules: {},
       journals: {},
-      include: { event: true, class: false, journal: false, memo: false },
+      evaluations: {},
+      include: { event: true, class: false, journal: false, evaluation: false, memo: false },
       periodNames,
       eventLabels,
       journalLabels,
     });
     expect(onlyEvents[0]).toEqual(['날짜', '일정', '일정 메타데이터 (수정금지)']);
+  });
+
+  it('조사표 칸은 기록 다음, 메타데이터 앞에 온다 (V3와 같은 자리)', () => {
+    const withEval = buildScheduleRows({
+      dates: ['2026-09-15'],
+      events: {},
+      schedules: {},
+      journals: {},
+      evaluations: { '2026-09-15': { list: [{ id: 'el1', title: '1단원 평가', type: 'eval' }] } },
+      include: { ...include, evaluation: true },
+      periodNames,
+      eventLabels,
+      journalLabels,
+    });
+
+    expect(withEval[0]).toEqual([
+      '날짜',
+      '일정',
+      '1교시',
+      '2교시',
+      '3교시',
+      '기록',
+      '조사표',
+      '일정 메타데이터 (수정금지)',
+      '기록 메타데이터 (수정금지)',
+    ]);
+    expect(JSON.parse(withEval[1][6])[0].title).toBe('1단원 평가');
+  });
+
+  it('조사표 칸을 교시로 잘못 세지 않는다', () => {
+    const rowsWithEval = buildScheduleRows({
+      dates: ['2026-09-15'],
+      events: {},
+      schedules: { '2026-09-15': { periods: { 1: { subject: '국어' }, 2: { subject: '수학' } } } },
+      journals: {},
+      evaluations: {},
+      include: { ...include, evaluation: true },
+      periodNames,
+      eventLabels,
+      journalLabels,
+    });
+    const back = parseScheduleRows(rowsWithEval, { ...include, evaluation: true });
+
+    // 조사표 칸을 교시로 세면 교시가 네 개가 되고 과목이 한 칸씩 밀린다
+    expect(Object.keys(back.schedules['2026-09-15'])).toHaveLength(3);
+    expect(back.schedules['2026-09-15'][1].subject).toBe('국어');
+    expect(back.schedules['2026-09-15'][2].subject).toBe('수학');
   });
 });
 
@@ -215,5 +274,128 @@ describe('메모 시트', () => {
 
   it('내용이 빈 줄은 건너뛴다', () => {
     expect(parseMemoRows([rows[0], ['MEMO', 'm9', '  ', 'X', '', '', '']])).toEqual([]);
+  });
+});
+
+describe('조사표 학급별 시트 - V3와 같은 모양이어야 한다', () => {
+  const students = [
+    { num: 1, name: '김하나', gender: 'F' },
+    { num: 2, name: '이두리', gender: 'M' },
+  ];
+
+  const evalItem = {
+    id: 'el1',
+    title: '1단원 평가',
+    type: 'eval',
+    subject: '국어',
+    dateStr: '2026-09-15',
+    periodStr: 2,
+    methodObj: { indiv: true, group: false },
+    rosterMeta: { year: 2026, grade: '4', classNum: '1' },
+    studentsSnapshot: students,
+    records: {
+      1: { indivScore: '우수' },
+      2: { indivScore: '보통', reason: '결석' },
+    },
+  };
+
+  const checkItem = {
+    id: 'el2',
+    title: '준비물 체크',
+    type: 'check',
+    dateStr: '2026-09-15',
+    periodStr: '',
+    rosterMeta: { year: 2026, grade: '4', classNum: '1' },
+    studentsSnapshot: students,
+    records: { 1: { checked: true }, 2: { checked: false, reason: '깜빡함' } },
+  };
+
+  it('학급마다 탭 하나로 모은다', () => {
+    expect(evalSheetNameOf({ year: 2026, grade: '4', classNum: '1' })).toBe('조사표_2026-4-1');
+    expect(evalSheetNameOf(undefined)).toBe('조사표_기타');
+  });
+
+  it('학급을 모르는 조사표는 기타로 간다', () => {
+    const bySheet = groupEvalsBySheet({
+      '2026-09-15': { list: [evalItem, { ...checkItem, rosterMeta: {} }] },
+    });
+    expect(Object.keys(bySheet).sort()).toEqual(['조사표_2026-4-1', '조사표_기타']);
+  });
+
+  it('머리말 여덟 줄과 학생 줄로 이루어진다', () => {
+    const rows = buildEvalRows([evalItem]);
+
+    expect(rows[0].slice(0, 4)).toEqual(['상위 항목(조사표 제목)', '', '', '1단원 평가']);
+    expect(rows[1].slice(0, 4)).toEqual(['조사표 ID (수정금지)', '', '', 'el1']);
+    expect(rows[3][3]).toBe('2교시');
+    expect(rows[4][3]).toBe('평가');
+    expect(rows[6][3]).toBe('개인');
+    expect(rows[7]).toEqual(['번호', '이름', '성별', '개별결과', '미평가사유(메모)']);
+    expect(rows[8]).toEqual(['1', '김하나', 'F', '우수', '']);
+    expect(rows[9]).toEqual(['2', '이두리', 'M', '보통', '결석']);
+  });
+
+  it('조사표 하나가 칸을 여럿 차지하면 제목은 첫 칸에만 적는다', () => {
+    const groupEval = { ...evalItem, methodObj: { indiv: true, group: true } };
+    const rows = buildEvalRows([groupEval]);
+
+    expect(rows[7].slice(3)).toEqual(['조이름', '조별결과', '개별결과', '미평가사유(메모)']);
+    // 제목은 첫 칸에만, 나머지 세 칸은 비운다
+    expect(rows[0].slice(3)).toEqual(['1단원 평가', '', '', '']);
+    expect(rows[6][3]).toBe('개인, 조별');
+  });
+
+  it('체크는 O/X로 적고 메모는 한 칸이다', () => {
+    const rows = buildEvalRows([checkItem]);
+
+    expect(rows[7].slice(3)).toEqual(['체크결과', '미평가사유(메모)']);
+    expect(rows[8].slice(3)).toEqual(['O', '']);
+    expect(rows[9].slice(3)).toEqual(['X', '깜빡함']);
+  });
+
+  it('내보낸 표를 그대로 되읽으면 원래 값이 나온다', () => {
+    const rows = buildEvalRows([evalItem, checkItem]);
+    const updates = parseEvalRows(rows);
+
+    // 조사표가 무엇인지는 일정기록 시트에서 오고, 결과만 얹는다
+    const evaluations = {
+      '2026-09-15': [
+        { ...evalItem, records: {} },
+        { ...checkItem, records: {} },
+      ],
+    };
+    applyEvalUpdates(evaluations, updates);
+
+    expect(evaluations['2026-09-15'][0].records).toEqual({
+      1: { indivScore: '우수', score: '우수', reason: '' },
+      2: { indivScore: '보통', score: '보통', reason: '결석' },
+    });
+    expect(evaluations['2026-09-15'][1].records).toEqual({
+      1: { checked: true, reason: '' },
+      2: { checked: false, reason: '깜빡함' },
+    });
+  });
+
+  it('사람이 시트에서 점수를 고치면 그 값이 들어온다', () => {
+    const rows = buildEvalRows([evalItem]);
+    rows[8][3] = '노력요함'; // 1번 학생의 개별결과를 손으로 고쳤다
+
+    const evaluations = { '2026-09-15': [{ ...evalItem, records: {} as Record<number, any> }] };
+    applyEvalUpdates(evaluations, parseEvalRows(rows));
+
+    expect(evaluations['2026-09-15'][0].records[1].indivScore).toBe('노력요함');
+  });
+
+  it('시트에만 있고 앱에 없는 조사표는 되살리지 않는다', () => {
+    const rows = buildEvalRows([evalItem]);
+    const evaluations = { '2026-09-15': [{ ...checkItem, records: {} }] };
+
+    expect(applyEvalUpdates(evaluations, parseEvalRows(rows))).toBe(0);
+    expect(evaluations['2026-09-15'][0].records).toEqual({});
+  });
+
+  it('머리말을 알아보지 못하면 아무것도 읽지 않는다', () => {
+    expect(parseEvalRows([['아무거나'], ['적어', '둔', '표']])).toEqual([]);
+    expect(parseEvalRows([])).toEqual([]);
   });
 });
