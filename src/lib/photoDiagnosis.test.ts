@@ -151,7 +151,7 @@ describe('이름이 안 맞을 때', () => {
     expect(d.tone).toBe('error');
     expect(d.message).toContain('2장을 찾았지만');
     expect(d.message).toContain('IMG_001.png');
-    expect(d.hint).toContain('2026-3-1-번호-이름');
+    expect(d.hint).toContain('2026-3-1-05-이름');
     // 이름이 틀린 것이지 폴더가 틀린 것이 아니다
     expect(d.offerPickClass).toBe(false);
     expect(d.offerRepick).toBe(false);

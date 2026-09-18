@@ -50,7 +50,14 @@ function shouldUseMemoryCache(): boolean {
 
 const usingMemoryCache = shouldUseMemoryCache();
 if (usingMemoryCache) {
-  console.warn('[SP4] 오프라인 저장소를 쓸 수 없어 온라인 전용(메모리 캐시)으로 시작합니다.');
+  // 왜 이렇게 됐는지까지 적어 둔다. 이 줄만 보면 무엇이 잘못된 줄 알고
+  // 놀라는데, 실은 앱을 여러 탭에 열어 둔 것이 가장 흔한 까닭이다.
+  // 뒤늦게 뜬 탭이 저장소 소유권을 가져가면 먼저 있던 탭이 이 길로 빠진다.
+  console.warn(
+    '[SP4] 오프라인 저장소를 쓸 수 없어 온라인 전용(메모리 캐시)으로 시작합니다. ' +
+      '이 탭에서만 그렇고, 온라인에서는 모든 기능이 정상입니다. ' +
+      '앱을 여러 탭에 열어 두셨다면 하나만 남기고 닫은 뒤 새 탭에서 여시면 원래대로 돌아옵니다.'
+  );
 }
 
 // ⚠️ 예전에는 persistentMultipleTabManager()(여러 탭 공유 모드)를 썼다.

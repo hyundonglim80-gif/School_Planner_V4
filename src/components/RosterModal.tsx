@@ -115,6 +115,17 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   const [saving, setSaving] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const allClassesInputRef = React.useRef<HTMLInputElement>(null);
+  const bulkPhotoInputRef = React.useRef<HTMLInputElement>(null);
+  /** 여러 장 올린 뒤의 결과. 짝을 못 지은 파일을 알려 주려고 남긴다. */
+  const [bulkReport, setBulkReport] = useState<{
+    uploaded: number;
+    unmatched: string[];
+    notPhotos: string[];
+    duplicates: string[];
+    failed: string[];
+  } | null>(null);
+  /** 타일 위로 파일을 끌어왔는가 */
+  const [dragging, setDragging] = useState(false);
 
   const [tab, setTab] = useState<RosterTab>('manage');
   const [view, setView] = useState<RosterView>('list');
@@ -295,6 +306,33 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       await photoState.authorize();
     } catch (e: any) {
       showErrorToast(e?.message || '구글 연결에 실패했습니다.');
+    }
+  };
+
+  /**
+   * 사진 여러 장을 한꺼번에 올린다.
+   *
+   * 스물다섯 명을 하나씩 누르게 할 수는 없다. 파일 이름에 이미 누구인지가
+   * 적혀 있으므로 그걸 읽어 짝짓는다(lib/photoBulkUpload.ts).
+   */
+  const handleBulkUpload = async (fileList: FileList | File[] | null) => {
+    const files = Array.from(fileList || []);
+    if (files.length === 0) return;
+    setBulkReport(null);
+    try {
+      const { plan, failed } = await photoState.uploadMany(files);
+      const uploaded = plan.matched.length - failed.length;
+      setBulkReport({
+        uploaded,
+        unmatched: plan.unmatched.map((f) => f.name),
+        notPhotos: plan.notPhotos.map((f) => f.name),
+        duplicates: plan.duplicates.map((f) => f.name),
+        failed,
+      });
+      if (uploaded > 0) showToast(`✅ 사진 ${uploaded}장을 올렸습니다.`);
+      else showErrorToast('올린 사진이 없습니다. 파일 이름을 확인해 주세요.');
+    } catch (e: any) {
+      showErrorToast(e?.message || '사진을 올리지 못했습니다.');
     }
   };
 
@@ -1156,6 +1194,34 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                   </button>
                 </div>
 
+                {/* 사진 여러 장. 파일 이름으로 학생을 알아서 짝짓는다. */}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  multiple
+                  ref={bulkPhotoInputRef}
+                  onChange={(e) => {
+                    const picked = e.target.files;
+                    e.target.value = '';
+                    void handleBulkUpload(picked);
+                  }}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => bulkPhotoInputRef.current?.click()}
+                  disabled={!!photoState.bulk}
+                  className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold shadow-2xs transition-all flex items-center gap-1 cursor-pointer disabled:opacity-60"
+                  title="사진 여러 장을 한꺼번에 고르면 파일 이름으로 학생을 짝지어 올립니다"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                    <circle cx="12" cy="12.5" r="3.5" />
+                  </svg>
+                  {photoState.bulk
+                    ? `올리는 중 ${photoState.bulk.done}/${photoState.bulk.total}`
+                    : '사진 여러 장'}
+                </button>
+
                 <button
                   onClick={handleRemoveAllStudents}
                   className="px-2 py-1 text-slate-400 hover:text-red-500 text-xs font-bold transition-colors cursor-pointer"
@@ -1166,17 +1232,96 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
               </div>
             </div>
 
-            <RosterManageTab
-              students={students}
+            {/* 타일·목록 위로 사진을 끌어다 놓아도 올라가게 한다.
+                스물세 장을 창에서 고르는 것보다 폴더에서 끌어 오는 쪽이 자연스럽다. */}
+            <div
+              onDragOver={(e) => {
+                if (!e.dataTransfer.types.includes('Files')) return;
+                e.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={(e) => {
+                // 자식 위로 옮겨 갈 때도 leave가 난다. 실제로 벗어났을 때만 끈다.
+                if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                setDragging(false);
+              }}
+              onDrop={(e) => {
+                if (!e.dataTransfer.types.includes('Files')) return;
+                e.preventDefault();
+                setDragging(false);
+                void handleBulkUpload(e.dataTransfer.files);
+              }}
+              className={`relative rounded-xl transition-colors ${
+                dragging ? 'ring-2 ring-primary ring-offset-2 bg-blue-50/40' : ''
+              }`}
+            >
+              {dragging && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-blue-50/80 pointer-events-none">
+                  <span className="text-sm font-extrabold text-primary">
+                    여기에 놓으면 파일 이름으로 학생을 찾아 올립니다
+                  </span>
+                </div>
+              )}
+              <RosterManageTab
+                students={students}
               view={view}
               photos={photoState.photos}
               canUploadPhoto
               uploadingNum={photoState.uploading}
               onUploadPhoto={handleUploadPhoto}
               onUpdateStudent={handleUpdateStudent}
-              onRemoveStudent={handleRemoveStudent}
-              highlightNum={highlightNum}
-            />
+                onRemoveStudent={handleRemoveStudent}
+                highlightNum={highlightNum}
+              />
+            </div>
+
+            {/* 여러 장 올린 뒤의 결과. 짝을 못 지은 파일은 토스트로 흘려보내면
+                안 된다 — 무엇을 다시 손봐야 하는지가 거기 들어 있다. */}
+            {bulkReport &&
+              (bulkReport.unmatched.length > 0 ||
+                bulkReport.notPhotos.length > 0 ||
+                bulkReport.duplicates.length > 0 ||
+                bulkReport.failed.length > 0) && (
+                <div className="flex items-start justify-between gap-2 rounded-lg px-2.5 py-2 border border-amber-200 bg-amber-50">
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <span className="text-2xs font-bold text-amber-800">
+                      사진 {bulkReport.uploaded}장을 올렸습니다.
+                      {bulkReport.unmatched.length > 0 &&
+                        ` 짝을 못 찾은 파일 ${bulkReport.unmatched.length}개: ${bulkReport.unmatched
+                          .slice(0, 5)
+                          .join(', ')}${bulkReport.unmatched.length > 5 ? ' …' : ''}`}
+                    </span>
+                    {bulkReport.notPhotos.length > 0 && (
+                      <span className="text-2xs text-slate-500 font-semibold">
+                        사진이 아닌 파일 {bulkReport.notPhotos.length}개는 건너뛰었습니다.
+                      </span>
+                    )}
+                    {bulkReport.duplicates.length > 0 && (
+                      <span className="text-2xs text-slate-500 font-semibold">
+                        같은 학생에게 두 장이 걸려 {bulkReport.duplicates.length}개는 건너뛰었습니다.
+                      </span>
+                    )}
+                    {bulkReport.failed.length > 0 && (
+                      <span className="text-2xs text-red-700 font-semibold">
+                        올리다 실패한 파일 {bulkReport.failed.length}개: {bulkReport.failed.slice(0, 3).join(', ')}
+                      </span>
+                    )}
+                    {bulkReport.unmatched.length > 0 && (
+                      <span className="text-2xs text-slate-500 font-semibold">
+                        파일 이름에 학생 이름이나 번호가 들어 있어야 찾습니다. 빈 칸을 눌러 하나씩 올리셔도 됩니다.
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setBulkReport(null)}
+                    className="text-amber-700 hover:text-amber-900 font-black text-xs shrink-0 cursor-pointer"
+                    title="닫기"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
 
             {/* 사진 상태 한 줄. 사진이 없어도 관리 탭은 그대로 쓸 수 있어야
                 하므로 여기를 막지 않는다. */}

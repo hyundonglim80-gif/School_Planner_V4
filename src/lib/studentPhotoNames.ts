@@ -25,14 +25,26 @@ export interface ClassKey {
   classNum: string;
 }
 
-/** '2026-3-2' — 학급 하나의 폴더 이름 */
+/** '2026-3-1' — 학급 하나의 폴더 이름 */
 export function classFolderName(cls: ClassKey): string {
   return `${cls.year}-${cls.grade}-${cls.classNum}`;
 }
 
-/** '2026-3-2-8-배유나' — 올릴 때 쓰는, 확장자 없는 이름 */
+/**
+ * 번호를 두 자리로 맞춘다. 5 -> '05'
+ *
+ * 파일 이름의 번호는 두 자리로 적는다(2026-3-1-05-홍길동.png). 그래야
+ * 드라이브의 파일 목록이 번호 차례로 정렬된다. 한 자리로 적으면 10번이
+ * 2번 앞에 온다. 명단에는 숫자 5로 들어 있으므로 여기서 맞춰 준다.
+ * 세 자리가 넘는 번호는 그대로 둔다(한 반에 그럴 일은 없지만).
+ */
+export function padNum(num: number | string): string {
+  return String(num).padStart(2, '0');
+}
+
+/** '2026-3-1-05-홍길동' — 올릴 때 쓰는, 확장자 없는 이름 */
 export function photoBaseName(cls: ClassKey, num: number | string, name: string): string {
-  return `${classFolderName(cls)}-${num}-${normalizeName(name)}`;
+  return `${classFolderName(cls)}-${padNum(num)}-${normalizeName(name)}`;
 }
 
 /** 올릴 파일의 온전한 이름. 원본 확장자를 따르되 아는 것이 아니면 png로 둔다. */
@@ -104,10 +116,14 @@ export function findPhotoFor(
   const wantName = normalizeName(name);
   if (!wantName) return null;
 
-  const withNum = `${classFolderName(cls)}-${num}-${wantName}`;
-  const withoutNum = `${classFolderName(cls)}-${wantName}`;
+  const prefix = classFolderName(cls);
+  // 번호는 두 자리로 적는 것이 약속이지만, 손으로 붙인 이름은 한 자리인
+  // 경우가 있다. 둘 다 받아들인다.
+  const padded = `${prefix}-${padNum(num)}-${wantName}`;
+  const plain = `${prefix}-${num}-${wantName}`;
+  const withoutNum = `${prefix}-${wantName}`;
 
-  const exact = pickByBase(files, withNum);
+  const exact = pickByBase(files, padded) || (plain !== padded ? pickByBase(files, plain) : null);
   if (exact) return { ...exact, exact: true };
 
   const loose = pickByBase(files, withoutNum);

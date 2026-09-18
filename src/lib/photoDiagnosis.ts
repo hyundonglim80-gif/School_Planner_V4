@@ -202,7 +202,7 @@ export function diagnosePhotos({
       message: `${where} 에서 사진 ${scan.files.length}장을 찾았지만, 이름이 명단과 맞는 것이 없습니다. (${samples(
         scan.files.map((f) => f.name)
       )})`,
-      hint: `파일 이름은 ${className}-번호-이름 이어야 합니다. 번호 없이 ${className}-이름 이어도 찾습니다.`,
+      hint: `파일 이름은 ${className}-05-이름 처럼 번호를 두 자리로 적습니다. 번호 없이 ${className}-이름 이어도 찾습니다.`,
       offerPickClass: false,
       offerRepick: false,
     };

@@ -23,6 +23,7 @@ import {
   type PhotoScan,
 } from '../lib/studentPhotos';
 import { matchClassPhotos, classFolderName, type ClassKey } from '../lib/studentPhotoNames';
+import { planBulkUpload } from '../lib/photoBulkUpload';
 
 export type PhotoStatus =
   /** 폴더 설정을 읽는 중 */
@@ -56,6 +57,8 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
   /** 학생 번호 -> 사진 */
   const [photos, setPhotos] = useState<Map<number, StudentPhoto>>(new Map());
   const [uploading, setUploading] = useState<number | null>(null);
+  /** 여러 장 올리는 중의 진행 (없으면 올리는 중이 아니다) */
+  const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
   /** 마지막으로 폴더를 훑은 결과. 사진이 안 붙을 때 까닭을 짚는 데 쓴다. */
   const [scan, setScan] = useState<PhotoScan | null>(null);
 
@@ -239,6 +242,42 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
     [cls, pickedId, load]
   );
 
+  /**
+   * 여러 장을 한꺼번에 올린다.
+   *
+   * 파일 이름으로 누구인지 짝짓고(lib/photoBulkUpload.ts), 하나씩 차례로
+   * 올린다. 한꺼번에 스물세 개를 던지면 구글이 잠시 막는다.
+   * 한 장이 실패해도 나머지는 계속 간다 — 한 장 때문에 처음부터 다시
+   * 하게 만들 일이 아니다.
+   */
+  const uploadMany = useCallback(
+    async (fileList: File[]) => {
+      if (!cls) throw new Error('학급을 먼저 골라 주세요.');
+      const plan = planBulkUpload(fileList, cls, studentsRef.current);
+      const failed: string[] = [];
+
+      setBulk({ done: 0, total: plan.matched.length });
+      try {
+        for (const [i, item] of plan.matched.entries()) {
+          try {
+            await uploadStudentPhoto(cls, item.student, item.file, pickedId);
+          } catch (e) {
+            console.warn('사진 올리기 실패:', item.file.name, e);
+            failed.push(item.file.name);
+          }
+          setBulk({ done: i + 1, total: plan.matched.length });
+        }
+      } finally {
+        setBulk(null);
+      }
+
+      forgetFolderCache();
+      await load(true);
+      return { plan, failed };
+    },
+    [cls, pickedId, load]
+  );
+
   const missing = students.filter((s) => !photos.has(s.num));
 
   return {
@@ -253,6 +292,10 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
     /** 사진이 없는 학생들 */
     missing,
     uploading,
+    /** 여러 장 올리는 중의 진행 */
+    bulk,
+    /** 여러 장 한꺼번에 올리기 */
+    uploadMany,
     /** 폴더를 훑은 결과 (사진이 안 붙는 까닭을 짚는 데 쓴다) */
     scan,
     connect,
