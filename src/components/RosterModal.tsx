@@ -5,6 +5,13 @@ import { showToast, showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { useRoster, type ClassRoster, type Student } from '../hooks/useRoster';
 import { downloadCSV, parseCSV } from '../utils/csvHelper';
+import {
+  buildRosterCsvRows,
+  parseRosterCsvRows,
+  mergeRosters,
+  ROSTER_CSV_HEADER,
+} from '../lib/rosterCsv';
+import { downloadCsv, parseCsv } from '../lib/csv';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
@@ -97,6 +104,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   const googleAccessToken = useAppStore((st) => st.googleAccessToken);
   const [saving, setSaving] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const allClassesInputRef = React.useRef<HTMLInputElement>(null);
   // 저장 시점에 삭제된 학급/학생을 찾아내기 위한, 모달을 연 시점의 원본 스냅샷
   const originalClassesRef = React.useRef<ClassRoster[]>([]);
 
@@ -348,6 +356,91 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     }
     const filename = `${currentClass.year}년_${currentClass.grade}학년_${currentClass.classNum}반_명렬표.csv`;
     downloadCSV(students, filename);
+  };
+
+  /**
+   * 모든 학급을 한 파일에 담는다.
+   *
+   * 옆의 ↓CSV는 지금 고른 학급 하나만 담는다. 학년 초에 여러 반 명단을
+   * 한꺼번에 받아 넣을 때는 학급 수만큼 같은 일을 되풀이해야 했다.
+   * 학년도·학년·반 칸으로 학급을 가르므로 한 파일로 오간다.
+   *
+   * 예전에는 이 기능이 '내보내기/가져오기' 화면에 있었다. 그 화면은 날짜별
+   * 자료를 다루는 곳이라 명렬표만 성격이 달랐고, 이름도 '조사표'로 잘못
+   * 붙어 있었다. 명단을 다루는 이 화면이 제자리다.
+   */
+  const handleDownloadAllCSV = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    // 화면에서 고치는 중인 것이 아니라 저장된 것을 담는다. 아직 저장하지 않은
+    // 수정까지 담으면, 파일과 클라우드가 서로 다른 것을 담게 된다.
+    const snap = await getDoc(doc(db, 'users', user.uid, 'settings', 'rosters'));
+    const classList: any[] = snap.exists()
+      ? snap.data().classList || snap.data().rosters || snap.data().list || []
+      : [];
+
+    const rows = buildRosterCsvRows(classList);
+    if (rows.length <= 1) {
+      return showErrorToast('내보낼 명단이 없습니다.');
+    }
+
+    downloadCsv(rows, `School_Planner_명렬표_전체_${new Date().toISOString().slice(0, 10)}.csv`);
+    showToast(`✅ 학급 ${classList.length}개, 학생 ${rows.length - 1}명을 CSV로 내보냈습니다.`);
+  };
+
+  /** 전체 학급 CSV를 되읽는다. 파일에 없는 학급은 그대로 둔다. */
+  const handleUploadAllCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = '';
+    if (!file) return;
+
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+      const table = parseCsv(await file.text());
+      const header = (table[0] || []).map((h) => String(h ?? '').trim());
+      if (!['학년도', '학년', '반', '번호', '이름'].every((key) => header.includes(key))) {
+        return showErrorToast(
+          `전체 학급 CSV가 아닙니다. 머리말에 ${ROSTER_CSV_HEADER.join(', ')} 가 있어야 합니다.\n한 학급짜리 파일은 옆의 [↑ CSV]로 넣어 주세요.`
+        );
+      }
+
+      const { classList: incoming, skipped } = parseRosterCsvRows(table);
+      if (incoming.length === 0) {
+        return showErrorToast('CSV에서 학생을 찾지 못했습니다. 번호·이름·학년·반이 채워져 있는지 확인해 주세요.');
+      }
+
+      const summary = incoming
+        .map((c) => `${c.year}년 ${c.grade}학년 ${c.classNum}반 (${c.students.length}명)`)
+        .join('\n');
+      if (!confirm(`다음 학급의 명단을 파일 내용으로 바꿉니다.\n\n${summary}\n\n파일에 없는 학급은 그대로 둡니다.\n계속할까요?`)) {
+        return;
+      }
+
+      const rosterRef = doc(db, 'users', user.uid, 'settings', 'rosters');
+      const snap = await getDoc(rosterRef);
+      const current: any[] = snap.exists()
+        ? snap.data().classList || snap.data().rosters || snap.data().list || []
+        : [];
+      const merged = mergeRosters(current, incoming);
+
+      // V3는 classList, V4는 rosters라는 이름으로 같은 것을 읽는다
+      await setDoc(rosterRef, { classList: merged, rosters: merged, updatedAt: Date.now() }, { merge: true });
+
+      setCurrentClasses(JSON.parse(JSON.stringify(merged)));
+      originalClassesRef.current = JSON.parse(JSON.stringify(merged));
+      setCurrentIndex(0);
+
+      const students = incoming.reduce((sum, c) => sum + c.students.length, 0);
+      showToast(
+        `✅ 학급 ${incoming.length}개, 학생 ${students}명을 되돌렸습니다.` +
+          (skipped > 0 ? ` (읽지 못한 줄 ${skipped}개는 건너뛰었습니다)` : '')
+      );
+    } catch (err) {
+      showErrorToast('CSV를 읽는 중 오류가 발생했습니다.', err);
+    }
   };
 
   const handleUploadCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -695,7 +788,35 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                 <button
                   onClick={handleDownloadCSV}
                   className="px-2 py-0.5 bg-white text-slate-700 border border-slate-300 rounded text-xs font-bold hover:bg-slate-50 transition-colors shadow-2xs"
-                  title="CSV 다운로드"
+                  title="지금 고른 학급만 CSV로 내려받기"
+                >
+                  ↓ CSV
+                </button>
+              </div>
+
+              {/* 전체 학급 CSV. 학급 수만큼 같은 일을 되풀이하지 않아도 되도록
+                  한 파일에 모두 담는다. '내보내기/가져오기' 화면에 있던 것을
+                  명단을 다루는 이 자리로 옮겨 왔다. */}
+              <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-lg px-1.5 py-1">
+                <span className="text-2xs font-bold text-amber-700 px-0.5">전체 학급</span>
+                <input
+                  type="file"
+                  accept=".csv"
+                  ref={allClassesInputRef}
+                  onChange={handleUploadAllCSV}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => allClassesInputRef.current?.click()}
+                  className="px-2 py-0.5 bg-white text-amber-800 border border-amber-300 rounded text-xs font-bold hover:bg-amber-100 transition-colors shadow-2xs"
+                  title="모든 학급이 담긴 CSV를 올립니다. 파일에 없는 학급은 그대로 둡니다."
+                >
+                  ↑ CSV
+                </button>
+                <button
+                  onClick={handleDownloadAllCSV}
+                  className="px-2 py-0.5 bg-white text-amber-800 border border-amber-300 rounded text-xs font-bold hover:bg-amber-100 transition-colors shadow-2xs"
+                  title="모든 학급의 명단을 한 파일로 내려받습니다. (학년도, 학년, 반, 번호, 이름, 성별, 상태, 특이사항)"
                 >
                   ↓ CSV
                 </button>

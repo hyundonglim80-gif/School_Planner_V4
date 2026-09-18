@@ -13,8 +13,8 @@ import { getValidGoogleToken } from '../lib/googleApi';
 import { exportToSheets, importFromSheets, sheetUrlOf } from '../lib/sheetsSync';
 import { useLabels } from '../hooks/useLabels';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
-import { downloadCsv, parseCsv } from '../lib/csv';
-import { buildRosterCsvRows, parseRosterCsvRows, mergeRosters, ROSTER_CSV_HEADER } from '../lib/rosterCsv';
+import { parseCsv } from '../lib/csv';
+import { parseRosterCsvRows, mergeRosters, ROSTER_CSV_HEADER } from '../lib/rosterCsv';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer } from '../hooks/useModalLayer';
@@ -26,7 +26,7 @@ interface BackupModalProps {
 }
 
 type PeriodType = 'current' | 'today' | 'week' | 'month' | 'sem1' | 'sem2' | 'year' | 'all' | 'custom';
-type ExportTarget = 'calendar' | 'sheets' | 'csv' | 'json' | 'roster';
+type ExportTarget = 'calendar' | 'sheets' | 'csv' | 'json';
 
 export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
   useBodyScrollLock(isOpen);
@@ -177,8 +177,8 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
     // 사람이 읽는 표라 조사표(학생별 결과)는 담지 않는다
     csv: ['event', 'class', 'journal', 'roster', 'memo'],
     json: ['event', 'class', 'journal', 'roster', 'eval', 'memo'],
-    // 명렬표 CSV는 그 자체가 명렬표만 담는다. 고를 것이 없다.
-    roster: [],
+    // 명렬표만 담는 대상은 없앴다. 전체 학급 CSV는 명단을 다루는 자리인
+    // '학급 정보(명렬표) 관리' 화면으로 옮겼다.
   };
 
   const availableItems = ITEMS.filter((it) => ITEMS_BY_TARGET[exportTarget].includes(it.key));
@@ -427,30 +427,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         showToast(`✅ 총 ${rows.length - 1}건의 데이터가 CSV 파일로 내보내졌습니다.`);
       }
 
-      // 4. 조사표만 CSV로
-      else if (exportTarget === 'roster') {
-        if (selectedScope !== 'personal') {
-          setProcessing(false);
-          return showErrorToast('조사표는 개인 공간에만 있습니다. 대상 공간을 개인으로 바꿔 주세요.');
-        }
-
-        setStatusMsg('조사표를 모으는 중...');
-        const snap = await getDoc(doc(db, 'users', user.uid, 'settings', 'rosters'));
-        const classList: any[] = snap.exists()
-          ? snap.data().classList || snap.data().rosters || snap.data().list || []
-          : [];
-
-        const rows = buildRosterCsvRows(classList);
-        if (rows.length <= 1) {
-          setProcessing(false);
-          return showErrorToast('내보낼 조사표가 없습니다.');
-        }
-
-        downloadCsv(rows, `School_Planner_조사표_${formatDate(new Date())}.csv`);
-        showToast(`✅ 학급 ${classList.length}개, 학생 ${rows.length - 1}명을 CSV로 내보냈습니다.`);
-      }
-
-      // 5. JSON 전체 백업 다운로드
+      // 4. JSON 전체 백업 다운로드
       else if (exportTarget === 'json') {
         setStatusMsg('JSON 전체 백업 생성 중...');
         const payload: Record<string, any> = {
@@ -689,22 +666,25 @@ ${counts}
           onClose();
           window.location.reload();
         } else {
-          // CSV는 조사표만 되읽는다. 일정·수업·기록 CSV는 사람이 보라고 만든 것이라
+          // CSV는 명렬표만 되읽는다. 일정·수업·기록 CSV는 사람이 보라고 만든 것이라
           // 되돌릴 수 있을 만큼의 정보(항목 id 등)가 들어 있지 않다.
           // 예전에는 파일을 읽지도 않고 "복원되었습니다"라고 알린 뒤 새로고침했다.
+          //
+          // 내보내는 자리는 '학급 정보(명렬표) 관리'로 옮겼지만, 되읽는 길은
+          // 여기도 열어 둔다. 예전에 이 화면에서 받아 둔 파일이 있기 때문이다.
           const table = parseCsv(text);
           const header = (table[0] || []).map((h) => String(h ?? '').trim());
           const looksLikeRoster = ['번호', '이름'].every((key) => header.includes(key));
 
           if (!looksLikeRoster) {
             showErrorToast(
-              `조사표 CSV가 아닙니다. 머리말에 ${ROSTER_CSV_HEADER.join(', ')} 가 있어야 합니다.
+              `명렬표 CSV가 아닙니다. 머리말에 ${ROSTER_CSV_HEADER.join(', ')} 가 있어야 합니다.
 일정·수업·기록은 JSON 백업 파일로 복원해 주세요.`
             );
             return;
           }
           if (selectedScope !== 'personal') {
-            showErrorToast('조사표는 개인 공간에만 있습니다. 대상 공간을 개인으로 바꿔 주세요.');
+            showErrorToast('명렬표는 개인 공간에만 있습니다. 대상 공간을 개인으로 바꿔 주세요.');
             return;
           }
 
@@ -785,7 +765,7 @@ ${summary}
           {/* 1. 데이터 내보내기/가져오기 대상 채널 선택 (🔥 구글 캘린더 / 구글 시트 / 로컬 CSV) */}
           <div>
             <label className="block font-bold text-slate-800 mb-1.5 text-xs">1. 데이터 연동 대상</label>
-            <div className="grid grid-cols-5 gap-1">
+            <div className="grid grid-cols-4 gap-1">
               <button
                 onClick={() => setExportTarget('calendar')}
                 title="캘린더"
@@ -839,31 +819,7 @@ ${summary}
                 <span className="text-2xs">JSON</span>
               </button>
 
-              {/* 이 단추가 담는 것은 학급 명단이다. 한동안 '조사표'라 적혀
-                  있어, 평가 자료를 받으려던 사람이 명단을 받아 갔다. */}
-              <button
-                onClick={() => setExportTarget('roster')}
-                title="명렬표 CSV"
-                className={`px-1 py-1.5 rounded-lg border text-center font-bold transition-all flex flex-col items-center gap-0.5 leading-tight ${
-                  exportTarget === 'roster'
-                    ? 'bg-amber-50 border-amber-400 text-amber-800 shadow-xs ring-1 ring-amber-300'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <span className="text-sm">🧑‍🤝‍🧑</span>
-                <span className="text-2xs">명렬표</span>
-              </button>
             </div>
-
-            {exportTarget === 'roster' && (
-              <div className="mt-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 leading-relaxed animate-fade-in">
-                모든 학급의 명단을 한 파일에 담습니다. 엑셀에서 고친 뒤 그대로 다시 넣을 수 있습니다.
-                <br />
-                <span className="font-mono text-xs">학년도, 학년, 반, 번호, 이름, 성별, 상태, 특이사항</span>
-                <br />
-                가져올 때는 파일에 있는 학급만 바뀌고, 없는 학급은 그대로 둡니다.
-              </div>
-            )}
 
             {/* 시트 주소를 보여주던 칸은 없앴다. 시트 id는 사람이 알아볼 값이 아니고,
                 손으로 넣는 자리도 없앴으므로(내보낼 때 없으면 만들어 준다) 남길 이유가 없다. */}
