@@ -27,6 +27,8 @@ export interface DaySummary {
   schedules?: Record<number, PeriodSchedule>;
   /** 그날 기록(일지)이 몇 건인지. 달력에서 아이콘과 숫자로 보여 준다. */
   journalCount?: number;
+  /** 그날 조사표가 몇 건인지. 기록과 마찬가지로 개수만 쓴다. */
+  evalCount?: number;
 }
 
 // 캐시만 보고 있을 때 서버에 다시 물어보기까지 기다리는 시간.
@@ -101,6 +103,9 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
     const journalsCol = groupId
       ? collection(db, 'groups', groupId, 'journals')
       : collection(db, 'users', user.uid, 'journals');
+    const evaluationsCol = groupId
+      ? collection(db, 'groups', groupId, 'evaluations')
+      : collection(db, 'users', user.uid, 'evaluations');
 
     const eventsQuery = query(
       eventsCol,
@@ -118,11 +123,18 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
       where(documentId(), '>=', startStr),
       where(documentId(), '<=', endStr)
     );
+    // 조사표도 마찬가지로 개수만 쓴다
+    const evaluationsQuery = query(
+      evaluationsCol,
+      where(documentId(), '>=', startStr),
+      where(documentId(), '<=', endStr)
+    );
 
     let cancelled = false;
     let eventsByDate: Record<string, { text: string; list: EventItem[] }> = {};
     let periodsByDate: Record<string, Record<number, PeriodSchedule>> = {};
     let journalCountByDate: Record<string, number> = {};
+    let evalCountByDate: Record<string, number> = {};
     let eventsReady = false;
     let schedulesReady = false;
 
@@ -135,6 +147,7 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
           eventList: eventsByDate[dStr]?.list ?? [],
           schedules: periodsByDate[dStr] ?? {},
           journalCount: journalCountByDate[dStr] ?? 0,
+          evalCount: evalCountByDate[dStr] ?? 0,
         };
       }
       setDataMap(next);
@@ -179,6 +192,20 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
         if (count > 0) next[d.id] = count;
       });
       journalCountByDate = next;
+      rebuild();
+    };
+
+    const applyEvaluations = (snap: QuerySnapshot<DocumentData>) => {
+      const next: typeof evalCountByDate = {};
+      snap.forEach((d) => {
+        if (!wanted.has(d.id)) return;
+        // V3는 evalList, V4는 list라는 이름으로 같은 목록을 담는다
+        const data = d.data();
+        const list = (data.list || data.evalList || []) as any[];
+        const count = list.filter((ev) => ev && ev.id).length;
+        if (count > 0) next[d.id] = count;
+      });
+      evalCountByDate = next;
       rebuild();
     };
 
@@ -266,6 +293,18 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
       }
     );
 
+    const unsubEvaluations = onSnapshot(
+      evaluationsQuery,
+      (snap) => {
+        markFirestoreAlive(!snap.metadata.fromCache);
+        applyEvaluations(snap);
+      },
+      (error) => {
+        // 조사표 개수도 곁다리다. 못 읽어도 달력은 그대로 보여야 한다.
+        console.error('Calendar Evaluation Snapshot Error:', error);
+      }
+    );
+
     // 리스너가 아무 응답도 주지 않는 경우를 대비한 안전장치
     const loadingFallback = setTimeout(() => setLoading(false), 3000);
 
@@ -276,6 +315,7 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
       unsubEvents();
       unsubSchedules();
       unsubJournals();
+      unsubEvaluations();
     };
   }, [dateKey, groupId, auth.currentUser?.uid]);
 

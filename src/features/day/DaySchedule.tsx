@@ -5,6 +5,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { parseDateStr } from '../../lib/dateUtils';
 import AutoTextarea from '../../components/AutoTextarea';
 import { useClickOutside } from '../../hooks/useClickOutside';
+import { useDayEvalCounts } from '../../hooks/useDayEvalCounts';
 import { showToast } from '../../utils/toast';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
 
@@ -41,7 +42,9 @@ export default function DaySchedule({
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
 
   const { getDayTemplate } = useTimetableTemplate();
-  const { openLinkerModal, openLinkViewerModal, openEvaluationModal } = useAppStore();
+  const { openLinkerModal, openLinkViewerModal, openEvaluationModal, selectedGroupId } = useAppStore();
+  // 어느 교시에 조사표를 만들어 두었는지 교시 옆에 숫자로 보여 준다
+  const evalCounts = useDayEvalCounts(dateStr || '', selectedGroupId);
 
   const startEdit = (period: number) => {
     const current = schedules[period] || { subject: '', content: '' };
@@ -306,13 +309,23 @@ export default function DaySchedule({
                       >
                         🔗
                       </button>
+                      {/* 조사표를 만들어 둔 교시는 마우스를 올리지 않아도 보여야
+                          한다. 없을 때만 숨었다가 마우스를 올리면 나타난다. */}
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); dateStr && openEvaluationModal(dateStr, 'schedule', period); }}
-                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-emerald-600 p-1 rounded hover:bg-slate-100 text-xs transition-all"
-                        title="조사표 관리"
+                        className={`p-1 rounded hover:bg-slate-100 text-xs transition-all ${
+                          evalCounts.byPeriod[String(period)]
+                            ? 'text-blue-700 bg-blue-50 border border-blue-200 font-bold'
+                            : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-emerald-600'
+                        }`}
+                        title={
+                          evalCounts.byPeriod[String(period)]
+                            ? `조사표 ${evalCounts.byPeriod[String(period)]}건`
+                            : '조사표 관리'
+                        }
                       >
-                        📊
+                        📊{evalCounts.byPeriod[String(period)] || ''}
                       </button>
                       <button
                         type="button"

@@ -18,6 +18,7 @@ import { fitToWidthFontSize } from '../../lib/typeScale';
 import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import { BODY_TEXT } from '../../lib/typeScale';
 import JournalCountBadge from '../../components/JournalCountBadge';
+import EvalCountBadge from '../../components/EvalCountBadge';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import DetailEditModal from '../../components/DetailEditModal';
 import EventItemActions from '../../components/EventItemActions';
@@ -125,6 +126,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                       count={dataMap[dayObj.dateStr]?.journalCount || 0}
                       fId={selectedGroupId}
                     />
+                    <EvalCountBadge dateStr={dayObj.dateStr} count={dataMap[dayObj.dateStr]?.evalCount || 0} />
                     <button
                       onClick={(e) => { e.stopPropagation(); onQuickAdd(dayObj.dateStr); }}
                       className="w-5 h-5 rounded hover:bg-slate-200 text-slate-400 hover:text-primary flex items-center justify-center transition-colors text-xs font-bold leading-none opacity-0 group-hover:opacity-100"

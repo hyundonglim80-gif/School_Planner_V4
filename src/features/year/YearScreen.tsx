@@ -20,6 +20,7 @@ import DetailEditModal from '../../components/DetailEditModal';
 import EventItemActions from '../../components/EventItemActions';
 import QuickAddModal from '../../components/QuickAddModal';
 import JournalCountBadge from '../../components/JournalCountBadge';
+import EvalCountBadge from '../../components/EvalCountBadge';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -29,6 +30,8 @@ export default function YearScreen() {
   const [schedulesMap, setSchedulesMap] = useState<Record<string, any>>({});
   // 그날 기록이 몇 건인지. 내용은 아이콘을 눌렀을 때 그때 읽는다.
   const [journalCountMap, setJournalCountMap] = useState<Record<string, number>>({});
+  // 조사표도 마찬가지로 개수만 쓴다
+  const [evalCountMap, setEvalCountMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [quickAddDate, setQuickAddDate] = useState<string | null>(null);
   const isMobile = useIsMobile();
@@ -128,7 +131,22 @@ export default function YearScreen() {
       (err) => console.error('Year Journal Snapshot Error:', err)
     );
 
-    return () => { unsubEvents(); unsubSchedules(); unsubJournals(); };
+    const unsubEvaluations = onSnapshot(
+      query(collection(db, colPath('evaluations')), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)),
+      (snap) => {
+        const map: Record<string, number> = {};
+        snap.forEach(d => {
+          // V3는 evalList, V4는 list라는 이름으로 같은 목록을 담는다
+          const data = d.data();
+          const count = ((data.list || data.evalList || []) as any[]).filter((ev) => ev && ev.id).length;
+          if (count > 0) map[d.id] = count;
+        });
+        setEvalCountMap(map);
+      },
+      (err) => console.error('Year Evaluation Snapshot Error:', err)
+    );
+
+    return () => { unsubEvents(); unsubSchedules(); unsubJournals(); unsubEvaluations(); };
   }, [defaultAcademicYear, selectedGroupId]);
 
   const handleDateClick = (dateStr: string) => {
@@ -305,6 +323,7 @@ export default function YearScreen() {
                                 count={journalCountMap[dObj.dateStr] || 0}
                                 fId={selectedGroupId}
                               />
+                              <EvalCountBadge dateStr={dObj.dateStr} count={evalCountMap[dObj.dateStr] || 0} />
                               <button
                                 onClick={(e) => { e.stopPropagation(); setQuickAddDate(dObj.dateStr); }}
                                 className="text-2xs font-bold text-slate-400 hover:text-primary bg-slate-50 hover:bg-slate-100 px-1.5 py-0.5 rounded transition-colors"

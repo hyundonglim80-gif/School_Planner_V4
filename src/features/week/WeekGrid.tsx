@@ -10,6 +10,7 @@ import { splitHolidayEvents, dayToneOf, DAY_CELL_BG, DAY_NUMBER_COLOR } from '..
 import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import { BODY_TEXT } from '../../lib/typeScale';
 import JournalCountBadge from '../../components/JournalCountBadge';
+import EvalCountBadge from '../../components/EvalCountBadge';
 import DetailEditModal from '../../components/DetailEditModal';
 import EventItemActions from '../../components/EventItemActions';
 import { useState } from 'react';
@@ -98,11 +99,14 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                     {/* 세로로 쌓이는 자리라 flex-1은 주지 않는다 (세로로 늘어난다) */}
                     {holidayName && <HolidayName name={holidayName} tier="week" fill={false} />}
                   </div>
-                  <JournalCountBadge
-                    dateStr={day.dateStr}
-                    count={dataMap[day.dateStr]?.journalCount || 0}
-                    fId={selectedGroupId}
-                  />
+                  <div className="flex items-center gap-1">
+                    <JournalCountBadge
+                      dateStr={day.dateStr}
+                      count={dataMap[day.dateStr]?.journalCount || 0}
+                      fId={selectedGroupId}
+                    />
+                    <EvalCountBadge dateStr={day.dateStr} count={dataMap[day.dateStr]?.evalCount || 0} />
+                  </div>
                 </div>
               </div>
 
