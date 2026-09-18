@@ -8,6 +8,7 @@ import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewer
 import EntryDrawer, { type EntryDraft } from '../../components/EntryDrawer';
 import { showToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
+import { useDayEvalCounts } from '../../hooks/useDayEvalCounts';
 
 interface DayJournalProps {
   journals: JournalEntry[];
@@ -24,8 +25,12 @@ export default function DayJournal({
   onUpdateJournal,
   onReorderJournals,
 }: DayJournalProps) {
-  const { openLinkViewerModal, currentDate } = useAppStore();
+  const { openLinkViewerModal, currentDate, openEvaluationModal, selectedGroupId } = useAppStore();
   const formattedDate = formatDateStr(new Date(currentDate));
+  // 기록 칸에 붙여 둔 조사표가 몇 건인지. 교시에 붙은 것과 자리를 달리해야
+  // 어디에 만들어 두었는지 알 수 있다.
+  const evalCounts = useDayEvalCounts(currentDate, selectedGroupId);
+  const journalEvalCount = evalCounts.byPeriod['journal'] || 0;
   // 라벨은 useLabels 한 곳에서만 읽는다. 여기서 직접 Firestore를 읽으면
   // V3가 localStorage에만 남긴 라벨과 오프라인 캐시 보정을 놓쳐,
   // 기록 라벨이 통째로 사라진다.
@@ -250,6 +255,19 @@ export default function DayJournal({
               <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
                 {journals.length}
               </span>
+              {/* 기록 칸에 붙은 조사표. 만들어 둔 것이 있을 때만 보인다. */}
+              <button
+                type="button"
+                onClick={() => openEvaluationModal(currentDate, 'journal')}
+                title={journalEvalCount > 0 ? `조사표 ${journalEvalCount}건` : '조사표 관리'}
+                className={`px-1.5 py-0.5 rounded-md text-xs transition-all ${
+                  journalEvalCount > 0
+                    ? 'text-blue-700 bg-blue-50 border border-blue-200 font-bold'
+                    : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-emerald-600 hover:bg-slate-100'
+                }`}
+              >
+                📊{journalEvalCount || ''}
+              </button>
             </div>
 
             {/* 라벨 필터 바 */}

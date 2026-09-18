@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useEvaluation } from '../hooks/useEvaluation';
 import type { EvaluationItem } from '../hooks/useEvaluation';
 import { useRoster } from '../hooks/useRoster';
+import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
 import { useAppStore } from '../store/useAppStore';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
@@ -29,7 +30,9 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
   const zIndex = useModalLayer(isOpen, onClose);
 
   const backdrop = useBackdropClose();
-  const { selectedGroupId } = useAppStore();
+  const { selectedGroupId, openEvaluationModal } = useAppStore();
+  const { templates, currentTemplateName } = useTimetableTemplate();
+  const periodNames = templates[currentTemplateName]?.names || ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'];
   const { loadEvaluations, saveEvaluations, deleteEvaluation } = useEvaluation(selectedGroupId);
   const { rosterList: rosters } = useRoster();
 
@@ -55,6 +58,14 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
   // 뷰어 상태
   const [records, setRecords] = useState<Record<number, Record<string, any>>>({});
 
+  // ⚙️ 기본 정보 수정 패널. V3와 같이 접어 두었다가 눌러서 편다.
+  const [metaOpen, setMetaOpen] = useState(false);
+  const [metaTitle, setMetaTitle] = useState('');
+  const [metaRosterIdx, setMetaRosterIdx] = useState('');
+  const [metaDate, setMetaDate] = useState('');
+  const [metaPeriod, setMetaPeriod] = useState('');
+  const [metaSubject, setMetaSubject] = useState('');
+
   useEffect(() => {
     if (isOpen) {
       loadList();
@@ -64,16 +75,48 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
     }
   }, [isOpen, dateStr]);
 
+  // 명렬표는 구독으로 들어와서, 조사표를 열 때 아직 비어 있을 수 있다. 그때는
+  // 맞출 것이 없어 그냥 지나가므로, 명렬표가 도착하면 한 번 더 맞춘다.
+  // 맞출 것이 없으면 아무 일도 하지 않아 여기서 멈춘다.
+  useEffect(() => {
+    if (viewMode !== 'view' || !currentEval || rosters.length === 0) return;
+    const { next, changed } = syncSnapshotWithRoster(currentEval);
+    if (!changed) return;
+
+    setCurrentEval(next);
+    const updatedList = evalList.map((e) => (e.id === next.id ? next : e));
+    setEvalList(updatedList);
+    saveEvaluations(next.dateStr, updatedList).catch((e) =>
+      console.error('명렬표 동기화 저장 실패:', e)
+    );
+  }, [rosters, viewMode, currentEval?.id]);
+
+  /** 조사표가 어느 교시(또는 기록 칸)에 달려 있는지 */
+  const locationOf = (ev: EvaluationItem) =>
+    ev.context?.source === 'journal' ? 'journal' : String(ev.periodStr ?? '');
+
   const loadList = async () => {
     setLoading(true);
     const list = await loadEvaluations(dateStr);
     setEvalList(list);
     setLoading(false);
+
     if (list.length === 0) {
       setViewMode('create');
-    } else {
-      setViewMode('list');
+      return;
     }
+
+    // 2교시 표식을 눌렀으면 2교시 조사표가 바로 떠야 한다. 그날 조사표를 모두
+    // 늘어놓고 다시 고르게 하면, 어디를 눌렀는지가 없던 일이 된다.
+    // 한 자리에 여러 개면 고를 수밖에 없으므로 그때만 목록을 보여 준다.
+    const wanted = defaultSource === 'journal' ? 'journal' : String(defaultPeriod ?? '');
+    const here = wanted ? list.filter((ev) => locationOf(ev) === wanted) : [];
+
+    if (here.length === 1) {
+      await openViewer(here[0], list);
+      return;
+    }
+    setViewMode('list');
   };
 
   const handleCreate = async () => {
@@ -125,13 +168,166 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
     await saveEvaluations(evalDate, updatedList);
     setEvalList(updatedList);
     setTitle('');
-    openViewer(newEval);
+    void openViewer(newEval);
   };
 
-  const openViewer = (ev: EvaluationItem) => {
-    setCurrentEval(ev);
-    setRecords(ev.records || {});
+  /**
+   * 조사표를 열 때 명렬표를 다시 맞춘다. (V3 evaluation.js의 openViewer와 같다)
+   *
+   * 조사표는 만들 때의 명단을 복사해 들고 있다. 그 뒤에 전입한 학생은 명단에
+   * 없어 점수를 줄 수가 없었고, 이름을 고쳐도 옛 이름이 그대로 남았다.
+   * 열 때마다 지금 명렬표와 맞춰 두면 그 자리에서 해결된다.
+   *
+   * 전출한 학생은 지우지 않는다. 그때 준 점수가 함께 사라지기 때문이다.
+   * 이름 뒤에 '(전출/삭제됨)'을 붙여 두어 흐리게 보이게만 한다.
+   */
+  const syncSnapshotWithRoster = (ev: EvaluationItem): { next: EvaluationItem; changed: boolean } => {
+    if (!ev.rosterMeta || rosters.length === 0) return { next: ev, changed: false };
+
+    const matched = rosters.find(
+      (r) =>
+        String(r.year) === String(ev.rosterMeta.year) &&
+        String(r.grade) === String(ev.rosterMeta.grade) &&
+        String(r.classNum) === String(ev.rosterMeta.classNum)
+    );
+    if (!matched) return { next: ev, changed: false };
+
+    const snapshot = (ev.studentsSnapshot || []).map((s) => ({ ...s }));
+    const current = matched.students || [];
+    let changed = false;
+
+    // 1. 새로 온 학생을 더하고, 바뀐 이름을 반영한다
+    for (const st of current) {
+      if (st.isActive === false) continue;
+      const existing = snapshot.find((s) => s.num === st.num);
+      if (!existing) {
+        snapshot.push({ num: st.num, name: st.name, gender: st.gender || '' });
+        changed = true;
+      } else if (existing.name !== st.name) {
+        existing.name = st.name;
+        changed = true;
+      }
+    }
+
+    // 2. 명단에서 사라졌거나 전출한 학생에 표를 달아 둔다
+    for (const snapSt of snapshot) {
+      const stillHere = current.find((s) => s.num === snapSt.num && s.name === snapSt.name && s.isActive !== false);
+      if (!stillHere && !snapSt.name.includes('(전출/삭제됨)')) {
+        snapSt.name = `${snapSt.name} (전출/삭제됨)`;
+        changed = true;
+      }
+    }
+
+    if (!changed) return { next: ev, changed: false };
+    snapshot.sort((a, b) => a.num - b.num);
+    return { next: { ...ev, studentsSnapshot: snapshot }, changed: true };
+  };
+
+  /**
+   * `list`는 아직 state에 들어가지 않은 목록을 넘길 때 쓴다. 불러오자마자 바로
+   * 열 때는 setEvalList가 반영되기 전이라, 그 목록을 직접 받아야 한다.
+   */
+  const openViewer = async (ev: EvaluationItem, list?: EvaluationItem[]) => {
+    const source = list ?? evalList;
+    const { next, changed } = syncSnapshotWithRoster(ev);
+
+    if (changed) {
+      const updatedList = source.map((e) => (e.id === next.id ? next : e));
+      setEvalList(updatedList);
+      try {
+        await saveEvaluations(next.dateStr, updatedList);
+      } catch (e) {
+        console.error('명렬표 동기화 저장 실패:', e);
+      }
+    }
+
+    setCurrentEval(next);
+    setRecords(next.records || {});
+    // 기본 정보 칸을 지금 값으로 채운다
+    setMetaTitle(next.title || '');
+    setMetaDate(next.dateStr || dateStr);
+    setMetaPeriod(next.context?.source === 'journal' ? 'journal' : String(next.periodStr ?? ''));
+    setMetaSubject(next.subject || '');
+    setMetaRosterIdx(
+      String(
+        rosters.findIndex(
+          (r) =>
+            String(r.year) === String(next.rosterMeta?.year) &&
+            String(r.grade) === String(next.rosterMeta?.grade) &&
+            String(r.classNum) === String(next.rosterMeta?.classNum)
+        )
+      )
+    );
+    setMetaOpen(false);
     setViewMode('view');
+  };
+
+  /**
+   * 제목·학급·날짜·위치·교과를 고친다. (V3의 saveMetaData와 같다)
+   *
+   * 위치나 날짜가 바뀌면 조사표가 다른 자리로 옮겨 간다. 옛 날짜 문서에서 빼고
+   * 새 날짜 문서에 넣는 두 번의 저장이 필요하다.
+   */
+  const handleSaveMeta = async () => {
+    if (!currentEval) return;
+    if (!metaTitle.trim()) return showErrorToast('제목을 입력하세요.');
+
+    const idx = parseInt(metaRosterIdx, 10);
+    const selectedRoster = rosters[idx];
+    if (!selectedRoster) return showErrorToast('대상 학급을 선택해 주세요.');
+
+    let next: EvaluationItem = { ...currentEval, title: metaTitle.trim(), subject: metaSubject };
+
+    const rosterChanged =
+      !currentEval.rosterMeta ||
+      String(currentEval.rosterMeta.year) !== String(selectedRoster.year) ||
+      String(currentEval.rosterMeta.grade) !== String(selectedRoster.grade) ||
+      String(currentEval.rosterMeta.classNum) !== String(selectedRoster.classNum);
+
+    if (rosterChanged) {
+      if (!confirm('대상 학급을 바꾸면 새 학급의 학생 명단으로 갈아 끼웁니다.\n지금까지 적은 결과는 남지만 학생이 달라집니다.\n정말 바꾸시겠습니까?')) {
+        return;
+      }
+      next.rosterMeta = { year: selectedRoster.year, grade: selectedRoster.grade, classNum: selectedRoster.classNum };
+      next.studentsSnapshot = (selectedRoster.students || [])
+        .filter((s) => s.isActive !== false)
+        .map((s) => ({ num: s.num, name: s.name, gender: s.gender || '' }));
+    }
+
+    const oldPeriodVal = currentEval.context?.source === 'journal' ? 'journal' : String(currentEval.periodStr ?? '');
+    const moved = currentEval.dateStr !== metaDate || oldPeriodVal !== metaPeriod;
+
+    next.dateStr = metaDate;
+    next.periodStr = metaPeriod === 'journal' ? '' : parseInt(metaPeriod, 10);
+    next.context = {
+      source: metaPeriod === 'journal' ? 'journal' : 'schedule',
+      period: metaPeriod === 'journal' ? '' : parseInt(metaPeriod, 10),
+    };
+
+    try {
+      if (moved && currentEval.dateStr !== metaDate) {
+        // 옛 날짜에서 빼고
+        const remaining = evalList.filter((e) => e.id !== currentEval.id);
+        await saveEvaluations(currentEval.dateStr, remaining);
+        // 새 날짜에 넣는다
+        const targetList = await loadEvaluations(metaDate);
+        await saveEvaluations(metaDate, [...targetList.filter((e) => e.id !== next.id), next]);
+
+        setCurrentEval(next);
+        showToast('✅ 조사표를 옮겼습니다.');
+        // 팝업이 보고 있는 날짜를 새 날짜로 돌린다
+        openEvaluationModal(metaDate, next.context.source as 'schedule' | 'journal', next.periodStr as number);
+        return;
+      }
+
+      const updatedList = evalList.map((e) => (e.id === next.id ? next : e));
+      await saveEvaluations(next.dateStr, updatedList);
+      setEvalList(updatedList);
+      setCurrentEval(next);
+      showToast(moved ? '✅ 위치와 기본 정보를 바꿨습니다.' : '✅ 기본 정보를 바꿨습니다.');
+    } catch (e) {
+      showErrorToast('기본 정보를 저장하지 못했습니다.', e);
+    }
   };
 
   const handleSaveRecords = async () => {
@@ -205,7 +401,7 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
                 evalList.map(ev => (
                   <button
                     key={ev.id}
-                    onClick={() => openViewer(ev)}
+                    onClick={() => void openViewer(ev)}
                     className="w-full text-left p-3 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-primary/30 rounded-xl transition-all"
                   >
                     <div className="flex items-center justify-between">
@@ -214,6 +410,12 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
                         <span className="ml-2 text-xs text-slate-400">
                           {ev.type === 'eval' ? '평가' : ev.type === 'check' ? '체크' : '메모'}
                           {ev.subject ? ` · ${ev.subject}` : ''}
+                          {' · '}
+                          {/* 어느 교시 것인지 적어 둔다. 한 자리에 여럿이면
+                              목록에서 골라야 하는데, 제목만으로는 못 가린다. */}
+                          {locationOf(ev) === 'journal'
+                            ? '기록'
+                            : periodNames[Number(ev.periodStr) - 1] || `${ev.periodStr}교시`}
                         </span>
                       </div>
                       <span className="text-xs text-slate-400">{ev.studentsSnapshot?.length || 0}명</span>
@@ -323,9 +525,107 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
                   <h4 className="font-black text-slate-800">{currentEval.title}</h4>
                   <p className="text-xs text-slate-400">
                     {currentEval.type === 'eval' ? '평가' : currentEval.type === 'check' ? '체크' : '메모'}
-                    {currentEval.subject ? ` · ${currentEval.subject}` : ''} · {currentEval.studentsSnapshot.length}명
+                    {currentEval.subject ? ` · ${currentEval.subject}` : ''} ·{' '}
+                    {currentEval.context?.source === 'journal'
+                      ? '기록'
+                      : periodNames[Number(currentEval.periodStr) - 1] || `${currentEval.periodStr}교시`}
+                    {' · '}
+                    {currentEval.studentsSnapshot.length}명
                   </p>
                 </div>
+              </div>
+
+              {/* ⚙️ 기본 정보 수정 (V3와 같이 접어 두었다가 눌러서 편다) */}
+              <div className="mb-3 border border-slate-300 rounded-xl bg-slate-50 p-3">
+                <button
+                  type="button"
+                  onClick={() => setMetaOpen((v) => !v)}
+                  className="w-full flex items-center justify-between cursor-pointer"
+                >
+                  <span className="font-bold text-blue-800 text-xs">⚙️ 기본 정보 수정</span>
+                  <span className="text-slate-500 text-xs">{metaOpen ? '▲ 접기' : '▼ 펼치기'}</span>
+                </button>
+
+                {metaOpen && (
+                  <div className="flex flex-col gap-2.5 mt-3 pt-3 border-t border-dashed border-slate-300">
+                    <div className="flex flex-col sm:flex-row gap-2.5">
+                      <div className="flex-1">
+                        <label className="block text-xs font-bold text-slate-600 mb-1">조사표 제목</label>
+                        <input
+                          type="text"
+                          value={metaTitle}
+                          onChange={(e) => setMetaTitle(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs font-bold text-slate-600 mb-1">대상 학급(명렬표)</label>
+                        <select
+                          value={metaRosterIdx}
+                          onChange={(e) => setMetaRosterIdx(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
+                        >
+                          <option value="-1">명렬표 선택</option>
+                          {rosters.map((r, i) => (
+                            <option key={i} value={i}>
+                              {r.year}학년도 {r.grade}학년 {r.classNum}반 ({(r.students || []).length}명)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2.5">
+                      <div className="flex-1">
+                        <label className="block text-xs font-bold text-slate-600 mb-1">날짜</label>
+                        <input
+                          type="date"
+                          value={metaDate}
+                          onChange={(e) => setMetaDate(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs font-bold text-slate-600 mb-1">위치</label>
+                        <select
+                          value={metaPeriod}
+                          onChange={(e) => setMetaPeriod(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
+                        >
+                          {periodNames.map((name, i) => (
+                            <option key={i} value={String(i + 1)}>
+                              {name || `${i + 1}교시`}
+                            </option>
+                          ))}
+                          <option value="journal">기록 (오늘 기록 칸)</option>
+                        </select>
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs font-bold text-slate-600 mb-1">교과</label>
+                        <select
+                          value={metaSubject}
+                          onChange={(e) => setMetaSubject(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500"
+                        >
+                          <option value="">선택 안함</option>
+                          {SUBJECTS.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <button
+                        type="button"
+                        onClick={handleSaveMeta}
+                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors"
+                      >
+                        정보 업데이트
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="border border-slate-200 rounded-xl overflow-hidden">
