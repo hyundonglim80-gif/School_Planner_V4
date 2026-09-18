@@ -77,36 +77,41 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
             key={day.dateStr}
             data-today={day.isToday ? 'true' : undefined}
             onClick={() => onSelectDate(day.dateStr)}
-            className={`${DAY_CELL_BG[tone]} rounded-2xl border p-3.5 flex flex-col justify-between transition-all cursor-pointer group hover:shadow-md hover:border-primary/50 min-h-[380px] ${
+            className={`${DAY_CELL_BG[tone]} rounded-2xl border p-3.5 flex flex-col justify-between transition-all cursor-pointer group hover:shadow-md hover:border-primary/50 min-h-[380px] min-w-0 overflow-hidden ${
               day.isToday ? 'border-primary ring-2 ring-primary/20 shadow-xs' : 'border-slate-200/80 shadow-xs'
             }`}
           >
             <div>
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-                <div className="flex items-center gap-2">
+              {/* 표식은 오른쪽 끝에 세운다. 예전에는 날짜와 한 덩이로 묶여
+                  있어서, 기록과 조사표가 둘 다 있는 날이면 칸 밖으로 밀려
+                  나갔다. 줄어들 수 있는 쪽(날짜·공휴일)과 줄어들면 안 되는
+                  쪽(표식)을 갈라 둔다. */}
+              <div className="flex items-center justify-between gap-1 pb-3 border-b border-slate-100 mb-3">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
                   <span
-                    className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs bg-white/70 ${
+                    className={`w-6 h-6 shrink-0 rounded-xl flex items-center justify-center font-black text-xs bg-white/70 ${
                       day.isToday ? 'bg-primary text-white shadow-xs' : DAY_NUMBER_COLOR[tone]
                     }`}
                   >
                     {day.dayName}
                   </span>
 
-                  <div className="flex flex-col">
+                  <div className="flex flex-col min-w-0">
                     <span className={`text-xs font-bold ${DAY_NUMBER_COLOR[tone]}`}>
                       {Number(month)}.{Number(dateNum)}
                     </span>
                     {/* 세로로 쌓이는 자리라 flex-1은 주지 않는다 (세로로 늘어난다) */}
                     {holidayName && <HolidayName name={holidayName} tier="week" fill={false} />}
                   </div>
-                  <div className="flex items-center gap-1">
-                    <JournalCountBadge
-                      dateStr={day.dateStr}
-                      count={dataMap[day.dateStr]?.journalCount || 0}
-                      fId={selectedGroupId}
-                    />
-                    <EvalCountBadge dateStr={day.dateStr} count={dataMap[day.dateStr]?.evalCount || 0} />
-                  </div>
+                </div>
+
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <JournalCountBadge
+                    dateStr={day.dateStr}
+                    count={dataMap[day.dateStr]?.journalCount || 0}
+                    fId={selectedGroupId}
+                  />
+                  <EvalCountBadge dateStr={day.dateStr} count={dataMap[day.dateStr]?.evalCount || 0} />
                 </div>
               </div>
 

@@ -281,26 +281,28 @@ export default function DaySchedule({
                     ▼
                   </button>
                 </div>
-                <div className="flex-1 flex flex-col">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold border ${colorClass}`}>
+                <div className="flex-1 flex flex-col min-w-0">
+                  {/* 과목 이름이 길어도 오른쪽 단추들을 밀어내지 않게, 줄어드는
+                      쪽과 줄어들면 안 되는 쪽을 갈라 둔다. */}
+                  <div className="flex items-center justify-between gap-1 mb-2">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                      <span className={`px-2 py-0.5 shrink-0 rounded-lg text-xs font-bold border ${colorClass}`}>
                         {period}교시
                       </span>
-                      <span className="font-bold text-sm text-slate-800">
+                      <span className="font-bold text-sm text-slate-800 truncate">
                         {item.subject || <span className="text-slate-300 font-normal">과목 미등록</span>}
                       </span>
                       {linkCount > 0 && (
-                        <button 
+                        <button
                           onClick={(e) => { e.stopPropagation(); dateStr && openLinkViewerModal('schedule', dateStr, String(period), period); }}
-                          className="bg-yellow-100 text-yellow-800 text-xs px-1.5 py-0.5 rounded font-bold border border-yellow-300 ml-1 hover:bg-yellow-200 cursor-pointer"
+                          className="bg-yellow-100 text-yellow-800 text-xs px-1.5 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
                           title="연결된 항목 보기 및 수정"
                         >
                           📑 {linkCount}
                         </button>
                       )}
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5 shrink-0">
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); dateStr && openLinkerModal('schedule', dateStr, undefined, period); }}

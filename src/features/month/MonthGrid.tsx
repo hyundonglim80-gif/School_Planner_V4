@@ -101,7 +101,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
               key={dayObj.dateStr}
               data-today={dayObj.isToday ? 'true' : undefined}
               onClick={() => onSelectDate(dayObj.dateStr)}
-              className={`min-h-[105px] p-2 flex flex-col justify-between transition-all cursor-pointer group hover:brightness-98 ${
+              className={`min-h-[105px] p-2 flex flex-col justify-between transition-all cursor-pointer group hover:brightness-98 min-w-0 overflow-hidden ${
                 !dayObj.isCurrentMonth ? 'bg-slate-50/40 opacity-40' : DAY_CELL_BG[tone]
               } ${dayObj.isToday ? 'ring-2 ring-inset ring-primary/40' : ''}`}
             >
@@ -120,7 +120,9 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                     {holidayName && <HolidayName name={holidayName} tier="month" />}
                   </div>
                   
-                  <div className="flex items-center gap-1">
+                  {/* 표식은 줄어들면 안 된다. 셋이 나란히 설 수 있으므로
+                      사이를 좁혀 두고, 칸 밖으로 밀리지 않게 shrink-0을 준다. */}
+                  <div className="flex items-center gap-0.5 shrink-0">
                     <JournalCountBadge
                       dateStr={dayObj.dateStr}
                       count={dataMap[dayObj.dateStr]?.journalCount || 0}

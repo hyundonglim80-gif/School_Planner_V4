@@ -26,10 +26,12 @@ export default function DayJournal({
   onReorderJournals,
 }: DayJournalProps) {
   const { openLinkViewerModal, currentDate, openEvaluationModal, selectedGroupId } = useAppStore();
-  const formattedDate = formatDateStr(new Date(currentDate));
+  // store의 currentDate는 ISO 문자열(2026-09-18T05:12:33.000Z)이다. 문서 이름은
+  // 2026-09-18 꼴이라 그대로 넘기면 없는 문서를 보게 된다.
+  const dateStr = formatDateStr(new Date(currentDate));
   // 기록 칸에 붙여 둔 조사표가 몇 건인지. 교시에 붙은 것과 자리를 달리해야
   // 어디에 만들어 두었는지 알 수 있다.
-  const evalCounts = useDayEvalCounts(currentDate, selectedGroupId);
+  const evalCounts = useDayEvalCounts(dateStr, selectedGroupId);
   const journalEvalCount = evalCounts.byPeriod['journal'] || 0;
   // 라벨은 useLabels 한 곳에서만 읽는다. 여기서 직접 Firestore를 읽으면
   // V3가 localStorage에만 남긴 라벨과 오프라인 캐시 보정을 놓쳐,
@@ -237,7 +239,9 @@ export default function DayJournal({
   return (
     <div className="flex flex-col gap-4">
       {/* 상단 헤더 */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
+      {/* 조사표 표식은 만들어 둔 것이 없으면 마우스를 올렸을 때만 나온다.
+          그 group-hover가 걸릴 자리가 여기다. */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 group">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
 
           <div className="flex flex-wrap items-center gap-3 flex-1">
@@ -258,7 +262,7 @@ export default function DayJournal({
               {/* 기록 칸에 붙은 조사표. 만들어 둔 것이 있을 때만 보인다. */}
               <button
                 type="button"
-                onClick={() => openEvaluationModal(currentDate, 'journal')}
+                onClick={() => openEvaluationModal(dateStr, 'journal')}
                 title={journalEvalCount > 0 ? `조사표 ${journalEvalCount}건` : '조사표 관리'}
                 className={`px-1.5 py-0.5 rounded-md text-xs transition-all ${
                   journalEvalCount > 0
@@ -378,7 +382,7 @@ export default function DayJournal({
                           {linkCount > 0 && (
                             <button
                               type="button"
-                              onClick={(e) => { e.stopPropagation(); openLinkViewerModal('journal', formattedDate, entry.id); }}
+                              onClick={(e) => { e.stopPropagation(); openLinkViewerModal('journal', dateStr, entry.id); }}
                               className="bg-yellow-100 text-yellow-800 text-xs px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 cursor-pointer"
                             >
                                 🔗 {linkCount}

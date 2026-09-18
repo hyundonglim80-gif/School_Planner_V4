@@ -305,19 +305,21 @@ export default function YearScreen() {
                           data-today={isTodayEvent ? 'true' : undefined}
                           className={`flex flex-col gap-1.5 p-2 -mx-2 rounded-xl border-b border-dashed border-slate-200 last:border-0 ${DAY_CELL_BG[tone]} ${isTodayEvent ? 'ring-1 ring-primary/40 border-solid' : ''}`}
                         >
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between gap-1 min-w-0">
                             {/* 년간은 한 화면에 12개월을 담는 가장 조밀한 화면인데,
                                 날짜 숫자만 월간·주간(text-xs)보다 한두 단계 컸다.
                                 오늘 강조는 크기 대신 색과 '오늘' 표시로 한다. */}
                             <div
-                              className={`font-black cursor-pointer hover:underline flex items-center gap-1 text-xs ${DAY_NUMBER_COLOR[tone]}`}
+                              className={`font-black cursor-pointer hover:underline flex items-center gap-1 text-xs min-w-0 ${DAY_NUMBER_COLOR[tone]}`}
                               onClick={() => handleDateClick(dObj.dateStr)}
                             >
-                              <span>{dObj.day}일 ({dayOfWeek})</span>
-                              {isTodayEvent && <span className="text-2xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full ml-1">오늘</span>}
-                              {holidayName && <span title={holidayName} className="text-2xs text-red-500 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md ml-1">{holidayName}</span>}
+                              <span className="shrink-0">{dObj.day}일 ({dayOfWeek})</span>
+                              {isTodayEvent && <span className="text-2xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full ml-1 shrink-0">오늘</span>}
+                              {/* 공휴일 이름이 길면 이 칸만 줄어든다. 표식을
+                                  밀어내는 대신 말줄임으로 끝낸다. */}
+                              {holidayName && <span title={holidayName} className="text-2xs text-red-500 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md ml-1 min-w-0 truncate">{holidayName}</span>}
                             </div>
-                            <div className="flex items-center gap-1 shrink-0">
+                            <div className="flex items-center gap-0.5 shrink-0">
                               <JournalCountBadge
                                 dateStr={dObj.dateStr}
                                 count={journalCountMap[dObj.dateStr] || 0}
