@@ -82,6 +82,16 @@ export async function pickDriveFolder(token: string): Promise<PickedFolder | nul
   if (!google?.picker) throw new Error('구글 파일 선택창을 쓸 수 없습니다.');
 
   return new Promise<PickedFolder | null>((resolve, reject) => {
+    let settled = false;
+    let watch: ReturnType<typeof setInterval> | null = null;
+
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (watch) clearInterval(watch);
+      fn();
+    };
+
     try {
       const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
         .setIncludeFolders(true)
@@ -98,16 +108,62 @@ export async function pickDriveFolder(token: string): Promise<PickedFolder | nul
           const action = data?.[google.picker.Response.ACTION];
           if (action === google.picker.Action.PICKED) {
             const doc = data[google.picker.Response.DOCUMENTS]?.[0];
-            resolve(doc ? { id: doc.id, name: doc.name } : null);
+            finish(() => resolve(doc ? { id: doc.id, name: doc.name } : null));
           } else if (action === google.picker.Action.CANCEL) {
-            resolve(null);
+            finish(() => resolve(null));
           }
         })
         .build();
 
       picker.setVisible(true);
+
+      /**
+       * 선택창을 곁에서 지켜본다.
+       *
+       * Picker는 제가 잘 열렸을 때만 콜백을 부른다. 키를 거절당하면 창 안에
+       * 영문 오류만 띄우고 콜백은 오지 않는다. 그러면 부른 쪽은 약속이 끝나기를
+       * 영영 기다리고, 화면의 단추는 '선택창을 여는 중...'에 멈춰 선다.
+       * 실제로 그랬다. 그래서 창을 직접 들여다본다.
+       *
+       * 창 안의 글을 읽어 무엇이 잘못됐는지 가리는 것은 구글이 문구를 바꾸면
+       * 못 알아본다. 그때는 '그냥 닫힌 것'으로 떨어지므로 멈추지는 않는다.
+       */
+      let appeared = false;
+      let ticks = 0;
+      watch = setInterval(() => {
+        const el = document.querySelector<HTMLElement>('.picker-dialog');
+        // 닫을 때 요소를 지우지 않고 감추기만 하는 경우가 있어 보이는지까지 본다
+        const dialog = el && el.offsetParent !== null ? el : null;
+
+        if (dialog) {
+          appeared = true;
+          const text = dialog.textContent || '';
+          if (/developer key/i.test(text)) {
+            try {
+              picker.setVisible(false);
+            } catch {
+              /* 이미 닫혔을 수 있다 */
+            }
+            finish(() =>
+              reject(
+                new Error(
+                  '구글이 이 앱의 API 키를 받아 주지 않았습니다. 구글 클라우드 콘솔에서 ' +
+                    'Picker API를 켜고, 그 키의 [API 제한]에 Google Picker API를 넣어 주세요.'
+                )
+              )
+            );
+          }
+          return;
+        }
+
+        // 떴다가 사라졌으면 사용자가 닫은 것이다
+        if (appeared) finish(() => resolve(null));
+
+        // 끝내 뜨지 않으면 지켜보기를 그만둔다 (4분)
+        if (++ticks > 600) finish(() => resolve(null));
+      }, 400);
     } catch (e) {
-      reject(e);
+      finish(() => reject(e));
     }
   });
 }

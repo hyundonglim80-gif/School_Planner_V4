@@ -55,3 +55,33 @@
 .sp4-alarm-content {
   animation: sp4-alarm-content-blink 0.6s infinite;
 }
+
+/* 구글 파일 선택창(Picker)을 팝업 위에 띄운다.
+ *
+ * Picker는 제 대화상자에 z-index 1001을 박아 넣는다(우리가 정할 수 없다).
+ * 이 앱의 팝업은 hooks/useModalLayer가 1000부터 10씩 올려 가며 쌓으므로,
+ * 명렬표 팝업(약 1010)에서 선택창을 열면 선택창이 팝업 뒤로 숨는다.
+ * 실제로 '사진 폴더'를 눌렀을 때 선택창이 팝업 아래에 뜨는 것으로 나타났다.
+ * 팝업이 여러 겹 쌓여도 넘지 못할 만큼 높은 값으로 덮어쓴다. */
+.picker-dialog-bg {
+  z-index: 99998 !important;
+}
+.picker-dialog,
+.picker-dialog-content {
+  z-index: 99999 !important;
+}
+
+/* 숫자 칸의 위아래 화살표를 없앤다.
+ *
+ * 명렬표의 번호 칸처럼 좁은 칸에서는 이 화살표가 글자 위로 겹쳐 두 자리 수가
+ * 잘려 보인다('10'이 '1'로 보인다). 번호는 눌러서 올리는 값이 아니라 쳐서
+ * 넣는 값이라 화살표가 할 일도 없다. */
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.no-spinner {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

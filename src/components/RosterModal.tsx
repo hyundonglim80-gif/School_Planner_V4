@@ -211,9 +211,19 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       ? `사진 ${students.length - photoState.missing.length}/${students.length}명`
       : '';
 
+  /**
+   * 사진 폴더 연결. 실패한 사연을 반드시 화면에 내보인다.
+   *
+   * 예전에는 여기서 오류를 잡지 않아, 관리 탭의 '사진 폴더 연결'을 눌렀을 때
+   * 실패해도 아무 일도 일어나지 않은 것처럼 보였다(콘솔에만 남았다).
+   */
   const handleConnectPhotoFolder = async () => {
-    const picked = await photoState.connect();
-    return picked;
+    try {
+      return await photoState.connect();
+    } catch (e: any) {
+      showErrorToast(e?.message || '폴더를 연결하지 못했습니다.');
+      return null;
+    }
   };
 
   /** 아래 '사진 폴더' 단추. 연결되어 있으면 드라이브를 열고, 아니면 연결부터. */

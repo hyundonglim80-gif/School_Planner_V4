@@ -106,7 +106,7 @@ export default function RosterManageTab({
         <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
           <tr>
             <th className="p-2.5 text-center w-13">사진</th>
-            <th className="p-2.5 text-center w-13">번호</th>
+            <th className="p-2.5 text-center w-16">번호</th>
             <th className="p-2.5 w-27">이름</th>
             <th className="p-2.5 text-center w-17">성별</th>
             <th className="p-2.5 text-center w-19">상태</th>
@@ -143,7 +143,7 @@ export default function RosterManageTab({
                     type="number"
                     value={st.num || ''}
                     onChange={(e) => onUpdateStudent(idx, 'num', parseInt(e.target.value, 10) || 0)}
-                    className="w-10 text-center bg-white border border-slate-200 rounded px-1 py-1 font-bold text-slate-700 focus:outline-none"
+                    className="no-spinner w-12 text-center bg-white border border-slate-200 rounded px-1 py-1 font-bold text-slate-700 focus:outline-none"
                   />
                 </td>
                 <td className="p-1.5">
