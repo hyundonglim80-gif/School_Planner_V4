@@ -328,7 +328,10 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
    */
   const handleBulkUpload = async (fileList: FileList | File[] | null) => {
     const files = Array.from(fileList || []);
-    if (files.length === 0) return;
+    if (files.length === 0) {
+      // 말없이 되돌아 나가면 단추가 고장 난 것처럼 보인다
+      return showErrorToast('고른 파일이 없습니다.');
+    }
     setBulkReport(null);
     try {
       const { plan, failed } = await photoState.uploadMany(files);
@@ -1212,7 +1215,11 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                   multiple
                   ref={bulkPhotoInputRef}
                   onChange={(e) => {
-                    const picked = e.target.files;
+                    // ⚠️ 먼저 배열로 옮겨 담고 나서 입력칸을 비운다.
+                    //    e.target.files는 입력칸에 살아 붙어 있는 목록이라,
+                    //    value를 비우면 들고 있던 그 목록도 함께 비워진다.
+                    //    참조만 넘겼더니 받는 쪽에서 0개로 보였다.
+                    const picked = Array.from(e.target.files || []);
                     e.target.value = '';
                     void handleBulkUpload(picked);
                   }}
