@@ -1,3 +1,15 @@
+// src/utils/uploadHelper.ts
+//
+// ⚠️ 지금은 아무도 부르지 않는다. 첨부와 캡처 이미지는 전부 구글 드라이브로
+//    올라간다(lib/driveApi). 그런데도 지우지 않고 둔다.
+//
+//    드라이브에 올린 이미지를 화면에 펼쳐 보여줄 때 쓰는 thumbnail 주소는 공식
+//    문서에 있는 경로가 아니라, 구글이 바꾸면 그림이 안 보이게 될 수 있다.
+//    그때는 이미지만 다시 Storage로 되돌리게 되는데, 그 되돌리는 길을 여기
+//    남겨 둔다. 지워 버리면 급할 때 다시 짜야 한다.
+//
+//    되돌릴 일이 없다고 판단되면 그때 지운다.
+
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
 
