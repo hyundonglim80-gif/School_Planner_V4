@@ -31,7 +31,7 @@ export default function JournalCountBadge({
       }}
       title={`기록 ${count}건 보기`}
       aria-label={`기록 ${count}건 보기`}
-      className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded-md border border-amber-200 bg-amber-50 text-amber-700 text-2xs font-bold leading-none hover:bg-amber-100 transition-colors shrink-0 ${className}`}
+      className={`inline-flex items-center gap-px px-1 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-2xs font-bold leading-none hover:bg-amber-100 transition-colors shrink-0 ${className}`}
     >
       <span aria-hidden>📝</span>
       <span>{count}</span>

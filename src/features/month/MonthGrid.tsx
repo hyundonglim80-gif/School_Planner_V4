@@ -106,12 +106,14 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
               } ${dayObj.isToday ? 'ring-2 ring-inset ring-primary/40' : ''}`}
             >
               <div>
-                <div className="flex items-center justify-between gap-1 mb-1.5">
+                {/* 자리가 모자라면 표식이 아랫줄로 내려간다. 날짜와 공휴일
+                    이름을 가리는 것보다 한 줄 더 쓰는 편이 낫다. */}
+                <div className="flex flex-wrap items-center justify-between gap-x-1 gap-y-0.5 mb-1.5">
                   {/* 날짜 뒤에 공휴일 이름. 남는 자리를 다 쓰도록 min-w-0 flex-1 을 준다.
                       예전에는 max-w-[65px]로 묶어 두어 '대체공휴일'이 '대체공...'으로 잘렸다. */}
-                  <div className="flex items-center gap-1 min-w-0 flex-1">
+                  <div className="flex items-center gap-1 min-w-0">
                     <span
-                      className={`text-xs font-black shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full ${
+                      className={`text-xs font-black shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full ${
                         dayObj.isToday ? 'bg-primary text-white shadow-xs' : DAY_NUMBER_COLOR[tone]
                       }`}
                     >

@@ -31,7 +31,7 @@ export default function EvalCountBadge({
       }}
       title={count > 1 ? `조사표 ${count}건 - 골라서 보기` : '조사표 보기'}
       aria-label={count > 1 ? `조사표 ${count}건 - 골라서 보기` : '조사표 보기'}
-      className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded-md border border-blue-200 bg-blue-50 text-blue-700 text-2xs font-bold leading-none hover:bg-blue-100 transition-colors shrink-0 ${className}`}
+      className={`inline-flex items-center gap-px px-1 py-0.5 rounded border border-blue-200 bg-blue-50 text-blue-700 text-2xs font-bold leading-none hover:bg-blue-100 transition-colors shrink-0 ${className}`}
     >
       <span aria-hidden>📊</span>
       <span>{count}</span>

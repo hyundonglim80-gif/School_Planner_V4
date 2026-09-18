@@ -77,7 +77,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
             key={day.dateStr}
             data-today={day.isToday ? 'true' : undefined}
             onClick={() => onSelectDate(day.dateStr)}
-            className={`${DAY_CELL_BG[tone]} rounded-2xl border p-3.5 flex flex-col justify-between transition-all cursor-pointer group hover:shadow-md hover:border-primary/50 min-h-[380px] min-w-0 overflow-hidden ${
+            className={`${DAY_CELL_BG[tone]} rounded-2xl border p-2.5 flex flex-col justify-between transition-all cursor-pointer group hover:shadow-md hover:border-primary/50 min-h-[380px] min-w-0 overflow-hidden ${
               day.isToday ? 'border-primary ring-2 ring-primary/20 shadow-xs' : 'border-slate-200/80 shadow-xs'
             }`}
           >
@@ -86,10 +86,13 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                   있어서, 기록과 조사표가 둘 다 있는 날이면 칸 밖으로 밀려
                   나갔다. 줄어들 수 있는 쪽(날짜·공휴일)과 줄어들면 안 되는
                   쪽(표식)을 갈라 둔다. */}
-              <div className="flex items-center justify-between gap-1 pb-3 border-b border-slate-100 mb-3">
-                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              {/* 자리가 모자라면 표식이 아랫줄로 내려간다. 글자를 줄이거나
+                  가리는 대신 줄을 바꾼다. 날짜와 공휴일 이름은 그대로 다 보여야
+                  하는 것들이다. */}
+              <div className="flex flex-wrap items-center justify-between gap-x-1 gap-y-1 pb-2.5 border-b border-slate-100 mb-3">
+                <div className="flex items-center gap-1 min-w-0">
                   <span
-                    className={`w-6 h-6 shrink-0 rounded-xl flex items-center justify-center font-black text-xs bg-white/70 ${
+                    className={`w-6 h-6 shrink-0 rounded-lg flex items-center justify-center font-black text-xs bg-white/70 ${
                       day.isToday ? 'bg-primary text-white shadow-xs' : DAY_NUMBER_COLOR[tone]
                     }`}
                   >
