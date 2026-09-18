@@ -37,8 +37,10 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
   const { loadEvaluations, saveEvaluations, deleteEvaluation } = useEvaluation(selectedGroupId);
   const { rosterList: rosters } = useRoster();
 
-  // 모드: 'list' | 'create' | 'view'
-  const [viewMode, setViewMode] = useState<'list' | 'create' | 'view'>('list');
+  // 모드: 'create' | 'view'
+  // 그날 조사표를 모두 늘어놓는 목록 화면은 두지 않는다. 어느 교시의 표식을
+  // 눌러서 들어왔는지가 이미 답이라, 다시 고르게 하면 그것이 없던 일이 된다.
+  const [viewMode, setViewMode] = useState<'create' | 'view'>('create');
   const [evalList, setEvalList] = useState<EvaluationItem[]>([]);
   const [currentEval, setCurrentEval] = useState<EvaluationItem | null>(null);
   const [loading, setLoading] = useState(false);
@@ -107,6 +109,14 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
   const locationOf = (ev: EvaluationItem) =>
     ev.context?.source === 'journal' ? 'journal' : String(ev.periodStr ?? '');
 
+  /** 이 팝업이 맡고 있는 자리. 표식을 누른 그 교시(또는 기록 칸)다. */
+  const wantedLocation = defaultSource === 'journal' ? 'journal' : String(defaultPeriod ?? '');
+  const locationLabel =
+    wantedLocation === 'journal'
+      ? '기록'
+      : periodNames[Number(wantedLocation) - 1] || `${wantedLocation}교시`;
+  const evalsHere = evalList.filter((ev) => locationOf(ev) === wantedLocation);
+
   const loadList = async () => {
     setLoading(true);
     const list = await loadEvaluations(dateStr);
@@ -118,17 +128,14 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
       return;
     }
 
-    // 2교시 표식을 눌렀으면 2교시 조사표가 바로 떠야 한다. 그날 조사표를 모두
-    // 늘어놓고 다시 고르게 하면, 어디를 눌렀는지가 없던 일이 된다.
-    // 한 자리에 여러 개면 고를 수밖에 없으므로 그때만 목록을 보여 준다.
-    const wanted = defaultSource === 'journal' ? 'journal' : String(defaultPeriod ?? '');
-    const here = wanted ? list.filter((ev) => locationOf(ev) === wanted) : [];
-
-    if (here.length === 1) {
+    // 2교시 표식을 눌렀으면 2교시 조사표가 바로 뜬다. 여럿이면 첫 번째를 열고,
+    // 나머지는 위쪽 줄에서 눌러 옮겨 간다.
+    const here = list.filter((ev) => locationOf(ev) === wantedLocation);
+    if (here.length > 0) {
       await openViewer(here[0], list);
       return;
     }
-    setViewMode('list');
+    setViewMode('create');
   };
 
   const handleCreate = async () => {
@@ -359,9 +366,16 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
     if (!currentEval) return;
     const remaining = await deleteEvaluation(currentEval.dateStr, currentEval.id);
     setEvalList(remaining);
-    setCurrentEval(null);
-    setViewMode(remaining.length > 0 ? 'list' : 'create');
     showToast('🗑️ 조사표를 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+
+    // 같은 자리에 남은 것이 있으면 그것을 열고, 없으면 새로 만드는 칸을 연다.
+    const left = remaining.filter((ev) => locationOf(ev) === wantedLocation);
+    if (left.length > 0) {
+      await openViewer(left[0], remaining);
+      return;
+    }
+    setCurrentEval(null);
+    setViewMode('create');
   };
 
   const updateRecord = (sNum: number, field: string, value: any) => {
@@ -389,57 +403,43 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
-            <h3 className="text-lg font-black text-slate-800">📋 조사표 관리</h3>
-            <span className="text-xs text-slate-400">{dateStr}</span>
+            <h3 className="text-lg font-black text-slate-800">📋 조사표</h3>
+            {/* 어느 날 어느 자리의 조사표인지 머리에 적는다 */}
+            <span className="text-xs text-slate-400">{dateStr} · {locationLabel}</span>
           </div>
           <div className="flex items-center gap-2">
             {viewMode !== 'create' && (
               <button onClick={() => setViewMode('create')} className="px-3 py-1 bg-primary text-white rounded-lg text-xs font-bold">+ 새 조사표</button>
-            )}
-            {viewMode !== 'list' && evalList.length > 0 && (
-              <button onClick={() => setViewMode('list')} className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold">목록</button>
             )}
             <button
             title="닫기" onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl font-bold">✕</button>
           </div>
         </div>
 
+        {/* 한 자리에 조사표가 여럿일 때만 나오는 줄. 그날 조사표를 모두
+            늘어놓던 목록 화면을 대신한다. 어디를 눌러서 들어왔는지가
+            남아 있어야, 고르는 수고가 한 번으로 끝난다. */}
+        {viewMode === 'view' && evalsHere.length > 1 && (
+          <div className="flex items-center gap-1 px-6 py-2 border-b border-slate-100 bg-slate-50 overflow-x-auto">
+            <span className="text-xs font-bold text-slate-500 shrink-0 mr-1">{locationLabel}</span>
+            {evalsHere.map((ev) => (
+              <button
+                key={ev.id}
+                onClick={() => void openViewer(ev)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold shrink-0 transition-colors ${
+                  ev.id === currentEval?.id
+                    ? 'bg-primary text-white'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                {ev.title}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-4" data-scroll-lock>
-          {/* 목록 모드 */}
-          {viewMode === 'list' && (
-            <div className="space-y-2">
-              {loading ? (
-                <p className="text-center text-slate-400 text-xs py-8">불러오는 중...</p>
-              ) : evalList.length === 0 ? (
-                <p className="text-center text-slate-400 text-xs py-8">등록된 조사표가 없습니다.</p>
-              ) : (
-                evalList.map(ev => (
-                  <button
-                    key={ev.id}
-                    onClick={() => void openViewer(ev)}
-                    className="w-full text-left p-3 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-primary/30 rounded-xl transition-all"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="font-bold text-sm text-slate-800">{ev.title}</span>
-                        <span className="ml-2 text-xs text-slate-400">
-                          {ev.type === 'eval' ? '평가' : ev.type === 'check' ? '체크' : '메모'}
-                          {ev.subject ? ` · ${ev.subject}` : ''}
-                          {' · '}
-                          {/* 어느 교시 것인지 적어 둔다. 한 자리에 여럿이면
-                              목록에서 골라야 하는데, 제목만으로는 못 가린다. */}
-                          {locationOf(ev) === 'journal'
-                            ? '기록'
-                            : periodNames[Number(ev.periodStr) - 1] || `${ev.periodStr}교시`}
-                        </span>
-                      </div>
-                      <span className="text-xs text-slate-400">{ev.studentsSnapshot?.length || 0}명</span>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          )}
+          {loading && <p className="text-center text-slate-400 text-xs py-8">불러오는 중...</p>}
 
           {/* 생성 모드 */}
           {viewMode === 'create' && (
@@ -786,7 +786,7 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
               <span className="text-xs text-slate-400 font-bold">다른 사람이 만든 조사표입니다</span>
             )}
             <div className="flex gap-2">
-              <button onClick={() => setViewMode('list')} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold">닫기</button>
+              <button onClick={onClose} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold">닫기</button>
               {canEdit && (
                 <button onClick={handleSaveRecords} className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-xs">저장</button>
               )}

@@ -6,6 +6,7 @@
 // 만들어 두었는지 알 수 있었다. V4로 옮기면서 이것만 빠져, 날짜를 하나씩 눌러
 // 들어가 보기 전에는 알 수가 없었다. 기록 표식과 같은 모양으로 맞춘다.
 import { useAppStore } from '../store/useAppStore';
+import { parseDateStr } from '../lib/dateUtils';
 
 export default function EvalCountBadge({
   dateStr,
@@ -16,20 +17,21 @@ export default function EvalCountBadge({
   count: number;
   className?: string;
 }) {
-  const { openEvaluationModal } = useAppStore();
+  const { setCurrentDate, setScope } = useAppStore();
   if (!count) return null;
 
   return (
     <button
       type="button"
       onClick={(e) => {
-        // 날짜를 누르면 하루 화면으로 넘어가는 자리에 얹혀 있다.
-        // 이 단추는 그 이동 대신 조사표만 열어 준다.
+        // 그날 조사표를 한데 늘어놓고 고르게 하지 않는다. 하루 화면으로 가면
+        // 표식이 교시마다 제자리에 서 있어, 어느 수업 것인지 보고 누르면 된다.
         e.stopPropagation();
-        openEvaluationModal(dateStr, 'schedule');
+        setCurrentDate(parseDateStr(dateStr));
+        setScope('day');
       }}
-      title={`조사표 ${count}건 보기`}
-      aria-label={`조사표 ${count}건 보기`}
+      title={`조사표 ${count}건 - 하루 화면으로`}
+      aria-label={`조사표 ${count}건 - 하루 화면으로`}
       className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded-md border border-blue-200 bg-blue-50 text-blue-700 text-2xs font-bold leading-none hover:bg-blue-100 transition-colors shrink-0 ${className}`}
     >
       <span aria-hidden>📊</span>
