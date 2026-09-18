@@ -28,7 +28,8 @@ import {
   reconcilePick,
   type ClassPick,
 } from '../lib/classPicker';
-import { classFolderName, PHOTO_ROOT_FOLDER_NAME } from '../lib/studentPhotoNames';
+import { classFolderName } from '../lib/studentPhotoNames';
+import { diagnosePhotos } from '../lib/photoDiagnosis';
 import type { QuizStudent } from '../hooks/usePhotoQuiz';
 
 type RosterTab = 'manage' | 'search' | 'memorize';
@@ -211,6 +212,14 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       ? `사진 ${students.length - photoState.missing.length}/${students.length}명`
       : '';
 
+  /** 사진이 안 붙었을 때 어디서 끊겼는지 (lib/photoDiagnosis.ts) */
+  const diagnosis = diagnosePhotos({
+    scan: photoState.scan,
+    className: classFolderName(currentClass),
+    studentCount: students.length,
+    matchedCount: students.length - photoState.missing.length,
+  });
+
   /**
    * 사진 폴더 연결. 실패한 사연을 반드시 화면에 내보인다.
    *
@@ -232,12 +241,14 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       window.open(`https://drive.google.com/drive/folders/${photoState.folder.id}`, '_blank');
       return;
     }
-    try {
-      const picked = await photoState.connect();
-      if (picked) showToast('✅ 사진 폴더를 연결했습니다.');
-    } catch (e: any) {
-      showErrorToast(e?.message || '폴더를 연결하지 못했습니다.');
-    }
+    const picked = await handleConnectPhotoFolder();
+    if (picked) showToast('✅ 사진 폴더를 연결했습니다.');
+  };
+
+  /** 다른 폴더로 갈아탄다. 처음 고른 폴더가 틀렸을 때 되돌아올 길이다. */
+  const handleRepickPhotoFolder = async () => {
+    const picked = await handleConnectPhotoFolder();
+    if (picked) showToast(`✅ '${picked.name}' 폴더로 바꿨습니다.`);
   };
 
   const handleUploadPhoto = async (student: Student, file: File) => {
@@ -815,6 +826,24 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
               </svg>
               사진 폴더
             </button>
+            {/* 처음 고른 폴더가 틀렸을 때 되돌아올 길. 위의 '사진 폴더'는
+                연결된 폴더를 드라이브에서 열어 줄 뿐이라 갈아탈 수가 없었다. */}
+            {photoState.folder && (
+              <button
+                type="button"
+                onClick={handleRepickPhotoFolder}
+                title={`지금 연결된 폴더: ${photoState.folder.name || '이름 모름'}`}
+                className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors cursor-pointer"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 4v6h-6" />
+                  <path d="M3 20v-6h6" />
+                  <path d="M20 10a8 8 0 0 0-13.7-4.2L3 9" />
+                  <path d="M4 14a8 8 0 0 0 13.7 4.2L21 15" />
+                </svg>
+                폴더 다시 고르기
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -1110,18 +1139,51 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                   폴더 다시 고르기
                 </button>
               </div>
+            ) : photoState.status === 'loading' ? (
+              <div className="text-2xs text-slate-400 font-semibold px-0.5">사진을 불러오는 중...</div>
             ) : (
-              <div className="flex items-center justify-between gap-2 text-2xs text-slate-400 font-semibold px-0.5 flex-wrap">
-                <span>
-                  {photoState.status === 'loading'
-                    ? '사진을 불러오는 중...'
-                    : photoState.missing.length > 0
-                      ? `사진 없는 학생 ${photoState.missing.length}명 — 빈 칸을 눌러 바로 올릴 수 있습니다`
-                      : '모든 학생의 사진이 연결되었습니다'}
-                </span>
-                <span>
-                  폴더 : {photoState.folder?.name || PHOTO_ROOT_FOLDER_NAME} / {classFolderName(currentClass)}
-                </span>
+              /* 사진이 안 붙었을 때 '없음'이라고만 하면 아직 안 올린 것인지,
+                 폴더를 못 읽은 것인지, 이름이 틀린 것인지 가릴 수 없다.
+                 어디서 끊겼는지는 lib/photoDiagnosis.ts가 가린다. */
+              <div
+                className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 flex-wrap ${
+                  diagnosis.tone === 'error'
+                    ? 'bg-red-50 border border-red-200'
+                    : diagnosis.tone === 'warn'
+                      ? 'bg-slate-50 border border-slate-200'
+                      : 'bg-emerald-50 border border-emerald-200'
+                }`}
+              >
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span
+                    className={`text-2xs font-bold ${
+                      diagnosis.tone === 'error'
+                        ? 'text-red-700'
+                        : diagnosis.tone === 'warn'
+                          ? 'text-slate-600'
+                          : 'text-emerald-700'
+                    }`}
+                  >
+                    {diagnosis.message}
+                  </span>
+                  {diagnosis.hint && (
+                    <span className="text-2xs text-slate-500 font-semibold">{diagnosis.hint}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-2xs text-slate-400 font-semibold">
+                    {photoState.folder?.name || '폴더'} / {classFolderName(currentClass)}
+                  </span>
+                  {diagnosis.offerRepick && (
+                    <button
+                      type="button"
+                      onClick={handleRepickPhotoFolder}
+                      className="px-2.5 py-1 bg-white border border-red-300 rounded text-2xs font-bold text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
+                    >
+                      폴더 다시 고르기
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </>
@@ -1150,6 +1212,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
               withoutPhoto={
                 students.filter((s) => s.isActive !== false && !photoState.photos.has(s.num)).length
               }
+              hint={diagnosis.tone === 'error' ? `${diagnosis.message} ${diagnosis.hint || ''}` : undefined}
             />
           ))}
       </div>

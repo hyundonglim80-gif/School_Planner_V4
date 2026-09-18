@@ -10,14 +10,14 @@ import {
   loadPhotoFolder,
   connectPhotoFolder,
   clearPhotoFolder,
-  findClassFolderId,
-  listClassPhotos,
+  scanClassPhotos,
   getPhotoUrl,
   uploadStudentPhoto,
   forgetFolderCache,
   PhotoAccessError,
   type PhotoFolderConfig,
   type DrivePhotoFile,
+  type PhotoScan,
 } from '../lib/studentPhotos';
 import { matchClassPhotos, type ClassKey } from '../lib/studentPhotoNames';
 
@@ -53,6 +53,8 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
   /** 학생 번호 -> 사진 */
   const [photos, setPhotos] = useState<Map<number, StudentPhoto>>(new Map());
   const [uploading, setUploading] = useState<number | null>(null);
+  /** 마지막으로 폴더를 훑은 결과. 사진이 안 붙을 때 까닭을 짚는 데 쓴다. */
+  const [scan, setScan] = useState<PhotoScan | null>(null);
 
   // 명단은 글자를 한 자 칠 때마다 새 배열이 된다. 그대로 의존성에 넣으면
   // 이름을 고치는 동안 드라이브를 수십 번 부르게 되므로, 사진 찾기에 실제로
@@ -94,19 +96,19 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
       const token = await getValidGoogleToken();
       if (!token) throw new Error('구글 계정 연결이 필요합니다.');
 
-      const classFolderId = await findClassFolderId(folder.id, cls, token);
+      const found = await scanClassPhotos(folder.id, cls, token);
       if (runId !== runIdRef.current) return;
+      setScan(found);
 
-      // 학급 폴더가 아직 없는 것은 잘못이 아니다. 사진을 한 장도 안 올렸을 뿐이다.
-      if (!classFolderId) {
+      // 사진을 찾을 곳이 없는 것은 잘못이 아니다. 한 장도 안 올렸을 수 있다.
+      // 무엇을 보고 그렇게 판단했는지는 scan에 담겨 화면에서 풀어 쓴다.
+      if (!found.folderId) {
         setPhotos(new Map());
         setStatus('ready');
         return;
       }
 
-      const files = await listClassPhotos(classFolderId, token);
-      if (runId !== runIdRef.current) return;
-
+      const files = found.files;
       const matched = matchClassPhotos(files, cls, studentsRef.current);
       const byId = new Map(files.map((f) => [f.id, f] as const));
 
@@ -150,6 +152,9 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
   const connect = useCallback(async () => {
     const picked = await connectPhotoFolder();
     if (picked) {
+      // 지난 폴더를 훑은 결과가 남아 있으면 새 폴더에 대한 진단인 것처럼 보인다
+      setScan(null);
+      setPhotos(new Map());
       setFolder(picked);
       setStatus('checking');
     }
@@ -159,6 +164,7 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
   const disconnect = useCallback(async () => {
     await clearPhotoFolder();
     setFolder(null);
+    setScan(null);
     setPhotos(new Map());
     setStatus('no-folder');
   }, []);
@@ -188,6 +194,8 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
     /** 사진이 없는 학생들 */
     missing,
     uploading,
+    /** 폴더를 훑은 결과 (사진이 안 붙는 까닭을 짚는 데 쓴다) */
+    scan,
     connect,
     disconnect,
     reload: load,

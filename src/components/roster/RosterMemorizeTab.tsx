@@ -16,6 +16,8 @@ interface RosterMemorizeTabProps {
   candidates: QuizStudent[];
   /** 사진이 아직 없는 학생 수. 왜 스물다섯이 아닌지 알려 주려고. */
   withoutPhoto: number;
+  /** 사진을 못 찾은 까닭 (lib/photoDiagnosis.ts). 판이 빌 때만 쓴다. */
+  hint?: string;
 }
 
 function Kbd({ children }: { children: React.ReactNode }) {
@@ -30,6 +32,7 @@ export default function RosterMemorizeTab({
   cls,
   candidates,
   withoutPhoto,
+  hint,
 }: RosterMemorizeTabProps) {
   const quiz = usePhotoQuiz(cls, candidates);
   const { current, revealed, answer, undo, next, shuffle, finished, canUndo } = quiz;
@@ -90,6 +93,11 @@ export default function RosterMemorizeTab({
             <>이 학급에 학생이 없습니다. 먼저 관리 탭에서 명단을 넣어 주세요.</>
           )}
         </div>
+        {hint && (
+          <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 leading-relaxed max-w-135">
+            {hint}
+          </div>
+        )}
       </div>
     );
   }

@@ -115,78 +115,32 @@ export class PhotoAccessError extends Error {
   readonly needsReconnect = true;
 }
 
-/** 학급 폴더 id를 기억해 둔다 ('2026-3-2' -> id). 팝업을 열 때마다 찾지 않게. */
-const folderIdCache = new Map<string, string | null>();
-
-/**
- * 학급 폴더('2026-3-2')를 뿌리 폴더 아래에서 찾는다.
- * 없으면 null (아직 사진을 한 장도 안 올린 학급).
- */
-export async function findClassFolderId(
-  rootId: string,
-  cls: ClassKey,
-  token: string
-): Promise<string | null> {
-  const name = classFolderName(cls);
-  const cacheKey = `${rootId}/${name}`;
-  if (folderIdCache.has(cacheKey)) return folderIdCache.get(cacheKey)!;
-
-  const q = encodeURIComponent(
-    `'${rootId}' in parents and name='${name}' and ` +
-      `mimeType='application/vnd.google-apps.folder' and trashed=false`
-  );
-  const res = await driveFetch(`${DRIVE_FILES}?q=${q}&fields=files(id)&pageSize=1`, token);
-  const data = await res.json();
-  const id = data.files?.[0]?.id || null;
-  folderIdCache.set(cacheKey, id);
-  return id;
-}
-
-/** 학급 폴더를 찾고, 없으면 만든다 (사진을 올릴 때만 쓴다) */
-export async function ensureClassFolderId(
-  rootId: string,
-  cls: ClassKey,
-  token: string
-): Promise<string> {
-  const found = await findClassFolderId(rootId, cls, token);
-  if (found) return found;
-
-  const res = await driveFetch(DRIVE_FILES, token, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: classFolderName(cls),
-      mimeType: 'application/vnd.google-apps.folder',
-      parents: [rootId],
-    }),
-  });
-  const created = await res.json();
-  folderIdCache.set(`${rootId}/${classFolderName(cls)}`, created.id);
-  return created.id;
-}
-
 export interface DrivePhotoFile extends PhotoCandidate {
   /** 마지막으로 고쳐진 때. 재어 둔 사진을 언제 버릴지 가르는 값이다. */
   modifiedTime?: string;
 }
 
-/**
- * 학급 폴더 안의 사진 파일을 모두 받아온다 (한 번에 200개씩).
- *
- * 한 반이 200명을 넘을 일은 없지만, 폴더에 학년 전체를 몰아 둔 경우가
- * 있을 수 있어 다음 쪽까지 따라간다.
- */
-export async function listClassPhotos(
-  folderId: string,
-  token: string
-): Promise<DrivePhotoFile[]> {
-  const out: DrivePhotoFile[] = [];
+/** 폴더 하나의 속살. 사진 파일과 하위 폴더 이름을 함께 준다. */
+interface FolderContents {
+  photos: DrivePhotoFile[];
+  folders: { id: string; name: string }[];
+  /** 사진도 폴더도 아닌 것까지 합친 전체 개수 (비었는지 가리는 데 쓴다) */
+  total: number;
+}
+
+const FOLDER_MIME = 'application/vnd.google-apps.folder';
+
+/** 폴더 안을 한 번에 훑는다 (한 쪽에 200개씩, 다음 쪽까지 따라간다) */
+async function listFolder(folderId: string, token: string): Promise<FolderContents> {
+  const photos: DrivePhotoFile[] = [];
+  const folders: { id: string; name: string }[] = [];
+  let total = 0;
   let pageToken = '';
 
   do {
     const params = new URLSearchParams({
       q: `'${folderId}' in parents and trashed=false`,
-      fields: 'nextPageToken, files(id,name,modifiedTime)',
+      fields: 'nextPageToken, files(id,name,mimeType,modifiedTime)',
       pageSize: '200',
       orderBy: 'name',
     });
@@ -195,12 +149,123 @@ export async function listClassPhotos(
     const res = await driveFetch(`${DRIVE_FILES}?${params}`, token);
     const data = await res.json();
     for (const f of data.files || []) {
-      if (isPhotoFile(f.name)) out.push({ id: f.id, name: f.name, modifiedTime: f.modifiedTime });
+      total += 1;
+      if (f.mimeType === FOLDER_MIME) folders.push({ id: f.id, name: f.name });
+      else if (isPhotoFile(f.name)) {
+        photos.push({ id: f.id, name: f.name, modifiedTime: f.modifiedTime });
+      }
     }
     pageToken = data.nextPageToken || '';
   } while (pageToken);
 
-  return out;
+  return { photos, folders, total };
+}
+
+/**
+ * 어디서 사진을 찾았는지, 못 찾았으면 어디까지 갔는지.
+ *
+ * 예전에는 학급 폴더를 못 찾으면 그냥 빈 손으로 돌아왔다. 그러면 화면에는
+ * '사진 없는 학생 25명'이라고만 떠서, 사진을 안 올린 것인지 폴더를 못 읽은
+ * 것인지 파일 이름이 틀린 것인지를 가릴 수가 없다. 실제로 폴더를 연결하고도
+ * 사진이 안 붙는 일이 생겼고, 화면만 봐서는 까닭을 알 수 없었다.
+ * 그래서 가는 길에 본 것을 그대로 담아 온다.
+ */
+export interface PhotoScan {
+  /** 사진을 찾아낸 폴더. 못 찾았으면 null */
+  folderId: string | null;
+  /** 어디서 찾았는가 */
+  source: 'subfolder' | 'root' | 'none';
+  files: DrivePhotoFile[];
+  /** 뿌리 폴더 안에서 본 하위 폴더 이름들 (없으면 빈 배열) */
+  subfolderNames: string[];
+  /** 뿌리 폴더 안이 통째로 비어 보이는가 */
+  rootEmpty: boolean;
+}
+
+/**
+ * 학급의 사진을 찾는다.
+ *
+ * 두 가지 모양을 모두 받아들인다.
+ *   1. 고른 폴더 / 2026-3-1 / 사진들        (원래 약속한 모양)
+ *   2. 고른 폴더 / 사진들                    (학급 폴더를 바로 고른 경우)
+ *
+ * 2를 받아들이는 까닭이 있다. drive.file 권한에서는 사용자가 선택창에서 고른
+ * 폴더까지만 앱에 열린다. 그 안의 하위 폴더가 함께 열리지 않는 경우가 있어,
+ * 뿌리 폴더를 골랐는데 정작 2026-3-1 폴더는 앱 눈에 안 보일 수 있다.
+ * 그럴 때는 선생님이 학급 폴더를 바로 고르면 되게 길을 열어 둔다.
+ */
+export async function scanClassPhotos(
+  rootId: string,
+  cls: ClassKey,
+  token: string
+): Promise<PhotoScan> {
+  const wanted = classFolderName(cls);
+  const root = await listFolder(rootId, token);
+  const subfolderNames = root.folders.map((f) => f.name);
+
+  const sub = root.folders.find((f) => f.name.trim() === wanted);
+  if (sub) {
+    const inner = await listFolder(sub.id, token);
+    return {
+      folderId: sub.id,
+      source: 'subfolder',
+      files: inner.photos,
+      subfolderNames,
+      rootEmpty: false,
+    };
+  }
+
+  // 하위 폴더가 없다면, 고른 폴더가 곧 학급 폴더일 수 있다
+  if (root.photos.length > 0) {
+    return {
+      folderId: rootId,
+      source: 'root',
+      files: root.photos,
+      subfolderNames,
+      rootEmpty: false,
+    };
+  }
+
+  return {
+    folderId: null,
+    source: 'none',
+    files: [],
+    subfolderNames,
+    rootEmpty: root.total === 0,
+  };
+}
+
+/** 학급 폴더 id를 기억해 둔다. 사진을 올릴 때 어디에 넣을지 정하는 데 쓴다. */
+const folderIdCache = new Map<string, string>();
+
+/** 사진을 올릴 폴더. 이미 찾아 둔 곳이 있으면 거기, 없으면 학급 폴더를 만든다. */
+export async function ensureClassFolderId(
+  rootId: string,
+  cls: ClassKey,
+  token: string
+): Promise<string> {
+  const cacheKey = `${rootId}/${classFolderName(cls)}`;
+  const known = folderIdCache.get(cacheKey);
+  if (known) return known;
+
+  const scan = await scanClassPhotos(rootId, cls, token);
+  if (scan.folderId) {
+    folderIdCache.set(cacheKey, scan.folderId);
+    return scan.folderId;
+  }
+
+  const res = await driveFetch(DRIVE_FILES, token, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: classFolderName(cls),
+      mimeType: FOLDER_MIME,
+      parents: [rootId],
+    }),
+  });
+  const created = await res.json();
+  folderIdCache.set(cacheKey, created.id);
+  return created.id;
 }
 
 // ────────────────────────────────────────────────────────────────
