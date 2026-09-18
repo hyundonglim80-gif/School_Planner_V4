@@ -13,7 +13,7 @@ import { eventDocPayload, readEventList } from '../../lib/eventText';
 import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import { dayToneOf, DAY_CELL_BG, DAY_NUMBER_COLOR } from '../../lib/holiday';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { BODY_TEXT, SECTION_TITLE } from '../../lib/typeScale';
+import { BODY_TEXT, SECTION_TITLE, fitToWidthFontSize } from '../../lib/typeScale';
 import { moveToTrash } from '../../utils/trashHelper';
 import { showToast, showErrorToast } from '../../utils/toast';
 import DetailEditModal from '../../components/DetailEditModal';
@@ -267,17 +267,20 @@ export default function YearScreen() {
                           className={`flex flex-col gap-1.5 p-2 -mx-2 rounded-xl border-b border-dashed border-slate-200 last:border-0 ${DAY_CELL_BG[tone]} ${isTodayEvent ? 'ring-1 ring-primary/40 border-solid' : ''}`}
                         >
                           <div className="flex items-center justify-between">
+                            {/* 년간은 한 화면에 12개월을 담는 가장 조밀한 화면인데,
+                                날짜 숫자만 월간·주간(text-xs)보다 한두 단계 컸다.
+                                오늘 강조는 크기 대신 색과 '오늘' 표시로 한다. */}
                             <div
-                              className={`font-black cursor-pointer hover:underline flex items-center gap-1 ${DAY_NUMBER_COLOR[tone]} ${isTodayEvent ? 'text-base' : 'text-sm'}`}
+                              className={`font-black cursor-pointer hover:underline flex items-center gap-1 text-xs ${DAY_NUMBER_COLOR[tone]}`}
                               onClick={() => handleDateClick(dObj.dateStr)}
                             >
                               <span>{dObj.day}일 ({dayOfWeek})</span>
-                              {isTodayEvent && <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full ml-1">오늘</span>}
-                              {holidayName && <span title={holidayName} className="text-xs text-red-500 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md ml-1">{holidayName}</span>}
+                              {isTodayEvent && <span className="text-2xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full ml-1">오늘</span>}
+                              {holidayName && <span title={holidayName} className="text-2xs text-red-500 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md ml-1">{holidayName}</span>}
                             </div>
                             <button
                               onClick={(e) => { e.stopPropagation(); setQuickAddDate(dObj.dateStr); }}
-                              className="text-xs font-bold text-slate-400 hover:text-primary bg-slate-50 hover:bg-slate-100 px-1.5 py-0.5 rounded transition-colors"
+                              className="text-2xs font-bold text-slate-400 hover:text-primary bg-slate-50 hover:bg-slate-100 px-1.5 py-0.5 rounded transition-colors"
                             >
                               + 일정
                             </button>
@@ -300,7 +303,7 @@ export default function YearScreen() {
                                         e.stopPropagation();
                                         setDetailModal({ isOpen: true, type: 'schedule', dateStr: dObj.dateStr, itemId: p, initialData: item });
                                       }}
-                                      className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 text-xs font-bold"
+                                      className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 text-2xs font-bold"
                                     >
                                       <span className="text-2xs text-emerald-500">{p}</span>
                                       <span className="max-w-[90px] truncate">{text}</span>
@@ -315,12 +318,9 @@ export default function YearScreen() {
                                   const item = sch[p];
                                   const text = item?.subject?.trim() || '';
                                   if (text && text.toUpperCase() !== 'X') {
-                                    let fontSize = "text-xs";
-                                    let tracking = "tracking-normal";
-                                    if (text.length >= 5) { fontSize = "text-2xs"; tracking = "tracking-tighter"; }
-                                    else if (text.length === 4) { fontSize = "text-2xs"; tracking = "tracking-tighter"; }
-                                    else if (text.length === 3) { fontSize = "text-xs"; tracking = "tracking-tight"; }
-
+                                    // 글자 수를 세어 단계를 고르던 것을 월간과 같은 방식으로 바꿨다.
+                                    // 그 방식은 칸이 얼마나 좁은지는 보지 않아서, 짧은 과목명에
+                                    // text-xs가 걸려 옆 칸보다 글자가 튀었다.
                                     return (
                                       <div
                                         key={p}
@@ -328,10 +328,15 @@ export default function YearScreen() {
                                           e.stopPropagation();
                                           setDetailModal({ isOpen: true, type: 'schedule', dateStr: dObj.dateStr, itemId: p, initialData: item });
                                         }}
-                                        className={`flex-1 min-w-0 h-[22px] flex items-center justify-center border border-emerald-300 rounded-[3px] bg-emerald-50 text-emerald-700 font-bold ${fontSize} ${tracking} whitespace-nowrap overflow-hidden cursor-pointer hover:bg-emerald-200 transition-colors shadow-2xs`}
+                                        className="flex-1 min-w-0 h-[22px] flex items-center justify-center border border-emerald-300 rounded-[3px] bg-emerald-50 text-emerald-700 font-bold overflow-hidden cursor-pointer hover:bg-emerald-200 transition-colors shadow-2xs [container-type:inline-size]"
                                         title={`${text} (${p}교시)`}
                                       >
-                                        {text}
+                                        <span
+                                          className="text-2xs tracking-tighter whitespace-nowrap leading-none"
+                                          style={{ fontSize: fitToWidthFontSize(text) }}
+                                        >
+                                          {text}
+                                        </span>
                                       </div>
                                     );
                                   }
