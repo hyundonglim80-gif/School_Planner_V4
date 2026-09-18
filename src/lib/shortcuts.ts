@@ -115,7 +115,7 @@ export const FIXED_SHORTCUTS: FixedShortcut[] = [
     why: '거의 모든 프로그램이 같은 뜻으로 쓰는 키라 바꾸지 않습니다.',
   },
   {
-    label: '일정 · 메모 · 기록 즉시 저장',
+    label: '일정 · 메모 · 기록 · 조사표 즉시 저장',
     keys: 'Ctrl + S',
     why: '입력칸 안에서 동작하는 키라 화면 전체 단축키와 따로 움직입니다.',
   },

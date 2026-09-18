@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useEvaluation } from '../hooks/useEvaluation';
 import type { EvaluationItem } from '../hooks/useEvaluation';
 import { useRoster } from '../hooks/useRoster';
@@ -143,12 +143,15 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
 
     // 2교시 표식을 눌렀으면 2교시 조사표가 바로 뜬다. 그 자리에 여럿일 때만
     // 목록을 내어 고르게 한다. 구분지을 것이 없으면 고를 것도 없다.
+    //
+    // 달력에서 날짜 표식을 눌러 왔을 때는 한 건이라도 목록을 낸다. 그 자리는
+    // 교시를 모르고 들어온 자리라, 무엇이 열릴지 보고 나서 들어가야 한다.
     const here = isWholeDay ? list : list.filter((ev) => locationOf(ev) === wantedLocation);
-    if (here.length === 1) {
+    if (!isWholeDay && here.length === 1) {
       await openViewer(here[0], list);
       return;
     }
-    setViewMode(here.length > 1 ? 'list' : 'create');
+    setViewMode(here.length > 0 ? 'list' : 'create');
   };
 
   const handleCreate = async () => {
@@ -311,7 +314,9 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
     const selectedRoster = rosters[idx];
     if (!selectedRoster) return showErrorToast('대상 학급을 선택해 주세요.');
 
-    let next: EvaluationItem = { ...currentEval, title: metaTitle.trim(), subject: metaSubject };
+    // 표에 적다 만 것이 있으면 함께 담는다. 기본 정보만 저장하고 표를
+    // 흘려보내면, 적어 둔 점수가 조용히 사라진다.
+    let next: EvaluationItem = { ...currentEval, records, title: metaTitle.trim(), subject: metaSubject };
 
     const rosterChanged =
       !currentEval.rosterMeta ||
@@ -383,12 +388,12 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
 
     // 같은 자리에 하나만 남으면 그것을 열고, 여럿이면 다시 고르게 한다.
     const left = isWholeDay ? remaining : remaining.filter((ev) => locationOf(ev) === wantedLocation);
-    if (left.length === 1) {
+    if (!isWholeDay && left.length === 1) {
       await openViewer(left[0], remaining);
       return;
     }
     setCurrentEval(null);
-    setViewMode(left.length > 1 ? 'list' : 'create');
+    setViewMode(left.length > 0 ? 'list' : 'create');
   };
 
   const updateRecord = (sNum: number, field: string, value: any) => {
@@ -397,6 +402,38 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
       [sNum]: { ...(prev[sNum] || {}), [field]: value }
     }));
   };
+
+  // ── Ctrl+S ──────────────────────────────────────────────────────────
+  //
+  // 표에 칸이 수십 개라 한 줄 적을 때마다 저장 단추까지 마우스를 옮기면
+  // 흐름이 끊긴다. 브라우저의 '다른 이름으로 저장'은 Layout이 이미 막아 둔다.
+  //
+  // 지금 무엇을 하고 있었는지에 따라 저장할 것이 다르다. 기본 정보 칸을
+  // 펼쳐 둔 채 눌렀으면 그것을, 아니면 표를 저장한다.
+  const ctrlSRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    ctrlSRef.current = () => {
+      if (viewMode === 'create') {
+        void handleCreate();
+        return;
+      }
+      if (viewMode !== 'view' || !currentEval || !canEdit) return;
+      if (metaOpen) void handleSaveMeta();
+      else void handleSaveRecords();
+    };
+  });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.code !== 'KeyS' && e.key.toLowerCase() !== 's') return;
+      e.preventDefault();
+      ctrlSRef.current();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen]);
 
   const applyToAll = (field: string, value: any) => {
     if (!currentEval) return;
@@ -424,8 +461,9 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
             {viewMode !== 'create' && (
               <button onClick={() => setViewMode('create')} className="px-3 py-1 bg-primary text-white rounded-lg text-xs font-bold">+ 새 조사표</button>
             )}
-            {/* 고를 것이 여럿일 때만 목록으로 돌아갈 자리를 둔다 */}
-            {viewMode !== 'list' && evalsHere.length > 1 && (
+            {/* 되돌아갈 목록이 있을 때만 자리를 둔다. 교시 표식에서 왔으면
+                고를 것이 여럿일 때뿐이고, 달력에서 왔으면 늘 목록이 있다. */}
+            {viewMode !== 'list' && (isWholeDay ? evalsHere.length > 0 : evalsHere.length > 1) && (
               <button onClick={() => setViewMode('list')} className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold">목록</button>
             )}
             <button
@@ -822,7 +860,13 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
             <div className="flex gap-2">
               <button onClick={onClose} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold">닫기</button>
               {canEdit && (
-                <button onClick={handleSaveRecords} className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-xs">저장</button>
+                <button
+                  onClick={handleSaveRecords}
+                  title="Ctrl + S 로도 저장합니다"
+                  className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-xs"
+                >
+                  저장 <span className="font-normal opacity-70">(Ctrl+S)</span>
+                </button>
               )}
             </div>
           </div>
