@@ -10,6 +10,7 @@ import {
   loadPhotoFolders,
   connectPhotoFolder,
   connectClassFolder,
+  clearClassFolder,
   clearPhotoFolder,
   scanClassPhotos,
   getPhotoUrl,
@@ -216,6 +217,18 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
     return picked;
   }, [className]);
 
+  /** 이 학급에 골라 둔 폴더를 잊고, 앱이 맡아 두는 자리로 되돌아간다 */
+  const forgetClassFolder = useCallback(async () => {
+    if (!className) return;
+    await clearClassFolder(className);
+    resetView();
+    setFolders((f) => {
+      const next = { ...f.byClass };
+      delete next[className];
+      return { ...f, byClass: next };
+    });
+  }, [className]);
+
   /** 골라 둔 폴더를 모두 잊는다. 앱이 맡아 두는 자리는 그대로 쓴다. */
   const disconnect = useCallback(async () => {
     await clearPhotoFolder();
@@ -300,6 +313,7 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
     scan,
     connect,
     connectForClass,
+    forgetClassFolder,
     disconnect,
     reload: load,
     /** 사용자가 눌러서 구글에 다시 이어 붙인다 (권한 창이 떠도 되는 자리) */

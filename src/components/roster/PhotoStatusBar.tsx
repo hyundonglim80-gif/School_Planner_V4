@@ -15,6 +15,8 @@ interface PhotoStatusBarProps {
   onRepickRoot: () => void;
   /** 고른 폴더를 드라이브에서 열어 눈으로 확인하게 한다 */
   onOpenFolder?: () => void;
+  /** 못 읽는 폴더에 묶여 있을 때 앱이 맡아 두는 자리로 되돌아간다 */
+  onForgetPicked?: () => void;
 }
 
 const TONE = {
@@ -29,6 +31,7 @@ export default function PhotoStatusBar({
   onPickClassFolder,
   onRepickRoot,
   onOpenFolder,
+  onForgetPicked,
 }: PhotoStatusBarProps) {
   const tone = TONE[diagnosis.tone];
 
@@ -50,6 +53,16 @@ export default function PhotoStatusBar({
             className="px-2.5 py-1 bg-white border border-slate-300 rounded text-2xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             고른 폴더 열기
+          </button>
+        )}
+        {diagnosis.offerForgetPicked && onForgetPicked && (
+          <button
+            type="button"
+            onClick={onForgetPicked}
+            title="이 학급에 골라 둔 폴더를 잊고, 앱이 맡아 두는 자리를 씁니다"
+            className="px-2.5 py-1 bg-white border border-slate-300 rounded text-2xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+          >
+            앱 폴더로 되돌리기
           </button>
         )}
         {diagnosis.offerPickClass && (

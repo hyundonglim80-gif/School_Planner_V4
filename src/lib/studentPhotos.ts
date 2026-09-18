@@ -11,7 +11,7 @@
 //
 //  2. 자리가 다르다. 첨부는 School_Planner 바로 아래에 모이고, 사진은 그
 //     아래 Students_Poto/2026-3-1 로 학급마다 나뉜다.
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteField } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { getValidGoogleToken } from './googleApi';
 import { pickDriveFolder } from './googlePicker';
@@ -130,6 +130,17 @@ export async function connectClassFolder(
   await writeConfig({ studentPhotoFoldersByClass: { [className]: picked } });
   managedRootId = null;
   return picked;
+}
+
+/**
+ * 이 학급에 골라 둔 폴더를 잊는다.
+ *
+ * 골랐는데 정작 그 안이 안 읽히는 폴더가 남아 있으면, 사진을 올려도 그쪽으로
+ * 가고 화면은 계속 빈 채다. 앱이 맡아 두는 자리로 되돌아갈 길이 있어야 한다.
+ */
+export async function clearClassFolder(className: string): Promise<void> {
+  await writeConfig({ studentPhotoFoldersByClass: { [className]: deleteField() } });
+  managedRootId = null;
 }
 
 async function driveFetch(url: string, token: string, init?: RequestInit): Promise<Response> {

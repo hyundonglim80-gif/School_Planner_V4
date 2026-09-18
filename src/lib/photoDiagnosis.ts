@@ -27,6 +27,8 @@ export interface PhotoDiagnosis {
   offerRepick: boolean;
   /** '고른 폴더 열기'를 내밀어야 하는가 (엉뚱한 폴더인지 눈으로 확인하게) */
   offerOpenFolder?: boolean;
+  /** '앱 폴더로 되돌리기'를 내밀어야 하는가 (못 읽는 폴더에 묶여 있을 때) */
+  offerForgetPicked?: boolean;
 }
 
 export interface DiagnoseArgs {
@@ -154,6 +156,7 @@ export function diagnosePhotos({
           offerPickClass: true,
           offerRepick: false,
           offerOpenFolder: true,
+          offerForgetPicked: true,
         };
       }
       if (scan.itemCount === 0) {
@@ -166,6 +169,7 @@ export function diagnosePhotos({
           offerPickClass: true,
           offerRepick: false,
           offerOpenFolder: true,
+          offerForgetPicked: true,
         };
       }
       return {

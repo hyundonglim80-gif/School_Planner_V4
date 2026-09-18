@@ -118,6 +118,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   const bulkPhotoInputRef = React.useRef<HTMLInputElement>(null);
   /** 여러 장 올린 뒤의 결과. 짝을 못 지은 파일을 알려 주려고 남긴다. */
   const [bulkReport, setBulkReport] = useState<{
+    picked: number;
     uploaded: number;
     unmatched: string[];
     notPhotos: string[];
@@ -269,6 +270,16 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     }
   };
 
+  /** 못 읽는 폴더에 묶인 것을 풀고 앱이 맡아 두는 자리로 되돌아간다 */
+  const handleForgetClassFolder = async () => {
+    try {
+      await photoState.forgetClassFolder();
+      showToast('✅ 앱이 맡아 두는 사진 폴더를 다시 씁니다.');
+    } catch (e: any) {
+      showErrorToast(e?.message || '되돌리지 못했습니다.');
+    }
+  };
+
   /** 고른 폴더를 드라이브에서 열어 본다. 엉뚱한 폴더인지 눈으로 가리려는 것. */
   const handleOpenPickedFolder = () => {
     const id = photoState.classFolder?.id || photoState.scan?.folderId;
@@ -323,6 +334,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       const { plan, failed } = await photoState.uploadMany(files);
       const uploaded = plan.matched.length - failed.length;
       setBulkReport({
+        picked: files.length,
         uploaded,
         unmatched: plan.unmatched.map((f) => f.name),
         notPhotos: plan.notPhotos.map((f) => f.name),
@@ -330,7 +342,6 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
         failed,
       });
       if (uploaded > 0) showToast(`✅ 사진 ${uploaded}장을 올렸습니다.`);
-      else showErrorToast('올린 사진이 없습니다. 파일 이름을 확인해 주세요.');
     } catch (e: any) {
       showErrorToast(e?.message || '사진을 올리지 못했습니다.');
     }
@@ -1275,17 +1286,45 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
               />
             </div>
 
-            {/* 여러 장 올린 뒤의 결과. 짝을 못 지은 파일은 토스트로 흘려보내면
-                안 된다 — 무엇을 다시 손봐야 하는지가 거기 들어 있다. */}
-            {bulkReport &&
-              (bulkReport.unmatched.length > 0 ||
-                bulkReport.notPhotos.length > 0 ||
-                bulkReport.duplicates.length > 0 ||
-                bulkReport.failed.length > 0) && (
-                <div className="flex items-start justify-between gap-2 rounded-lg px-2.5 py-2 border border-amber-200 bg-amber-50">
+            {/* 여러 장 올리는 중. 단추 문구는 툴바에 묻혀 안 보인다. */}
+            {photoState.bulk && (
+              <div className="flex items-center gap-2 rounded-lg px-2.5 py-2 border border-blue-200 bg-blue-50">
+                <span className="text-2xs font-bold text-primary whitespace-nowrap">
+                  사진 올리는 중 {photoState.bulk.done} / {photoState.bulk.total}
+                </span>
+                <span className="flex-1 h-1.5 rounded-full bg-blue-200 overflow-hidden">
+                  <span
+                    className="block h-full bg-primary rounded-full transition-all duration-200"
+                    style={{
+                      width: `${
+                        photoState.bulk.total > 0
+                          ? Math.round((photoState.bulk.done / photoState.bulk.total) * 100)
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </span>
+              </div>
+            )}
+
+            {/* 여러 장 올린 뒤의 결과. 한 장도 못 올렸을 때야말로 꼭 보여야
+                하므로 늘 낸다. 토스트로 흘려보내면 무엇을 손봐야 하는지가
+                같이 사라진다. */}
+            {bulkReport && (
+                <div
+                  className={`flex items-start justify-between gap-2 rounded-lg px-2.5 py-2 border ${
+                    bulkReport.uploaded === 0
+                      ? 'border-red-200 bg-red-50'
+                      : 'border-amber-200 bg-amber-50'
+                  }`}
+                >
                   <div className="flex flex-col gap-0.5 min-w-0">
-                    <span className="text-2xs font-bold text-amber-800">
-                      사진 {bulkReport.uploaded}장을 올렸습니다.
+                    <span
+                      className={`text-2xs font-bold ${
+                        bulkReport.uploaded === 0 ? 'text-red-700' : 'text-amber-800'
+                      }`}
+                    >
+                      고른 파일 {bulkReport.picked}개 중 {bulkReport.uploaded}장을 올렸습니다.
                       {bulkReport.unmatched.length > 0 &&
                         ` 짝을 못 찾은 파일 ${bulkReport.unmatched.length}개: ${bulkReport.unmatched
                           .slice(0, 5)
@@ -1309,6 +1348,11 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                     {bulkReport.unmatched.length > 0 && (
                       <span className="text-2xs text-slate-500 font-semibold">
                         파일 이름에 학생 이름이나 번호가 들어 있어야 찾습니다. 빈 칸을 눌러 하나씩 올리셔도 됩니다.
+                      </span>
+                    )}
+                    {bulkReport.picked === 0 && (
+                      <span className="text-2xs text-slate-500 font-semibold">
+                        고른 파일이 없습니다. 창에서 사진을 고르신 뒤 '열기'를 눌러 주세요.
                       </span>
                     )}
                   </div>
@@ -1382,6 +1426,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                   onPickClassFolder={handlePickClassFolder}
                   onRepickRoot={handleRepickPhotoFolder}
                   onOpenFolder={handleOpenPickedFolder}
+                  onForgetPicked={handleForgetClassFolder}
                 />
               )}
               <RosterMemorizeTab
