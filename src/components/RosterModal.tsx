@@ -294,11 +294,37 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
         return;
       }
 
-      if (confirm(`[${sheetName}] 시트에서 총 ${parsedStudents.length}명의 학생을 찾았습니다.\n현재 앱의 명단을 이 데이터로 교체하시겠습니까?`)) {
+      // 시트에는 번호·이름·성별밖에 없다. 전출 표시와 특이사항은 앱에만 있어,
+      // 시트로 통째로 갈아엎으면 전출한 학생이 전부 재학으로 되살아났다.
+      // 앱에 있던 값을 이어 붙이고, 시트에서 빠진 전출 학생은 남겨 둔다.
+      // 지난 조사표가 그 학생을 가리키고 있기 때문이다.
+      const previous: Student[] = currentClasses[currentIndex]?.students || [];
+      const keyOf = (num: number, name: string) => `${num} ${String(name || '').trim()}`;
+      const prevByKey = new Map(previous.map((s) => [keyOf(s.num, s.name), s]));
+
+      const merged: Student[] = parsedStudents.map((st) => {
+        const old = prevByKey.get(keyOf(st.num, st.name));
+        return old
+          ? { ...st, isActive: old.isActive !== false, note: st.note || old.note || '' }
+          : st;
+      });
+
+      const fromSheet = new Set(merged.map((s) => keyOf(s.num, s.name)));
+      const keptLeavers = previous.filter(
+        (s) => s.isActive === false && !fromSheet.has(keyOf(s.num, s.name))
+      );
+
+      const leaverMsg = keptLeavers.length > 0 ? `\n전출한 학생 ${keptLeavers.length}명은 그대로 둡니다.` : '';
+
+      if (
+        confirm(
+          `[${sheetName}] 시트에서 총 ${parsedStudents.length}명의 학생을 찾았습니다.\n현재 앱의 명단을 이 데이터로 교체하시겠습니까?${leaverMsg}`
+        )
+      ) {
         const updated = [...currentClasses];
         updated[currentIndex] = {
           ...updated[currentIndex],
-          students: parsedStudents,
+          students: [...merged, ...keptLeavers].sort((a, b) => a.num - b.num),
         };
         setCurrentClasses(updated);
         showErrorToast('✅ 성공적으로 반영되었습니다.\n하단 \'클라우드 저장\' 버튼을 눌러 완전히 적용해주세요.');

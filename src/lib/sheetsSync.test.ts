@@ -398,4 +398,63 @@ describe('조사표 학급별 시트 - V3와 같은 모양이어야 한다', () 
     expect(parseEvalRows([['아무거나'], ['적어', '둔', '표']])).toEqual([]);
     expect(parseEvalRows([])).toEqual([]);
   });
+
+  describe('전출·전입으로 번호를 이어받았을 때', () => {
+    // 9월에 5번이던 홍길동이 전출하고, 10월에 들어온 김새벽이 5번을 이어받았다.
+    // 두 조사표가 같은 학급 탭에 들어간다.
+    const before = {
+      id: 'el9',
+      title: '9월 평가',
+      type: 'eval',
+      dateStr: '2026-09-15',
+      periodStr: 1,
+      methodObj: { indiv: true, group: false },
+      rosterMeta: { year: 2026, grade: '4', classNum: '1' },
+      studentsSnapshot: [{ num: 5, name: '홍길동', gender: 'M' }],
+      records: { 5: { indivScore: '우수' } },
+    };
+
+    const after = {
+      ...before,
+      id: 'el10',
+      title: '10월 평가',
+      dateStr: '2026-10-15',
+      studentsSnapshot: [{ num: 5, name: '김새벽', gender: 'F' }],
+      records: { 5: { indivScore: '노력요함' } },
+    };
+
+    it('같은 번호라도 학생마다 한 줄씩 만든다', () => {
+      const rows = buildEvalRows([before, after]);
+      const studentRows = rows.slice(8);
+
+      expect(studentRows).toHaveLength(2);
+      expect(studentRows.map((r) => [r[0], r[1]])).toEqual([
+        ['5', '김새벽'],
+        ['5', '홍길동'],
+      ]);
+    });
+
+    it('전출한 학생의 점수가 전입한 학생에게 옮겨 붙지 않는다', () => {
+      const rows = buildEvalRows([before, after]);
+      const evaluations = {
+        '2026-09-15': [{ ...before, records: {} as Record<number, any> }],
+        '2026-10-15': [{ ...after, records: {} as Record<number, any> }],
+      };
+      applyEvalUpdates(evaluations, parseEvalRows(rows));
+
+      expect(evaluations['2026-09-15'][0].records[5].indivScore).toBe('우수');
+      expect(evaluations['2026-10-15'][0].records[5].indivScore).toBe('노력요함');
+    });
+
+    it('시트에서 이름을 고쳐도 그 번호를 쓰는 줄이 하나뿐이면 받아들인다', () => {
+      const rows = buildEvalRows([before]);
+      rows[8][1] = '홍길똥'; // 이름을 잘못 적어 두었다
+      rows[8][3] = '보통';
+
+      const evaluations = { '2026-09-15': [{ ...before, records: {} as Record<number, any> }] };
+      applyEvalUpdates(evaluations, parseEvalRows(rows));
+
+      expect(evaluations['2026-09-15'][0].records[5].indivScore).toBe('보통');
+    });
+  });
 });

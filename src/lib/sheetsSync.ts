@@ -338,6 +338,11 @@ function methodOf(ev: any): { indiv: boolean; group: boolean } {
   return { indiv: ev.method !== 'group', group: ev.method === 'group' };
 }
 
+/** 한 학급 안에서 학생 하나를 가리키는 열쇠. 번호만으로는 모자란다. */
+function studentKeyOf(num: number | string, name: string): string {
+  return `${num} ${String(name || '').trim()}`;
+}
+
 /** 조사표 하나가 표에서 차지하는 칸 이름들 */
 function columnsOf(ev: any): string[] {
   if (ev?.type === 'eval') {
@@ -373,13 +378,19 @@ export function groupEvalsBySheet(evaluations: Record<string, any>): Record<stri
  * 딸린 것으로 본다. V3가 쓰는 모양 그대로다.
  */
 export function buildEvalRows(evals: any[]): string[][] {
-  const studentMap = new Map<number, any>();
+  // 번호가 아니라 번호와 이름을 함께 열쇠로 삼는다. 전출한 학생의 번호를
+  // 전입한 학생이 이어받는 일이 있는데, 번호만으로 묶으면 둘이 한 줄이 되어
+  // 나중에 온 학생의 이름과 점수가 통째로 사라진다.
+  const studentMap = new Map<string, any>();
   for (const ev of evals) {
     for (const st of ev.studentsSnapshot || []) {
-      if (!studentMap.has(st.num)) studentMap.set(st.num, st);
+      const key = studentKeyOf(st.num, st.name);
+      if (!studentMap.has(key)) studentMap.set(key, st);
     }
   }
-  const students = Array.from(studentMap.values()).sort((a, b) => a.num - b.num);
+  const students = Array.from(studentMap.values()).sort(
+    (a, b) => a.num - b.num || String(a.name || '').localeCompare(String(b.name || ''))
+  );
 
   const rows: string[][] = [
     ['상위 항목(조사표 제목)', '', ''],
@@ -433,6 +444,8 @@ export function buildEvalRows(evals: any[]): string[][] {
 export interface EvalCellUpdate {
   evalId: string;
   studentNum: number;
+  /** 번호를 이어받은 학생을 가려내려면 이름이 있어야 한다 */
+  studentName: string;
   colName: string;
   value: string;
 }
@@ -459,10 +472,17 @@ export function parseEvalRows(rows: string[][]): EvalCellUpdate[] {
   for (const row of rows.slice(rows.indexOf(headerRow) + 1)) {
     const num = parseInt(String(row[0] ?? ''), 10);
     if (isNaN(num)) continue;
+    const name = String(row[1] ?? '').trim();
     for (let c = 3; c < row.length; c++) {
       const m = colMap[c];
       if (!m) continue;
-      out.push({ evalId: m.evalId, studentNum: num, colName: m.colName, value: String(row[c] ?? '').trim() });
+      out.push({
+        evalId: m.evalId,
+        studentNum: num,
+        studentName: name,
+        colName: m.colName,
+        value: String(row[c] ?? '').trim(),
+      });
     }
   }
 
@@ -475,15 +495,28 @@ export function parseEvalRows(rows: string[][]): EvalCellUpdate[] {
  * 조사표가 무엇인지는 '일정기록' 시트의 조사표 칸에 들어 있다. 학급 탭에는
  * 결과만 있어 id로 짝을 맞춰 얹는다. 짝이 없는 값은 버린다. 시트에만 남아
  * 있는 조사표를 되살리지 않기 위해서다.
+ *
+ * 학생은 번호가 아니라 그 조사표가 담고 있는 명단을 따라 맞춘다. 전출한
+ * 학생의 번호를 전입한 학생이 이어받으면 한 학급 탭에 같은 번호가 두 줄
+ * 생기는데, 번호만 보면 남의 점수를 가져다 붙이게 된다. 이름까지 같은 줄을
+ * 찾고, 그 번호를 쓰는 줄이 하나뿐일 때만 이름이 달라도 같은 학생으로 본다.
+ * (사람이 시트에서 이름을 고쳤을 수 있다.)
  */
 export function applyEvalUpdates(evaluations: Record<string, any[]>, updates: EvalCellUpdate[]): number {
   if (updates.length === 0) return 0;
 
-  const byEval: Record<string, Record<number, Record<string, string>>> = {};
+  // 조사표 → 번호 → [{ 이름, 칸값 }]
+  const byEval: Record<string, Record<number, Array<{ name: string; cells: Record<string, string> }>>> = {};
   for (const u of updates) {
     if (!byEval[u.evalId]) byEval[u.evalId] = {};
-    if (!byEval[u.evalId][u.studentNum]) byEval[u.evalId][u.studentNum] = {};
-    byEval[u.evalId][u.studentNum][u.colName] = u.value;
+    if (!byEval[u.evalId][u.studentNum]) byEval[u.evalId][u.studentNum] = [];
+    const forNum = byEval[u.evalId][u.studentNum];
+    let entry = forNum.find((e) => e.name === u.studentName);
+    if (!entry) {
+      entry = { name: u.studentName, cells: {} };
+      forNum.push(entry);
+    }
+    entry.cells[u.colName] = u.value;
   }
 
   let touched = 0;
@@ -493,8 +526,23 @@ export function applyEvalUpdates(evaluations: Record<string, any[]>, updates: Ev
       if (!perStudent) continue;
       if (!ev.records) ev.records = {};
 
-      for (const [numStr, cells] of Object.entries(perStudent)) {
-        const num = Number(numStr);
+      // 이 조사표가 담고 있는 학생만 본다. 명단이 없는 옛 조사표는 번호대로
+      // 맞추는 수밖에 없다.
+      const snapshot: any[] =
+        ev.studentsSnapshot?.length > 0
+          ? ev.studentsSnapshot
+          : Object.keys(perStudent).map((n) => ({ num: Number(n), name: '' }));
+
+      for (const st of snapshot) {
+        const forNum = perStudent[st.num];
+        if (!forNum || forNum.length === 0) continue;
+
+        const wanted = String(st.name || '').trim();
+        const matched = forNum.find((e) => e.name === wanted) || (forNum.length === 1 ? forNum[0] : null);
+        if (!matched) continue;
+        const cells = matched.cells;
+
+        const num = st.num;
         if (!ev.records[num]) ev.records[num] = {};
         const rec = ev.records[num];
 
