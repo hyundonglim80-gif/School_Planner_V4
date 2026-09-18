@@ -14,6 +14,7 @@ import { auth, db } from '../lib/firebase';
 import { collection, doc, getDoc, getDocFromServer, getDocs, setDoc } from 'firebase/firestore';
 import { useAppStore } from '../store/useAppStore';
 import type { StartupScope } from '../store/useAppStore';
+import { FONT_SCALES } from '../lib/fontScale';
 import { isDeveloper } from '../lib/developers';
 import { labelDiagnostics, useLabels, toSharedEventLabel } from '../hooks/useLabels';
 import { MIN_LOOKBACK_DAYS, MAX_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
@@ -108,6 +109,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const [shortcutOpen, setShortcutOpen] = useState(false);
   // 저장하면 바로 이 목록에 반영되도록 store를 구독한다
+  // 글자 크기는 고르는 즉시 적용되므로 store를 그대로 구독한다. 다른 설정들처럼
+  // 지역 상태에 담아 두었다가 '저장'에서 옮기면 눌러도 화면이 그대로다.
+  const fontScale = useAppStore((s) => s.fontScale);
+  const setFontScale = useAppStore((s) => s.setFontScale);
   const shortcutOverrides = useAppStore((s) => s.shortcutOverrides);
   const selectedGroupId = useAppStore((s) => s.selectedGroupId);
   const { eventLabels, journalLabels, memoLabels, labelsLoaded } = useLabels();
@@ -548,6 +553,30 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             checked={enableScrollNav}
             onChange={setEnableScrollNav}
           />
+        </Section>
+
+        {/* 글자 크기만 '저장'을 기다리지 않고 고르는 즉시 바꾼다. 크기는 눈으로
+            보고 정하는 것이라, 저장한 뒤에야 보인다면 몇 번을 오가게 된다. */}
+        <Section title="글자 크기" desc="고르는 즉시 화면에 적용됩니다. 이 기기에만 저장됩니다.">
+          <div className="flex flex-wrap gap-1.5">
+            {FONT_SCALES.map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => setFontScale(opt.id)}
+                aria-pressed={fontScale === opt.id}
+                className={`px-3 py-1.5 rounded-lg font-bold border transition-all ${
+                  fontScale === opt.id
+                    ? 'bg-primary text-white border-primary shadow-xs'
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-primary hover:text-primary'
+                }`}
+                // 단계마다 그 크기로 적어 둔다. 이름만으로는 얼마나 달라지는지
+                // 알 수 없어, 고르기 전에 한 번씩 눌러 보게 된다.
+                style={{ fontSize: `calc(0.75rem * ${opt.percent} / 100)` }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </Section>
 
         <Section title="시작 화면" desc="앱을 열었을 때 처음 보여줄 화면입니다.">

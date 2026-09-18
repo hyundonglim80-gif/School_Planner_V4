@@ -7,6 +7,7 @@ import { moveToTrash } from '../utils/trashHelper';
 import { showErrorToast } from '../utils/toast';
 import { FORWARD_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
 import type { ShortcutOverrides } from '../lib/shortcuts';
+import { applyFontScale, DEFAULT_FONT_SCALE, type FontScale } from '../lib/fontScale';
 
 type Scope = 'day' | 'week' | 'month' | 'year' | 'memo';
 
@@ -26,6 +27,8 @@ interface AppState {
   enableScrollNav: boolean;
   // 환경설정에서 조절하는 값들
   startupScope: StartupScope;
+  /** 화면 글자 크기. 이 기기에만 남는다. */
+  fontScale: FontScale;
   forwardLookbackDays: number;
   // 기본값에서 바꾼 단축키만 담는다. 나머지는 lib/shortcuts.ts의 기본값을 쓴다.
   shortcutOverrides: ShortcutOverrides;
@@ -40,6 +43,7 @@ interface AppState {
   setGovApiKey: (key: string) => void;
   setEnableScrollNav: (enable: boolean) => void;
   setStartupScope: (scope: StartupScope) => void;
+  setFontScale: (scale: FontScale) => void;
   setForwardLookbackDays: (days: number) => void;
   setShortcutOverrides: (overrides: ShortcutOverrides) => void;
   navigatePrevDate: () => void;
@@ -159,6 +163,7 @@ export const useAppStore = create<AppState>()(
       govApiKey: '',
       enableScrollNav: false,
       startupScope: 'last',
+      fontScale: DEFAULT_FONT_SCALE,
       forwardLookbackDays: FORWARD_LOOKBACK_DAYS,
       shortcutOverrides: {},
 
@@ -181,6 +186,12 @@ export const useAppStore = create<AppState>()(
       setGovApiKey: (govApiKey) => set({ govApiKey }),
       setEnableScrollNav: (enable) => set({ enableScrollNav: enable }),
       setStartupScope: (startupScope) => set({ startupScope }),
+      // 고르는 그 순간 화면이 바뀌어야 한다. 크기는 눈으로 보고 정하는 것이라
+      // 저장한 뒤에야 보인다면 몇 번을 오가게 된다.
+      setFontScale: (fontScale) => {
+        applyFontScale(fontScale);
+        set({ fontScale });
+      },
       setForwardLookbackDays: (days) => set({ forwardLookbackDays: clampLookbackDays(days) }),
       setShortcutOverrides: (shortcutOverrides) => set({ shortcutOverrides }),
 
@@ -444,6 +455,11 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'sp4-app-storage',
+      // 저장해 둔 글자 크기는 화면이 그려지기 전에 입혀야 한다. 나중에 입히면
+      // 기본 크기로 한 번 그려졌다가 바뀌어, 열 때마다 글자가 튄다.
+      onRehydrateStorage: () => (state) => {
+        applyFontScale(state?.fontScale || DEFAULT_FONT_SCALE);
+      },
       partialize: (state) => ({
         scope: state.scope,
         semesterFilter: state.semesterFilter,
@@ -452,6 +468,7 @@ export const useAppStore = create<AppState>()(
         showEvents: state.showEvents,
         enableScrollNav: state.enableScrollNav, // 추가됨
         startupScope: state.startupScope,
+        fontScale: state.fontScale,
         forwardLookbackDays: state.forwardLookbackDays,
         shortcutOverrides: state.shortcutOverrides,
         // govApiKey는 일부러 넣지 않는다. 키는 Firestore의 admin/config에 있고
