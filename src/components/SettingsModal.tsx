@@ -24,7 +24,7 @@ import { loadSharedHolidays, saveSharedHolidays } from '../lib/holidays';
 import { fetchHolidaysFromGovApi } from '../lib/govApi';
 import { clearHolidayCache } from '../hooks/useGovHolidays';
 import ModalShell, { ModalCloseButton } from './ModalShell';
-import { runDriveMigration, type MigrationProgress } from '../lib/driveMigration';
+import { runDriveMigration, CORS_HELP, type MigrationProgress } from '../lib/driveMigration';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -134,6 +134,12 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     try {
       const result = await runDriveMigration(selectedGroupId, (p) => setMigrateProgress(p));
       setMigrateProgress(result);
+      if (result.corsBlocked) {
+        // 원인이 하나뿐이라 무엇을 하면 되는지만 보여준다. 원본은 하나도 지우지 않았다.
+        setMigrateErrors([CORS_HELP]);
+        showToast('아직 옮길 수 없습니다. 아래 안내를 확인해 주세요.');
+        return;
+      }
       setMigrateErrors(result.errors);
       if (result.failed === 0 && result.moved > 0) {
         showToast(`✅ ${result.moved}건을 구글 드라이브로 옮겼습니다.`);

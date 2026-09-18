@@ -108,7 +108,37 @@ export interface MigrationProgress {
 
 export interface MigrationResult extends MigrationProgress {
   errors: string[];
+  /** 버킷의 CORS 설정이 없어 파일을 내려받지 못한 경우 */
+  corsBlocked: boolean;
 }
+
+/**
+ * 내려받기가 CORS로 막힌 것인가.
+ *
+ * 브라우저는 다른 주소의 파일을 함부로 읽지 못하게 막는다. 버킷에 '이 사이트에서
+ * 읽어도 된다'고 적어 두지 않으면 옮기는 일 자체를 시작할 수 없다.
+ * 이때 SDK가 주는 코드가 storage/unauthorized 나 storage/retry-limit-exceeded 라서
+ * 권한 문제처럼 보이는데, 실제 원인은 CORS다. 그대로 보여주면 엉뚱한 데를 고치게 된다.
+ */
+function looksLikeCors(err: any): boolean {
+  const code = String(err?.code || '');
+  const msg = String(err?.message || err || '');
+  return (
+    /CORS/i.test(msg) ||
+    code === 'storage/unauthorized' ||
+    code === 'storage/retry-limit-exceeded' ||
+    /ERR_FAILED|Failed to fetch|NetworkError/i.test(msg)
+  );
+}
+
+export const CORS_HELP = [
+  '브라우저가 Firebase Storage의 파일을 읽지 못하도록 막혀 있습니다(CORS).',
+  '버킷에 이 사이트를 한 번 등록해 주면 풀립니다. 설치할 것은 없습니다.',
+  '',
+  '1) console.cloud.google.com 접속 → 오른쪽 위 >_ (Cloud Shell) 실행',
+  '2) 저장소의 docs-storage-cors.md 에 적힌 명령을 붙여넣기',
+  '3) 다시 이 단추를 누르기',
+].join(String.fromCharCode(10));
 
 /**
  * Storage의 파일을 드라이브로 옮긴다.
@@ -123,7 +153,9 @@ export async function runDriveMigration(
   onProgress: (p: MigrationProgress) => void
 ): Promise<MigrationResult> {
   const user = auth.currentUser;
-  const p: MigrationResult = { scanned: 0, total: 0, moved: 0, deleted: 0, failed: 0, current: '', errors: [] };
+  const p: MigrationResult = {
+    scanned: 0, total: 0, moved: 0, deleted: 0, failed: 0, current: '', errors: [], corsBlocked: false,
+  };
   if (!user) {
     p.errors.push('로그인이 필요합니다.');
     return p;
@@ -172,8 +204,13 @@ export async function runDriveMigration(
         p.moved++;
       } catch (err: any) {
         p.failed++;
-        const msg = String(err?.message || err);
-        p.errors.push(`${f.name}: ${msg}`);
+        if (looksLikeCors(err)) {
+          // 원인이 하나이므로 파일마다 같은 말을 쌓지 않는다. 한 번만 알리고 멈춘다.
+          p.corsBlocked = true;
+          p.current = '';
+          return p;
+        }
+        p.errors.push(`${f.name}: ${String(err?.message || err)}`);
       }
       onProgress({ ...p });
     }
