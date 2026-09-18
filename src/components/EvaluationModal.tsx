@@ -9,6 +9,7 @@ import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
 import { showToast, showErrorToast } from '../utils/toast';
+import { auth } from '../lib/firebase';
 
 interface EvaluationModalProps {
   isOpen: boolean;
@@ -91,6 +92,17 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
     );
   }, [rosters, viewMode, currentEval?.id]);
 
+  /**
+   * 내가 고쳐도 되는 조사표인지. (V3 evaluation.js의 isAuthor와 같다)
+   *
+   * 개인 공간에서는 늘 내 것이다. 공유 공간에서는 만든 사람만 고칠 수 있다.
+   * 만든 사람이 적혀 있지 않은 옛 조사표는 막지 않는다. 그것까지 잠그면
+   * 예전에 만든 것을 아무도 못 고치게 된다.
+   */
+  const isSharedScope = !!selectedGroupId && selectedGroupId !== 'personal';
+  const canEdit =
+    !isSharedScope || !currentEval?.authorId || currentEval.authorId === auth.currentUser?.uid;
+
   /** 조사표가 어느 교시(또는 기록 칸)에 달려 있는지 */
   const locationOf = (ev: EvaluationItem) =>
     ev.context?.source === 'journal' ? 'journal' : String(ev.periodStr ?? '');
@@ -150,6 +162,9 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
 
     const newEval: EvaluationItem = {
       id: 'eval_' + Date.now().toString(36),
+      // 누가 만든 것인지 적어 둔다. 공유 공간에서 남의 조사표를 고치지
+      // 못하게 하려면 이것이 있어야 한다. (V3도 같이 적는다)
+      authorId: auth.currentUser?.uid,
       title: title.trim(),
       subject,
       type: evalType,
@@ -522,8 +537,20 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <h4 className="font-black text-slate-800">{currentEval.title}</h4>
+                  <h4 className="font-black text-slate-800">
+                    {currentEval.title}
+                    {isSharedScope && (
+                      <span className="ml-1.5 text-xs font-bold text-slate-400">
+                        {canEdit ? '(공유됨)' : '(공유됨 - 읽기전용)'}
+                      </span>
+                    )}
+                  </h4>
                   <p className="text-xs text-slate-400">
+                    {/* 어느 학급 것인지가 제일 먼저 보여야 한다. 같은 제목의
+                        조사표를 학급마다 만드는 일이 흔하다. */}
+                    {currentEval.rosterMeta?.year
+                      ? `${currentEval.rosterMeta.year}학년도 ${currentEval.rosterMeta.grade}학년 ${currentEval.rosterMeta.classNum}반 · `
+                      : ''}
                     {currentEval.type === 'eval' ? '평가' : currentEval.type === 'check' ? '체크' : '메모'}
                     {currentEval.subject ? ` · ${currentEval.subject}` : ''} ·{' '}
                     {currentEval.context?.source === 'journal'
@@ -535,8 +562,9 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
                 </div>
               </div>
 
-              {/* ⚙️ 기본 정보 수정 (V3와 같이 접어 두었다가 눌러서 편다) */}
-              <div className="mb-3 border border-slate-300 rounded-xl bg-slate-50 p-3">
+              {/* ⚙️ 기본 정보 수정 (V3와 같이 접어 두었다가 눌러서 편다).
+                  남의 조사표는 고칠 수 없으므로 아예 내보내지 않는다. */}
+              <div className={`mb-3 border border-slate-300 rounded-xl bg-slate-50 p-3 ${canEdit ? '' : 'hidden'}`}>
                 <button
                   type="button"
                   onClick={() => setMetaOpen((v) => !v)}
@@ -629,26 +657,33 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
               </div>
 
               <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <div className="max-h-[50vh] overflow-y-auto">
-                  <table className="w-full text-xs border-collapse">
-                    <thead className="bg-slate-100 sticky top-0">
+                <div className="max-h-[60vh] overflow-x-auto overflow-y-auto">
+                  {/* 칸 차례와 이름은 V3와 같게 둔다. 같은 표를 두 앱에서 보고,
+                      구글 시트로 내보낸 표의 머리말도 이것과 짝이 맞는다. */}
+                  <table className="w-full text-xs border-collapse text-center">
+                    <thead className="bg-slate-100 sticky top-0 z-10">
                       <tr>
-                        <th className="p-2 text-center w-12 border-b border-slate-200">번호</th>
-                        <th className="p-2 text-left w-20 border-b border-slate-200">이름</th>
+                        <th className="p-2 text-center w-11 border-b-2 border-slate-300 font-normal text-slate-700">번호</th>
+                        <th className="p-2 text-center w-20 border-b-2 border-slate-300 font-normal text-slate-700">이름</th>
                         {currentEval.type === 'eval' && currentEval.methodObj.group && (
-                          <><th className="p-2 text-center border-b border-slate-200">조</th><th className="p-2 text-center border-b border-slate-200">조별</th></>
+                          <>
+                            <th className="p-2 text-center border-b-2 border-slate-300 font-normal text-slate-700">조이름</th>
+                            <th className="p-2 text-center border-b-2 border-slate-300 font-normal text-slate-700">조별 결과</th>
+                          </>
                         )}
                         {currentEval.type === 'eval' && currentEval.methodObj.indiv && (
-                          <th className="p-2 text-center border-b border-slate-200">개별</th>
+                          <th className="p-2 text-center border-b-2 border-slate-300 font-normal text-slate-700">개별 결과</th>
                         )}
                         {currentEval.type === 'check' && (
-                          <th className="p-2 text-center border-b border-slate-200">체크</th>
+                          <th className="p-2 text-center border-b-2 border-slate-300 font-normal text-slate-700">체크(O/X)</th>
                         )}
-                        <th className="p-2 text-left border-b border-slate-200">{currentEval.type === 'memo' ? '메모' : '사유/메모'}</th>
+                        <th className="p-2 text-center border-b-2 border-slate-300 font-normal text-slate-700">
+                          {currentEval.type === 'memo' ? '개별 메모내용' : '사유 / 메모'}
+                        </th>
                       </tr>
-                      {/* 전체 일괄 적용 행 */}
-                      <tr className="bg-slate-50 border-b-2 border-slate-300">
-                        <td colSpan={2} className="p-1.5 text-center text-slate-500 font-bold">전체 적용</td>
+                      {/* 전체 일괄 적용 행. 남의 조사표에서는 내보내지 않는다. */}
+                      <tr className={`bg-slate-50 border-b-2 border-slate-300 ${canEdit ? '' : 'hidden'}`}>
+                        <td colSpan={2} className="p-1.5 text-center text-slate-500 font-bold">전체 일괄 적용</td>
                         {currentEval.type === 'eval' && currentEval.methodObj.group && (
                           <>
                             <td className="p-1"><input className="w-full px-1 py-0.5 border rounded text-center text-xs" placeholder="조" onChange={e => applyToAll('groupName', e.target.value)} /></td>
@@ -670,8 +705,8 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
                         )}
                         {currentEval.type === 'check' && (
                           <td className="p-1 text-center">
-                            <button onClick={() => applyToAll('checked', true)} className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs font-bold mr-1">전체O</button>
-                            <button onClick={() => applyToAll('checked', false)} className="px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded text-xs font-bold">전체X</button>
+                            <button onClick={() => applyToAll('checked', true)} className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs font-bold mr-1">전체 O</button>
+                            <button onClick={() => applyToAll('checked', false)} className="px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded text-xs font-bold">전체 X</button>
                           </td>
                         )}
                         <td className="p-1">
@@ -683,15 +718,26 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
                       {currentEval.studentsSnapshot.map(st => {
                         const rec = records[st.num] || {};
                         const isExited = st.name.includes('(전출');
+                        // 조를 나눠 두었으면 조 이름을 미리 채워 준다. 조마다
+                        // 손으로 다시 적게 하면 나눠 둔 것이 쓸모가 없다.
+                        const assignedGroup = currentEval.groups?.find((g) => g.members?.includes(st.num));
+                        const lockCls = canEdit ? '' : 'bg-slate-100 text-slate-400 cursor-not-allowed';
                         return (
-                          <tr key={st.num} className={isExited ? 'bg-slate-50 opacity-50' : 'hover:bg-slate-50/50'}>
-                            <td className="p-1.5 text-center font-bold text-slate-500">{st.num}</td>
-                            <td className="p-1.5 font-bold text-slate-800">{st.name}</td>
+                          <tr key={st.num} className={isExited ? 'bg-slate-50 opacity-50' : 'hover:bg-slate-50'}>
+                            <td className="p-1.5 text-center font-bold text-slate-500 bg-slate-50/70">{st.num}</td>
+                            <td className={`p-1.5 font-bold ${isExited ? 'text-slate-400' : 'text-slate-800'}`}>{st.name}</td>
                             {currentEval.type === 'eval' && currentEval.methodObj.group && (
                               <>
-                                <td className="p-1"><input value={rec.groupName || ''} onChange={e => updateRecord(st.num, 'groupName', e.target.value)} className="w-full px-1 py-0.5 border rounded text-center text-xs" /></td>
                                 <td className="p-1">
-                                  <select value={rec.groupScore || ''} onChange={e => updateRecord(st.num, 'groupScore', e.target.value)} className="w-full border rounded text-xs py-0.5">
+                                  <input
+                                    value={rec.groupName ?? assignedGroup?.name ?? ''}
+                                    onChange={e => updateRecord(st.num, 'groupName', e.target.value)}
+                                    readOnly={!canEdit}
+                                    className={`w-full px-1 py-0.5 border rounded text-center text-xs ${lockCls}`}
+                                  />
+                                </td>
+                                <td className="p-1">
+                                  <select value={rec.groupScore || ''} onChange={e => updateRecord(st.num, 'groupScore', e.target.value)} disabled={!canEdit} className={`w-full border rounded text-xs py-0.5 ${lockCls}`}>
                                     <option value=""></option>
                                     {currentEval.steps.map(s => <option key={s} value={s}>{s}</option>)}
                                   </select>
@@ -700,7 +746,7 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
                             )}
                             {currentEval.type === 'eval' && currentEval.methodObj.indiv && (
                               <td className="p-1">
-                                <select value={rec.indivScore || ''} onChange={e => updateRecord(st.num, 'indivScore', e.target.value)} className="w-full border rounded text-xs py-0.5">
+                                <select value={rec.indivScore || ''} onChange={e => updateRecord(st.num, 'indivScore', e.target.value)} disabled={!canEdit} className={`w-full border rounded text-xs py-0.5 ${lockCls}`}>
                                   <option value=""></option>
                                   {currentEval.steps.map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
@@ -708,14 +754,15 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
                             )}
                             {currentEval.type === 'check' && (
                               <td className="p-1 text-center">
-                                <input type="checkbox" checked={!!rec.checked} onChange={e => updateRecord(st.num, 'checked', e.target.checked)} className="w-4 h-4 accent-primary" />
+                                <input type="checkbox" checked={!!rec.checked} onChange={e => updateRecord(st.num, 'checked', e.target.checked)} disabled={!canEdit} className="w-5 h-5 accent-slate-600" />
                               </td>
                             )}
                             <td className="p-1">
                               <input
                                 value={rec[currentEval.type === 'memo' ? 'memo' : 'reason'] || ''}
                                 onChange={e => updateRecord(st.num, currentEval.type === 'memo' ? 'memo' : 'reason', e.target.value)}
-                                className="w-full px-1 py-0.5 border rounded text-xs"
+                                readOnly={!canEdit}
+                                className={`w-full px-1 py-0.5 border rounded text-xs ${lockCls}`}
                               />
                             </td>
                           </tr>
@@ -732,10 +779,17 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
         {/* 푸터 */}
         {viewMode === 'view' && currentEval && (
           <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-slate-50">
-            <button onClick={handleDelete} className="px-3 py-2 text-red-500 hover:bg-red-50 border border-red-200 rounded-xl text-xs font-bold transition-all">삭제</button>
+            {/* 남의 조사표는 지우지도 저장하지도 못한다. 자리는 비워 둔다. */}
+            {canEdit ? (
+              <button onClick={handleDelete} className="px-3 py-2 text-red-500 hover:bg-red-50 border border-red-200 rounded-xl text-xs font-bold transition-all">삭제</button>
+            ) : (
+              <span className="text-xs text-slate-400 font-bold">다른 사람이 만든 조사표입니다</span>
+            )}
             <div className="flex gap-2">
               <button onClick={() => setViewMode('list')} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold">닫기</button>
-              <button onClick={handleSaveRecords} className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-xs">저장</button>
+              {canEdit && (
+                <button onClick={handleSaveRecords} className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-xs">저장</button>
+              )}
             </div>
           </div>
         )}

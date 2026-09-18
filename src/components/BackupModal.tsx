@@ -157,6 +157,33 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
 
   if (!isOpen) return null;
 
+  // 대상마다 담을 수 있는 것이 다르다. 캘린더에는 조사표를 넣을 자리가 없고,
+  // 구글 시트에는 명렬표를 쓰는 곳이 없다. 담지도 못하는 것을 골라 두면
+  // 골랐다고 여긴 것이 말없이 빠지므로, 담을 수 있는 것만 보여 준다.
+  const ITEMS = [
+    { key: 'event', label: '📅 일정', checked: incEvents, setChecked: setIncEvents },
+    { key: 'class', label: '⏰ 수업', checked: incSchedules, setChecked: setIncSchedules },
+    { key: 'journal', label: '📔 기록', checked: incJournals, setChecked: setIncJournals },
+    { key: 'roster', label: '🧑‍🤝‍🧑 명렬표', checked: incRosters, setChecked: setIncRosters },
+    { key: 'eval', label: '📊 조사표', checked: incEvals, setChecked: setIncEvals },
+    { key: 'memo', label: '📝 메모', checked: incMemos, setChecked: setIncMemos },
+  ] as const;
+
+  const ITEMS_BY_TARGET: Record<ExportTarget, readonly string[]> = {
+    // 캘린더에는 일정·수업·기록만 올라간다
+    calendar: ['event', 'class', 'journal'],
+    // 명렬표는 시트 쪽에서 '학급 정보 관리' 화면이 따로 맡는다
+    sheets: ['event', 'class', 'journal', 'eval', 'memo'],
+    // 사람이 읽는 표라 조사표(학생별 결과)는 담지 않는다
+    csv: ['event', 'class', 'journal', 'roster', 'memo'],
+    json: ['event', 'class', 'journal', 'roster', 'eval', 'memo'],
+    // 명렬표 CSV는 그 자체가 명렬표만 담는다. 고를 것이 없다.
+    roster: [],
+  };
+
+  const availableItems = ITEMS.filter((it) => ITEMS_BY_TARGET[exportTarget].includes(it.key));
+  const nothingPicked = availableItems.length > 0 && availableItems.every((it) => !it.checked);
+
   // calendarSync는 경로 문자열을 받는다. 참조를 만드는 쪽과 같은 규칙을 쓴다.
   const getColPath = (colName: string) => {
     const uid = auth.currentUser?.uid;
@@ -201,7 +228,9 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
     const user = auth.currentUser;
     if (!user) return;
 
-    if (!incEvents && !incSchedules && !incJournals && !incRosters && !incMemos) {
+    // 지금 대상이 담을 수 있는 것 중에 고른 것이 하나도 없을 때만 막는다.
+    // 예전에는 조사표를 세지 않아, 조사표만 골라도 아무것도 안 골랐다고 했다.
+    if (nothingPicked) {
       return showErrorToast('내보낼 데이터 항목을 최소 하나 이상 선택해주세요.');
     }
 
@@ -810,9 +839,11 @@ ${summary}
                 <span className="text-2xs">JSON</span>
               </button>
 
+              {/* 이 단추가 담는 것은 학급 명단이다. 한동안 '조사표'라 적혀
+                  있어, 평가 자료를 받으려던 사람이 명단을 받아 갔다. */}
               <button
                 onClick={() => setExportTarget('roster')}
-                title="조사표"
+                title="명렬표 CSV"
                 className={`px-1 py-1.5 rounded-lg border text-center font-bold transition-all flex flex-col items-center gap-0.5 leading-tight ${
                   exportTarget === 'roster'
                     ? 'bg-amber-50 border-amber-400 text-amber-800 shadow-xs ring-1 ring-amber-300'
@@ -820,7 +851,7 @@ ${summary}
                 }`}
               >
                 <span className="text-sm">🧑‍🤝‍🧑</span>
-                <span className="text-2xs">조사표</span>
+                <span className="text-2xs">명렬표</span>
               </button>
             </div>
 
@@ -914,71 +945,28 @@ ${summary}
             </div>
           </div>
 
-          {/* 4. 포함할 데이터 항목 (🔥 일정 / 수업 / 기록 / 조사표 / 메모) */}
-          <div>
-            <label className="block font-bold text-slate-800 mb-1.5 text-xs">4. 포함할 데이터 항목</label>
-            <div className="flex items-center justify-between gap-1 bg-slate-50 px-2.5 py-2 rounded-xl border border-slate-200">
-              <label className="flex items-center gap-1 cursor-pointer font-bold text-slate-700 shrink-0">
-                <input
-                  type="checkbox"
-                  checked={incEvents}
-                  onChange={(e) => setIncEvents(e.target.checked)}
-                  className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-0 accent-blue-600"
-                />
-                <span>📅 일정</span>
-              </label>
-
-              <label className="flex items-center gap-1 cursor-pointer font-bold text-slate-700 shrink-0">
-                <input
-                  type="checkbox"
-                  checked={incSchedules}
-                  onChange={(e) => setIncSchedules(e.target.checked)}
-                  className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-0 accent-blue-600"
-                />
-                <span>⏰ 수업</span>
-              </label>
-
-              <label className="flex items-center gap-1 cursor-pointer font-bold text-slate-700 shrink-0">
-                <input
-                  type="checkbox"
-                  checked={incJournals}
-                  onChange={(e) => setIncJournals(e.target.checked)}
-                  className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-0 accent-blue-600"
-                />
-                <span>📔 기록</span>
-              </label>
-
-              <label className="flex items-center gap-1 cursor-pointer font-bold text-slate-700 shrink-0">
-                <input
-                  type="checkbox"
-                  checked={incRosters}
-                  onChange={(e) => setIncRosters(e.target.checked)}
-                  className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-0 accent-blue-600"
-                />
-                <span>🧑‍🤝‍🧑 명렬표</span>
-              </label>
-
-              <label className="flex items-center gap-1 cursor-pointer font-bold text-slate-700 shrink-0">
-                <input
-                  type="checkbox"
-                  checked={incEvals}
-                  onChange={(e) => setIncEvals(e.target.checked)}
-                  className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-0 accent-blue-600"
-                />
-                <span>📊 조사표</span>
-              </label>
-
-              <label className="flex items-center gap-1 cursor-pointer font-bold text-slate-700 shrink-0">
-                <input
-                  type="checkbox"
-                  checked={incMemos}
-                  onChange={(e) => setIncMemos(e.target.checked)}
-                  className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-0 accent-blue-600"
-                />
-                <span>📝 메모</span>
-              </label>
+          {/* 4. 포함할 데이터 항목. 지금 고른 대상이 담을 수 있는 것만 보인다. */}
+          {availableItems.length > 0 && (
+            <div>
+              <label className="block font-bold text-slate-800 mb-1.5 text-xs">4. 포함할 데이터 항목</label>
+              <div className="flex items-center justify-between gap-1 bg-slate-50 px-2.5 py-2 rounded-xl border border-slate-200 flex-wrap">
+                {availableItems.map((item) => (
+                  <label
+                    key={item.key}
+                    className="flex items-center gap-1 cursor-pointer font-bold text-slate-700 shrink-0"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={item.checked}
+                      onChange={(e) => item.setChecked(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-0 accent-blue-600"
+                    />
+                    <span>{item.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
         </div>
 
