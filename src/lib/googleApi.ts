@@ -92,18 +92,34 @@ export async function getOrCreateCalendarByName(token: string, summary: string):
  * 여기서 확인하고, 필요하면 권한 창을 다시 띄워 받아온다. (V3와 같은 방식)
  */
 export async function getValidGoogleToken(): Promise<string | null> {
+  const quiet = await getGoogleTokenQuietly();
+  if (quiet) return quiet;
+  return renewGoogleToken();
+}
+
+/**
+ * 쓸 수 있는 토큰이 이미 있으면 준다. 없으면 null — 창을 띄우지 않는다.
+ *
+ * ⚠️ 사용자가 시키지 않은 일 때문에 로그인 창이 튀어나오면 안 된다.
+ *    명렬표 팝업은 열리자마자 사진을 찾으려고 토큰을 본다. 그때 만료돼
+ *    있으면 getValidGoogleToken이 권한 창을 띄운다. 명렬표를 여는 것만으로
+ *    로그인을 강요받는 셈이라, 실제로 그렇게 됐다.
+ *    화면에 그리려고 부르는 자리에서는 이쪽을 쓰고, 사용자가 단추를 눌러
+ *    시킨 일(폴더 고르기·사진 올리기)에서만 위의 것을 쓴다.
+ */
+export async function getGoogleTokenQuietly(): Promise<string | null> {
   const stored =
     useAppStore.getState().googleAccessToken || sessionStorage.getItem('google_api_token') || '';
+  if (!stored) return null;
 
-  if (stored) {
-    try {
-      const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${stored}`);
-      if (res.ok) return stored;
-    } catch {
-      /* 못 물어봤으면 새로 받는다 */
-    }
+  try {
+    const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${stored}`);
+    return res.ok ? stored : null;
+  } catch {
+    // 물어보지 못했으면 있는 것으로 치고 써 본다. 정말 못 쓰는 토큰이면
+    // 그 다음 호출이 401로 떨어지고, 그때 화면에 사연이 뜬다.
+    return stored;
   }
-  return renewGoogleToken();
 }
 
 /** 권한 창을 다시 띄워 토큰을 받아온다 */

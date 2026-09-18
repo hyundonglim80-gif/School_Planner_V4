@@ -5,7 +5,7 @@
 // 드라이브를 부르는 일은 전부 lib/studentPhotos.ts가 하고, 여기서는
 // '언제 부를 것인가'와 '부르는 동안 화면에 무엇을 보일 것인가'만 다룬다.
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getValidGoogleToken } from '../lib/googleApi';
+import { getValidGoogleToken, getGoogleTokenQuietly } from '../lib/googleApi';
 import {
   loadPhotoFolders,
   connectPhotoFolder,
@@ -31,6 +31,8 @@ export type PhotoStatus =
   | 'loading'
   /** 다 받았다 (사진이 한 장도 없을 수도 있다) */
   | 'ready'
+  /** 구글 연결이 끊겨 있다. 사용자가 눌러 주면 그때 이어 붙인다. */
+  | 'needs-auth'
   /** 폴더에 손이 닿지 않는다. 다시 고르게 해야 한다. */
   | 'error';
 
@@ -106,15 +108,25 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
   const rootId = folders.root?.id || null;
   const pickedId = classFolder?.id;
 
-  const load = useCallback(async () => {
+  /**
+   * 사진을 찾아 온다.
+   *
+   * interactive가 아니면 구글 권한 창을 띄우지 않는다. 팝업을 여는 것만으로
+   * 로그인을 강요하지 않기 위해서다. 토큰이 없으면 'needs-auth'로 멈추고,
+   * 사용자가 단추를 누르면 그때 interactive로 다시 부른다.
+   */
+  const load = useCallback(async (interactive = false) => {
     if (!cls || !className) return;
     const runId = ++runIdRef.current;
 
     setStatus('loading');
     setError('');
     try {
-      const token = await getValidGoogleToken();
-      if (!token) throw new Error('구글 계정 연결이 필요합니다.');
+      const token = interactive ? await getValidGoogleToken() : await getGoogleTokenQuietly();
+      if (!token) {
+        setStatus('needs-auth');
+        return;
+      }
 
       const found = await scanClassPhotos(rootId, cls, token, pickedId);
       if (runId !== runIdRef.current) return;
@@ -161,7 +173,7 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
   /** 폴더가 정해졌고 학급이나 명단이 바뀌면 다시 읽는다 */
   useEffect(() => {
     if (!className) return;
-    void load();
+    void load(false);
     // rosterKey를 넣어 두면 전입생을 넣거나 이름을 고쳤을 때 사진이 따라온다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rootId, pickedId, className, rosterKey, reloadNonce]);
@@ -219,7 +231,7 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
         // 아니면 School_Planner/Students_Poto/2026-3-1 (없으면 만든다).
         await uploadStudentPhoto(cls, student, file, pickedId);
         forgetFolderCache();
-        await load();
+        await load(true);
       } finally {
         setUploading(null);
       }
@@ -247,6 +259,8 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
     connectForClass,
     disconnect,
     reload: load,
+    /** 사용자가 눌러서 구글에 다시 이어 붙인다 (권한 창이 떠도 되는 자리) */
+    authorize: () => load(true),
     upload,
   };
 }

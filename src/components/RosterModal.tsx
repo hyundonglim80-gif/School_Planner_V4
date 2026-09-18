@@ -282,6 +282,15 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     }
   };
 
+  /** 구글에 다시 이어 붙이고 사진을 불러온다 (권한 창이 떠도 되는 자리) */
+  const handleAuthorizePhotos = async () => {
+    try {
+      await photoState.authorize();
+    } catch (e: any) {
+      showErrorToast(e?.message || '구글 연결에 실패했습니다.');
+    }
+  };
+
   const handleUploadPhoto = async (student: Student, file: File) => {
     try {
       await photoState.upload(student, file);
@@ -811,6 +820,22 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   //
   // 껍데기(배경·스크롤 잠금·겹침 차례)는 ModalShell에 맡긴다. 예전에는 그
   // 스무 줄이 이 파일에도 복사돼 있었다.
+  /* 구글 연결이 끊겼을 때의 띠. 팝업을 여는 것만으로 로그인 창을 띄우지
+     않기로 했으므로(useStudentPhotos 참고), 눌러 주실 때까지 기다린다.
+     관리 탭과 암기 탭이 같은 것을 쓴다. */
+  const needsAuthBand = (
+    <div className="flex items-center justify-between gap-2 text-2xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 flex-wrap">
+      <span>구글 연결이 끊겨 사진을 불러오지 못했습니다. 명단은 그대로 쓰실 수 있습니다.</span>
+      <button
+        type="button"
+        onClick={handleAuthorizePhotos}
+        className="px-2.5 py-1 bg-primary hover:bg-primary/90 rounded text-2xs font-bold text-white transition-colors cursor-pointer"
+      >
+        사진 불러오기
+      </button>
+    </div>
+  );
+
   const tabs: { id: RosterTab; label: string }[] = [
     { id: 'manage', label: '관리' },
     { id: 'search', label: '검색' },
@@ -1148,7 +1173,9 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
 
             {/* 사진 상태 한 줄. 사진이 없어도 관리 탭은 그대로 쓸 수 있어야
                 하므로 여기를 막지 않는다. */}
-            {photoState.status === 'error' ? (
+            {photoState.status === 'needs-auth' ? (
+              needsAuthBand
+            ) : photoState.status === 'error' ? (
               <div className="flex items-center justify-between gap-2 text-2xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-2 flex-wrap">
                 <span>{photoState.error}</span>
                 <button
@@ -1189,6 +1216,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
           <>
               {/* 판이 비었는데 까닭을 안 알려 주면 '사진을 안 올렸나' 하고
                   드라이브를 뒤지러 간다. 관리 탭과 같은 띠를 여기에도 낸다. */}
+              {quizCandidates.length === 0 && photoState.status === 'needs-auth' && needsAuthBand}
               {quizCandidates.length === 0 && photoState.status === 'ready' && (
                 <PhotoStatusBar
                   diagnosis={diagnosis}
