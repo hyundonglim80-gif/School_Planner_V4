@@ -417,7 +417,7 @@ export default function DayEvents({
                 }
               }}
               placeholder="새로운 일정을 입력하세요..."
-              className="w-full min-h-[72px] px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder-slate-400"
+              className="w-full min-h-[52px] px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder-slate-400"
               autoFocus
             />
           </div>
@@ -441,7 +441,7 @@ export default function DayEvents({
         </form>
       )}
 
-      <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[160px]">
+      <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[110px]">
         {events.length > 0 ? (
           events.map((event, idx) => {
             const isEditing = editingId === event.id;
@@ -561,7 +561,7 @@ export default function DayEvents({
                           saveEditing(event.id);
                         }
                       }}
-                      className="w-full min-h-[72px] px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                      className="w-full min-h-[52px] px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                       autoFocus
                     />
                   </div>

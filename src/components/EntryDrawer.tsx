@@ -380,7 +380,7 @@ export default function EntryDrawer({
               onChange={(e) => setContent(e.target.value)}
               onPaste={handlePaste}
               placeholder={text.placeholder}
-              className="w-full min-h-[120px] p-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-slate-800 leading-relaxed placeholder-slate-400 text-sm"
+              className="w-full min-h-[84px] p-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-slate-800 leading-relaxed placeholder-slate-400 text-sm"
             />
           </div>
 

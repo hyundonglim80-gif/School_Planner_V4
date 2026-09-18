@@ -167,7 +167,7 @@ export default function LinkCreateModal({
             onChange={(e) => setContent(e.target.value)}
             autoFocus
             placeholder={`새 ${TYPE_LABEL[type]} 내용`}
-            className="w-full min-h-[64px] px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 resize-none focus:outline-none focus:border-primary"
+            className="w-full min-h-[46px] px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 resize-none focus:outline-none focus:border-primary"
           />
         </div>
 

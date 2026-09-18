@@ -859,16 +859,16 @@ export default function LinkerModal({
           {currentTab !== 'schedule' && (
             <div className="border border-slate-200 rounded-xl bg-white overflow-hidden flex flex-col">
               {loading ? (
-                <div className="h-[228px] flex items-center justify-center text-xs font-bold text-blue-600">
+                <div className="h-[152px] flex items-center justify-center text-xs font-bold text-blue-600">
                   데이터를 불러오는 중...⏳
                 </div>
               ) : filteredList.length === 0 ? (
-                <div className="h-[228px] flex items-center justify-center text-xs text-slate-400">
+                <div className="h-[152px] flex items-center justify-center text-xs text-slate-400">
                   해당 조건에 맞는 데이터가 없습니다.
                 </div>
               ) : (
                 <>
-                  <div className="h-[228px] overflow-y-auto overscroll-contain divide-y divide-slate-100" data-scroll-lock>
+                  <div className="h-[152px] overflow-y-auto overscroll-contain divide-y divide-slate-100" data-scroll-lock>
                     {pagedItems.map((item: FetchedItem) => {
                       const isChecked = selectedLinks.some((l) => l.targetId === item.id);
                       return (

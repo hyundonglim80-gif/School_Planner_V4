@@ -77,7 +77,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
             key={day.dateStr}
             data-today={day.isToday ? 'true' : undefined}
             onClick={() => onSelectDate(day.dateStr)}
-            className={`${DAY_CELL_BG[tone]} rounded-2xl border p-2.5 flex flex-col justify-between transition-all cursor-pointer group hover:shadow-md hover:border-primary/50 min-h-[380px] min-w-0 overflow-hidden ${
+            className={`${DAY_CELL_BG[tone]} rounded-2xl border p-2.5 flex flex-col justify-between transition-all cursor-pointer group hover:shadow-md hover:border-primary/50 min-h-[250px] min-w-0 overflow-hidden ${
               day.isToday ? 'border-primary ring-2 ring-primary/20 shadow-xs' : 'border-slate-200/80 shadow-xs'
             }`}
           >

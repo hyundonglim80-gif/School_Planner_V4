@@ -250,7 +250,7 @@ export default function DaySchedule({
                     }
                   }}
                   placeholder="수업 메모..."
-                  className="w-full min-h-[56px] p-2.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary placeholder-slate-400 leading-relaxed"
+                  className="w-full min-h-[40px] p-2.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary placeholder-slate-400 leading-relaxed"
                 />
               </div>
             );
@@ -260,7 +260,7 @@ export default function DaySchedule({
               key={period}
               onClick={() => startEdit(period)}
               title="클릭하여 수정"
-              className="group p-3.5 rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[80px] hover:border-primary/50 hover:bg-slate-50/50 cursor-pointer"
+              className="group p-3.5 rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[40px] hover:border-primary/50 hover:bg-slate-50/50 cursor-pointer"
             >
               <div className="flex gap-3 h-full items-stretch">
                 <div className="flex flex-col items-center justify-center gap-1 shrink-0 px-1">

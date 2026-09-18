@@ -464,7 +464,7 @@ export default function DetailEditModal({
                 <AutoTextarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  className="w-full min-h-[96px] px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="w-full min-h-[68px] px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
 

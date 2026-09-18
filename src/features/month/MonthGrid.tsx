@@ -101,7 +101,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
               key={dayObj.dateStr}
               data-today={dayObj.isToday ? 'true' : undefined}
               onClick={() => onSelectDate(dayObj.dateStr)}
-              className={`min-h-[105px] p-2 flex flex-col justify-between transition-all cursor-pointer group hover:brightness-98 min-w-0 overflow-hidden ${
+              className={`min-h-[74px] p-2 flex flex-col justify-between transition-all cursor-pointer group hover:brightness-98 min-w-0 overflow-hidden ${
                 !dayObj.isCurrentMonth ? 'bg-slate-50/40 opacity-40' : DAY_CELL_BG[tone]
               } ${dayObj.isToday ? 'ring-2 ring-inset ring-primary/40' : ''}`}
             >

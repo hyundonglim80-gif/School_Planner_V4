@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { BODY_TEXT, META_TEXT, SECTION_TITLE } from './typeScale';
 
-// index.css의 @theme이 이름 있는 글자 크기를 전부 150%로 키운다. px를 직접 쓰면 그 값만
-// 150%가 안 걸려서, 옆의 text-xs(18px)와 나란히 두면 글자 크기가 튄다.
-// 실제로 하루(21px)와 월간(11px)의 일정 글자가 두 배 가까이 벌어져 있었다.
+// 글자 크기는 브라우저 기본(16px)을 따른다. px를 직접 쓰면 단계를 손볼 때 그 값만
+// 남아 옆 글자와 어긋난다. 실제로 이름 있는 단계를 150%로 키워 두었던 동안
+// 하루(21px)와 월간(11px)의 일정 글자가 두 배 가까이 벌어진 적이 있다.
 const sources = import.meta.glob('../{components,features}/**/*.tsx', {
   query: '?raw',
   import: 'default',
@@ -29,9 +29,9 @@ describe('글자 크기 규칙', () => {
 
   it('본문은 밀도에 따라 한 단계씩만 내려간다', () => {
     // 하루(1일) > 주간(5~7일) > 월간·년간(4~6주)
-    expect(BODY_TEXT.day).toBe('text-sm'); // 21px
-    expect(BODY_TEXT.week).toBe('text-xs'); // 18px
-    expect(BODY_TEXT.month).toBe('text-2xs'); // 16px
+    expect(BODY_TEXT.day).toBe('text-sm'); // 14px
+    expect(BODY_TEXT.week).toBe('text-xs'); // 12px
+    expect(BODY_TEXT.month).toBe('text-2xs'); // 10px
   });
 
   it('보조 정보는 본문보다 한 단계 작다', () => {
