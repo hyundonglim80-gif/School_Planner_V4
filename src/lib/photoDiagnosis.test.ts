@@ -8,6 +8,7 @@ const scan = (over: Partial<PhotoScan> = {}): PhotoScan => ({
   files: [],
   subfolderNames: [],
   rootEmpty: false,
+  itemCount: 0,
   classFolderLooksEmpty: false,
   ...over,
 });
@@ -105,19 +106,39 @@ describe('옛 방식으로 위쪽 폴더를 골라 둔 경우', () => {
     expect(d.offerPickClass).toBe(true);
   });
 
-  it('직접 고른 폴더가 비었으면 무엇을 골랐는지 되비쳐 준다', () => {
-    // 위쪽 폴더를 골라 놓고 왜 안 되는지 몰라 헤매는 일이 있었다
+  it('고른 폴더 안이 앱에 통째로 비어 보이면 열어 보게 한다', () => {
+    // 같은 이름의 빈 폴더를 고른 것인지, 권한이 안 닿는 것인지 앱은 가릴 수
+    // 없다. 그 폴더를 직접 열어 보는 것이 유일한 가름이다.
+    const d = diagnosePhotos({
+      ...legacy,
+      pickedFolderName: '2026-3-1',
+      scan: scan({ source: 'picked', files: [], itemCount: 0 }),
+    });
+    expect(d.tone).toBe('error');
+    expect(d.message).toContain('2026-3-1');
+    expect(d.message).toContain('0개');
+    expect(d.hint).toContain('고른 폴더 열기');
+    expect(d.offerOpenFolder).toBe(true);
+  });
+
+  it('고른 폴더 안에 같은 이름의 폴더가 또 있으면 한 단계 더 들어가라고 한다', () => {
     const d = diagnosePhotos({
       ...legacy,
       pickedFolderName: 'Students_Poto',
-      scan: scan({ source: 'picked', files: [] }),
+      scan: scan({ source: 'picked', files: [], itemCount: 1, subfolderNames: ['2026-3-1'] }),
     });
-    expect(d.tone).toBe('error');
-    expect(d.message).toContain('Students_Poto');
-    expect(d.hint).toContain('2026-3-1 폴더 자체');
-    expect(d.offerPickClass).toBe(true);
-    // 권한 탓이 아니므로 그 이야기는 하지 않는다
-    expect(d.hint).not.toContain('구글 권한');
+    expect(d.message).toContain("'2026-3-1' 폴더가 또 있습니다");
+    expect(d.hint).toContain('한 단계 더');
+  });
+
+  it('무언가는 보이는데 사진이 아니면 확장자를 짚어 준다', () => {
+    const d = diagnosePhotos({
+      ...legacy,
+      pickedFolderName: '2026-3-1',
+      scan: scan({ source: 'picked', files: [], itemCount: 3 }),
+    });
+    expect(d.message).toContain('3개를 봤지만');
+    expect(d.hint).toContain('png');
   });
 });
 

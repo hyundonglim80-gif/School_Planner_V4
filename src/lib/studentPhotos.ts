@@ -324,6 +324,13 @@ export interface PhotoScan {
   /** 뿌리 폴더 안이 통째로 비어 보이는가 */
   rootEmpty: boolean;
   /**
+   * 사진을 찾은 폴더 안에서 앱 눈에 보인 것의 총 개수 (사진이 아닌 것 포함).
+   *
+   * 0이면 폴더가 정말 비었거나, 앱에 안 보이거나 둘 중 하나다. 0이 아닌데
+   * 사진이 0장이면 확장자나 이름 문제다. 이 둘을 가리려고 세어 둔다.
+   */
+  itemCount: number;
+  /**
    * 학급 폴더는 눈에 보이는데 그 안이 비어 보이는가.
    *
    * 사진을 안 올린 것일 수도 있고, 권한이 손자까지 닿지 않아 안 보이는 것일
@@ -359,8 +366,9 @@ export async function scanClassPhotos(
       folderId: pickedFolderId,
       source: 'picked',
       files: inner.photos,
-      subfolderNames: [],
+      subfolderNames: inner.folders.map((f) => f.name),
       rootEmpty: false,
+      itemCount: inner.total,
       classFolderLooksEmpty: inner.photos.length === 0,
     };
   }
@@ -373,8 +381,9 @@ export async function scanClassPhotos(
       folderId: managed,
       source: 'managed',
       files: inner.photos,
-      subfolderNames: [],
+      subfolderNames: inner.folders.map((f) => f.name),
       rootEmpty: false,
+      itemCount: inner.total,
       classFolderLooksEmpty: inner.photos.length === 0,
     };
   }
@@ -386,6 +395,7 @@ export async function scanClassPhotos(
       files: [],
       subfolderNames: [],
       rootEmpty: true,
+      itemCount: 0,
       classFolderLooksEmpty: false,
     };
   }
@@ -402,6 +412,7 @@ export async function scanClassPhotos(
       files: inner.photos,
       subfolderNames,
       rootEmpty: false,
+      itemCount: inner.total,
       // 폴더는 보이는데 안이 비었다. 권한이 손자까지 안 닿는 경우가 여기다.
       classFolderLooksEmpty: inner.photos.length === 0,
     };
@@ -415,6 +426,7 @@ export async function scanClassPhotos(
       files: root.photos,
       subfolderNames,
       rootEmpty: false,
+      itemCount: root.total,
       classFolderLooksEmpty: false,
     };
   }
@@ -425,6 +437,7 @@ export async function scanClassPhotos(
     files: [],
     subfolderNames,
     rootEmpty: root.total === 0,
+    itemCount: root.total,
     classFolderLooksEmpty: false,
   };
 }

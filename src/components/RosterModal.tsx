@@ -258,6 +258,13 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     }
   };
 
+  /** 고른 폴더를 드라이브에서 열어 본다. 엉뚱한 폴더인지 눈으로 가리려는 것. */
+  const handleOpenPickedFolder = () => {
+    const id = photoState.classFolder?.id || photoState.scan?.folderId;
+    if (!id) return showErrorToast('열어 볼 폴더가 없습니다.');
+    window.open(`https://drive.google.com/drive/folders/${id}`, '_blank');
+  };
+
   /** 옛 방식으로 골라 둔 위쪽 폴더를 갈아탄다 */
   const handleRepickPhotoFolder = async () => {
     const picked = await handleConnectPhotoFolder();
@@ -1194,7 +1201,14 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                  어디서 끊겼는지는 lib/photoDiagnosis.ts가 가린다. */
               <PhotoStatusBar
                 diagnosis={diagnosis}
-                where={photoState.folder ? `${photoState.folder.name} / ${classFolderName(currentClass)}` : undefined}
+                where={
+                  photoState.classFolder
+                    ? `고른 폴더 : ${photoState.classFolder.name}`
+                    : photoState.folder
+                      ? `${photoState.folder.name} / ${classFolderName(currentClass)}`
+                      : undefined
+                }
+                onOpenFolder={handleOpenPickedFolder}
                 onPickClassFolder={handlePickClassFolder}
                 onRepickRoot={handleRepickPhotoFolder}
               />
@@ -1222,6 +1236,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                   diagnosis={diagnosis}
                   onPickClassFolder={handlePickClassFolder}
                   onRepickRoot={handleRepickPhotoFolder}
+                  onOpenFolder={handleOpenPickedFolder}
                 />
               )}
               <RosterMemorizeTab

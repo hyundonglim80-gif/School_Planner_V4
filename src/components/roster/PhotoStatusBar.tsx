@@ -13,6 +13,8 @@ interface PhotoStatusBarProps {
   where?: string;
   onPickClassFolder: () => void;
   onRepickRoot: () => void;
+  /** 고른 폴더를 드라이브에서 열어 눈으로 확인하게 한다 */
+  onOpenFolder?: () => void;
 }
 
 const TONE = {
@@ -26,6 +28,7 @@ export default function PhotoStatusBar({
   where,
   onPickClassFolder,
   onRepickRoot,
+  onOpenFolder,
 }: PhotoStatusBarProps) {
   const tone = TONE[diagnosis.tone];
 
@@ -40,6 +43,15 @@ export default function PhotoStatusBar({
 
       <div className="flex items-center gap-1.5 shrink-0">
         {where && <span className="text-2xs text-slate-400 font-semibold">{where}</span>}
+        {diagnosis.offerOpenFolder && onOpenFolder && (
+          <button
+            type="button"
+            onClick={onOpenFolder}
+            className="px-2.5 py-1 bg-white border border-slate-300 rounded text-2xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+          >
+            고른 폴더 열기
+          </button>
+        )}
         {diagnosis.offerPickClass && (
           <button
             type="button"

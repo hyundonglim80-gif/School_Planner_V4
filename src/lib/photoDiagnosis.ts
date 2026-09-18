@@ -25,6 +25,8 @@ export interface PhotoDiagnosis {
   offerPickClass: boolean;
   /** '위쪽 폴더 다시 고르기'를 내밀어야 하는가 (옛 방식을 쓰던 경우에만) */
   offerRepick: boolean;
+  /** '고른 폴더 열기'를 내밀어야 하는가 (엉뚱한 폴더인지 눈으로 확인하게) */
+  offerOpenFolder?: boolean;
 }
 
 export interface DiagnoseArgs {
@@ -135,16 +137,46 @@ export function diagnosePhotos({
   if (scan.files.length === 0) {
     // 앱이 맡은 자리나 직접 골라 준 폴더가 비었다면 권한 탓이 아니다.
     if (scan.source === 'picked') {
-      // 엉뚱한 폴더를 고른 경우가 잦다. 무엇을 골랐는지 되비쳐 주고,
-      // 어느 폴더를 골라야 하는지 다시 못 박는다.
+      /**
+       * 직접 고른 폴더가 비었다. 까닭이 셋이라 앱이 본 것을 그대로 적는다.
+       *
+       *  · 같은 이름의 빈 폴더를 고름 (앱이 만들어 둔 것과 헷갈리기 쉽다)
+       *  · 한 단계 위를 고름 (안에 같은 이름의 폴더가 또 보인다)
+       *  · 권한이 폴더 안 파일까지 안 닿음
+       * 마지막 것은 앱이 가릴 수 없으므로, 그 폴더를 직접 열어 보게 한다.
+       */
+      const twin = scan.subfolderNames.find((n) => n.trim() === className);
+      if (twin) {
+        return {
+          tone: 'error',
+          message: `${where} 폴더 안에 사진 대신 '${twin}' 폴더가 또 있습니다.`,
+          hint: `한 단계 더 들어가서, 사진 파일이 눈앞에 보이는 폴더를 골라 주세요.`,
+          offerPickClass: true,
+          offerRepick: false,
+          offerOpenFolder: true,
+        };
+      }
+      if (scan.itemCount === 0) {
+        return {
+          tone: 'error',
+          message: `${where} 폴더 안이 앱에는 비어 보입니다. (파일도 폴더도 0개)`,
+          hint:
+            `'고른 폴더 열기'로 그 폴더를 확인해 주세요. 사진이 보이면 구글 권한이 ` +
+            `폴더 안 파일까지 닿지 않는 것이고, 비어 있으면 같은 이름의 다른 폴더를 고르신 것입니다.`,
+          offerPickClass: true,
+          offerRepick: false,
+          offerOpenFolder: true,
+        };
+      }
       return {
         tone: 'error',
-        message: `${where} 폴더 안에 사진이 없습니다.`,
-        hint:
-          `사진이 '바로 아래' 들어 있는 폴더를 고르셔야 합니다. ` +
-          `위쪽 폴더 말고 ${className} 폴더 자체를 골라 주세요.`,
+        message: `${where} 폴더 안에서 ${scan.itemCount}개를 봤지만 사진 파일이 없습니다. (${samples(
+          scan.subfolderNames
+        ) || '파일 이름을 확인해 주세요'})`,
+        hint: `png · jpg · jpeg · webp 만 사진으로 읽습니다.`,
         offerPickClass: true,
         offerRepick: false,
+        offerOpenFolder: true,
       };
     }
     if (scan.source === 'managed') {
