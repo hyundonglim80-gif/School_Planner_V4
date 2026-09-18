@@ -56,7 +56,6 @@ describe('팝업 공통 규칙', () => {
         'LabelModal.tsx',
         'LinkViewerModal.tsx',
         'LinkerModal.tsx',
-        'RosterModal.tsx',
         'SearchModal.tsx',
         'TimetableTemplateModal.tsx',
         'TrashModal.tsx',

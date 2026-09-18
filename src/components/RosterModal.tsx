@@ -12,11 +12,26 @@ import {
   ROSTER_CSV_HEADER,
 } from '../lib/rosterCsv';
 import { downloadCsv, parseCsv } from '../lib/csv';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
-import { useBackdropClose } from '../hooks/useBackdropClose';
 import { moveToTrash } from '../utils/trashHelper';
+import ModalShell, { ModalCloseButton } from './ModalShell';
+import RosterManageTab, { type RosterView } from './roster/RosterManageTab';
+import RosterSearchTab from './roster/RosterSearchTab';
+import RosterMemorizeTab from './roster/RosterMemorizeTab';
+import PhotoFolderNotice from './roster/PhotoFolderNotice';
+import { useStudentPhotos } from '../hooks/useStudentPhotos';
+import {
+  yearOptions,
+  gradeOptions,
+  classNumOptions,
+  indexOfPick,
+  pickOfIndex,
+  reconcilePick,
+  type ClassPick,
+} from '../lib/classPicker';
+import { classFolderName, PHOTO_ROOT_FOLDER_NAME } from '../lib/studentPhotoNames';
+import type { QuizStudent } from '../hooks/usePhotoQuiz';
+
+type RosterTab = 'manage' | 'search' | 'memorize';
 
 /**
  * 학급별 탭 이름.
@@ -85,13 +100,6 @@ interface RosterModalProps {
 }
 
 export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
-  useBodyScrollLock(isOpen);
-
-  const vv = useVisualViewport(isOpen);
-
-  const zIndex = useModalLayer(isOpen, onClose);
-
-  const backdrop = useBackdropClose();
   const { rosterList, saveRosterList } = useRoster();
 
   const [currentClasses, setCurrentClasses] = useState<ClassRoster[]>([]);
@@ -105,6 +113,13 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   const [saving, setSaving] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const allClassesInputRef = React.useRef<HTMLInputElement>(null);
+
+  const [tab, setTab] = useState<RosterTab>('manage');
+  const [view, setView] = useState<RosterView>('list');
+  const [editingClass, setEditingClass] = useState(false);
+  /** 검색 탭에서 누른 학생을 관리 탭에서 잠깐 짚어 준다 */
+  const [highlightNum, setHighlightNum] = useState<number | null>(null);
+
   // 저장 시점에 삭제된 학급/학생을 찾아내기 위한, 모달을 연 시점의 원본 스냅샷
   const originalClassesRef = React.useRef<ClassRoster[]>([]);
 
@@ -144,8 +159,6 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     loadBackupConfig();
   }, [isOpen, rosterList]);
 
-  if (!isOpen) return null;
-
   const currentClass = currentClasses[currentIndex] || {
     year: new Date().getFullYear(),
     grade: '',
@@ -156,6 +169,91 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   const students = currentClass.students || [];
   const activeCount = students.filter((s) => s.isActive !== false).length;
   const inactiveCount = students.length - activeCount;
+
+  // ── 사진 ────────────────────────────────────────────────────
+  // 훅은 반드시 이른 return 위에 두어야 한다. 팝업이 닫힌 동안에는 학급을
+  // null로 넘겨 드라이브를 부르지 않게 한다.
+  const photoState = useStudentPhotos(isOpen ? currentClass : null, students);
+
+  /**
+   * 사진이 있는 재학생만 암기 판에 올린다.
+   *
+   * useMemo를 쓰는 까닭: 이 배열이 매번 새로 만들어지면 usePhotoQuiz가
+   * 명단이 바뀐 줄 알고 판을 다시 짠다. O/X를 누를 때마다 판이 처음으로
+   * 돌아가 버린다.
+   */
+  const quizCandidates: QuizStudent[] = React.useMemo(
+    () =>
+      students
+        .filter((s) => s.isActive !== false && s.name && s.name !== '000')
+        .map((s) => ({
+          num: s.num,
+          name: s.name,
+          gender: s.gender,
+          note: s.note,
+          url: photoState.photos.get(s.num)?.url || '',
+        }))
+        .filter((s) => s.url),
+    [students, photoState.photos]
+  );
+
+  // ── 학년도 / 학년 / 반 세 칸 ────────────────────────────────
+  const pick = pickOfIndex(currentClasses, currentIndex);
+
+  const applyPick = (want: ClassPick) => {
+    const fixed = reconcilePick(currentClasses, want);
+    const idx = indexOfPick(currentClasses, fixed);
+    if (idx >= 0) setCurrentIndex(idx);
+  };
+
+  const photoSummary =
+    photoState.status === 'ready' && students.length > 0
+      ? `사진 ${students.length - photoState.missing.length}/${students.length}명`
+      : '';
+
+  const handleConnectPhotoFolder = async () => {
+    const picked = await photoState.connect();
+    return picked;
+  };
+
+  /** 아래 '사진 폴더' 단추. 연결되어 있으면 드라이브를 열고, 아니면 연결부터. */
+  const handleOpenPhotoFolder = async () => {
+    if (photoState.folder) {
+      window.open(`https://drive.google.com/drive/folders/${photoState.folder.id}`, '_blank');
+      return;
+    }
+    try {
+      const picked = await photoState.connect();
+      if (picked) showToast('✅ 사진 폴더를 연결했습니다.');
+    } catch (e: any) {
+      showErrorToast(e?.message || '폴더를 연결하지 못했습니다.');
+    }
+  };
+
+  const handleUploadPhoto = async (student: Student, file: File) => {
+    try {
+      await photoState.upload(student, file);
+      showToast(`✅ ${student.name || student.num + '번'} 사진을 올렸습니다.`);
+    } catch (e: any) {
+      showErrorToast(e?.message || '사진을 올리지 못했습니다.');
+    }
+  };
+
+  /** 검색 결과에서 학생을 누르면 그 학급의 관리 탭으로 데려간다 */
+  const handleOpenStudentFromSearch = (cls: ClassRoster, student: Student) => {
+    const idx = indexOfPick(currentClasses, {
+      year: String(cls.year),
+      grade: String(cls.grade),
+      classNum: String(cls.classNum),
+    });
+    if (idx >= 0) setCurrentIndex(idx);
+    setTab('manage');
+    setHighlightNum(student.num);
+    // 짚어 주는 것은 잠깐이면 된다. 계속 켜 두면 어느 줄을 고쳐야 할지 헷갈린다.
+    window.setTimeout(() => setHighlightNum(null), 2500);
+  };
+
+  if (!isOpen) return null;
 
   // 구글 시트 열기
   const handleOpenGoogleSheet = async () => {
@@ -470,37 +568,48 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     }
   };
 
-  // 학급 변경
-  const handleChangeClass = (idx: number) => {
-    setCurrentIndex(idx);
-  };
-
-  // 새 학급 추가
+  /**
+   * 새 학급 추가.
+   *
+   * ⚠️ 예전에는 학년·반을 빈 값으로 두고 아래 칸에서 채우게 했다. 학급을
+   *    고르는 자리가 목록 하나였을 때는 그래도 됐다(빈 학급도 목록에 보였다).
+   *    지금은 학년도·학년·반 세 칸으로 고르는데, 빈 값은 그 목록에 오르지
+   *    않는다. 빈 학급을 만들면 방금 만든 학급으로 돌아갈 길이 없어진다.
+   *    그래서 지금 보고 있는 학급 옆의 빈 번호로 채워서 만든다.
+   */
   const handleAddNewClass = () => {
-    const newCls: ClassRoster = {
-      year: new Date().getFullYear(),
-      grade: '',
-      classNum: '',
-      students: [],
-    };
-    const updated = [...currentClasses, newCls];
+    const year = Number(currentClass.year) || new Date().getFullYear();
+    const grade = String(currentClass.grade || '1');
+    const taken = new Set(
+      currentClasses
+        .filter((c) => Number(c.year) === year && String(c.grade) === grade)
+        .map((c) => String(c.classNum))
+    );
+    let classNum = 1;
+    while (taken.has(String(classNum))) classNum += 1;
+
+    const updated = [...currentClasses, { year, grade, classNum: String(classNum), students: [] }];
     setCurrentClasses(updated);
     setCurrentIndex(updated.length - 1);
+    // 방금 만든 학급의 학년·반을 바로 고칠 수 있게 편집 칸을 펼쳐 준다
+    setEditingClass(true);
   };
 
   // 현재 학급 삭제
   const handleDeleteCurrentClass = () => {
     if (currentClasses.length <= 1) {
       if (confirm('모든 학급 정보를 비우시겠습니까?')) {
+        // 여기도 빈 학년·반으로 두면 세 칸 선택에서 사라진다 (위 주석 참고)
         setCurrentClasses([
           {
             year: new Date().getFullYear(),
-            grade: '',
-            classNum: '',
+            grade: '1',
+            classNum: '1',
             students: [],
           },
         ]);
         setCurrentIndex(0);
+        setEditingClass(true);
       }
       return;
     }
@@ -645,328 +754,395 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     }
   };
 
+
+  // ── 화면 ────────────────────────────────────────────────────
+  //
+  // 껍데기(배경·스크롤 잠금·겹침 차례)는 ModalShell에 맡긴다. 예전에는 그
+  // 스무 줄이 이 파일에도 복사돼 있었다.
+  const tabs: { id: RosterTab; label: string }[] = [
+    { id: 'manage', label: '관리' },
+    { id: 'search', label: '검색' },
+    { id: 'memorize', label: '암기' },
+  ];
+
+  const selectCls =
+    'appearance-none bg-white border border-blue-200 rounded-lg pl-2.5 pr-6 py-1.5 text-xs font-bold text-slate-700 shadow-2xs focus:outline-none focus:border-primary cursor-pointer';
+
   return (
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} {...backdrop}>
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-full" onClick={(e) => e.stopPropagation()}>
-        {/* 모달 상단 헤더 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🧑‍🤝‍🧑</span>
-            <div>
-              <h2 className="text-base font-extrabold text-slate-800">학급 정보(명렬표) 관리</h2>
-              <p className="text-xs text-slate-500">구글 시트 연동으로 학급 명렬표 및 학생 조사표 데이터를 관리합니다.</p>
-            </div>
+    <ModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      width="4xl"
+      bare
+      title="학급 정보(명렬표) 관리"
+      footer={
+        <div className="w-full flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleOpenGoogleSheet}
+              title="연결된 구글 시트를 새 창에서 엽니다"
+              className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M3 9h18M3 15h18M9 3v18" />
+              </svg>
+              명렬표 시트
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenPhotoFolder}
+              title={
+                photoState.folder
+                  ? `드라이브에서 ${photoState.folder.name || '사진 폴더'}를 엽니다`
+                  : '사진 폴더를 연결합니다'
+              }
+              className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              </svg>
+              사진 폴더
+            </button>
           </div>
+
+          <div className="flex items-center gap-2">
+            <ModalCloseButton onClose={onClose} />
+            <button
+              title="저장"
+              onClick={handleSave}
+              disabled={saving}
+              className="px-5 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+            >
+              <span>💾</span> {saving ? '저장 중...' : '클라우드 저장'}
+            </button>
+          </div>
+        </div>
+      }
+    >
+      {/* 왼쪽 학년도·학년·반, 오른쪽 세 탭 */}
+      <div className="flex items-center justify-between gap-2.5 px-4 py-2.5 bg-blue-50 border-b border-blue-100 flex-wrap shrink-0">
+        <div className="flex items-center gap-1.5">
+          <div className="relative">
+            <select
+              value={pick.year}
+              onChange={(e) => applyPick({ ...pick, year: e.target.value })}
+              className={selectCls}
+              title="학년도"
+            >
+              {yearOptions(currentClasses).map((y) => (
+                <option key={y} value={y}>{y}학년도</option>
+              ))}
+            </select>
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">▾</span>
+          </div>
+          <div className="relative">
+            <select
+              value={pick.grade}
+              onChange={(e) => applyPick({ ...pick, grade: e.target.value })}
+              className={selectCls}
+              title="학년"
+            >
+              {gradeOptions(currentClasses, pick.year).map((g) => (
+                <option key={g} value={g}>{g}학년</option>
+              ))}
+            </select>
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">▾</span>
+          </div>
+          <div className="relative">
+            <select
+              value={pick.classNum}
+              onChange={(e) => applyPick({ ...pick, classNum: e.target.value })}
+              className={selectCls}
+              title="반"
+            >
+              {classNumOptions(currentClasses, pick.year, pick.grade).map((c) => (
+                <option key={c} value={c}>{c}반</option>
+              ))}
+            </select>
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">▾</span>
+          </div>
+
           <button
-            title="닫기"
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 font-black text-lg p-1 transition-colors"
+            type="button"
+            onClick={() => setEditingClass((v) => !v)}
+            title="학급을 더하거나 지우고, 학년·반 숫자를 고칩니다"
+            className={`border rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors cursor-pointer ${
+              editingClass
+                ? 'bg-primary text-white border-primary'
+                : 'bg-transparent text-primary border-blue-200 hover:bg-blue-100'
+            }`}
           >
-            ✕
+            학급 편집
           </button>
         </div>
 
-        {/* 구글 시트 연동 설정 바 */}
-        <div className="bg-emerald-50/70 border-b border-emerald-100 px-6 py-2.5 flex items-center justify-end flex-wrap gap-2 text-xs">
-          <div className="flex items-center gap-1.5">
+        <div className="flex gap-1 bg-blue-100 rounded-xl p-1">
+          {tabs.map((t) => (
             <button
-              onClick={handleOpenGoogleSheet}
-              className="px-3 py-1 bg-white hover:bg-emerald-100 text-emerald-800 rounded-lg font-bold border border-emerald-300 transition-colors shadow-2xs flex items-center gap-1"
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`rounded-lg px-6 py-1.5 text-xs font-extrabold transition-colors cursor-pointer ${
+                tab === t.id
+                  ? 'bg-white text-primary shadow-2xs'
+                  : 'bg-transparent text-slate-500 hover:text-slate-700'
+              }`}
             >
-              <span>🔗</span> 구글 시트 열기
+              {t.label}
             </button>
-          </div>
+          ))}
         </div>
+      </div>
 
-        {/* 구글 시트 주소/ID 입력 폼 (토글 시) */}
-        
-
-        {/* 학급 선택 바 */}
-        <div className="flex items-center justify-between px-6 py-3 bg-blue-50 border-b border-blue-100 flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-blue-900">학급 선택:</span>
-            <select
-              value={currentIndex}
-              onChange={(e) => handleChangeClass(Number(e.target.value))}
-              className="bg-white border border-blue-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs focus:outline-none"
-            >
-              {currentClasses.map((cls, idx) => (
-                <option key={idx} value={idx}>
-                  {cls.year}년 {cls.grade ? `${cls.grade}학년 ` : ''}{cls.classNum ? `${cls.classNum}반` : '학급'}
-                </option>
-              ))}
-            </select>
+      {/* 학급 편집 — 세 칸으로 고르게 되면서 학급 자체를 손볼 자리가 없어졌다.
+          늘 펼쳐 두면 본문이 좁아지므로 누를 때만 나온다. */}
+      {editingClass && (
+        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-col gap-2 shrink-0">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span className="text-2xs font-extrabold text-slate-500 tracking-wide">
+              지금 고른 학급의 학년도·학년·반을 고칩니다
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleAddNewClass}
+                className="px-2.5 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-bold shadow-2xs transition-all cursor-pointer"
+              >
+                + 새 학급 추가
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteCurrentClass}
+                className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-xs font-bold transition-all cursor-pointer"
+              >
+                학급 삭제
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={handleAddNewClass}
-              className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-all"
-            >
-              + 새 학급 추가
-            </button>
-            <button
-              onClick={handleDeleteCurrentClass}
-              className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-xs font-bold transition-all"
-            >
-              학급 삭제
-            </button>
-          </div>
-        </div>
-
-        {/* 메인 컨텐츠 영역 */}
-        <div className="p-6 overflow-y-auto overscroll-contain space-y-4 flex-1 min-h-0" data-scroll-lock>
-          {/* 학급 메타 정보 입력 */}
-          <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+          <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">학년도</label>
+              <label className="block text-2xs font-bold text-slate-500 mb-1">학년도</label>
               <input
                 type="number"
                 value={currentClass.year || new Date().getFullYear()}
-                onChange={(e) => handleUpdateClassMeta('year', parseInt(e.target.value, 10) || new Date().getFullYear())}
-                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:border-blue-500"
+                onChange={(e) =>
+                  handleUpdateClassMeta('year', parseInt(e.target.value, 10) || new Date().getFullYear())
+                }
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:border-primary"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">학년</label>
+              <label className="block text-2xs font-bold text-slate-500 mb-1">학년</label>
               <input
                 type="text"
                 value={currentClass.grade || ''}
                 onChange={(e) => handleUpdateClassMeta('grade', e.target.value)}
                 placeholder="예: 3"
-                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:border-blue-500"
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:border-primary"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">반</label>
+              <label className="block text-2xs font-bold text-slate-500 mb-1">반</label>
               <input
                 type="text"
                 value={currentClass.classNum || ''}
                 onChange={(e) => handleUpdateClassMeta('classNum', e.target.value)}
                 placeholder="예: 2"
-                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:border-blue-500"
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:border-primary"
               />
             </div>
           </div>
-
-          {/* 학생 추가 및 컨트롤 바 */}
-          <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
-            <div className="text-xs text-slate-600 font-bold">
-              총 <span className="text-blue-600 font-extrabold">{students.length}</span>명
-              (재학 <span className="text-emerald-600">{activeCount}</span>명
-              {inactiveCount > 0 && <span className="text-slate-400">, 전출 {inactiveCount}명</span>})
-            </div>
-
-            <div className="flex items-center gap-2">
-              {/* 🔥 구글 시트에서 불러오기 버튼 (사용자 요청 2번) */}
-              <button
-                onClick={handleImportFromGoogleSheet}
-                disabled={loadingSheet}
-                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-all flex items-center gap-1"
-                title="연결된 구글 시트의 [조사표_학년-반] 탭에서 명단과 조사표를 가져옵니다"
-              >
-                <span>📊</span>
-                {loadingSheet ? '시트 읽는 중...' : '시트 동기화'}
-              </button>
-
-              {/* CSV 입출력 버튼 */}
-              <div className="flex items-center gap-1 bg-slate-100 rounded-lg px-1.5 py-1">
-                <input
-                  type="file"
-                  accept=".csv"
-                  ref={fileInputRef}
-                  onChange={handleUploadCSV}
-                  className="hidden"
-                />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-2 py-0.5 bg-white text-slate-700 border border-slate-300 rounded text-xs font-bold hover:bg-slate-50 transition-colors shadow-2xs"
-                  title="CSV 업로드"
-                >
-                  ↑ CSV
-                </button>
-                <button
-                  onClick={handleDownloadCSV}
-                  className="px-2 py-0.5 bg-white text-slate-700 border border-slate-300 rounded text-xs font-bold hover:bg-slate-50 transition-colors shadow-2xs"
-                  title="지금 고른 학급만 CSV로 내려받기"
-                >
-                  ↓ CSV
-                </button>
-              </div>
-
-              {/* 전체 학급 CSV. 학급 수만큼 같은 일을 되풀이하지 않아도 되도록
-                  한 파일에 모두 담는다. '내보내기/가져오기' 화면에 있던 것을
-                  명단을 다루는 이 자리로 옮겨 왔다. */}
-              <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-lg px-1.5 py-1">
-                <span className="text-2xs font-bold text-amber-700 px-0.5">전체 학급</span>
-                <input
-                  type="file"
-                  accept=".csv"
-                  ref={allClassesInputRef}
-                  onChange={handleUploadAllCSV}
-                  className="hidden"
-                />
-                <button
-                  onClick={() => allClassesInputRef.current?.click()}
-                  className="px-2 py-0.5 bg-white text-amber-800 border border-amber-300 rounded text-xs font-bold hover:bg-amber-100 transition-colors shadow-2xs"
-                  title="모든 학급이 담긴 CSV를 올립니다. 파일에 없는 학급은 그대로 둡니다."
-                >
-                  ↑ CSV
-                </button>
-                <button
-                  onClick={handleDownloadAllCSV}
-                  className="px-2 py-0.5 bg-white text-amber-800 border border-amber-300 rounded text-xs font-bold hover:bg-amber-100 transition-colors shadow-2xs"
-                  title="모든 학급의 명단을 한 파일로 내려받습니다. (학년도, 학년, 반, 번호, 이름, 성별, 상태, 특이사항)"
-                >
-                  ↓ CSV
-                </button>
-              </div>
-
-              {/* N명 추가 */}
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  min="1"
-                  max="50"
-                  value={addCount}
-                  onChange={(e) => setAddCount(e.target.value)}
-                  placeholder="인원"
-                  className="w-14 px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center focus:outline-none"
-                />
-                <button
-                  onClick={handleAddStudents}
-                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold border border-slate-200 transition-all"
-                >
-                  + 학생 추가
-                </button>
-              </div>
-
-              {/* 전체 삭제 */}
-              <button
-                onClick={handleRemoveAllStudents}
-                className="px-2 py-1 text-slate-400 hover:text-red-500 text-xs font-bold transition-colors"
-                title="학생 명단 전체 비우기"
-              >
-                전체 삭제
-              </button>
-            </div>
-          </div>
-
-          {/* 학생 명렬표 테이블 */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-            <div className="max-h-64 overflow-y-auto">
-              <table className="w-full text-xs text-left border-collapse">
-                <thead className="bg-slate-100 text-slate-600 font-bold sticky top-0 border-b border-slate-200">
-                  <tr>
-                    <th className="p-2.5 text-center w-14">번호</th>
-                    <th className="p-2.5 w-32">이름</th>
-                    <th className="p-2.5 text-center w-20">성별</th>
-                    <th className="p-2.5 text-center w-20">상태</th>
-                    <th className="p-2.5">특이사항/조사표 메모</th>
-                    <th className="p-2.5 text-center w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {students.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="text-center py-8 text-slate-400">
-                        등록된 학생이 없습니다. 상단의 '📊 구글 시트에서 불러오기' 또는 '+ 학생 추가'를 이용하세요.
-                      </td>
-                    </tr>
-                  ) : (
-                    students.map((st, idx) => (
-                      <tr
-                        key={idx}
-                        className={`hover:bg-slate-50/80 transition-colors ${
-                          st.isActive === false ? 'opacity-40 bg-slate-100' : ''
-                        }`}
-                      >
-                        <td className="p-1.5 text-center">
-                          <input
-                            type="number"
-                            value={st.num || ''}
-                            onChange={(e) => handleUpdateStudent(idx, 'num', parseInt(e.target.value, 10) || 0)}
-                            className="w-10 text-center bg-white border border-slate-200 rounded px-1 py-1 font-bold text-slate-700 focus:outline-none"
-                          />
-                        </td>
-                        <td className="p-1.5">
-                          <input
-                            type="text"
-                            value={st.name || ''}
-                            onChange={(e) => handleUpdateStudent(idx, 'name', e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded px-2 py-1 font-bold text-slate-800 focus:outline-none"
-                          />
-                        </td>
-                        <td className="p-1.5 text-center">
-                          <select
-                            value={st.gender || ''}
-                            onChange={(e) => handleUpdateStudent(idx, 'gender', e.target.value)}
-                            className="bg-white border border-slate-200 rounded px-1.5 py-1 text-slate-700 font-medium focus:outline-none"
-                          >
-                            <option value="">-</option>
-                            <option value="M">남</option>
-                            <option value="F">여</option>
-                          </select>
-                        </td>
-                        <td className="p-1.5 text-center">
-                          <select
-                            value={st.isActive !== false ? 'true' : 'false'}
-                            onChange={(e) => handleUpdateStudent(idx, 'isActive', e.target.value === 'true')}
-                            className={`border rounded px-1.5 py-1 font-bold focus:outline-none ${
-                              st.isActive !== false
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : 'bg-slate-200 text-slate-600 border-slate-300'
-                            }`}
-                          >
-                            <option value="true">재학</option>
-                            <option value="false">전출</option>
-                          </select>
-                        </td>
-                        <td className="p-1.5">
-                          <input
-                            type="text"
-                            value={st.note || ''}
-                            onChange={(e) => handleUpdateStudent(idx, 'note', e.target.value)}
-                            placeholder="특이사항, 조사표 내용, 상담 기록..."
-                            className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-slate-600 focus:outline-none"
-                          />
-                        </td>
-                        <td className="p-1.5 text-center">
-                          <button
-                            onClick={() => handleRemoveStudent(idx)}
-                            className="text-slate-300 hover:text-red-500 font-black p-1 transition-colors"
-                            title="삭제"
-                          >
-                            ✕
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <p className="text-2xs text-slate-400 font-semibold">
+            학년·반을 고치면 사진 폴더 이름(2026-3-2)도 달라집니다. 드라이브의 폴더 이름도 함께
+            바꿔 주셔야 사진이 이어집니다.
+          </p>
         </div>
+      )}
 
-        {/* 푸터 영역 */}
-        <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-slate-100 bg-slate-50">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-all"
-          >
-            닫기
-          </button>
-          <button
-            title="저장"
-            onClick={handleSave}
-            disabled={saving}
-            className="px-5 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
-          >
-            <span>💾</span> {saving ? '저장 중...' : '클라우드 저장'}
-          </button>
-        </div>
+      <div className="px-4 py-3.5 flex flex-col gap-2.5">
+        {tab === 'manage' && (
+          <>
+            <div className="flex items-center justify-between gap-1.5 flex-wrap">
+              <div className="text-xs text-slate-600 font-bold">
+                총 <span className="text-primary font-extrabold">{students.length}</span>명
+                (재학 <span className="text-emerald-600">{activeCount}</span>명
+                {inactiveCount > 0 && <span className="text-slate-400">, 전출 {inactiveCount}명</span>})
+                {photoSummary && <span className="text-slate-400 font-semibold"> · {photoSummary}</span>}
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+                  {(['list', 'tile'] as const).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setView(v)}
+                      className={`rounded-md px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer ${
+                        view === v ? 'bg-white text-slate-800 shadow-2xs' : 'text-slate-500'
+                      }`}
+                    >
+                      {v === 'list' ? '목록' : '타일'}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={handleImportFromGoogleSheet}
+                  disabled={loadingSheet}
+                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-all flex items-center gap-1 cursor-pointer disabled:opacity-60"
+                  title="연결된 구글 시트의 [조사표_학년-반] 탭에서 명단과 조사표를 가져옵니다"
+                >
+                  <span>📊</span>
+                  {loadingSheet ? '시트 읽는 중...' : '시트 동기화'}
+                </button>
+
+                <div className="flex items-center gap-1 bg-slate-100 rounded-lg px-1.5 py-1">
+                  <input type="file" accept=".csv" ref={fileInputRef} onChange={handleUploadCSV} className="hidden" />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-2 py-0.5 bg-white text-slate-700 border border-slate-300 rounded text-xs font-bold hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+                    title="CSV 업로드"
+                  >
+                    ↑ CSV
+                  </button>
+                  <button
+                    onClick={handleDownloadCSV}
+                    className="px-2 py-0.5 bg-white text-slate-700 border border-slate-300 rounded text-xs font-bold hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+                    title="지금 고른 학급만 CSV로 내려받기"
+                  >
+                    ↓ CSV
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-lg px-1.5 py-1">
+                  <span className="text-2xs font-bold text-amber-700 px-0.5">전체 학급</span>
+                  <input type="file" accept=".csv" ref={allClassesInputRef} onChange={handleUploadAllCSV} className="hidden" />
+                  <button
+                    onClick={() => allClassesInputRef.current?.click()}
+                    className="px-2 py-0.5 bg-white text-amber-800 border border-amber-300 rounded text-xs font-bold hover:bg-amber-100 transition-colors shadow-2xs cursor-pointer"
+                    title="모든 학급이 담긴 CSV를 올립니다. 파일에 없는 학급은 그대로 둡니다."
+                  >
+                    ↑ CSV
+                  </button>
+                  <button
+                    onClick={handleDownloadAllCSV}
+                    className="px-2 py-0.5 bg-white text-amber-800 border border-amber-300 rounded text-xs font-bold hover:bg-amber-100 transition-colors shadow-2xs cursor-pointer"
+                    title="모든 학급의 명단을 한 파일로 내려받습니다. (학년도, 학년, 반, 번호, 이름, 성별, 상태, 특이사항)"
+                  >
+                    ↓ CSV
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={addCount}
+                    onChange={(e) => setAddCount(e.target.value)}
+                    placeholder="인원"
+                    className="w-14 px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center focus:outline-none"
+                  />
+                  <button
+                    onClick={handleAddStudents}
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold border border-slate-200 transition-all cursor-pointer"
+                  >
+                    + 학생 추가
+                  </button>
+                </div>
+
+                <button
+                  onClick={handleRemoveAllStudents}
+                  className="px-2 py-1 text-slate-400 hover:text-red-500 text-xs font-bold transition-colors cursor-pointer"
+                  title="학생 명단 전체 비우기"
+                >
+                  전체 삭제
+                </button>
+              </div>
+            </div>
+
+            <RosterManageTab
+              students={students}
+              view={view}
+              photos={photoState.photos}
+              canUploadPhoto={!!photoState.folder}
+              uploadingNum={photoState.uploading}
+              onUploadPhoto={handleUploadPhoto}
+              onUpdateStudent={handleUpdateStudent}
+              onRemoveStudent={handleRemoveStudent}
+              highlightNum={highlightNum}
+            />
+
+            {/* 사진 상태 한 줄. 폴더가 없으면 여기서 바로 연결할 수 있게 한다
+                (관리 탭까지 통째로 막아 버리면 사진 없이 명단만 쓰던 사람이 막힌다) */}
+            {photoState.status === 'no-folder' ? (
+              <div className="flex items-center justify-between gap-2 text-2xs font-semibold text-slate-500 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 flex-wrap">
+                <span>사진 폴더를 연결하면 이름 옆에 얼굴이 보이고, 암기 탭을 쓸 수 있습니다.</span>
+                <button
+                  type="button"
+                  onClick={handleConnectPhotoFolder}
+                  className="px-2.5 py-1 bg-white border border-amber-300 rounded text-2xs font-bold text-amber-800 hover:bg-amber-100 transition-colors cursor-pointer"
+                >
+                  사진 폴더 연결
+                </button>
+              </div>
+            ) : photoState.status === 'error' ? (
+              <div className="flex items-center justify-between gap-2 text-2xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-2 flex-wrap">
+                <span>{photoState.error}</span>
+                <button
+                  type="button"
+                  onClick={handleConnectPhotoFolder}
+                  className="px-2.5 py-1 bg-white border border-red-300 rounded text-2xs font-bold text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
+                >
+                  폴더 다시 고르기
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2 text-2xs text-slate-400 font-semibold px-0.5 flex-wrap">
+                <span>
+                  {photoState.status === 'loading'
+                    ? '사진을 불러오는 중...'
+                    : photoState.missing.length > 0
+                      ? `사진 없는 학생 ${photoState.missing.length}명 — 빈 칸을 눌러 바로 올릴 수 있습니다`
+                      : '모든 학생의 사진이 연결되었습니다'}
+                </span>
+                <span>
+                  폴더 : {photoState.folder?.name || PHOTO_ROOT_FOLDER_NAME} / {classFolderName(currentClass)}
+                </span>
+              </div>
+            )}
+          </>
+        )}
+
+        {tab === 'search' && (
+          <RosterSearchTab
+            classes={currentClasses}
+            pick={pick}
+            photos={photoState.photos}
+            photoFolderReady={photoState.status === 'ready'}
+            onOpenStudent={handleOpenStudentFromSearch}
+          />
+        )}
+
+        {tab === 'memorize' &&
+          (photoState.status === 'no-folder' || photoState.status === 'error' ? (
+            <PhotoFolderNotice
+              error={photoState.status === 'error' ? photoState.error : undefined}
+              onConnect={handleConnectPhotoFolder}
+            />
+          ) : (
+            <RosterMemorizeTab
+              cls={currentClass}
+              candidates={quizCandidates}
+              withoutPhoto={
+                students.filter((s) => s.isActive !== false && !photoState.photos.has(s.num)).length
+              }
+            />
+          ))}
       </div>
-    </div>
+    </ModalShell>
   );
 }
