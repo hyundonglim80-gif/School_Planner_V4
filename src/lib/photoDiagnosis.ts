@@ -37,6 +37,8 @@ export interface DiagnoseArgs {
   matchedCount: number;
   /** 예전 방식으로 '위쪽 폴더'를 따로 골라 둔 적이 있는가 */
   hasLegacyRoot?: boolean;
+  /** 이 학급을 위해 직접 골라 둔 폴더의 이름 */
+  pickedFolderName?: string;
 }
 
 /** 앱이 맡아 두는 자리를 사람에게 보여 줄 때 쓰는 이름 */
@@ -54,6 +56,7 @@ export function diagnosePhotos({
   studentCount,
   matchedCount,
   hasLegacyRoot = false,
+  pickedFolderName,
 }: DiagnoseArgs): PhotoDiagnosis {
   if (!scan) {
     return {
@@ -124,14 +127,27 @@ export function diagnosePhotos({
     scan.source === 'managed'
       ? `${MANAGED_PATH} / ${className}`
       : scan.source === 'picked'
-        ? '고르신 학급 폴더'
+        ? `고르신 '${pickedFolderName || '폴더'}'`
         : scan.source === 'root'
           ? '고른 폴더'
           : `${className} 폴더`;
 
   if (scan.files.length === 0) {
     // 앱이 맡은 자리나 직접 골라 준 폴더가 비었다면 권한 탓이 아니다.
-    if (scan.source === 'managed' || scan.source === 'picked') {
+    if (scan.source === 'picked') {
+      // 엉뚱한 폴더를 고른 경우가 잦다. 무엇을 골랐는지 되비쳐 주고,
+      // 어느 폴더를 골라야 하는지 다시 못 박는다.
+      return {
+        tone: 'error',
+        message: `${where} 폴더 안에 사진이 없습니다.`,
+        hint:
+          `사진이 '바로 아래' 들어 있는 폴더를 고르셔야 합니다. ` +
+          `위쪽 폴더 말고 ${className} 폴더 자체를 골라 주세요.`,
+        offerPickClass: true,
+        offerRepick: false,
+      };
+    }
+    if (scan.source === 'managed') {
       return {
         tone: 'warn',
         message: `${where} 에 사진이 없습니다. 빈 칸을 눌러 올려 주세요.`,

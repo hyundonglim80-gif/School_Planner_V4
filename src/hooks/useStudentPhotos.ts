@@ -70,6 +70,16 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
   /** 지금 이 학급이 실제로 보고 있는 폴더 */
   const folder = classFolder || folders.root;
 
+  /**
+   * 다시 읽기를 걸기 위한 셈수.
+   *
+   * ⚠️ 폴더를 고른 뒤 다시 읽는 일을 '폴더 id가 바뀌었는가'에만 맡겼더니,
+   *    같은 폴더를 한 번 더 고르면 id가 그대로라 다시 읽기가 안 걸렸다.
+   *    그 사이 화면은 '불러오는 중'으로 바꿔 놓았으므로 거기서 멈춰 섰다.
+   *    고르는 행위 자체를 셈해서 걸어 준다.
+   */
+  const [reloadNonce, setReloadNonce] = useState(0);
+
   // 비동기로 받아온 결과가 뒤늦게 도착해 다른 학급 화면을 덮어쓰지 않게
   // 마지막 요청만 반영한다.
   const runIdRef = useRef(0);
@@ -154,13 +164,14 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
     void load();
     // rosterKey를 넣어 두면 전입생을 넣거나 이름을 고쳤을 때 사진이 따라온다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rootId, pickedId, className, rosterKey]);
+  }, [rootId, pickedId, className, rosterKey, reloadNonce]);
 
   /** 고른 폴더가 바뀌었으니 지난 진단을 버린다 (새 폴더 이야기인 것처럼 보인다) */
   const resetView = () => {
     setScan(null);
     setPhotos(new Map());
     setStatus('checking');
+    setReloadNonce((n) => n + 1);
   };
 
   /** 위쪽 폴더를 고른다 */

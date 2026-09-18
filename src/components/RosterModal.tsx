@@ -220,6 +220,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     studentCount: students.length,
     matchedCount: students.length - photoState.missing.length,
     hasLegacyRoot: !!photoState.folders.root,
+    pickedFolderName: photoState.classFolder?.name,
   });
 
   /**

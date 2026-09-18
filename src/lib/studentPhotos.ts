@@ -119,7 +119,12 @@ export async function connectClassFolder(
 ): Promise<PhotoFolderConfig | null> {
   const token = await getValidGoogleToken();
   if (!token) throw new Error('구글 계정 연결이 필요합니다.');
-  const picked = await pickDriveFolder(token);
+  // 어느 폴더를 골라야 하는지 창 제목에 못 박는다. '사진이 담긴 폴더'라고만
+  // 했더니 위쪽 폴더를 고르고 왜 안 되는지 몰라 헤매는 일이 있었다.
+  const picked = await pickDriveFolder(
+    token,
+    `${className} 폴더를 골라 주세요 (그 안에 사진이 바로 들어 있어야 합니다)`
+  );
   if (!picked) return null;
   // 점(.)이 든 열쇠는 Firestore가 중첩 필드로 알아듣는다. 문서 통째로 합친다.
   await writeConfig({ studentPhotoFoldersByClass: { [className]: picked } });

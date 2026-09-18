@@ -76,7 +76,10 @@ export interface PickedFolder {
  * Picker에는 '이 이름부터 열어라'가 없다. 대신 폴더만 고를 수 있게 막고
  * (setSelectFolderEnabled + setMimeTypes), '내 드라이브'부터 보여준다.
  */
-export async function pickDriveFolder(token: string): Promise<PickedFolder | null> {
+export async function pickDriveFolder(
+  token: string,
+  title = '학생 사진이 담긴 폴더를 골라 주세요'
+): Promise<PickedFolder | null> {
   await loadPicker();
   const google = (window as any).google;
   if (!google?.picker) throw new Error('구글 파일 선택창을 쓸 수 없습니다.');
@@ -102,7 +105,7 @@ export async function pickDriveFolder(token: string): Promise<PickedFolder | nul
         .setOAuthToken(token)
         .setDeveloperKey(GOOGLE_API_KEY)
         .setAppId(GOOGLE_APP_ID)
-        .setTitle('학생 사진이 담긴 폴더를 골라 주세요')
+        .setTitle(title)
         .addView(view)
         .setCallback((data: any) => {
           const action = data?.[google.picker.Response.ACTION];

@@ -105,10 +105,19 @@ describe('옛 방식으로 위쪽 폴더를 골라 둔 경우', () => {
     expect(d.offerPickClass).toBe(true);
   });
 
-  it('직접 골라 준 폴더가 비었으면 권한 탓을 하지 않는다', () => {
-    const d = diagnosePhotos({ ...legacy, scan: scan({ source: 'picked', files: [] }) });
-    expect(d.tone).toBe('warn');
-    expect(d.hint).toBeUndefined();
+  it('직접 고른 폴더가 비었으면 무엇을 골랐는지 되비쳐 준다', () => {
+    // 위쪽 폴더를 골라 놓고 왜 안 되는지 몰라 헤매는 일이 있었다
+    const d = diagnosePhotos({
+      ...legacy,
+      pickedFolderName: 'Students_Poto',
+      scan: scan({ source: 'picked', files: [] }),
+    });
+    expect(d.tone).toBe('error');
+    expect(d.message).toContain('Students_Poto');
+    expect(d.hint).toContain('2026-3-1 폴더 자체');
+    expect(d.offerPickClass).toBe(true);
+    // 권한 탓이 아니므로 그 이야기는 하지 않는다
+    expect(d.hint).not.toContain('구글 권한');
   });
 });
 
