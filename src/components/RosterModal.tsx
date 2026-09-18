@@ -17,7 +17,6 @@ import ModalShell, { ModalCloseButton } from './ModalShell';
 import RosterManageTab, { type RosterView } from './roster/RosterManageTab';
 import RosterSearchTab from './roster/RosterSearchTab';
 import RosterMemorizeTab from './roster/RosterMemorizeTab';
-import PhotoFolderNotice from './roster/PhotoFolderNotice';
 import PhotoStatusBar from './roster/PhotoStatusBar';
 import { useStudentPhotos } from '../hooks/useStudentPhotos';
 import {
@@ -30,6 +29,7 @@ import {
   type ClassPick,
 } from '../lib/classPicker';
 import { classFolderName } from '../lib/studentPhotoNames';
+import { openManagedPhotoFolder } from '../lib/studentPhotos';
 import { diagnosePhotos } from '../lib/photoDiagnosis';
 import type { QuizStudent } from '../hooks/usePhotoQuiz';
 
@@ -219,6 +219,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     className: classFolderName(currentClass),
     studentCount: students.length,
     matchedCount: students.length - photoState.missing.length,
+    hasLegacyRoot: !!photoState.folders.root,
   });
 
   /**
@@ -236,17 +237,27 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     }
   };
 
-  /** 아래 '사진 폴더' 단추. 연결되어 있으면 드라이브를 열고, 아니면 연결부터. */
+  /**
+   * 아래 '사진 폴더' 단추.
+   *
+   * 이 학급을 위해 따로 고른 폴더가 있으면 그것을, 없으면 앱이 맡아 두는
+   * School_Planner/Students_Poto/2026-3-1 을 연다(없으면 만들어서 연다).
+   * 열어 보고 사진을 직접 넣어 보려는 사람을 위한 자리다.
+   */
   const handleOpenPhotoFolder = async () => {
-    if (photoState.folder) {
-      window.open(`https://drive.google.com/drive/folders/${photoState.folder.id}`, '_blank');
+    if (photoState.classFolder) {
+      window.open(`https://drive.google.com/drive/folders/${photoState.classFolder.id}`, '_blank');
       return;
     }
-    const picked = await handleConnectPhotoFolder();
-    if (picked) showToast('✅ 사진 폴더를 연결했습니다.');
+    try {
+      const url = await openManagedPhotoFolder(currentClass);
+      window.open(url, '_blank');
+    } catch (e: any) {
+      showErrorToast(e?.message || '폴더를 열지 못했습니다.');
+    }
   };
 
-  /** 다른 폴더로 갈아탄다. 처음 고른 폴더가 틀렸을 때 되돌아올 길이다. */
+  /** 옛 방식으로 골라 둔 위쪽 폴더를 갈아탄다 */
   const handleRepickPhotoFolder = async () => {
     const picked = await handleConnectPhotoFolder();
     if (picked) showToast(`✅ '${picked.name}' 폴더로 바꿨습니다.`);
@@ -1126,7 +1137,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
               students={students}
               view={view}
               photos={photoState.photos}
-              canUploadPhoto={!!photoState.folder}
+              canUploadPhoto
               uploadingNum={photoState.uploading}
               onUploadPhoto={handleUploadPhoto}
               onUpdateStudent={handleUpdateStudent}
@@ -1134,28 +1145,17 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
               highlightNum={highlightNum}
             />
 
-            {/* 사진 상태 한 줄. 폴더가 없으면 여기서 바로 연결할 수 있게 한다
-                (관리 탭까지 통째로 막아 버리면 사진 없이 명단만 쓰던 사람이 막힌다) */}
-            {photoState.status === 'no-folder' ? (
-              <div className="flex items-center justify-between gap-2 text-2xs font-semibold text-slate-500 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 flex-wrap">
-                <span>사진 폴더를 연결하면 이름 옆에 얼굴이 보이고, 암기 탭을 쓸 수 있습니다.</span>
-                <button
-                  type="button"
-                  onClick={handleConnectPhotoFolder}
-                  className="px-2.5 py-1 bg-white border border-amber-300 rounded text-2xs font-bold text-amber-800 hover:bg-amber-100 transition-colors cursor-pointer"
-                >
-                  사진 폴더 연결
-                </button>
-              </div>
-            ) : photoState.status === 'error' ? (
+            {/* 사진 상태 한 줄. 사진이 없어도 관리 탭은 그대로 쓸 수 있어야
+                하므로 여기를 막지 않는다. */}
+            {photoState.status === 'error' ? (
               <div className="flex items-center justify-between gap-2 text-2xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-2 flex-wrap">
                 <span>{photoState.error}</span>
                 <button
                   type="button"
-                  onClick={handleConnectPhotoFolder}
+                  onClick={handlePickClassFolder}
                   className="px-2.5 py-1 bg-white border border-red-300 rounded text-2xs font-bold text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
                 >
-                  폴더 다시 고르기
+                  이 학급 폴더 고르기
                 </button>
               </div>
             ) : photoState.status === 'loading' ? (
@@ -1166,7 +1166,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                  어디서 끊겼는지는 lib/photoDiagnosis.ts가 가린다. */
               <PhotoStatusBar
                 diagnosis={diagnosis}
-                where={`${photoState.folder?.name || '폴더'} / ${classFolderName(currentClass)}`}
+                where={photoState.folder ? `${photoState.folder.name} / ${classFolderName(currentClass)}` : undefined}
                 onPickClassFolder={handlePickClassFolder}
                 onRepickRoot={handleRepickPhotoFolder}
               />
@@ -1184,14 +1184,8 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
           />
         )}
 
-        {tab === 'memorize' &&
-          (photoState.status === 'no-folder' || photoState.status === 'error' ? (
-            <PhotoFolderNotice
-              error={photoState.status === 'error' ? photoState.error : undefined}
-              onConnect={handleConnectPhotoFolder}
-            />
-          ) : (
-            <>
+        {tab === 'memorize' && (
+          <>
               {/* 판이 비었는데 까닭을 안 알려 주면 '사진을 안 올렸나' 하고
                   드라이브를 뒤지러 간다. 관리 탭과 같은 띠를 여기에도 낸다. */}
               {quizCandidates.length === 0 && photoState.status === 'ready' && (
@@ -1209,8 +1203,8 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                     .length
                 }
               />
-            </>
-          ))}
+          </>
+        )}
       </div>
     </ModalShell>
   );

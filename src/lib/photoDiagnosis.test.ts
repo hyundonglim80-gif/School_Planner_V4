@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { diagnosePhotos } from './photoDiagnosis';
+import { diagnosePhotos, MANAGED_PATH } from './photoDiagnosis';
 import type { PhotoScan } from './studentPhotos';
 
 const scan = (over: Partial<PhotoScan> = {}): PhotoScan => ({
   folderId: 'f1',
-  source: 'subfolder',
+  source: 'managed',
   files: [],
   subfolderNames: [],
   rootEmpty: false,
@@ -13,103 +13,37 @@ const scan = (over: Partial<PhotoScan> = {}): PhotoScan => ({
 });
 
 const base = { className: '2026-3-1', studentCount: 25, matchedCount: 0 };
+const nothing = scan({ folderId: null, source: 'none' as const });
 
 describe('아직 훑기 전', () => {
   it('불러오는 중이라고 한다', () => {
     const d = diagnosePhotos({ ...base, scan: null });
     expect(d.message).toContain('불러오는 중');
+    expect(d.offerPickClass).toBe(false);
+  });
+});
+
+describe('앱이 맡아 두는 자리만 쓰는 경우', () => {
+  it('아직 아무것도 없으면 어디에 담기는지 알려 준다', () => {
+    const d = diagnosePhotos({ ...base, scan: nothing });
+    expect(d.tone).toBe('warn');
+    expect(d.message).toContain('올린 사진이 없습니다');
+    expect(d.hint).toContain(MANAGED_PATH);
+    expect(d.hint).toContain('2026-3-1');
+    // 드라이브에 이미 있는 사진을 쓰고 싶을 수 있으니 길은 열어 둔다
+    expect(d.offerPickClass).toBe(true);
+    // 옛 방식을 쓴 적이 없으므로 '위쪽 폴더'는 꺼내지 않는다
     expect(d.offerRepick).toBe(false);
   });
-});
 
-describe('사진을 찾을 곳을 못 잡았을 때', () => {
-  it('고른 폴더가 통째로 비어 보이면 권한 이야기를 한다', () => {
-    const d = diagnosePhotos({
-      ...base,
-      scan: scan({ folderId: null, source: 'none', rootEmpty: true }),
-    });
-    expect(d.tone).toBe('error');
-    expect(d.message).toContain('비어 보입니다');
-    expect(d.hint).toContain('구글 권한');
-    expect(d.hint).toContain('2026-3-1');
-    expect(d.offerPickClass).toBe(true);
-    expect(d.offerRepick).toBe(true);
-  });
-
-  it('다른 폴더는 보이는데 학급 폴더만 없으면 보이는 것을 알려 준다', () => {
-    const d = diagnosePhotos({
-      ...base,
-      scan: scan({
-        folderId: null,
-        source: 'none',
-        subfolderNames: ['2026-3-2', '2025-6-3'],
-      }),
-    });
-    expect(d.tone).toBe('error');
-    expect(d.message).toContain("'2026-3-1' 폴더가 없습니다");
-    expect(d.message).toContain('2026-3-2');
-    expect(d.offerRepick).toBe(true);
-  });
-
-  it('폴더가 많으면 몇 개만 추리고 나머지는 세어 준다', () => {
-    const d = diagnosePhotos({
-      ...base,
-      scan: scan({
-        folderId: null,
-        source: 'none',
-        subfolderNames: ['a', 'b', 'c', 'd', 'e'],
-      }),
-    });
-    expect(d.message).toContain('a, b, c 외 2개');
-  });
-
-  it('폴더도 사진도 없으면 확장자를 짚어 준다', () => {
-    const d = diagnosePhotos({ ...base, scan: scan({ folderId: null, source: 'none' }) });
-    expect(d.message).toContain('png');
-    expect(d.offerRepick).toBe(true);
-  });
-});
-
-describe('폴더는 잡았을 때', () => {
-  it('위쪽 폴더로 찾은 학급 폴더가 비면 권한일 수 있다고 말한다', () => {
-    // 손자까지 권한이 안 닿아 안 보이는 것일 수 있다. 실제로 이 경우에 막혔다.
-    const d = diagnosePhotos({ ...base, scan: scan({ source: 'subfolder', files: [] }) });
-    expect(d.tone).toBe('error');
-    expect(d.message).toContain('그 안의 사진이 보이지 않습니다');
-    expect(d.hint).toContain('구글 권한');
-    expect(d.offerPickClass).toBe(true);
-  });
-
-  it('직접 골라 준 폴더가 비었으면 권한 탓을 하지 않는다', () => {
-    const d = diagnosePhotos({ ...base, scan: scan({ source: 'picked', files: [] }) });
+  it('폴더는 있는데 비었으면 권한 탓을 하지 않는다', () => {
+    const d = diagnosePhotos({ ...base, scan: scan({ source: 'managed', files: [] }) });
     expect(d.tone).toBe('warn');
-    expect(d.message).toContain('사진 파일이 없습니다');
+    expect(d.message).toContain(MANAGED_PATH);
     expect(d.hint).toBeUndefined();
   });
 
-  it('사진은 있는데 하나도 안 맞으면 이름 규칙을 알려 준다', () => {
-    const d = diagnosePhotos({
-      ...base,
-      scan: scan({ files: [{ id: '1', name: 'IMG_001.png' }, { id: '2', name: 'IMG_002.png' }] }),
-    });
-    expect(d.tone).toBe('error');
-    expect(d.message).toContain('2장을 찾았지만');
-    expect(d.message).toContain('IMG_001.png');
-    expect(d.hint).toContain('2026-3-1-번호-이름');
-    // 이름이 틀린 것이지 폴더가 틀린 것이 아니므로 다시 고르라고 하지 않는다
-    expect(d.offerRepick).toBe(false);
-  });
-
-  it('학급 폴더가 아니라 고른 폴더에서 찾았으면 그렇게 말한다', () => {
-    const d = diagnosePhotos({
-      ...base,
-      scan: scan({ source: 'root', files: [{ id: '1', name: 'x.png' }] }),
-    });
-    expect(d.message).toContain('고른 폴더');
-    expect(d.message).not.toContain('2026-3-1 폴더에서');
-  });
-
-  it('일부만 맞으면 몇 명인지 센다', () => {
+  it('붙은 사진 수를 센다', () => {
     const d = diagnosePhotos({
       ...base,
       matchedCount: 23,
@@ -127,5 +61,69 @@ describe('폴더는 잡았을 때', () => {
     });
     expect(d.tone).toBe('ok');
     expect(d.message).toContain('모든 학생');
+  });
+});
+
+describe('옛 방식으로 위쪽 폴더를 골라 둔 경우', () => {
+  const legacy = { ...base, hasLegacyRoot: true };
+
+  it('고른 폴더가 통째로 비어 보이면 권한 이야기를 한다', () => {
+    const d = diagnosePhotos({
+      ...legacy,
+      scan: scan({ folderId: null, source: 'none', rootEmpty: true }),
+    });
+    expect(d.tone).toBe('error');
+    expect(d.message).toContain('비어 보입니다');
+    expect(d.hint).toContain('구글 권한');
+    expect(d.offerPickClass).toBe(true);
+    expect(d.offerRepick).toBe(true);
+  });
+
+  it('다른 폴더는 보이는데 학급 폴더만 없으면 보이는 것을 알려 준다', () => {
+    const d = diagnosePhotos({
+      ...legacy,
+      scan: scan({ folderId: null, source: 'none', subfolderNames: ['2026-3-2', '2025-6-3'] }),
+    });
+    expect(d.message).toContain("'2026-3-1' 폴더가 없습니다");
+    expect(d.message).toContain('2026-3-2');
+  });
+
+  it('폴더가 많으면 몇 개만 추리고 나머지는 세어 준다', () => {
+    const d = diagnosePhotos({
+      ...legacy,
+      scan: scan({ folderId: null, source: 'none', subfolderNames: ['a', 'b', 'c', 'd', 'e'] }),
+    });
+    expect(d.message).toContain('a, b, c 외 2개');
+  });
+
+  it('학급 폴더는 보이는데 그 안이 비면 권한일 수 있다고 말한다', () => {
+    // 실제로 여기서 막혔다. 폴더는 자식이라 보이고 사진은 손자라 안 보였다.
+    const d = diagnosePhotos({ ...legacy, scan: scan({ source: 'subfolder', files: [] }) });
+    expect(d.tone).toBe('error');
+    expect(d.message).toContain('그 안의 사진이 보이지 않습니다');
+    expect(d.hint).toContain('구글 권한');
+    expect(d.offerPickClass).toBe(true);
+  });
+
+  it('직접 골라 준 폴더가 비었으면 권한 탓을 하지 않는다', () => {
+    const d = diagnosePhotos({ ...legacy, scan: scan({ source: 'picked', files: [] }) });
+    expect(d.tone).toBe('warn');
+    expect(d.hint).toBeUndefined();
+  });
+});
+
+describe('이름이 안 맞을 때', () => {
+  it('찾은 파일을 예로 들고 규칙을 알려 준다', () => {
+    const d = diagnosePhotos({
+      ...base,
+      scan: scan({ files: [{ id: '1', name: 'IMG_001.png' }, { id: '2', name: 'IMG_002.png' }] }),
+    });
+    expect(d.tone).toBe('error');
+    expect(d.message).toContain('2장을 찾았지만');
+    expect(d.message).toContain('IMG_001.png');
+    expect(d.hint).toContain('2026-3-1-번호-이름');
+    // 이름이 틀린 것이지 폴더가 틀린 것이 아니다
+    expect(d.offerPickClass).toBe(false);
+    expect(d.offerRepick).toBe(false);
   });
 });

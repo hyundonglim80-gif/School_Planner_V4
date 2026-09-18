@@ -25,8 +25,6 @@ import {
 import { matchClassPhotos, classFolderName, type ClassKey } from '../lib/studentPhotoNames';
 
 export type PhotoStatus =
-  /** 아직 폴더를 고르지 않았다 */
-  | 'no-folder'
   /** 폴더 설정을 읽는 중 */
   | 'checking'
   /** 사진 목록을 받아오는 중 */
@@ -84,12 +82,11 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
     setStatus('checking');
     loadPhotoFolders()
       .then((f) => {
-        if (!alive) return;
-        setFolders(f);
-        if (!f.root && Object.keys(f.byClass).length === 0) setStatus('no-folder');
+        if (alive) setFolders(f);
       })
       .catch(() => {
-        if (alive) setStatus('no-folder');
+        // 설정을 못 읽어도 앱이 맡아 두는 자리는 그대로 쓸 수 있다
+        if (alive) setFolders(EMPTY_FOLDERS);
       });
     return () => {
       alive = false;
@@ -101,10 +98,6 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
 
   const load = useCallback(async () => {
     if (!cls || !className) return;
-    if (!rootId && !pickedId) {
-      setStatus('no-folder');
-      return;
-    }
     const runId = ++runIdRef.current;
 
     setStatus('loading');
@@ -158,7 +151,6 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
   /** 폴더가 정해졌고 학급이나 명단이 바뀌면 다시 읽는다 */
   useEffect(() => {
     if (!className) return;
-    if (!rootId && !pickedId) return;
     void load();
     // rosterKey를 넣어 두면 전입생을 넣거나 이름을 고쳤을 때 사진이 따라온다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -198,27 +190,30 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
     return picked;
   }, [className]);
 
+  /** 골라 둔 폴더를 모두 잊는다. 앱이 맡아 두는 자리는 그대로 쓴다. */
   const disconnect = useCallback(async () => {
     await clearPhotoFolder();
     setFolders(EMPTY_FOLDERS);
     setScan(null);
     setPhotos(new Map());
-    setStatus('no-folder');
+    setStatus('checking');
   }, []);
 
   const upload = useCallback(
     async (student: Student, file: File) => {
-      if (!folder || !cls) throw new Error('사진 폴더를 먼저 연결해 주세요.');
+      if (!cls) throw new Error('학급을 먼저 골라 주세요.');
       setUploading(student.num);
       try {
-        await uploadStudentPhoto(rootId || folder.id, cls, student, file, pickedId);
+        // 올릴 곳은 lib이 정한다. 학급 폴더를 따로 골라 두었으면 거기,
+        // 아니면 School_Planner/Students_Poto/2026-3-1 (없으면 만든다).
+        await uploadStudentPhoto(cls, student, file, pickedId);
         forgetFolderCache();
         await load();
       } finally {
         setUploading(null);
       }
     },
-    [folder, cls, rootId, pickedId, load]
+    [cls, pickedId, load]
   );
 
   const missing = students.filter((s) => !photos.has(s.num));

@@ -21,16 +21,6 @@ interface StudentPhotoProps {
   className?: string;
 }
 
-/** 사진이 없을 때 그리는 사람 모양 */
-function Silhouette({ className = '' }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 40 50" className={className} aria-hidden="true">
-      <circle cx="20" cy="19" r="8.5" fill="currentColor" />
-      <path d="M3 50c0-9.4 7.6-16 17-16s17 6.6 17 16z" fill="currentColor" />
-    </svg>
-  );
-}
-
 function CameraIcon({ size = 20 }: { size?: number }) {
   return (
     <svg

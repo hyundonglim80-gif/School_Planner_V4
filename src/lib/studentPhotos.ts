@@ -9,12 +9,13 @@
 //     학생 얼굴 사진에 그렇게 하면 주소만 알면 누구나 볼 수 있게 된다.
 //     여기서는 권한을 건드리지 않고, 선생님 토큰으로 내려받아 화면에만 띄운다.
 //
-//  2. 폴더가 다르다. 첨부는 앱이 만든 School_Planner 폴더에 모이고, 사진은
-//     선생님이 손수 만든 폴더를 골라 쓴다.
+//  2. 자리가 다르다. 첨부는 School_Planner 바로 아래에 모이고, 사진은 그
+//     아래 Students_Poto/2026-3-1 로 학급마다 나뉜다.
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { getValidGoogleToken } from './googleApi';
 import { pickDriveFolder } from './googlePicker';
+import { getOrCreateFolder } from './driveApi';
 import {
   classFolderName,
   isPhotoFile,
@@ -25,6 +26,7 @@ import {
 
 const DRIVE_FILES = 'https://www.googleapis.com/drive/v3/files';
 const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
+const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
 /**
  * 폴더 id를 두는 자리.
@@ -97,7 +99,7 @@ export async function clearPhotoFolder(): Promise<void> {
     studentPhotoFolderName: '',
     studentPhotoFoldersByClass: {},
   });
-  folderIdCache.clear();
+  managedRootId = null;
 }
 
 /** 선택창을 띄워 위쪽 폴더를 고른다. 취소하면 null. */
@@ -107,7 +109,7 @@ export async function connectPhotoFolder(): Promise<PhotoFolderConfig | null> {
   const picked = await pickDriveFolder(token);
   if (!picked) return null;
   await writeConfig({ studentPhotoFolderId: picked.id, studentPhotoFolderName: picked.name });
-  folderIdCache.clear();
+  managedRootId = null;
   return picked;
 }
 
@@ -121,7 +123,7 @@ export async function connectClassFolder(
   if (!picked) return null;
   // 점(.)이 든 열쇠는 Firestore가 중첩 필드로 알아듣는다. 문서 통째로 합친다.
   await writeConfig({ studentPhotoFoldersByClass: { [className]: picked } });
-  folderIdCache.clear();
+  managedRootId = null;
   return picked;
 }
 
@@ -151,6 +153,105 @@ export interface DrivePhotoFile extends PhotoCandidate {
   modifiedTime?: string;
 }
 
+/**
+ * 앱이 맡아 두는 사진 자리.
+ *
+ *   School_Planner / Students_Poto / 2026-3-1 / 2026-3-1-23-최지우.png
+ *
+ * ⚠️ 왜 하필 School_Planner 아래인가.
+ *    drive.file 권한은 '앱이 만들었거나 사용자가 앱에 직접 건네준 것'만 열어
+ *    준다. School_Planner는 첨부를 담느라 앱이 손수 만든 폴더다. 그 아래로
+ *    Students_Poto와 학급 폴더까지 앱이 만들면, 그 안에 앱이 올린 사진은
+ *    처음부터 끝까지 앱 것이라 권한이 막힐 일이 없다.
+ *
+ *    선생님이 따로 만든 폴더(School_Planner_Students_Poto)를 골랐을 때는
+ *    학급 폴더는 보여도 그 안의 사진이 안 보였다. 고른 폴더의 '자식'까지만
+ *    열리고 '손자'는 안 열리기 때문이다. 이 자리는 그 벽을 아예 만나지 않는다.
+ *
+ *    다만 선생님이 드라이브 화면에서 이 폴더에 사진을 손수 끌어다 넣으면,
+ *    그 파일은 앱이 만든 것이 아니므로 또 안 보일 수 있다. 그때를 위해
+ *    학급 폴더를 직접 고르는 길(picked)을 그대로 남겨 둔다.
+ */
+export const PHOTO_SUBFOLDER_NAME = 'Students_Poto';
+
+/** Students_Poto 폴더 id를 기억해 둔다 */
+let managedRootId: string | null = null;
+
+/** 한 폴더 아래에서 이름이 같은 폴더를 찾는다 */
+async function findChildFolder(
+  parentId: string,
+  name: string,
+  token: string
+): Promise<string | null> {
+  const q = encodeURIComponent(
+    `'${parentId}' in parents and name='${name.replace(/'/g, "\\'")}' and ` +
+      `mimeType='${FOLDER_MIME}' and trashed=false`
+  );
+  const res = await driveFetch(`${DRIVE_FILES}?q=${q}&fields=files(id)&pageSize=1`, token);
+  const data = await res.json();
+  return data.files?.[0]?.id || null;
+}
+
+async function createChildFolder(
+  parentId: string,
+  name: string,
+  token: string
+): Promise<string> {
+  const res = await driveFetch(DRIVE_FILES, token, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, mimeType: FOLDER_MIME, parents: [parentId] }),
+  });
+  return (await res.json()).id;
+}
+
+/** School_Planner / Students_Poto. create가 아니면 없을 때 null. */
+export async function getManagedPhotoRoot(
+  token: string,
+  create: boolean
+): Promise<string | null> {
+  if (managedRootId) return managedRootId;
+  const appFolder = await getOrCreateFolder(token);
+  const found = await findChildFolder(appFolder, PHOTO_SUBFOLDER_NAME, token);
+  if (found) {
+    managedRootId = found;
+    return found;
+  }
+  if (!create) return null;
+  managedRootId = await createChildFolder(appFolder, PHOTO_SUBFOLDER_NAME, token);
+  return managedRootId;
+}
+
+/** School_Planner / Students_Poto / 2026-3-1. 없으면 null (읽을 때는 만들지 않는다). */
+export async function findManagedClassFolder(
+  cls: ClassKey,
+  token: string
+): Promise<string | null> {
+  const root = await getManagedPhotoRoot(token, false);
+  if (!root) return null;
+  return findChildFolder(root, classFolderName(cls), token);
+}
+
+/** 위와 같되, 없으면 만든다 (사진을 올릴 때) */
+export async function ensureManagedClassFolder(
+  cls: ClassKey,
+  token: string
+): Promise<string> {
+  const root = await getManagedPhotoRoot(token, true);
+  if (!root) throw new Error('사진 폴더를 만들지 못했습니다.');
+  const name = classFolderName(cls);
+  const found = await findChildFolder(root, name, token);
+  return found || createChildFolder(root, name, token);
+}
+
+/** 앱이 맡아 두는 폴더를 드라이브에서 열 주소 (없으면 만들어서 연다) */
+export async function openManagedPhotoFolder(cls: ClassKey): Promise<string> {
+  const token = await getValidGoogleToken();
+  if (!token) throw new Error('구글 계정 연결이 필요합니다.');
+  const id = await ensureManagedClassFolder(cls, token);
+  return `https://drive.google.com/drive/folders/${id}`;
+}
+
 /** 폴더 하나의 속살. 사진 파일과 하위 폴더 이름을 함께 준다. */
 interface FolderContents {
   photos: DrivePhotoFile[];
@@ -159,7 +260,6 @@ interface FolderContents {
   total: number;
 }
 
-const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
 /** 폴더 안을 한 번에 훑는다 (한 쪽에 200개씩, 다음 쪽까지 따라간다) */
 async function listFolder(folderId: string, token: string): Promise<FolderContents> {
@@ -206,12 +306,13 @@ export interface PhotoScan {
   folderId: string | null;
   /**
    * 어디서 찾았는가.
+   *   managed   School_Planner/Students_Poto/2026-3-1 (앱이 맡아 두는 자리)
    *   picked    학급을 위해 따로 골라 둔 폴더
-   *   subfolder 위쪽 폴더 아래의 '2026-3-1'
-   *   root      위쪽 폴더 자체
+   *   subfolder 따로 고른 위쪽 폴더 아래의 '2026-3-1'
+   *   root      따로 고른 위쪽 폴더 자체
    *   none      못 찾음
    */
-  source: 'picked' | 'subfolder' | 'root' | 'none';
+  source: 'managed' | 'picked' | 'subfolder' | 'root' | 'none';
   files: DrivePhotoFile[];
   /** 뿌리 폴더 안에서 본 하위 폴더 이름들 (없으면 빈 배열) */
   subfolderNames: string[];
@@ -252,6 +353,20 @@ export async function scanClassPhotos(
     return {
       folderId: pickedFolderId,
       source: 'picked',
+      files: inner.photos,
+      subfolderNames: [],
+      rootEmpty: false,
+      classFolderLooksEmpty: inner.photos.length === 0,
+    };
+  }
+
+  // 앱이 맡아 두는 자리부터 본다. 여기 있는 것은 권한 걱정이 없다.
+  const managed = await findManagedClassFolder(cls, token);
+  if (managed) {
+    const inner = await listFolder(managed, token);
+    return {
+      folderId: managed,
+      source: 'managed',
       files: inner.photos,
       subfolderNames: [],
       rootEmpty: false,
@@ -309,40 +424,21 @@ export async function scanClassPhotos(
   };
 }
 
-/** 학급 폴더 id를 기억해 둔다. 사진을 올릴 때 어디에 넣을지 정하는 데 쓴다. */
-const folderIdCache = new Map<string, string>();
-
-/** 사진을 올릴 폴더. 이미 찾아 둔 곳이 있으면 거기, 없으면 학급 폴더를 만든다. */
+/**
+ * 사진을 올릴 폴더.
+ *
+ * 이 학급을 위해 따로 골라 둔 폴더가 있으면 거기, 아니면 앱이 맡아 두는
+ * School_Planner/Students_Poto/2026-3-1 에 넣는다(없으면 만든다).
+ * 선생님이 따로 고른 '위쪽 폴더'에는 넣지 않는다. 그 아래에 앱이 만든 폴더는
+ * 나중에 다시 읽을 때 손자가 되어 안 보일 수 있기 때문이다.
+ */
 export async function ensureClassFolderId(
-  rootId: string,
   cls: ClassKey,
   token: string,
   pickedFolderId?: string
 ): Promise<string> {
   if (pickedFolderId) return pickedFolderId;
-
-  const cacheKey = `${rootId}/${classFolderName(cls)}`;
-  const known = folderIdCache.get(cacheKey);
-  if (known) return known;
-
-  const scan = await scanClassPhotos(rootId, cls, token);
-  if (scan.folderId) {
-    folderIdCache.set(cacheKey, scan.folderId);
-    return scan.folderId;
-  }
-
-  const res = await driveFetch(DRIVE_FILES, token, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: classFolderName(cls),
-      mimeType: FOLDER_MIME,
-      parents: [rootId],
-    }),
-  });
-  const created = await res.json();
-  folderIdCache.set(cacheKey, created.id);
-  return created.id;
+  return ensureManagedClassFolder(cls, token);
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -477,7 +573,6 @@ export async function getPhotoUrl(file: DrivePhotoFile, token: string): Promise<
  * (새로 만들면 같은 학생의 사진이 두 장이 되어 어느 것이 나올지 알 수 없다).
  */
 export async function uploadStudentPhoto(
-  rootId: string,
   cls: ClassKey,
   student: { num: number; name: string },
   file: File,
@@ -486,7 +581,7 @@ export async function uploadStudentPhoto(
   const token = await getValidGoogleToken();
   if (!token) throw new Error('구글 계정 연결이 필요합니다.');
 
-  const folderId = await ensureClassFolderId(rootId, cls, token, pickedFolderId);
+  const folderId = await ensureClassFolderId(cls, token, pickedFolderId);
   const name = photoFileName(cls, student.num, student.name, file.name);
 
   const existing = await findByExactName(folderId, name, token);
@@ -555,7 +650,7 @@ async function replaceContent(
   return res.json();
 }
 
-/** 학급 폴더를 다시 읽게 한다 (사진을 올린 뒤) */
+/** 폴더를 다시 찾게 한다 (사진을 올린 뒤, 또는 연결을 바꾼 뒤) */
 export function forgetFolderCache(): void {
-  folderIdCache.clear();
+  managedRootId = null;
 }
