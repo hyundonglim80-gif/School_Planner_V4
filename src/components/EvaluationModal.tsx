@@ -311,7 +311,7 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
                 </div>
               )}
 
-              <button onClick={handleCreate} className="w-full py-2.5 bg-primary text-white rounded-xl font-bold text-sm shadow-xs hover:bg-primary/90 transition-all">생성 완료</button>
+              <button onClick={handleCreate} className="w-full py-2.5 bg-primary text-white rounded-xl font-bold text-sm shadow-xs hover:bg-primary/90 transition-all">생성</button>
             </div>
           )}
 
