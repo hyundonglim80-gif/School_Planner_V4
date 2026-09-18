@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
 import { auth } from '../lib/firebase';
-import { uploadImage, uploadFile } from '../utils/uploadHelper';
+import { uploadToDrive, attachmentImageSrc, driveUrlToStore } from '../lib/driveApi';
 import { useAppStore } from '../store/useAppStore';
 import { formatDateStr } from '../lib/dateUtils';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
@@ -23,6 +23,8 @@ export interface EntryAttachment {
   url: string;
   type?: string;
   size?: number;
+  /** 구글 드라이브 파일 id. 이미지 미리보기와 나중의 삭제에 쓴다. */
+  driveId?: string;
 }
 
 /** 드로어가 수정 대상으로 받는 값. 메모와 기록의 필드 이름 차이를 모두 받아들인다. */
@@ -196,16 +198,36 @@ export default function EntryDrawer({
 
   const viewerImages: ViewerImage[] = attachments
     .filter(isImageAttachment)
-    .map((att) => ({ url: att.url, name: att.name }));
+    .map((att) => ({ url: attachmentImageSrc(att), name: att.name }));
 
   // 첨부는 두 화면이 서로 다른 모양으로 저장해 왔다. 기록은 type에 'image'/'file'과
   // id를, 메모는 MIME 타입을 쓴다. 저장된 형태를 바꾸지 않도록 여기서 맞춰준다.
-  const makeAttachment = (name: string, url: string, mimeType: string, size?: number, seq = 0): EntryAttachment => {
+  const makeAttachment = (
+    name: string,
+    url: string,
+    mimeType: string,
+    size?: number,
+    seq = 0,
+    driveId?: string
+  ): EntryAttachment => {
     const isImage = mimeType.startsWith('image/');
     if (kind === 'journal') {
-      return { id: `file_${Date.now()}_${seq}`, name, url, type: isImage ? 'image' : 'file', size };
+      return {
+        id: `file_${Date.now()}_${seq}`,
+        name,
+        url,
+        type: isImage ? 'image' : 'file',
+        size,
+        ...(driveId ? { driveId } : {}),
+      };
     }
-    return { name, url, type: mimeType || 'application/octet-stream', size };
+    return {
+      name,
+      url,
+      type: mimeType || 'application/octet-stream',
+      size,
+      ...(driveId ? { driveId } : {}),
+    };
   };
 
   // 캡처 이미지를 Ctrl+V로 붙여넣으면 하단 첨부 목록에 이미지로 추가된다.
@@ -213,7 +235,9 @@ export default function EntryDrawer({
   const { handlePaste, pasting } = usePasteImageUpload((images) => {
     setAttachments((prev) => [
       ...prev,
-      ...images.map((img, i) => makeAttachment(img.name, img.url, img.mimeType || 'image/png', img.size, i)),
+      ...images.map((img, i) =>
+        makeAttachment(img.name, img.url, img.mimeType || 'image/png', img.size, i, img.driveId)
+      ),
     ]);
   });
 
@@ -240,10 +264,12 @@ export default function EntryDrawer({
       const uploaded: EntryAttachment[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const url = file.type.startsWith('image/')
-          ? await uploadImage(file, user.uid)
-          : await uploadFile(file, user.uid);
-        uploaded.push(makeAttachment(file.name, url, file.type, file.size, i));
+        // 이미지도 압축하지 않고 원본 그대로 올린다. 화면 캡처는 글자가 많아
+        // 다시 인코딩하면 읽기 어려워진다.
+        const drive = await uploadToDrive(file, file.name);
+        uploaded.push(
+          makeAttachment(file.name, driveUrlToStore(file.type, drive), file.type, file.size, i, drive.id)
+        );
       }
       setAttachments((prev) => [...prev, ...uploaded]);
     } catch (error) {
@@ -440,7 +466,7 @@ export default function EntryDrawer({
                         <button
                           type="button"
                           onClick={() => {
-                            const i = viewerImages.findIndex((v) => v.url === att.url);
+                            const i = viewerImages.findIndex((v) => v.url === attachmentImageSrc(att));
                             setViewerIndex(i >= 0 ? i : 0);
                             setViewerOpen(true);
                           }}
@@ -448,7 +474,7 @@ export default function EntryDrawer({
                           title="클릭하여 크게 보기"
                         >
                           <img
-                            src={att.url}
+                            src={attachmentImageSrc(att)}
                             alt={att.name}
                             className="w-full max-h-64 object-contain bg-white"
                             loading="lazy"

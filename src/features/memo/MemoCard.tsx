@@ -8,6 +8,7 @@ import { useLabels } from '../../hooks/useLabels';
 import { showToast } from '../../utils/toast';
 import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
 import { isLongEntry, previewLine } from '../../lib/entryCollapse';
+import { attachmentImageSrc } from '../../lib/driveApi';
 
 interface MemoCardProps {
   memo: Memo;
@@ -81,8 +82,8 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
 
   // 첨부 이미지 + 구버전 단일 imageUrl 을 합쳐 뷰어에 넘긴다.
   const viewerImages = React.useMemo<ViewerImage[]>(() => {
-    const list: ViewerImage[] = imageAttachments.map((a) => ({ url: a.url, name: a.name }));
-    if (list.length === 0 && memo.imageUrl) list.push({ url: memo.imageUrl, name: '첨부 이미지' });
+    const list: ViewerImage[] = imageAttachments.map((a) => ({ url: attachmentImageSrc(a), name: a.name }));
+    if (list.length === 0 && memo.imageUrl) list.push({ url: attachmentImageSrc({ url: memo.imageUrl }), name: '첨부 이미지' });
     return list;
   }, [imageAttachments, memo.imageUrl]);
 
@@ -229,7 +230,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
                 title="클릭하여 크게 보기"
               >
                 <img
-                  src={imgAtt.url}
+                  src={attachmentImageSrc(imgAtt)}
                   alt={imgAtt.name || '첨부 이미지'}
                   className="w-full max-h-48 object-cover hover:scale-102 transition-transform duration-200"
                 />
@@ -275,7 +276,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
             title="클릭하여 크게 보기"
           >
             <img
-              src={memo.imageUrl}
+              src={attachmentImageSrc({ url: memo.imageUrl })}
               alt="첨부된 이미지"
               className="w-full max-h-48 object-cover hover:scale-102 transition-transform duration-200"
             />

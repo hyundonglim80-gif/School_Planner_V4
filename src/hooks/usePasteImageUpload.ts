@@ -2,13 +2,15 @@ import { useCallback, useRef, useState } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
 import type React from 'react';
 import { auth } from '../lib/firebase';
-import { uploadFile } from '../utils/uploadHelper';
+import { uploadToDrive, driveUrlToStore } from '../lib/driveApi';
 
 export interface PastedImage {
   name: string;
   url: string;
   size: number;
   mimeType: string;
+  /** 구글 드라이브 파일 id */
+  driveId: string;
 }
 
 const EXT_BY_MIME: Record<string, string> = {
@@ -70,11 +72,10 @@ export function usePasteImageUpload(onUploaded: (images: PastedImage[]) => void)
         const mimeType = files[i].type || 'image/png';
         const name = buildPastedName(i, mimeType);
         const renamed = new File([files[i]], name, { type: mimeType });
-        // 💡 uploadImage(압축)가 아니라 uploadFile(원본)을 쓴다.
-        // 붙여넣는 이미지는 글자가 있는 화면 캡처가 대부분인데, 1200px로 축소하고
-        // JPEG로 재인코딩하면 글자가 뭉개져 읽기 어려워진다.
-        const url = await uploadFile(renamed, user.uid);
-        uploaded.push({ name, url, size: files[i].size, mimeType });
+        // 💡 압축하지 않고 원본 그대로 올린다. 붙여넣는 이미지는 글자가 있는
+        // 화면 캡처가 대부분인데, 축소하고 다시 인코딩하면 글자가 뭉개진다.
+        const drive = await uploadToDrive(renamed, name);
+        uploaded.push({ name, url: driveUrlToStore(mimeType, drive), size: files[i].size, mimeType, driveId: drive.id });
       }
       onUploadedRef.current(uploaded);
     } catch (err) {

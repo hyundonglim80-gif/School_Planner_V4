@@ -3,6 +3,7 @@ import type { JournalEntry, Attachment } from '../../hooks/useDayData';
 import { useAppStore } from '../../store/useAppStore';
 import { isLongEntry, previewLine } from '../../lib/entryCollapse';
 import { useLabels } from '../../hooks/useLabels';
+import { attachmentImageSrc } from '../../lib/driveApi';
 import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
 import EntryDrawer, { type EntryDraft } from '../../components/EntryDrawer';
 import { showToast } from '../../utils/toast';
@@ -101,9 +102,9 @@ export default function DayJournal({
   // 기록에 붙은 이미지(구버전 imageUrl 포함)를 뷰어용 목록으로 모은다.
   const getEntryImages = (entry: JournalEntry): ViewerImage[] => {
     const list: ViewerImage[] = [];
-    if (entry.imageUrl) list.push({ url: entry.imageUrl, name: '첨부 이미지' });
+    if (entry.imageUrl) list.push({ url: attachmentImageSrc({ url: entry.imageUrl }), name: '첨부 이미지' });
     (entry.attachments || []).forEach((att) => {
-      if (isImageAttachment(att)) list.push({ url: att.url, name: att.name });
+      if (isImageAttachment(att)) list.push({ url: attachmentImageSrc(att), name: att.name });
     });
     return list;
   };
@@ -429,7 +430,7 @@ export default function DayJournal({
                               onClick={(e) => { e.stopPropagation(); openEntryViewer(entry, entry.imageUrl!); }}
                               title="클릭하여 크게 보기"
                             >
-                              <img src={entry.imageUrl} alt="첨부 이미지" className="max-w-full h-auto object-cover max-h-48" loading="lazy" />
+                              <img src={attachmentImageSrc({ url: entry.imageUrl })} alt="첨부 이미지" className="max-w-full h-auto object-cover max-h-48" loading="lazy" />
                             </div>
                           )}
                           {entry.attachments && entry.attachments.length > 0 && (
@@ -443,7 +444,7 @@ export default function DayJournal({
                                     className="block w-16 h-16 rounded-lg overflow-hidden border border-slate-200 hover:shadow-sm transition-shadow cursor-pointer"
                                     title="클릭하여 크게 보기"
                                   >
-                                    <img src={att.url} alt={att.name} className="w-full h-full object-cover" loading="lazy" />
+                                    <img src={attachmentImageSrc(att)} alt={att.name} className="w-full h-full object-cover" loading="lazy" />
                                   </button>
                                 ) : (
                                   <a

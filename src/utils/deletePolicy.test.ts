@@ -31,6 +31,7 @@ const CONFIRM_ALLOWED: Record<string, string> = {
   'LabelModal.tsx': '라벨 일괄 복구 - 여러 건',
   'LinkViewerModal.tsx': '연결 해제 - 양쪽에서 끊기고 휴지통에 남지 않는다',
   'DaySchedule.tsx': '기본 시간표 불러오기 - 과목을 덮어쓴다',
+  'SettingsModal.tsx': '첨부를 드라이브로 옮긴 뒤 원본 삭제 - 여러 건, 복구 불가',
 };
 
 describe('삭제 확인 정책', () => {

@@ -24,6 +24,7 @@ import { loadSharedHolidays, saveSharedHolidays } from '../lib/holidays';
 import { fetchHolidaysFromGovApi } from '../lib/govApi';
 import { clearHolidayCache } from '../hooks/useGovHolidays';
 import ModalShell, { ModalCloseButton } from './ModalShell';
+import { runDriveMigration, type MigrationProgress } from '../lib/driveMigration';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -112,6 +113,41 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { eventLabels, journalLabels, memoLabels, labelsLoaded } = useLabels();
   const bindings = resolveBindings(shortcutOverrides);
   const assignedCount = SHORTCUT_ACTIONS.filter((a) => bindings[a.id].key).length;
+
+  // 첨부를 구글 드라이브로 모으는 작업
+  const [migrating, setMigrating] = useState(false);
+  const [migrateProgress, setMigrateProgress] = useState<MigrationProgress | null>(null);
+  const [migrateErrors, setMigrateErrors] = useState<string[]>([]);
+
+  const handleDriveMigration = async () => {
+    // 원본을 지우는 일이라 한 번 묻는다. 되돌릴 수 없다.
+    const ok = window.confirm(
+      [
+        '첨부와 캡처 이미지를 구글 드라이브로 옮깁니다.',
+        '드라이브에 올라간 것을 확인한 뒤 원본(Firebase Storage)을 지웁니다.',
+        '지운 원본은 되돌릴 수 없습니다. 진행할까요?',
+      ].join(String.fromCharCode(10))
+    );
+    if (!ok) return;
+    setMigrating(true);
+    setMigrateErrors([]);
+    try {
+      const result = await runDriveMigration(selectedGroupId, (p) => setMigrateProgress(p));
+      setMigrateProgress(result);
+      setMigrateErrors(result.errors);
+      if (result.failed === 0 && result.moved > 0) {
+        showToast(`✅ ${result.moved}건을 구글 드라이브로 옮겼습니다.`);
+      } else if (result.moved === 0 && result.failed === 0) {
+        showToast('옮길 파일이 없습니다. 이미 모두 드라이브에 있습니다.');
+      } else {
+        showToast(`옮김 ${result.moved}건, 실패 ${result.failed}건. 아래 내용을 확인해 주세요.`);
+      }
+    } catch (e) {
+      showErrorToast('옮기는 중 문제가 생겼습니다.', e);
+    } finally {
+      setMigrating(false);
+    }
+  };
 
   // 개발자 설정 - 공유 그룹 점검
   // 보안 규칙을 조이려면 '초대 코드 -> 그룹' 매핑이 모든 그룹에 있어야 한다.
@@ -573,6 +609,39 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             ⋮ 메뉴 → <strong className="text-slate-700">시간표 적용 (주간 템플릿)</strong> 에서 교시 이름을 바꾸면
             하루·주간 화면의 칸이 그에 맞춰 나뉩니다.
           </p>
+        </Section>
+
+        {/* 첨부 파일을 구글 드라이브 한 곳으로 모은다.
+            예전에는 V3가 파일 첨부는 드라이브, 이미지는 Firebase Storage에 두었고
+            V4는 둘 다 Storage였다. 그래서 같은 사람의 첨부가 흩어져 있었다. */}
+        <Section
+          title="첨부 파일을 구글 드라이브로 모으기"
+          desc="지금까지 Firebase Storage에 올라가 있던 첨부와 캡처 이미지를 구글 드라이브(School_Planner 폴더)로 옮깁니다. 옮긴 것이 드라이브에 있는지 확인한 뒤에만 원본을 지웁니다."
+        >
+          <button
+            onClick={handleDriveMigration}
+            disabled={migrating}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all"
+          >
+            {migrating ? '옮기는 중...' : '드라이브로 옮기기'}
+          </button>
+          {migrateProgress && (
+            <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 leading-relaxed">
+              <p>
+                {migrateProgress.scanned} / {migrateProgress.total} 건 처리 · 옮김{' '}
+                {migrateProgress.moved} · 원본 삭제 {migrateProgress.deleted}
+                {migrateProgress.failed > 0 && ` · 실패 ${migrateProgress.failed}`}
+              </p>
+              {migrateProgress.current && (
+                <p className="text-slate-400 break-all mt-1">{migrateProgress.current}</p>
+              )}
+            </div>
+          )}
+          {migrateErrors.length > 0 && (
+            <pre className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-2xs text-amber-900 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+              {migrateErrors.join(String.fromCharCode(10))}
+            </pre>
+          )}
         </Section>
 
         {developer && (
