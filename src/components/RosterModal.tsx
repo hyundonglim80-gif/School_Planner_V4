@@ -11,6 +11,64 @@ import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
 import { moveToTrash } from '../utils/trashHelper';
 
+/**
+ * 학급별 명단이 들어 있는 시트 탭 이름.
+ *
+ * 예전에는 같은 탭을 '조사표_'로 불렀다. 안에 든 것은 그때나 지금이나 학급
+ * 명단이라 이름만 바꾼다. 옛 이름의 탭은 [migrateLegacyRosterSheetTitles]가
+ * 새 이름으로 고쳐 놓으므로, 읽는 쪽은 새 이름 하나만 알면 된다.
+ */
+const ROSTER_SHEET_PREFIX = '명렬표_';
+const LEGACY_ROSTER_SHEET_PREFIX = '조사표_';
+
+/**
+ * 연결된 스프레드시트에서 '조사표_'로 시작하는 탭을 모두 '명렬표_'로 바꾼다.
+ *
+ * 탭 이름만 고칠 뿐 칸 안의 값은 건드리지 않는다. 새 이름이 이미 있는 탭은
+ * 이름이 겹치므로 그냥 둔다. 이름을 바꾼 탭 수를 돌려준다.
+ */
+async function migrateLegacyRosterSheetTitles(token: string, spreadsheetId: string): Promise<number> {
+  try {
+    const metaRes = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties(sheetId,title)`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!metaRes.ok) return 0;
+
+    const meta = await metaRes.json();
+    const sheets: any[] = meta?.sheets || [];
+    const titles = new Set(sheets.map((s) => s?.properties?.title).filter(Boolean));
+
+    const requests = sheets
+      .filter((s) => String(s?.properties?.title || '').startsWith(LEGACY_ROSTER_SHEET_PREFIX))
+      .map((s) => {
+        const title = String(s.properties.title);
+        const newTitle = ROSTER_SHEET_PREFIX + title.slice(LEGACY_ROSTER_SHEET_PREFIX.length);
+        if (titles.has(newTitle)) return null;
+        titles.add(newTitle);
+        return {
+          updateSheetProperties: {
+            properties: { sheetId: s.properties.sheetId, title: newTitle },
+            fields: 'title',
+          },
+        };
+      })
+      .filter(Boolean);
+
+    if (requests.length === 0) return 0;
+
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests }),
+    });
+    return res.ok ? requests.length : 0;
+  } catch (e) {
+    console.warn('옛 명렬표 탭 이름 바꾸기 실패:', e);
+    return 0;
+  }
+}
+
 interface RosterModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -159,10 +217,17 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       return;
     }
 
-    const sheetName = `조사표_${year}-${grade}-${classNum}`;
+    const sheetName = `${ROSTER_SHEET_PREFIX}${year}-${grade}-${classNum}`;
     setLoadingSheet(true);
 
     try {
+      // 0. 옛 이름('조사표_')의 탭이 남아 있으면 먼저 새 이름으로 바꾼다.
+      //    한 번 바꿔 두면 다음부터는 바꿀 것이 없어 그냥 지나간다.
+      const renamedCount = await migrateLegacyRosterSheetTitles(token, spreadsheetId);
+      if (renamedCount > 0) {
+        showToast(`📊 시트 탭 ${renamedCount}개의 이름을 '명렬표_'로 바꿨습니다.`);
+      }
+
       // 1. Google Sheets API v4로 데이터 요청 (V3와 동일한 방식)
       const apiUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}!A:Z`;
       const res = await fetch(apiUrl, {
@@ -480,18 +545,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
         </div>
 
         {/* 구글 시트 연동 설정 바 */}
-        <div className="bg-emerald-50/70 border-b border-emerald-100 px-6 py-2.5 flex items-center justify-between flex-wrap gap-2 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-emerald-800">📊 연결된 구글 시트:</span>
-            {spreadsheetId ? (
-              <span className="text-emerald-700 font-mono text-xs bg-white px-2 py-0.5 rounded border border-emerald-200">
-                ...{spreadsheetId.slice(-10)}
-              </span>
-            ) : (
-              <span className="text-amber-600 font-bold">미연결</span>
-            )}
-          </div>
-
+        <div className="bg-emerald-50/70 border-b border-emerald-100 px-6 py-2.5 flex items-center justify-end flex-wrap gap-2 text-xs">
           <div className="flex items-center gap-1.5">
             <button
               onClick={handleOpenGoogleSheet}
@@ -587,7 +641,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                 onClick={handleImportFromGoogleSheet}
                 disabled={loadingSheet}
                 className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-all flex items-center gap-1"
-                title="연결된 구글 시트의 [조사표_학년-반] 탭에서 명단과 조사표를 가져옵니다"
+                title="연결된 구글 시트의 [명렬표_학년도-학년-반] 탭에서 명단을 가져옵니다"
               >
                 <span>📊</span>
                 {loadingSheet ? '시트 읽는 중...' : '시트 동기화'}
