@@ -17,8 +17,14 @@
 //
 // 저장소를 비우고 한 번 새로고침하면 정상으로 돌아온다. 사용자가 F5를 눌러
 // 해결하던 것을 앱이 스스로 하게 한다. 되풀이하지 않도록 표시를 남긴다.
-import { terminate, clearIndexedDbPersistence, type Firestore } from 'firebase/firestore';
-import { MEMORY_CACHE_MARK } from './firebase';
+import {
+  terminate,
+  clearIndexedDbPersistence,
+  doc,
+  getDocFromServer,
+  type Firestore,
+} from 'firebase/firestore';
+import { MEMORY_CACHE_MARK, auth } from './firebase';
 
 const MARK = 'sp4-firestore-recovered';
 
@@ -144,6 +150,39 @@ export function markFirestoreAlive(fromServer: boolean = true) {
   markFirestoreHealthy();
 }
 
+/**
+ * 서버에 정말로 닿지 않는지 직접 물어본다.
+ *
+ * ⚠️ 왜 한 번 더 묻는가.
+ *    감시견은 '서버에서 온 스냅샷'이 오지 않으면 답이 없다고 본다. 그런데
+ *    onSnapshot은 기본값에서 메타데이터만 바뀌면 콜백을 부르지 않는다
+ *    (includeMetadataChanges를 켜지 않았다). 그래서 새로고침처럼 캐시에 이미
+ *    같은 내용이 들어 있는 경우에는, 서버가 '바뀐 것 없다'고 확인해 주어도
+ *    콜백이 한 번도 더 불리지 않는다. fromCache는 영영 true인 채로 남는다.
+ *
+ *    실제로 그래서, 새로고침만 하면 화면에는 일정이 1.3초 만에 멀쩡히 떴는데도
+ *    10초 뒤 감시견이 '답이 없다'며 오프라인 저장소를 버리고 앱을 다시 띄웠다.
+ *    45초로 늘려 봐도 마찬가지였다. 기다려서 될 일이 아니었다.
+ *
+ *    저장소를 버리는 것은 되돌릴 수 없는 일이므로, 그 전에 전제를 직접 확인한다.
+ *    서버에 한 번 물어 답이 오면 Firestore는 멀쩡한 것이다.
+ */
+async function serverReachable(): Promise<boolean> {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !dbRef) return false;
+  try {
+    const probe = getDocFromServer(doc(dbRef, 'users', uid, 'settings', 'preferences'));
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('probe-timeout')), 8000)
+    );
+    // 문서가 없어도 된다. 서버가 답을 줬다는 것만으로 충분하다.
+    await Promise.race([probe, timeout]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** 로그인이 끝난 뒤 건다. 정해진 시간 안에 아무 답도 없으면 캐시를 버린다. */
 export function startPersistenceWatchdog(db: Firestore, ms = 10000) {
   if (typeof window === 'undefined') return;
@@ -152,13 +191,22 @@ export function startPersistenceWatchdog(db: Firestore, ms = 10000) {
   watchdog = setTimeout(() => {
     watchdog = null;
     if (aliveSeen) return;
-    console.warn(
-      '[SP4] 로그인은 됐는데 Firestore가 10초 동안 아무 답도 주지 않았습니다. ' +
-      '오프라인 저장소를 못 잡은 것으로 보고 저장소 없이 다시 시작합니다.'
-    );
-    // 이 증상의 원인도 결국 저장소가 잠긴 것이었다. 비우기는 잠겨 있으면 실패하므로
-    // 아예 저장소를 안 쓰고 다시 뜨게 한다.
-    recoverByGivingUpPersistence('no-response', '구독이 답을 주지 않음');
+
+    void serverReachable().then((reachable) => {
+      if (aliveSeen) return;
+      if (reachable) {
+        // 스냅샷이 다시 안 불렸을 뿐, Firestore는 멀쩡하다. 건드리지 않는다.
+        markFirestoreAlive(true);
+        return;
+      }
+      console.warn(
+        '[SP4] 로그인은 됐는데 Firestore가 아무 답도 주지 않고, 서버에 직접 물어도 답이 없습니다. ' +
+        '오프라인 저장소를 못 잡은 것으로 보고 저장소 없이 다시 시작합니다.'
+      );
+      // 이 증상의 원인도 결국 저장소가 잠긴 것이었다. 비우기는 잠겨 있으면 실패하므로
+      // 아예 저장소를 안 쓰고 다시 뜨게 한다.
+      recoverByGivingUpPersistence('no-response', '구독도 서버 직접 조회도 답하지 않음');
+    });
   }, ms);
 }
 
