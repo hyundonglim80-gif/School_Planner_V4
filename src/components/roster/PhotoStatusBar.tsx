@@ -12,7 +12,6 @@ interface PhotoStatusBarProps {
   /** '사진폴더 / 2026-3-1' 처럼 지금 보고 있는 자리 */
   where?: string;
   onPickClassFolder: () => void;
-  onRepickRoot: () => void;
   /** 고른 폴더를 드라이브에서 열어 눈으로 확인하게 한다 */
   onOpenFolder?: () => void;
   /** 못 읽는 폴더에 묶여 있을 때 앱이 맡아 두는 자리로 되돌아간다 */
@@ -29,7 +28,6 @@ export default function PhotoStatusBar({
   diagnosis,
   where,
   onPickClassFolder,
-  onRepickRoot,
   onOpenFolder,
   onForgetPicked,
 }: PhotoStatusBarProps) {
@@ -72,15 +70,6 @@ export default function PhotoStatusBar({
             className="px-2.5 py-1 bg-primary hover:bg-primary/90 rounded text-2xs font-bold text-white transition-colors cursor-pointer"
           >
             이 학급 폴더 고르기
-          </button>
-        )}
-        {diagnosis.offerRepick && (
-          <button
-            type="button"
-            onClick={onRepickRoot}
-            className="px-2.5 py-1 bg-white border border-slate-300 rounded text-2xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            위쪽 폴더 다시 고르기
           </button>
         )}
       </div>

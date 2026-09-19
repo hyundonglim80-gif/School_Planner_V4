@@ -8,7 +8,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getValidGoogleToken, getGoogleTokenQuietly } from '../lib/googleApi';
 import {
   loadPhotoFolders,
-  connectPhotoFolder,
   connectClassFolder,
   clearClassFolder,
   clearPhotoFolder,
@@ -204,16 +203,6 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
     setReloadNonce((n) => n + 1);
   };
 
-  /** 위쪽 폴더를 고른다 */
-  const connect = useCallback(async () => {
-    const picked = await connectPhotoFolder();
-    if (picked) {
-      resetView();
-      setFolders((f) => ({ ...f, root: picked }));
-    }
-    return picked;
-  }, []);
-
   /**
    * 이 학급의 폴더를 직접 고른다.
    *
@@ -325,7 +314,6 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
     uploadMany,
     /** 폴더를 훑은 결과 (사진이 안 붙는 까닭을 짚는 데 쓴다) */
     scan,
-    connect,
     connectForClass,
     forgetClassFolder,
     disconnect,

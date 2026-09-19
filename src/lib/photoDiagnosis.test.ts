@@ -33,8 +33,6 @@ describe('앱이 맡아 두는 자리만 쓰는 경우', () => {
     expect(d.hint).toContain('2026-3-1');
     // 드라이브에 이미 있는 사진을 쓰고 싶을 수 있으니 길은 열어 둔다
     expect(d.offerPickClass).toBe(true);
-    // 옛 방식을 쓴 적이 없으므로 '위쪽 폴더'는 꺼내지 않는다
-    expect(d.offerRepick).toBe(false);
   });
 
   it('폴더는 있는데 비었으면 권한 탓을 하지 않는다', () => {
@@ -77,7 +75,6 @@ describe('옛 방식으로 위쪽 폴더를 골라 둔 경우', () => {
     expect(d.message).toContain('비어 보입니다');
     expect(d.hint).toContain('구글 권한');
     expect(d.offerPickClass).toBe(true);
-    expect(d.offerRepick).toBe(true);
   });
 
   it('다른 폴더는 보이는데 학급 폴더만 없으면 보이는 것을 알려 준다', () => {
@@ -154,6 +151,5 @@ describe('이름이 안 맞을 때', () => {
     expect(d.hint).toContain('2026-3-1-05-이름');
     // 이름이 틀린 것이지 폴더가 틀린 것이 아니다
     expect(d.offerPickClass).toBe(false);
-    expect(d.offerRepick).toBe(false);
   });
 });

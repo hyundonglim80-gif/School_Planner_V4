@@ -108,8 +108,6 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [addCount, setAddCount] = useState<string>('');
   const [spreadsheetId, setSpreadsheetId] = useState<string>('');
-  const [showConfigInput, setShowConfigInput] = useState(false);
-  const [configInputId, setConfigInputId] = useState('');
   const [loadingSheet, setLoadingSheet] = useState(false);
   const googleAccessToken = useAppStore((st) => st.googleAccessToken);
   const [saving, setSaving] = useState(false);
@@ -179,7 +177,6 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
         const snap = await getDoc(doc(db, 'users', user.uid, 'settings', 'backup_config'));
         if (snap.exists() && snap.data().spreadsheetId) {
           setSpreadsheetId(snap.data().spreadsheetId);
-          setConfigInputId(snap.data().spreadsheetId);
         }
       } catch (e) {
         console.error(e);
@@ -251,21 +248,6 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   });
 
   /**
-   * 사진 폴더 연결. 실패한 사연을 반드시 화면에 내보인다.
-   *
-   * 예전에는 여기서 오류를 잡지 않아, 관리 탭의 '사진 폴더 연결'을 눌렀을 때
-   * 실패해도 아무 일도 일어나지 않은 것처럼 보였다(콘솔에만 남았다).
-   */
-  const handleConnectPhotoFolder = async () => {
-    try {
-      return await photoState.connect();
-    } catch (e: any) {
-      showErrorToast(e?.message || '폴더를 연결하지 못했습니다.');
-      return null;
-    }
-  };
-
-  /**
    * 아래 '사진 폴더' 단추.
    *
    * 이 학급을 위해 따로 고른 폴더가 있으면 그것을, 없으면 앱이 맡아 두는
@@ -314,12 +296,6 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     const id = photoState.classFolder?.id || photoState.scan?.folderId;
     if (!id) return showErrorToast('열어 볼 폴더가 없습니다.');
     window.open(`https://drive.google.com/drive/folders/${id}`, '_blank');
-  };
-
-  /** 옛 방식으로 골라 둔 위쪽 폴더를 갈아탄다 */
-  const handleRepickPhotoFolder = async () => {
-    const picked = await handleConnectPhotoFolder();
-    if (picked) showToast(`✅ '${picked.name}' 폴더로 바꿨습니다.`);
   };
 
   /**
@@ -432,32 +408,6 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     }
   };
 
-  // 구글 시트 ID 저장
-  const handleSaveSpreadsheetId = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
-    let cleanId = configInputId.trim();
-    // URL 형태로 입력했을 때 ID만 추출
-    const urlMatch = cleanId.match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-    if (urlMatch) {
-      cleanId = urlMatch[1];
-    }
-
-    if (!cleanId) return showErrorToast('유효한 구글 시트 ID나 URL을 입력해주세요.');
-
-    try {
-      await setDoc(doc(db, 'users', user.uid, 'settings', 'backup_config'), {
-        spreadsheetId: cleanId,
-        updatedAt: Date.now(),
-      }, { merge: true });
-      setSpreadsheetId(cleanId);
-      setShowConfigInput(false);
-      showToast('✅ 구글 시트가 연결되었습니다.');
-    } catch (e) {
-      console.error(e);
-      showErrorToast('설정 저장 중 오류가 발생했습니다.');
-    }
-  };
 
   // 📊 구글 시트에서 명단 불러오기 (V3 로직 완벽 연동)
   const handleImportFromGoogleSheet = async () => {
@@ -973,24 +923,6 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
               </svg>
               사진 폴더
             </button>
-            {/* 처음 고른 폴더가 틀렸을 때 되돌아올 길. 위의 '사진 폴더'는
-                연결된 폴더를 드라이브에서 열어 줄 뿐이라 갈아탈 수가 없었다. */}
-            {photoState.folder && (
-              <button
-                type="button"
-                onClick={handleRepickPhotoFolder}
-                title={`지금 연결된 폴더: ${photoState.folder.name || '이름 모름'}`}
-                className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors cursor-pointer"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M21 4v6h-6" />
-                  <path d="M3 20v-6h6" />
-                  <path d="M20 10a8 8 0 0 0-13.7-4.2L3 9" />
-                  <path d="M4 14a8 8 0 0 0 13.7 4.2L21 15" />
-                </svg>
-                폴더 다시 고르기
-              </button>
-            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -1479,7 +1411,6 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                 onOpenFolder={handleOpenPickedFolder}
                 onForgetPicked={handleForgetClassFolder}
                 onPickClassFolder={handlePickClassFolder}
-                onRepickRoot={handleRepickPhotoFolder}
               />
               ))}
           </>
@@ -1520,8 +1451,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                 <PhotoStatusBar
                   diagnosis={diagnosis}
                   onPickClassFolder={handlePickClassFolder}
-                  onRepickRoot={handleRepickPhotoFolder}
-                  onOpenFolder={handleOpenPickedFolder}
+                    onOpenFolder={handleOpenPickedFolder}
                   onForgetPicked={handleForgetClassFolder}
                 />
               )}

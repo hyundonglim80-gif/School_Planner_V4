@@ -102,16 +102,14 @@ export async function clearPhotoFolder(): Promise<void> {
   managedRootId = null;
 }
 
-/** 선택창을 띄워 위쪽 폴더를 고른다. 취소하면 null. */
-export async function connectPhotoFolder(): Promise<PhotoFolderConfig | null> {
-  const token = await getValidGoogleToken();
-  if (!token) throw new Error('구글 계정 연결이 필요합니다.');
-  const picked = await pickDriveFolder(token);
-  if (!picked) return null;
-  await writeConfig({ studentPhotoFolderId: picked.id, studentPhotoFolderName: picked.name });
-  managedRootId = null;
-  return picked;
-}
+/*
+ * '위쪽 폴더 고르기'는 걷어냈다.
+ *
+ * 선택창으로 위쪽 폴더를 골라도 그 안의 사진(손자)에는 권한이 닿지 않는다는
+ * 것이 확인됐다. 고를 수는 있으나 늘 빈손으로 돌아오는 길이라, 단추를 두면
+ * 쓰는 사람을 막다른 곳으로 데려갈 뿐이다. 새로 고르는 길만 없애고, 예전에
+ * 골라 둔 값은 그대로 읽는다(이미 그렇게 쓰고 계신 분을 끊지 않기 위해).
+ */
 
 /** 선택창을 띄워 이 학급의 폴더를 고른다. 취소하면 null. */
 export async function connectClassFolder(

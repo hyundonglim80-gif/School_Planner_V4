@@ -23,8 +23,6 @@ export interface PhotoDiagnosis {
   hint?: string;
   /** '이 학급 폴더 고르기'를 내밀어야 하는가 */
   offerPickClass: boolean;
-  /** '위쪽 폴더 다시 고르기'를 내밀어야 하는가 (옛 방식을 쓰던 경우에만) */
-  offerRepick: boolean;
   /** '고른 폴더 열기'를 내밀어야 하는가 (엉뚱한 폴더인지 눈으로 확인하게) */
   offerOpenFolder?: boolean;
   /** '앱 폴더로 되돌리기'를 내밀어야 하는가 (못 읽는 폴더에 묶여 있을 때) */
@@ -67,7 +65,6 @@ export function diagnosePhotos({
       tone: 'warn',
       message: '사진을 불러오는 중...',
       offerPickClass: false,
-      offerRepick: false,
     };
   }
 
@@ -94,7 +91,6 @@ export function diagnosePhotos({
           `빈 칸을 누르시면 ${MANAGED_PATH} / ${className} 에 담깁니다. ` +
           `드라이브에 이미 사진이 있다면 '이 학급 폴더 고르기'로 그 폴더를 골라 주세요.`,
         offerPickClass: true,
-        offerRepick: false,
       };
     }
     if (scan.rootEmpty) {
@@ -103,7 +99,6 @@ export function diagnosePhotos({
         message: '고른 폴더 안이 비어 보입니다.',
         hint: grandchildHint,
         offerPickClass: true,
-        offerRepick: true,
       };
     }
     if (scan.subfolderNames.length > 0) {
@@ -114,7 +109,6 @@ export function diagnosePhotos({
         )})`,
         hint: `폴더 이름을 ${className} 로 맞추시거나, 그 폴더를 직접 골라 주세요.`,
         offerPickClass: true,
-        offerRepick: true,
       };
     }
     return {
@@ -122,7 +116,6 @@ export function diagnosePhotos({
       message: '고른 폴더 안에 사진 파일이 없습니다. (png · jpg · jpeg · webp만 읽습니다)',
       hint: grandchildHint,
       offerPickClass: true,
-      offerRepick: true,
     };
   }
 
@@ -154,7 +147,6 @@ export function diagnosePhotos({
           message: `${where} 폴더 안에 사진 대신 '${twin}' 폴더가 또 있습니다.`,
           hint: `한 단계 더 들어가서, 사진 파일이 눈앞에 보이는 폴더를 골라 주세요.`,
           offerPickClass: true,
-          offerRepick: false,
           offerOpenFolder: true,
           offerForgetPicked: true,
         };
@@ -167,7 +159,6 @@ export function diagnosePhotos({
             `'고른 폴더 열기'로 그 폴더를 확인해 주세요. 사진이 보이면 구글 권한이 ` +
             `폴더 안 파일까지 닿지 않는 것이고, 비어 있으면 같은 이름의 다른 폴더를 고르신 것입니다.`,
           offerPickClass: true,
-          offerRepick: false,
           offerOpenFolder: true,
           offerForgetPicked: true,
         };
@@ -179,7 +170,6 @@ export function diagnosePhotos({
         ) || '파일 이름을 확인해 주세요'})`,
         hint: `png · jpg · jpeg · webp 만 사진으로 읽습니다.`,
         offerPickClass: true,
-        offerRepick: false,
         offerOpenFolder: true,
       };
     }
@@ -188,7 +178,6 @@ export function diagnosePhotos({
         tone: 'warn',
         message: `${where} 에 사진이 없습니다. 빈 칸을 눌러 올려 주세요.`,
         offerPickClass: true,
-        offerRepick: false,
       };
     }
     return {
@@ -196,7 +185,6 @@ export function diagnosePhotos({
       message: `${where}는 보이는데 그 안의 사진이 보이지 않습니다.`,
       hint: grandchildHint,
       offerPickClass: true,
-      offerRepick: false,
     };
   }
 
@@ -208,7 +196,6 @@ export function diagnosePhotos({
       )})`,
       hint: `파일 이름은 ${className}-05-이름 처럼 번호를 두 자리로 적습니다. 번호 없이 ${className}-이름 이어도 찾습니다.`,
       offerPickClass: false,
-      offerRepick: false,
     };
   }
 
@@ -217,7 +204,6 @@ export function diagnosePhotos({
       tone: 'warn',
       message: `사진 ${matchedCount}/${studentCount}명 — 없는 학생은 빈 칸을 눌러 바로 올릴 수 있습니다.`,
       offerPickClass: false,
-      offerRepick: false,
     };
   }
 
@@ -225,6 +211,5 @@ export function diagnosePhotos({
     tone: 'ok',
     message: `모든 학생의 사진이 연결되었습니다. (${matchedCount}명)`,
     offerPickClass: false,
-    offerRepick: false,
   };
 }
