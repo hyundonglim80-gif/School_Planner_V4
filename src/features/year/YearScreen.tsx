@@ -1,6 +1,6 @@
 //src/features/year/YearScreen.tsx
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { collection, query, where, documentId, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { useAppStore } from '../../store/useAppStore';
@@ -10,19 +10,22 @@ import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { getAcademicYear, getAcademicMonths, parseDateStr, formatDateStr } from '../../lib/dateUtils';
 import { parseV3EventText, formatV3EventText, runAutoForwarding } from '../../hooks/useDayData';
 import { eventDocPayload, readEventList } from '../../lib/eventText';
-import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
-import { dayToneOf, DAY_CELL_BG, DAY_NUMBER_COLOR } from '../../lib/holiday';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { BODY_TEXT, SECTION_TITLE, fitToWidthFontSize } from '../../lib/typeScale';
 import { moveToTrash } from '../../utils/trashHelper';
 import { showToast, showErrorToast } from '../../utils/toast';
 import DetailEditModal from '../../components/DetailEditModal';
-import EventItemActions from '../../components/EventItemActions';
 import QuickAddModal from '../../components/QuickAddModal';
-import JournalCountBadge from '../../components/JournalCountBadge';
-import EvalCountBadge from '../../components/EvalCountBadge';
+import YearMonthCard from './YearMonthCard';
 
-const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+/**
+ * 한 번에 그릴 달의 수.
+ *
+ * ⚠️ 열두 달을 한 판에 그리면 본 스레드가 1초 넘게 붙잡혀 화면이 굳는다.
+ *    그 사이에 다른 화면을 누르면 누른 것이 1~2초 뒤에야 먹는다(실제로 그랬다).
+ *    몇 달씩 나눠 그리면 사이사이 브라우저가 숨을 쉬므로 눌러도 바로 반응한다.
+ *    달 카드는 React.memo라 이미 그린 달은 다시 그리지 않는다.
+ */
+const MONTHS_PER_FRAME = 3;
 
 export default function YearScreen() {
   const { currentDate, setCurrentDate, setScope, semesterFilter, showWeekend, showClass, showEvents, selectedGroupId, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal } = useAppStore();
@@ -38,9 +41,9 @@ export default function YearScreen() {
   // 휴대폰에서 월 카드 접기/펼치기. 기본값은 "이번 달만 펼침"이라 값이 없으면
   // 이번 달인지로 판단하고, 사용자가 누른 달만 여기에 기록한다.
   const [collapsedMonths, setCollapsedMonths] = useState<Record<string, boolean>>({});
-  const toggleMonth = (key: string, defaultCollapsed: boolean) => {
+  const toggleMonth = useCallback((key: string, defaultCollapsed: boolean) => {
     setCollapsedMonths((prev) => ({ ...prev, [key]: !(prev[key] ?? defaultCollapsed) }));
-  };
+  }, []);
 
   const [detailModal, setDetailModal] = useState<{
     isOpen: boolean;
@@ -54,7 +57,22 @@ export default function YearScreen() {
   const { holidays } = useGovHolidays();
   const { templates, currentTemplateName } = useTimetableTemplate();
   const maxPeriods = templates[currentTemplateName]?.names.length || 6;
-  const periodArray = Array.from({ length: maxPeriods }, (_, i) => i + 1);
+  const periodArray = useMemo(
+    () => Array.from({ length: maxPeriods }, (_, i) => i + 1),
+    [maxPeriods]
+  );
+
+  /**
+   * 라벨 빛깔을 집는 함수.
+   *
+   * useLabels가 주는 getLabelColor는 판마다 새로 만들어진다. 그대로 달 카드에
+   * 넘기면 달마다 '넘어온 값이 달라졌다'가 되어 React.memo가 아무 일도 못 한다.
+   * 붙들어 둔 껍데기를 넘기고, 알맹이는 늘 최신 것을 본다. (라벨이 실제로
+   * 바뀌면 eventLabels가 함께 넘어가므로 그때는 제대로 다시 그린다.)
+   */
+  const labelColorRef = useRef(getLabelColor);
+  labelColorRef.current = getLabelColor;
+  const labelColorOf = useCallback((name: string) => labelColorRef.current(name), []);
 
   const curDateObj = useMemo(() => new Date(currentDate), [currentDate]);
   const defaultAcademicYear = useMemo(() => getAcademicYear(curDateObj), [curDateObj]);
@@ -149,12 +167,58 @@ export default function YearScreen() {
     return () => { unsubEvents(); unsubSchedules(); unsubJournals(); unsubEvaluations(); };
   }, [defaultAcademicYear, selectedGroupId]);
 
-  const handleDateClick = (dateStr: string) => {
+  /**
+   * 지금까지 그린 달의 수. 한 프레임에 MONTHS_PER_FRAME씩 늘려 간다.
+   *
+   * 이렇게 하면 첫 프레임에 나오는 것은 세 달뿐이라 화면이 곧바로 뜨고,
+   * 나머지는 뒤따라 채워진다. 그리는 사이에 다른 화면을 눌러도 그 자리에서 먹는다.
+   */
+  const [shownMonths, setShownMonths] = useState(MONTHS_PER_FRAME);
+
+  /**
+   * ⚠️ 이 일을 효과 둘로 나누지 말 것.
+   *    처음에는 '처음으로 되돌리는 효과'와 '한 걸음 나아가는 효과'를 따로 두었다.
+   *    두 효과의 의존성이 서로 물려 돌면서, 2학기(여섯 달)를 보다가 전체(열두 달)로
+   *    되돌리면 여섯 달에서 멈춰 섰다. 나머지 여섯 달이 영영 안 나왔다.
+   *    한 효과 안에서 끝까지 걸어가게 두면 그런 경합이 없다.
+   */
+  useEffect(() => {
+    if (loading) {
+      setShownMonths(MONTHS_PER_FRAME);
+      return;
+    }
+    let alive = true;
+    let n = Math.min(MONTHS_PER_FRAME, months.length);
+    setShownMonths(n);
+
+    let id = requestAnimationFrame(function step() {
+      if (!alive) return;
+      n = Math.min(n + MONTHS_PER_FRAME, months.length);
+      setShownMonths(n);
+      if (n < months.length) id = requestAnimationFrame(step);
+    });
+
+    return () => {
+      alive = false;
+      cancelAnimationFrame(id);
+    };
+  }, [months, loading]);
+
+  const handleDateClick = useCallback((dateStr: string) => {
     setCurrentDate(parseDateStr(dateStr));
     setScope('day');
-  };
+  }, [setCurrentDate, setScope]);
 
-  const handleToggleEvent = async (dateStr: string, eventId: string) => {
+  const handleQuickAdd = useCallback((dateStr: string) => setQuickAddDate(dateStr), []);
+
+  const handleOpenDetail = useCallback(
+    (type: 'schedule' | 'event', dateStr: string, itemId: string | number, initialData: any) => {
+      setDetailModal({ isOpen: true, type, dateStr, itemId, initialData });
+    },
+    []
+  );
+
+  const handleToggleEvent = useCallback(async (dateStr: string, eventId: string) => {
     const user = auth.currentUser;
     if (!user) return;
     const eventDocRef = selectedGroupId
@@ -181,9 +245,9 @@ export default function YearScreen() {
     } catch (err) {
       console.error('Toggle event error:', err);
     }
-  };
+  }, [selectedGroupId]);
 
-  const handleDeleteEvent = async (dateStr: string, eventId: string, fallbackItem?: any) => {
+  const handleDeleteEvent = useCallback(async (dateStr: string, eventId: string, fallbackItem?: any) => {
     const user = auth.currentUser;
     if (!user) return;
     const eventDocRef = selectedGroupId
@@ -215,7 +279,7 @@ export default function YearScreen() {
     } catch (err) {
       showErrorToast('일정을 삭제하지 못했습니다.', err);
     }
-  };
+  }, [selectedGroupId]);
 
   return (
     <div className="animate-fade-in pb-12">
@@ -226,267 +290,46 @@ export default function YearScreen() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {months.map((mInfo) => {
-            const daysInMonth = new Date(mInfo.year, mInfo.month, 0).getDate();
-            const days = Array.from({ length: daysInMonth }, (_, i) => {
-              const d = i + 1;
-              const dateStr = `${mInfo.year}-${String(mInfo.month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-              return { day: d, dateStr, dateObj: new Date(mInfo.year, mInfo.month - 1, d) };
-            });
-
-            const activeDays = days.filter(dObj => {
-              const dayOfWeekNum = dObj.dateObj.getDay();
-              if (!showWeekend && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return false;
-              
-              const evs = eventsMap[dObj.dateStr] || [];
-              const sch = schedulesMap[dObj.dateStr] || {};
-              const hasClasses = periodArray.some(p => sch[p]?.subject?.trim() && sch[p]?.subject?.toUpperCase() !== 'X');
-              
-              return evs.length > 0 || (showClass && hasClasses);
-            });
-
-            const isCurrentMonthCard = mInfo.year === new Date().getFullYear() && mInfo.month === new Date().getMonth() + 1;
+          {months.slice(0, shownMonths).map((mInfo) => {
             const monthKey = `${mInfo.year}-${mInfo.month}`;
+            const now = new Date();
+            const isCurrentMonthCard = mInfo.year === now.getFullYear() && mInfo.month === now.getMonth() + 1;
             // 휴대폰에서는 12개월이 한 줄로 쌓여 끝없이 스크롤된다. 이번 달만 펼치고
             // 나머지는 접어서, 머리글만 훑다가 필요한 달을 눌러 펼치게 한다.
             const isOpen = !isMobile || (collapsedMonths[monthKey] ?? !isCurrentMonthCard) === false;
 
             return (
-              <div
+              <YearMonthCard
                 key={monthKey}
-                className={`bg-white rounded-2xl border shadow-sm p-4 sm:p-5 flex flex-col transition-all ${
-                  isCurrentMonthCard ? 'border-primary ring-2 ring-primary/10' : 'border-slate-200/80 hover:shadow-md'
-                }`}
-              >
-                <button
-                  type="button"
-                  onClick={() => isMobile && toggleMonth(monthKey, !isCurrentMonthCard)}
-                  className={`text-center font-black text-blue-800 ${SECTION_TITLE} flex items-center justify-center gap-2 ${
-                    isOpen ? 'mb-4 pb-2 border-b-2 border-blue-100' : ''
-                  } ${isMobile ? 'cursor-pointer' : 'cursor-default'}`}
-                >
-                  {isMobile && <span className="text-xs text-slate-400">{isOpen ? '▼' : '▶'}</span>}
-                  <span>{mInfo.label}</span>
-                  <span className="text-xs font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-lg">
-                    {mInfo.semester}학기
-                  </span>
-                  {!isOpen && (
-                    <span className="text-xs font-bold text-slate-400">
-                      {activeDays.length > 0 ? `${activeDays.length}일` : '비어 있음'}
-                    </span>
-                  )}
-                </button>
-
-                <div className={`flex flex-col gap-3 flex-1 ${isOpen ? '' : 'hidden'}`}>
-                  {activeDays.length > 0 ? (
-                    activeDays.map(dObj => {
-                      const dayOfWeekNum = dObj.dateObj.getDay();
-                      const dayOfWeek = DAY_NAMES[dayOfWeekNum];
-                      const isTodayEvent = dObj.dateStr === realTodayStr;
-                      
-                      const evs = eventsMap[dObj.dateStr] || [];
-                      const sch = schedulesMap[dObj.dateStr] || {};
-                      
-                      const holidayEvent = evs.find((e: any) => e.label === '휴일' || e.labelIds?.includes('휴일'));
-                      const holidayName = holidays[dObj.dateStr] || holidayEvent?.content;
-                      // 토요일 파랑 / 일요일·공휴일 빨강 (lib/holiday의 공통 규칙)
-                      const tone = dayToneOf({
-                        isSunday: dayOfWeekNum === 0,
-                        isSaturday: dayOfWeekNum === 6,
-                        holidayName,
-                      });
-
-                      const visibleEvents = evs.filter((e: any) => e.label !== '휴일' && !e.labelIds?.includes('휴일'));
-                      const hasClasses = periodArray.some(p => sch[p]?.subject?.trim() && sch[p]?.subject?.toUpperCase() !== 'X');
-
-                      return (
-                        <div
-                          key={dObj.dateStr}
-                          data-today={isTodayEvent ? 'true' : undefined}
-                          className={`flex flex-col gap-1.5 p-2 -mx-2 rounded-xl border-b border-dashed border-slate-200 last:border-0 ${DAY_CELL_BG[tone]} ${isTodayEvent ? 'ring-1 ring-primary/40 border-solid' : ''}`}
-                        >
-                          {/* 자리가 모자라면 표식이 아랫줄로 내려간다 */}
-                          <div className="flex flex-wrap items-center justify-between gap-x-1 gap-y-0.5 min-w-0">
-                            {/* 년간은 한 화면에 12개월을 담는 가장 조밀한 화면인데,
-                                날짜 숫자만 월간·주간(text-xs)보다 한두 단계 컸다.
-                                오늘 강조는 크기 대신 색과 '오늘' 표시로 한다. */}
-                            <div
-                              className={`font-black cursor-pointer hover:underline flex flex-wrap items-center gap-1 text-xs min-w-0 ${DAY_NUMBER_COLOR[tone]}`}
-                              onClick={() => handleDateClick(dObj.dateStr)}
-                            >
-                              <span className="shrink-0">{dObj.day}일 ({dayOfWeek})</span>
-                              {isTodayEvent && <span className="text-2xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full ml-1 shrink-0">오늘</span>}
-                              {holidayName && <span title={holidayName} className="text-2xs text-red-500 bg-red-50 border border-red-100 px-1 py-0.5 rounded ml-1 shrink-0">{holidayName}</span>}
-                            </div>
-                            <div className="flex items-center gap-0.5 shrink-0">
-                              <JournalCountBadge
-                                dateStr={dObj.dateStr}
-                                count={journalCountMap[dObj.dateStr] || 0}
-                                fId={selectedGroupId}
-                              />
-                              <EvalCountBadge dateStr={dObj.dateStr} count={evalCountMap[dObj.dateStr] || 0} />
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setQuickAddDate(dObj.dateStr); }}
-                                className="text-2xs font-bold text-slate-400 hover:text-primary bg-slate-50 hover:bg-slate-100 px-1.5 py-0.5 rounded transition-colors"
-                              >
-                                + 일정
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col gap-2">
-                            {/* 휴대폰에서는 6칸을 고정으로 나누면 한 칸이 56px도 안 되어 과목명이 잘린다.
-                                채워진 교시만 칩으로 보여주고 줄바꿈한다. */}
-                            {showClass && hasClasses && isMobile && (
-                              <div className="flex flex-wrap gap-1 mt-0.5">
-                                {periodArray.map((p) => {
-                                  const item = sch[p];
-                                  const text = item?.subject?.trim() || '';
-                                  if (!text || text.toUpperCase() === 'X') return null;
-                                  return (
-                                    <button
-                                      key={p}
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setDetailModal({ isOpen: true, type: 'schedule', dateStr: dObj.dateStr, itemId: p, initialData: item });
-                                      }}
-                                      className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 text-2xs font-bold"
-                                    >
-                                      <span className="text-2xs text-emerald-500">{p}</span>
-                                      <span className="max-w-[90px] truncate">{text}</span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                            {showClass && hasClasses && !isMobile && (
-                              <div className="flex flex-nowrap gap-[1px] w-full mt-0.5">
-                                {periodArray.map((p) => {
-                                  const item = sch[p];
-                                  const text = item?.subject?.trim() || '';
-                                  if (text && text.toUpperCase() !== 'X') {
-                                    // 글자 수를 세어 단계를 고르던 것을 월간과 같은 방식으로 바꿨다.
-                                    // 그 방식은 칸이 얼마나 좁은지는 보지 않아서, 짧은 과목명에
-                                    // text-xs가 걸려 옆 칸보다 글자가 튀었다.
-                                    return (
-                                      <div
-                                        key={p}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setDetailModal({ isOpen: true, type: 'schedule', dateStr: dObj.dateStr, itemId: p, initialData: item });
-                                        }}
-                                        className="flex-1 min-w-0 h-[22px] flex items-center justify-center border border-emerald-300 rounded-[3px] bg-emerald-50 text-emerald-700 font-bold overflow-hidden cursor-pointer hover:bg-emerald-200 transition-colors shadow-2xs [container-type:inline-size]"
-                                        title={`${text} (${p}교시)`}
-                                      >
-                                        <span
-                                          className="text-2xs tracking-tighter whitespace-nowrap leading-none"
-                                          style={{ fontSize: fitToWidthFontSize(text) }}
-                                        >
-                                          {text}
-                                        </span>
-                                      </div>
-                                    );
-                                  }
-                                  return <div key={p} className="flex-1 min-w-0 h-[22px] flex items-center justify-center border border-slate-200 rounded-[3px] bg-slate-50" />;
-                                })}
-                              </div>
-                            )}
-
-                            {showEvents && visibleEvents.length > 0 && (
-                              <div className="flex flex-col gap-1">
-                                {visibleEvents.map((ev) => {
-                                  // 라벨 해석은 lib/eventLabels 한 곳에서만 한다
-                                  const labelDef = resolveEventLabel(ev, eventLabels, { keepUnknown: !labelsLoaded });
-                                  const labelName = labelDef?.name || '';
-                                  const labelColor = labelDef ? getLabelColor(labelName) : null;
-                                  const forwardLabel = isForwardLabel(labelDef);
-
-                                  return (
-                                    <div
-                                      key={ev.id}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (isMultiSelectMode) {
-                                          toggleEventSelection(ev.id, dObj.dateStr);
-                                        } else {
-                                          setDetailModal({ isOpen: true, type: 'event', dateStr: dObj.dateStr, itemId: ev.id, initialData: ev });
-                                        }
-                                      }}
-                                      className={`group relative px-1.5 py-1 rounded-lg ${BODY_TEXT.month} leading-snug transition-all border block hover:shadow-sm cursor-pointer break-words ${
-                                        selectedEventIds.includes(ev.id)
-                                          ? 'bg-primary/10 border-primary text-primary'
-                                          : ev.completed
-                                          ? 'bg-slate-50 border-slate-100 text-slate-400'
-                                          : 'bg-white border-slate-200 text-slate-700 font-medium'
-                                      }`}
-                                      title="클릭하여 상세 보기"
-                                    >
-                                      {/* 💡 체크박스 삭제 및 인라인 정렬 지원 */}
-                                      {isMultiSelectMode && (
-                                        <input type="checkbox" checked={selectedEventIds.includes(ev.id)} readOnly className="inline-block align-middle mr-1.5 pointer-events-none" />
-                                      )}
-                                      {/* 라벨 칩 클릭 시 완료 토글(이월 라벨이면 이월도 정지) */}
-                                      {labelColor && !isMultiSelectMode && (
-                                        <span
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleToggleEvent(dObj.dateStr, ev.id);
-                                          }}
-                                          title={forwardLabel ? '클릭하여 완료 처리 (이월 정지)' : '클릭하여 완료 처리'}
-                                          className="inline-block align-middle mr-1.5 text-2xs font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap cursor-pointer"
-                                          style={{
-                                            backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
-                                            color: ev.completed ? '#94a3b8' : labelColor.text,
-                                            border: '1px solid ' + (ev.completed ? '#e2e8f0' : labelColor.border)
-                                          }}
-                                        >
-                                          {labelName}
-                                        </span>
-                                      )}
-                                      <span className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}>
-                                        {eventDisplayContent(ev)}
-                                      </span>
-                                      
-                                      {(ev.linkedItems || []).length > 0 && (
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            openLinkViewerModal('event', dObj.dateStr, ev.id);
-                                          }}
-                                          className="inline-flex align-middle ml-1 bg-yellow-100 text-yellow-800 text-2xs px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
-                                          title={`링크된 항목 ${(ev.linkedItems || []).length}개`}
-                                        >
-                                          🔗 {(ev.linkedItems || []).length}
-                                        </button>
-                                      )}
-
-                                      {!isMultiSelectMode && (
-                                        <EventItemActions
-                                          floating
-                                          onEdit={() =>
-                                            setDetailModal({ isOpen: true, type: 'event', dateStr: dObj.dateStr, itemId: ev.id, initialData: ev })
-                                          }
-                                          onDelete={() => handleDeleteEvent(dObj.dateStr, ev.id, ev)}
-                                        />
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center text-slate-400 text-xs py-8 font-semibold">
-                      기록된 일정이 없습니다.
-                    </div>
-                  )}
-                </div>
-              </div>
+                mInfo={mInfo}
+                eventsMap={eventsMap}
+                schedulesMap={schedulesMap}
+                journalCountMap={journalCountMap}
+                evalCountMap={evalCountMap}
+                holidays={holidays}
+                eventLabels={eventLabels}
+                labelsLoaded={labelsLoaded}
+                labelColorOf={labelColorOf}
+                periodArray={periodArray}
+                showWeekend={showWeekend}
+                showClass={showClass}
+                showEvents={showEvents}
+                isMobile={isMobile}
+                isOpen={isOpen}
+                isCurrentMonthCard={isCurrentMonthCard}
+                realTodayStr={realTodayStr}
+                selectedGroupId={selectedGroupId}
+                isMultiSelectMode={isMultiSelectMode}
+                selectedEventIds={selectedEventIds}
+                onToggleMonth={toggleMonth}
+                onDateClick={handleDateClick}
+                onToggleEvent={handleToggleEvent}
+                onDeleteEvent={handleDeleteEvent}
+                onQuickAdd={handleQuickAdd}
+                onOpenDetail={handleOpenDetail}
+                onToggleSelection={toggleEventSelection}
+                onOpenLinkViewer={openLinkViewerModal}
+              />
             );
           })}
         </div>
