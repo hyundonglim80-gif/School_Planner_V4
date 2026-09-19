@@ -480,7 +480,21 @@ export async function ensureClassFolderId(
 const CACHE_DB = 'sp4-student-photos';
 const CACHE_STORE = 'photos';
 
+/**
+ * 저장소는 한 번만 연다.
+ *
+ * 예전에는 사진 한 장마다 열었다. 스물세 장이면 스물세 번이고, 여는 일 자체가
+ * 공짜가 아니다. 한 번 연 것을 계속 쓴다.
+ */
+let cacheOpening: Promise<IDBDatabase | null> | null = null;
+
 function openCache(): Promise<IDBDatabase | null> {
+  if (cacheOpening) return cacheOpening;
+  cacheOpening = openCacheOnce();
+  return cacheOpening;
+}
+
+function openCacheOnce(): Promise<IDBDatabase | null> {
   return new Promise((resolve) => {
     try {
       const req = indexedDB.open(CACHE_DB, 1);

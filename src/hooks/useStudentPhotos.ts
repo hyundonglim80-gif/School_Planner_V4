@@ -26,6 +26,35 @@ import {
 import { matchClassPhotos, classFolderName, type ClassKey } from '../lib/studentPhotoNames';
 import { planBulkUpload } from '../lib/photoBulkUpload';
 
+/**
+ * 이번 판에서 훑어 둔 폴더 내용.
+ *
+ * 학급을 이리저리 오갈 때마다 드라이브를 다시 훑을 까닭이 없다. 사진을
+ * 올리거나 폴더를 바꾸면 버린다(forgetScans).
+ */
+const scanCache = new Map<string, PhotoScan>();
+
+function forgetScans() {
+  scanCache.clear();
+}
+
+/**
+ * 한 번에 여섯 장씩만 받아 온다.
+ *
+ * 스물세 개를 한꺼번에 던지면 브라우저가 어차피 줄을 세우고, 다 끝날 때까지
+ * 아무 얼굴도 안 보인다. 여섯씩 받아 오는 대로 그리면 첫 줄이 곧바로 뜬다.
+ */
+async function inPool<T>(items: T[], size: number, run: (item: T) => Promise<void>) {
+  let next = 0;
+  const workers = Array.from({ length: Math.min(size, items.length) }, async () => {
+    while (next < items.length) {
+      const item = items[next++];
+      await run(item);
+    }
+  });
+  await Promise.all(workers);
+}
+
 export type PhotoStatus =
   /** 사진 보기가 꺼져 있다. 드라이브를 아예 부르지 않는다. */
   | 'off'
@@ -68,6 +97,16 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
   const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
   /** 마지막으로 폴더를 훑은 결과. 사진이 안 붙을 때 까닭을 짚는 데 쓴다. */
   const [scan, setScan] = useState<PhotoScan | null>(null);
+  /** 폴더에서 받아 둔 사진 파일 목록. 이름 짝짓기는 이것만 있으면 된다. */
+  const [files, setFiles] = useState<DrivePhotoFile[]>([]);
+  /**
+   * 사진을 한 장씩 올리는 중인가.
+   *
+   * 한 장씩 그리다 보니, 첫 장이 오기 전 찰나에는 '붙은 사진 0장'이 된다.
+   * 그 순간 진단이 '이름이 맞는 것이 없습니다'라고 빨갛게 외친다. 아직
+   * 받는 중일 뿐인데 그렇다. 다 받을 때까지 그 말을 미룬다.
+   */
+  const [resolving, setResolving] = useState(false);
 
   // 명단은 글자를 한 자 칠 때마다 새 배열이 된다. 그대로 의존성에 넣으면
   // 이름을 고치는 동안 드라이브를 수십 번 부르게 되므로, 사진 찾기에 실제로
@@ -95,6 +134,8 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
   // 비동기로 받아온 결과가 뒤늦게 도착해 다른 학급 화면을 덮어쓰지 않게
   // 마지막 요청만 반영한다.
   const runIdRef = useRef(0);
+  /** 마지막으로 쓸 수 있었던 토큰. 사진을 받아 올 때 쓴다. */
+  const tokenRef = useRef<string>('');
   const studentsRef = useRef(students);
   studentsRef.current = students;
 
@@ -126,78 +167,115 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
    * 로그인을 강요하지 않기 위해서다. 토큰이 없으면 'needs-auth'로 멈추고,
    * 사용자가 단추를 누르면 그때 interactive로 다시 부른다.
    */
-  const load = useCallback(async (interactive = false) => {
-    if (!enabled || !cls || !className) return;
-    const runId = ++runIdRef.current;
+  const load = useCallback(
+    async (interactive = false, freshScan = false) => {
+      if (!enabled || !cls || !className) return;
+      const runId = ++runIdRef.current;
 
-    setStatus('loading');
-    setError('');
-    try {
-      const token = interactive ? await getValidGoogleToken() : await getGoogleTokenQuietly();
-      if (!token) {
-        setStatus('needs-auth');
-        return;
-      }
+      setStatus('loading');
+      setError('');
+      try {
+        const token = interactive ? await getValidGoogleToken() : await getGoogleTokenQuietly();
+        if (!token) {
+          setStatus('needs-auth');
+          return;
+        }
+        tokenRef.current = token;
 
-      const found = await scanClassPhotos(rootId, cls, token, pickedId);
-      if (runId !== runIdRef.current) return;
-      setScan(found);
-
-      // 사진을 찾을 곳이 없는 것은 잘못이 아니다. 한 장도 안 올렸을 수 있다.
-      // 무엇을 보고 그렇게 판단했는지는 scan에 담겨 화면에서 풀어 쓴다.
-      if (!found.folderId) {
-        setPhotos(new Map());
+        const key = `${rootId || ''}|${pickedId || ''}|${className}`;
+        const cached = freshScan ? undefined : scanCache.get(key);
+        const found = cached || (await scanClassPhotos(rootId, cls, token, pickedId));
+        if (runId !== runIdRef.current) return;
+        scanCache.set(key, found);
+        setScan(found);
+        setFiles(found.files);
         setStatus('ready');
-        return;
+      } catch (e: any) {
+        if (runId !== runIdRef.current) return;
+        setStatus('error');
+        setError(
+          e instanceof PhotoAccessError ? e.message : e?.message || '사진을 불러오지 못했습니다.'
+        );
       }
+    },
+    [enabled, cls, className, rootId, pickedId]
+  );
 
-      const files = found.files;
-      const matched = matchClassPhotos(files, cls, studentsRef.current);
-      const byId = new Map(files.map((f) => [f.id, f] as const));
-
-      // 주소 만들기는 파일마다 따로 실패할 수 있다. 한 장이 안 되어도
-      // 나머지는 보여야 하므로 하나씩 감싸서 받는다.
-      const entries = await Promise.all(
-        [...matched.entries()].map(async ([num, hit]) => {
-          const file = byId.get(hit.id) as DrivePhotoFile;
-          try {
-            const url = await getPhotoUrl(file, token);
-            return [num, { url, exact: hit.exact, fileName: hit.name }] as const;
-          } catch {
-            return null;
-          }
-        })
-      );
-      if (runId !== runIdRef.current) return;
-
-      setPhotos(new Map(entries.filter((e): e is NonNullable<typeof e> => e !== null)));
-      setStatus('ready');
-    } catch (e: any) {
-      if (runId !== runIdRef.current) return;
-      setStatus('error');
-      setError(
-        e instanceof PhotoAccessError ? e.message : e?.message || '사진을 불러오지 못했습니다.'
-      );
-    }
-  }, [enabled, cls, className, rootId, pickedId]);
-
-  /** 폴더가 정해졌고 학급이나 명단이 바뀌면 다시 읽는다 */
+  /**
+   * 드라이브를 훑는다. 학급이나 폴더가 바뀔 때만.
+   *
+   * ⚠️ 예전에는 명단이 바뀔 때도 여기까지 다시 왔다. 그런데 명단은 이름 칸에
+   *    글자를 한 자 칠 때마다 바뀐다. 이름 석 자를 고치면 드라이브를 세 번
+   *    통째로 훑었다는 뜻이다. 느릴 수밖에 없다.
+   *    짝짓기는 받아 둔 목록만 있으면 되는 일이라 아래로 뗀다.
+   */
   useEffect(() => {
     if (!enabled) {
-      // 꺼져 있으면 들고 있던 것도 내려놓는다. 다시 켤 때 새로 읽는다.
       setStatus('off');
       setScan(null);
+      setFiles([]);
       setPhotos(new Map());
       return;
     }
     if (!className) return;
     void load(false);
-    // rosterKey를 넣어 두면 전입생을 넣거나 이름을 고쳤을 때 사진이 따라온다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, rootId, pickedId, className, rosterKey, reloadNonce]);
+  }, [enabled, rootId, pickedId, className, reloadNonce]);
+
+  /**
+   * 받아 둔 목록과 명단을 짝짓고, 사진을 화면에 올린다.
+   *
+   * 여기는 네트워크를 타지 않는다 — 이미 받아 둔 사진은 기기에 재어 둔 것을
+   * 꺼내 쓰고, 아직 없는 것만 받아 온다. 받아 오는 대로 한 장씩 그린다.
+   * 다 받은 뒤에 한꺼번에 그리면, 가장 느린 한 장이 올 때까지 빈 화면이다.
+   */
+  useEffect(() => {
+    if (!enabled || !cls || files.length === 0) {
+      if (enabled && files.length === 0) setPhotos(new Map());
+      setResolving(false);
+      return;
+    }
+    let alive = true;
+    setResolving(true);
+    const matched = matchClassPhotos(files, cls, studentsRef.current);
+    const byId = new Map(files.map((f) => [f.id, f] as const));
+
+    // 지금 화면에 있는 것 가운데 여전히 맞는 것만 남긴다 (깜빡임 없이 이어진다)
+    setPhotos((prev) => {
+      const next = new Map<number, StudentPhoto>();
+      for (const [num, hit] of matched) {
+        const had = prev.get(num);
+        if (had && had.fileName === hit.name) next.set(num, had);
+      }
+      return next;
+    });
+
+    void inPool([...matched.entries()], 6, async ([num, hit]) => {
+      if (!alive) return;
+      const file = byId.get(hit.id);
+      if (!file) return;
+      try {
+        const url = await getPhotoUrl(file, tokenRef.current || '');
+        if (!alive) return;
+        setPhotos((prev) => new Map(prev).set(num, { url, exact: hit.exact, fileName: hit.name }));
+      } catch {
+        /* 한 장이 안 와도 나머지는 보여야 한다 */
+      }
+    }).finally(() => {
+      if (alive) setResolving(false);
+    });
+
+    return () => {
+      alive = false;
+      setResolving(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, files, rosterKey, className]);
 
   /** 고른 폴더가 바뀌었으니 지난 진단을 버린다 (새 폴더 이야기인 것처럼 보인다) */
   const resetView = () => {
+    forgetScans();
+    setFiles([]);
     setScan(null);
     setPhotos(new Map());
     setStatus('checking');
@@ -251,7 +329,8 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
         // 아니면 School_Planner/Students_Poto/2026-3-1 (없으면 만든다).
         await uploadStudentPhoto(cls, student, file, pickedId);
         forgetFolderCache();
-        await load(true);
+        forgetScans();
+        await load(true, true);
       } finally {
         setUploading(null);
       }
@@ -304,7 +383,8 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
       }
 
       forgetFolderCache();
-      await load(true);
+      forgetScans();
+      await load(true, true);
       return { plan, failed, before, after };
     },
     [cls, pickedId, load]
@@ -319,6 +399,8 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
     classFolder,
     folders,
     status,
+    /** 사진을 한 장씩 올리는 중 (다 붙기 전에 '없다'고 말하지 않으려고) */
+    resolving,
     error,
     photos,
     /** 사진이 없는 학생들 */
@@ -333,9 +415,9 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
     connectForClass,
     forgetClassFolder,
     disconnect,
-    reload: load,
+    reload: () => load(false, true),
     /** 사용자가 눌러서 구글에 다시 이어 붙인다 (권한 창이 떠도 되는 자리) */
-    authorize: () => load(true),
+    authorize: () => load(true, true),
     upload,
   };
 }

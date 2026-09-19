@@ -1398,8 +1398,10 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                   이 학급 폴더 고르기
                 </button>
               </div>
-            ) : photoState.status === 'loading' ? (
-              <div className="text-2xs text-slate-400 font-semibold px-0.5">사진을 불러오는 중...</div>
+            ) : photoState.status === 'loading' || photoState.resolving ? (
+              <div className="text-2xs text-slate-400 font-semibold px-0.5">
+                사진을 불러오는 중... ({students.length - photoState.missing.length}/{students.length})
+              </div>
             ) : (
               /* 사진이 안 붙었을 때 '없음'이라고만 하면 아직 안 올린 것인지,
                  폴더를 못 읽은 것인지, 이름이 틀린 것인지 가릴 수 없다.
