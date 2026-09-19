@@ -24,6 +24,14 @@ export const QUALITY = 0.85;
  */
 export const TARGET_MIME = 'image/webp';
 
+/**
+ * 이보다 작은 사진은 손대지 않는다.
+ *
+ * 이미 가벼운 것을 다시 그려 봐야 얻는 것이 없고, 그 사이 화면만 멈춘다.
+ * 밖에서 미리 줄여 오신 사진(로컬에서 일괄 변환)이 여기 걸려 그냥 지나간다.
+ */
+export const SKIP_UNDER_BYTES = 500 * 1024;
+
 export interface Size {
   width: number;
   height: number;
@@ -66,6 +74,71 @@ function toBlob(canvas: HTMLCanvasElement, mime: string, quality: number): Promi
   return new Promise((resolve) => canvas.toBlob(resolve, mime, quality));
 }
 
+// ── 딴 실에 맡기기 ──────────────────────────────────────────────
+//
+// 다시 그려 내보내는 일은 오래 걸리고, 그리는 실에서 하면 그동안 화면이
+// 멈춘다(lib/shrinkWorker.ts 주석 참고). 워커를 못 쓰는 자리에서는
+// 예전처럼 여기서 한다.
+
+let worker: Worker | null = null;
+let workerBroken = false;
+let nextJobId = 1;
+const pending = new Map<number, (r: { blob?: Blob; mime?: string; error?: string }) => void>();
+
+function getWorker(): Worker | null {
+  if (workerBroken) return null;
+  if (worker) return worker;
+  try {
+    if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') {
+      workerBroken = true;
+      return null;
+    }
+    worker = new Worker(new URL('./shrinkWorker.ts', import.meta.url), { type: 'module' });
+    worker.onmessage = (e: MessageEvent<{ id: number; blob?: Blob; mime?: string; error?: string }>) => {
+      const done = pending.get(e.data.id);
+      if (done) {
+        pending.delete(e.data.id);
+        done(e.data);
+      }
+    };
+    worker.onerror = () => {
+      // 워커가 통째로 죽으면 기다리던 것을 모두 풀어 준다. 안 그러면 멈춘다.
+      workerBroken = true;
+      for (const done of pending.values()) done({ error: '워커가 멈췄습니다.' });
+      pending.clear();
+      worker = null;
+    };
+    return worker;
+  } catch {
+    workerBroken = true;
+    return null;
+  }
+}
+
+function shrinkInWorker(
+  blob: Blob,
+  maxEdge: number,
+  quality: number,
+  mime: string
+): Promise<{ blob?: Blob; mime?: string; error?: string }> {
+  const w = getWorker();
+  if (!w) return Promise.resolve({ error: '워커를 쓸 수 없습니다.' });
+
+  const id = nextJobId++;
+  return new Promise((resolve) => {
+    // 한 장이 끝내 안 돌아와도 나머지가 발이 묶이지 않게 한다
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      resolve({ error: '사진 줄이기가 너무 오래 걸립니다.' });
+    }, 20000);
+    pending.set(id, (r) => {
+      clearTimeout(timer);
+      resolve(r);
+    });
+    w.postMessage({ id, blob, maxEdge, quality, mime });
+  });
+}
+
 /**
  * 사진 한 장을 줄인다.
  *
@@ -78,6 +151,19 @@ export async function shrinkPhoto(
 ): Promise<ShrinkResult> {
   const keep: ShrinkResult = { file, before: file.size, after: file.size, changed: false };
   if (!file.type.startsWith('image/')) return keep;
+  // 이미 가벼우면 손대지 않는다 (밖에서 미리 줄여 오신 사진이 여기로 빠진다)
+  if (file.size <= SKIP_UNDER_BYTES) return keep;
+
+  // 먼저 딴 실에 맡겨 본다. 그래야 그동안에도 화면이 움직인다.
+  const viaWorker = await shrinkInWorker(file, maxEdge, quality, mime);
+  if (viaWorker.blob && viaWorker.blob.size < file.size) {
+    const shrunk = new File([viaWorker.blob], withExtension(file.name, viaWorker.mime || mime), {
+      type: viaWorker.mime || mime,
+      lastModified: file.lastModified,
+    });
+    return { file: shrunk, before: file.size, after: shrunk.size, changed: true };
+  }
+  if (viaWorker.blob) return keep; // 줄여 봤자 더 크다
 
   let bitmap: ImageBitmap | null = null;
   try {

@@ -15,6 +15,7 @@ import {
   getPhotoUrl,
   uploadStudentPhoto,
   forgetFolderCache,
+  ensureClassFolderId,
   PhotoAccessError,
   EMPTY_FOLDERS,
   type PhotoFolders,
@@ -277,9 +278,16 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
 
       setBulk({ done: 0, total: plan.matched.length });
       try {
+        // 토큰과 폴더는 한 번만 잡는다. 한 장마다 다시 찾으면 왕복이 세 배로
+        // 늘고, 중간에 토큰이 만료되면 올리는 도중에 로그인 창이 튀어나온다.
+        const token = await getValidGoogleToken();
+        if (!token) throw new Error('구글 계정 연결이 필요합니다.');
+        const folderId = pickedId || (await ensureClassFolderId(cls, token));
+        const ready = { token, folderId };
+
         for (const [i, item] of plan.matched.entries()) {
           try {
-            const up = await uploadStudentPhoto(cls, item.student, item.file, pickedId);
+            const up = await uploadStudentPhoto(cls, item.student, item.file, pickedId, ready);
             before += up.shrink.before;
             after += up.shrink.after;
           } catch (e) {
@@ -287,6 +295,9 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
             failed.push(item.file.name);
           }
           setBulk({ done: i + 1, total: plan.matched.length });
+          // 화면이 진행 막대를 다시 그릴 틈을 준다. 이것이 없으면 다 끝날
+          // 때까지 한 번도 안 그려져 '멈췄다'로 보인다.
+          await new Promise((r) => setTimeout(r, 0));
         }
       } finally {
         setBulk(null);

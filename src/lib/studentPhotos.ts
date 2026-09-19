@@ -604,9 +604,17 @@ export async function uploadStudentPhoto(
   cls: ClassKey,
   student: { num: number; name: string },
   original: File,
-  pickedFolderId?: string
+  pickedFolderId?: string,
+  /**
+   * 여러 장을 올릴 때 미리 잡아 둔 토큰과 폴더.
+   *
+   * ⚠️ 없으면 한 장마다 토큰을 확인하고 폴더를 다시 찾는다. 스무 장이면
+   *    그 왕복만 예순 번이고, 중간에 토큰이 만료되면 올리는 도중에 로그인
+   *    창이 튀어나온다. 여러 장 올릴 때는 밖에서 한 번 잡아 넘긴다.
+   */
+  ready?: { token: string; folderId: string }
 ): Promise<DrivePhotoFile & { shrink: ShrinkResult }> {
-  const token = await getValidGoogleToken();
+  const token = ready?.token || (await getValidGoogleToken());
   if (!token) throw new Error('구글 계정 연결이 필요합니다.');
 
   // 올리기 전에 줄인다. 4000px짜리를 들고 다닐 까닭이 없다(lib/imageShrink.ts).
@@ -614,7 +622,7 @@ export async function uploadStudentPhoto(
   const shrink = await shrinkPhoto(original);
   const file = shrink.file;
 
-  const folderId = await ensureClassFolderId(cls, token, pickedFolderId);
+  const folderId = ready?.folderId || (await ensureClassFolderId(cls, token, pickedFolderId));
   const name = photoFileName(cls, student.num, student.name, file.name);
 
   const existing = await findByExactName(folderId, name, token);
