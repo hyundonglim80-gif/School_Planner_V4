@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { EventItem } from '../../hooks/useDayData';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
@@ -66,6 +66,15 @@ export default function DayEvents({
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  /**
+   * 새 일정 칸.
+   *
+   * 저장해도 칸은 닫지 않는다 — 하루치를 연달아 적는 자리이기 때문이다.
+   * 그런데 저장 단추를 누르면 그 단추가 잠깐 꺼지면서 초점이 몸통으로 달아난다.
+   * 그러면 (1) 이어서 치려면 칸을 한 번 더 눌러야 하고 (2) ESC로 닫는 길이
+   * 이 칸의 onKeyDown 하나뿐이라 ESC도 먹지 않는다. 저장한 뒤 초점을 돌려준다.
+   */
+  const newTextRef = useRef<HTMLTextAreaElement>(null);
   const [alarmTarget, setAlarmTarget] = useState<EventItem | null>(null);
   const [newAlarmTime, setNewAlarmTime] = useState('');
   const [newAlarmModalOpen, setNewAlarmModalOpen] = useState(false);
@@ -290,6 +299,8 @@ export default function DayEvents({
       setNewPeriod(false);
       setNewRecur(false);
       setNewSkip(false);
+      // 이어서 바로 칠 수 있게, 그리고 ESC가 다시 먹게 초점을 돌려준다
+      newTextRef.current?.focus();
     } finally {
       setSubmitting(false);
     }
@@ -460,6 +471,7 @@ export default function DayEvents({
           <div>
             <span className="block text-xs font-bold text-slate-500 mb-1">일정 내용</span>
             <AutoTextarea
+              ref={newTextRef}
               value={newText}
               onChange={(e) => setNewText(e.target.value)}
               onKeyDown={(e) => {

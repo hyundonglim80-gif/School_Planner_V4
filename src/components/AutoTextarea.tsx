@@ -5,15 +5,31 @@
 // 적용된 박스 높이로 나오므로, 따로 최소값을 계산할 필요가 없다.
 import React, { useCallback, useEffect, useRef } from 'react';
 
-type AutoTextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>;
+type AutoTextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
+  /**
+   * 바깥에서 이 입력칸을 직접 집어야 할 때 쓴다 (초점을 되돌려 주는 자리 등).
+   * 높이를 재려면 안에서도 같은 칸을 붙들고 있어야 하므로 둘 다에 매어 준다.
+   */
+  ref?: React.Ref<HTMLTextAreaElement>;
+};
 
 export default function AutoTextarea({
   className,
   value,
   onInput,
+  ref: outerRef,
   ...rest
 }: AutoTextareaProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
+
+  const attach = useCallback(
+    (el: HTMLTextAreaElement | null) => {
+      ref.current = el;
+      if (typeof outerRef === 'function') outerRef(el);
+      else if (outerRef) (outerRef as React.RefObject<HTMLTextAreaElement | null>).current = el;
+    },
+    [outerRef]
+  );
 
   const resize = useCallback(() => {
     const el = ref.current;
@@ -31,7 +47,7 @@ export default function AutoTextarea({
 
   return (
     <textarea
-      ref={ref}
+      ref={attach}
       value={value}
       // onChange만으로는 한글 조합 중(IME) 높이가 늦게 따라온다.
       onInput={(e) => {
