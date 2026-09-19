@@ -48,6 +48,11 @@ export default function EventAlarmModal({
     }
     await onSave(`${dVal || dateStr}T${normalized}`);
     showToast('✅ 알림이 설정되었습니다.');
+    // ⚠️ 저장하고 나면 닫아야 한다. '알림 끄기'는 닫는데 '저장'만 안 닫고 있었다.
+    //    설정됐다는 알림은 뜨는데 창은 그대로 있으니 안 된 줄 알고 또 누르게 된다.
+    //    새 일정에 알림을 다는 자리에서는 더 나쁘다. 이 창의 가림막이 일정 칸의
+    //    '저장'을 덮어, 창을 손수 닫기 전에는 일정 자체를 저장할 수 없었다.
+    onClose();
   };
 
   const handleTurnOff = async () => {
