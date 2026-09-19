@@ -16,8 +16,13 @@
 
 export const PHOTO_ROOT_FOLDER_NAME = 'School_Planner_Students_Poto';
 
-/** 드라이브에서 사진으로 받아들일 확장자 */
-export const PHOTO_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'] as const;
+/**
+ * 드라이브에서 사진으로 받아들일 확장자.
+ *
+ * 차례가 뜻을 갖는다. 같은 학생의 사진이 확장자만 달리 여럿 있을 때 앞엣것을
+ * 고른다. 앱이 올린 것은 webp라(줄여서 올린다) 그것을 먼저 본다.
+ */
+export const PHOTO_EXTENSIONS = ['webp', 'png', 'jpg', 'jpeg'] as const;
 
 export interface ClassKey {
   year: number | string;

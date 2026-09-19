@@ -16,6 +16,7 @@ import { db, auth } from './firebase';
 import { getValidGoogleToken } from './googleApi';
 import { pickDriveFolder } from './googlePicker';
 import { getOrCreateFolder } from './driveApi';
+import { shrinkPhoto, type ShrinkResult } from './imageShrink';
 import {
   classFolderName,
   isPhotoFile,
@@ -602,11 +603,16 @@ export async function getPhotoUrl(file: DrivePhotoFile, token: string): Promise<
 export async function uploadStudentPhoto(
   cls: ClassKey,
   student: { num: number; name: string },
-  file: File,
+  original: File,
   pickedFolderId?: string
-): Promise<DrivePhotoFile> {
+): Promise<DrivePhotoFile & { shrink: ShrinkResult }> {
   const token = await getValidGoogleToken();
   if (!token) throw new Error('구글 계정 연결이 필요합니다.');
+
+  // 올리기 전에 줄인다. 4000px짜리를 들고 다닐 까닭이 없다(lib/imageShrink.ts).
+  // 원본 파일과 선생님의 원래 폴더는 건드리지 않는다.
+  const shrink = await shrinkPhoto(original);
+  const file = shrink.file;
 
   const folderId = await ensureClassFolderId(cls, token, pickedFolderId);
   const name = photoFileName(cls, student.num, student.name, file.name);
@@ -621,7 +627,7 @@ export async function uploadStudentPhoto(
   objectUrls.delete(uploaded.id);
   if (stale) URL.revokeObjectURL(stale);
   cacheDelete(uploaded.id);
-  return uploaded;
+  return { ...uploaded, shrink };
 }
 
 async function findByExactName(

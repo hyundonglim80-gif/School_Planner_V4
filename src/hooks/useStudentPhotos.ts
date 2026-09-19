@@ -271,12 +271,17 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
       if (!cls) throw new Error('학급을 먼저 골라 주세요.');
       const plan = planBulkUpload(fileList, cls, studentsRef.current);
       const failed: string[] = [];
+      /** 줄이기 전후 용량. 얼마나 가벼워졌는지 알려 주려고 센다. */
+      let before = 0;
+      let after = 0;
 
       setBulk({ done: 0, total: plan.matched.length });
       try {
         for (const [i, item] of plan.matched.entries()) {
           try {
-            await uploadStudentPhoto(cls, item.student, item.file, pickedId);
+            const up = await uploadStudentPhoto(cls, item.student, item.file, pickedId);
+            before += up.shrink.before;
+            after += up.shrink.after;
           } catch (e) {
             console.warn('사진 올리기 실패:', item.file.name, e);
             failed.push(item.file.name);
@@ -289,7 +294,7 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
 
       forgetFolderCache();
       await load(true);
-      return { plan, failed };
+      return { plan, failed, before, after };
     },
     [cls, pickedId, load]
   );

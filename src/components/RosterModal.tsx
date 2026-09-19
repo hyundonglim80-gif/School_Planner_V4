@@ -29,6 +29,7 @@ import {
   type ClassPick,
 } from '../lib/classPicker';
 import { classFolderName } from '../lib/studentPhotoNames';
+import { formatBytes } from '../lib/imageShrink';
 import { openManagedPhotoFolder } from '../lib/studentPhotos';
 import { diagnosePhotos } from '../lib/photoDiagnosis';
 import type { QuizStudent } from '../hooks/usePhotoQuiz';
@@ -124,6 +125,8 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     notPhotos: string[];
     duplicates: string[];
     failed: string[];
+    /** '12.4MB → 1.1MB' 처럼 줄어든 용량 */
+    saved: string;
   } | null>(null);
   /** 타일 위로 파일을 끌어왔는가 */
   const [dragging, setDragging] = useState(false);
@@ -339,7 +342,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     }
     setBulkReport(null);
     try {
-      const { plan, failed } = await photoState.uploadMany(files);
+      const { plan, failed, before, after } = await photoState.uploadMany(files);
       const uploaded = plan.matched.length - failed.length;
       setBulkReport({
         picked: files.length,
@@ -351,6 +354,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
         notPhotos: plan.notPhotos.map((f) => f.name),
         duplicates: plan.duplicates.map((f) => f.name),
         failed,
+        saved: before > after ? `${formatBytes(before)} → ${formatBytes(after)}` : '',
       });
       if (uploaded > 0) showToast(`✅ 사진 ${uploaded}장을 올렸습니다.`);
     } catch (e: any) {
@@ -1327,6 +1331,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                       }`}
                     >
                       고른 파일 {bulkReport.picked}개 중 {bulkReport.uploaded}장을 올렸습니다.
+                      {bulkReport.saved && ` 용량 ${bulkReport.saved}`}
                       {bulkReport.unmatched.length > 0 &&
                         ` 짝을 못 찾은 파일 ${bulkReport.unmatched.length}개: ${bulkReport.unmatched
                           .slice(0, 5)
