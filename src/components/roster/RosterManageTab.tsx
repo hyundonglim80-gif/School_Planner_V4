@@ -15,6 +15,8 @@ export type RosterView = 'list' | 'tile';
 interface RosterManageTabProps {
   students: Student[];
   view: RosterView;
+  /** 사진 칸을 낼 것인가. 꺼져 있으면 열 자체가 없다. */
+  showPhoto: boolean;
   photos: Map<number, PhotoEntry>;
   /** 사진 폴더가 연결되어 올릴 수 있는 상태인가 */
   canUploadPhoto: boolean;
@@ -30,6 +32,7 @@ interface RosterManageTabProps {
 export default function RosterManageTab({
   students,
   view,
+  showPhoto,
   photos,
   canUploadPhoto,
   uploadingNum,
@@ -105,7 +108,7 @@ export default function RosterManageTab({
       <table className="w-full text-xs text-left border-collapse">
         <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
           <tr>
-            <th className="p-2.5 text-center w-13">사진</th>
+            {showPhoto && <th className="p-2.5 text-center w-13">사진</th>}
             <th className="p-2.5 text-center w-16">번호</th>
             <th className="p-2.5 w-27">이름</th>
             <th className="p-2.5 text-center w-17">성별</th>
@@ -124,20 +127,22 @@ export default function RosterManageTab({
                   highlightNum === st.num ? 'bg-blue-50' : 'hover:bg-slate-50/80'
                 } ${st.isActive === false ? 'opacity-40 bg-slate-100' : ''}`}
               >
-                <td className="p-1.5">
-                  <div className="flex items-center justify-center">
-                    <StudentPhoto
-                      url={photo?.url}
-                      name={st.name}
-                      shape="circle"
-                      size={32}
-                      canUpload={canUploadPhoto}
-                      uploading={uploadingNum === st.num}
-                      onUpload={(file) => onUploadPhoto(st, file)}
-                      loose={photo?.exact === false}
-                    />
-                  </div>
-                </td>
+                {showPhoto && (
+                  <td className="p-1.5">
+                    <div className="flex items-center justify-center">
+                      <StudentPhoto
+                        url={photo?.url}
+                        name={st.name}
+                        shape="circle"
+                        size={32}
+                        canUpload={canUploadPhoto}
+                        uploading={uploadingNum === st.num}
+                        onUpload={(file) => onUploadPhoto(st, file)}
+                        loose={photo?.exact === false}
+                      />
+                    </div>
+                  </td>
+                )}
                 <td className="p-1.5 text-center">
                   <input
                     type="number"

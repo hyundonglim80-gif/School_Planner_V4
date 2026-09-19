@@ -27,6 +27,8 @@ import { matchClassPhotos, classFolderName, type ClassKey } from '../lib/student
 import { planBulkUpload } from '../lib/photoBulkUpload';
 
 export type PhotoStatus =
+  /** 사진 보기가 꺼져 있다. 드라이브를 아예 부르지 않는다. */
+  | 'off'
   /** 폴더 설정을 읽는 중 */
   | 'checking'
   /** 사진 목록을 받아오는 중 */
@@ -51,9 +53,13 @@ interface Student {
   name: string;
 }
 
-export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
+/**
+ * @param enabled 사진 보기가 켜져 있는가. 꺼져 있으면 드라이브를 부르지 않는다.
+ *   명단만 고치러 들어온 사람에게까지 구글을 두드릴 까닭이 없다.
+ */
+export function useStudentPhotos(cls: ClassKey | null, students: Student[], enabled = true) {
   const [folders, setFolders] = useState<PhotoFolders>(EMPTY_FOLDERS);
-  const [status, setStatus] = useState<PhotoStatus>('checking');
+  const [status, setStatus] = useState<PhotoStatus>(enabled ? 'checking' : 'off');
   const [error, setError] = useState<string>('');
   /** 학생 번호 -> 사진 */
   const [photos, setPhotos] = useState<Map<number, StudentPhoto>>(new Map());
@@ -92,8 +98,9 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
   const studentsRef = useRef(students);
   studentsRef.current = students;
 
-  /** 폴더 설정을 읽는다 (팝업을 열 때 한 번) */
+  /** 폴더 설정을 읽는다 (사진 보기를 켤 때 한 번) */
   useEffect(() => {
+    if (!enabled) return;
     let alive = true;
     setStatus('checking');
     loadPhotoFolders()
@@ -107,7 +114,7 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [enabled]);
 
   const rootId = folders.root?.id || null;
   const pickedId = classFolder?.id;
@@ -120,7 +127,7 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
    * 사용자가 단추를 누르면 그때 interactive로 다시 부른다.
    */
   const load = useCallback(async (interactive = false) => {
-    if (!cls || !className) return;
+    if (!enabled || !cls || !className) return;
     const runId = ++runIdRef.current;
 
     setStatus('loading');
@@ -172,15 +179,22 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[]) {
         e instanceof PhotoAccessError ? e.message : e?.message || '사진을 불러오지 못했습니다.'
       );
     }
-  }, [cls, className, rootId, pickedId]);
+  }, [enabled, cls, className, rootId, pickedId]);
 
   /** 폴더가 정해졌고 학급이나 명단이 바뀌면 다시 읽는다 */
   useEffect(() => {
+    if (!enabled) {
+      // 꺼져 있으면 들고 있던 것도 내려놓는다. 다시 켤 때 새로 읽는다.
+      setStatus('off');
+      setScan(null);
+      setPhotos(new Map());
+      return;
+    }
     if (!className) return;
     void load(false);
     // rosterKey를 넣어 두면 전입생을 넣거나 이름을 고쳤을 때 사진이 따라온다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rootId, pickedId, className, rosterKey, reloadNonce]);
+  }, [enabled, rootId, pickedId, className, rosterKey, reloadNonce]);
 
   /** 고른 폴더가 바뀌었으니 지난 진단을 버린다 (새 폴더 이야기인 것처럼 보인다) */
   const resetView = () => {

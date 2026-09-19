@@ -129,6 +129,19 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   const [dragging, setDragging] = useState(false);
 
   const [tab, setTab] = useState<RosterTab>('manage');
+  /**
+   * 사진 보기. 꺼져 있으면 드라이브를 아예 부르지 않는다.
+   *
+   * 명단만 고치러 들어온 사람에게까지 구글을 두드릴 까닭이 없다. 껐다 켠
+   * 것은 기억해 둔다 — 쓰는 사람은 늘 켜 두거나 늘 꺼 두지, 매번 고르지 않는다.
+   */
+  const [showPhotos, setShowPhotos] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('sp4-roster-photos') === '1';
+    } catch {
+      return false;
+    }
+  });
   const [view, setView] = useState<RosterView>('list');
   const [editingClass, setEditingClass] = useState(false);
   /** 검색 탭에서 누른 학생을 관리 탭에서 잠깐 짚어 준다 */
@@ -187,7 +200,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   // ── 사진 ────────────────────────────────────────────────────
   // 훅은 반드시 이른 return 위에 두어야 한다. 팝업이 닫힌 동안에는 학급을
   // null로 넘겨 드라이브를 부르지 않게 한다.
-  const photoState = useStudentPhotos(isOpen ? currentClass : null, students);
+  const photoState = useStudentPhotos(isOpen ? currentClass : null, students, showPhotos);
 
   /**
    * 사진이 있는 재학생만 암기 판에 올린다.
@@ -221,7 +234,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   };
 
   const photoSummary =
-    photoState.status === 'ready' && students.length > 0
+    showPhotos && photoState.status === 'ready' && students.length > 0
       ? `사진 ${students.length - photoState.missing.length}/${students.length}명`
       : '';
 
@@ -268,6 +281,20 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     } catch (e: any) {
       showErrorToast(e?.message || '폴더를 열지 못했습니다.');
     }
+  };
+
+  const togglePhotos = () => {
+    setShowPhotos((on) => {
+      const next = !on;
+      try {
+        localStorage.setItem('sp4-roster-photos', next ? '1' : '0');
+      } catch {
+        /* 시크릿 모드 등. 이번 판에서만 켜진다. */
+      }
+      // 사진을 끄면 타일 보기는 뜻이 없다 (빈 칸만 늘어선다)
+      if (!next) setView('list');
+      return next;
+    });
   };
 
   /** 못 읽는 폴더에 묶인 것을 풀고 앱이 맡아 두는 자리로 되돌아간다 */
@@ -1032,21 +1059,45 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
           </button>
         </div>
 
-        <div className="flex gap-1 bg-blue-100 rounded-xl p-1">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={`rounded-lg px-6 py-1.5 text-xs font-extrabold transition-colors cursor-pointer ${
-                tab === t.id
-                  ? 'bg-white text-primary shadow-2xs'
-                  : 'bg-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          {/* 사진 보기. 켜야 드라이브를 부른다. */}
+          <button
+            type="button"
+            onClick={togglePhotos}
+            title={
+              showPhotos
+                ? '사진 칸을 감추고 구글 드라이브를 부르지 않습니다'
+                : '사진 칸을 내고 구글 드라이브에서 사진을 불러옵니다'
+            }
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold border transition-colors cursor-pointer ${
+              showPhotos
+                ? 'bg-primary text-white border-primary'
+                : 'bg-white text-slate-600 border-blue-200 hover:bg-blue-100'
+            }`}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <circle cx="12" cy="12.5" r="3.5" />
+            </svg>
+            사진
+          </button>
+
+          <div className="flex gap-1 bg-blue-100 rounded-xl p-1">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                className={`rounded-lg px-6 py-1.5 text-xs font-extrabold transition-colors cursor-pointer ${
+                  tab === t.id
+                    ? 'bg-white text-primary shadow-2xs'
+                    : 'bg-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1128,6 +1179,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
               </div>
 
               <div className="flex items-center gap-1.5 flex-wrap">
+                {showPhotos && (
                 <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
                   {(['list', 'tile'] as const).map((v) => (
                     <button
@@ -1142,6 +1194,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                     </button>
                   ))}
                 </div>
+                )}
 
                 <button
                   onClick={handleImportFromGoogleSheet}
@@ -1209,6 +1262,8 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                 </div>
 
                 {/* 사진 여러 장. 파일 이름으로 학생을 알아서 짝짓는다. */}
+                {showPhotos && (
+                <>
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
@@ -1239,6 +1294,8 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                     ? `올리는 중 ${photoState.bulk.done}/${photoState.bulk.total}`
                     : '사진 여러 장'}
                 </button>
+                </>
+                )}
 
                 <button
                   onClick={handleRemoveAllStudents}
@@ -1254,7 +1311,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                 스물세 장을 창에서 고르는 것보다 폴더에서 끌어 오는 쪽이 자연스럽다. */}
             <div
               onDragOver={(e) => {
-                if (!e.dataTransfer.types.includes('Files')) return;
+                if (!showPhotos || !e.dataTransfer.types.includes('Files')) return;
                 e.preventDefault();
                 setDragging(true);
               }}
@@ -1264,7 +1321,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                 setDragging(false);
               }}
               onDrop={(e) => {
-                if (!e.dataTransfer.types.includes('Files')) return;
+                if (!showPhotos || !e.dataTransfer.types.includes('Files')) return;
                 e.preventDefault();
                 setDragging(false);
                 void handleBulkUpload(e.dataTransfer.files);
@@ -1282,12 +1339,13 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
               )}
               <RosterManageTab
                 students={students}
-              view={view}
-              photos={photoState.photos}
-              canUploadPhoto
-              uploadingNum={photoState.uploading}
-              onUploadPhoto={handleUploadPhoto}
-              onUpdateStudent={handleUpdateStudent}
+                view={view}
+                showPhoto={showPhotos}
+                photos={photoState.photos}
+                canUploadPhoto
+                uploadingNum={photoState.uploading}
+                onUploadPhoto={handleUploadPhoto}
+                onUpdateStudent={handleUpdateStudent}
                 onRemoveStudent={handleRemoveStudent}
                 highlightNum={highlightNum}
               />
@@ -1374,9 +1432,11 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                 </div>
               )}
 
-            {/* 사진 상태 한 줄. 사진이 없어도 관리 탭은 그대로 쓸 수 있어야
-                하므로 여기를 막지 않는다. */}
-            {photoState.status === 'needs-auth' ? (
+            {/* 사진 상태 한 줄. 사진 보기를 켰을 때만 뜬다 — 꺼 두신 분께
+                폴더 이야기를 늘어놓을 까닭이 없다. 사진이 없어도 관리 탭은
+                그대로 쓸 수 있어야 하므로 여기를 막지는 않는다. */}
+            {showPhotos &&
+              (photoState.status === 'needs-auth' ? (
               needsAuthBand
             ) : photoState.status === 'error' ? (
               <div className="flex items-center justify-between gap-2 text-2xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-2 flex-wrap">
@@ -1405,10 +1465,11 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                       : undefined
                 }
                 onOpenFolder={handleOpenPickedFolder}
+                onForgetPicked={handleForgetClassFolder}
                 onPickClassFolder={handlePickClassFolder}
                 onRepickRoot={handleRepickPhotoFolder}
               />
-            )}
+              ))}
           </>
         )}
 
@@ -1424,10 +1485,26 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
 
         {tab === 'memorize' && (
           <>
+            {/* 사진 없이는 얼굴을 보고 이름을 맞힐 수가 없다. 판이 왜 비었는지
+                말해 주지 않으면 사진을 안 올린 줄 알고 드라이브를 뒤지러 간다. */}
+            {!showPhotos && (
+              <div className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 border border-slate-200 bg-slate-50 flex-wrap">
+                <span className="text-2xs font-bold text-slate-600">
+                  사진 보기가 꺼져 있습니다. 얼굴이 있어야 이름을 맞힐 수 있습니다.
+                </span>
+                <button
+                  type="button"
+                  onClick={togglePhotos}
+                  className="px-2.5 py-1 bg-primary hover:bg-primary/90 rounded text-2xs font-bold text-white transition-colors cursor-pointer"
+                >
+                  사진 켜기
+                </button>
+              </div>
+            )}
               {/* 판이 비었는데 까닭을 안 알려 주면 '사진을 안 올렸나' 하고
                   드라이브를 뒤지러 간다. 관리 탭과 같은 띠를 여기에도 낸다. */}
-              {quizCandidates.length === 0 && photoState.status === 'needs-auth' && needsAuthBand}
-              {quizCandidates.length === 0 && photoState.status === 'ready' && (
+            {showPhotos && quizCandidates.length === 0 && photoState.status === 'needs-auth' && needsAuthBand}
+            {showPhotos && quizCandidates.length === 0 && photoState.status === 'ready' && (
                 <PhotoStatusBar
                   diagnosis={diagnosis}
                   onPickClassFolder={handlePickClassFolder}
