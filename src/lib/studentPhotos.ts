@@ -20,7 +20,9 @@ import { shrinkPhoto, type ShrinkResult } from './imageShrink';
 import {
   classFolderName,
   isPhotoFile,
+  photoBaseName,
   photoFileName,
+  PHOTO_EXTENSIONS,
   type ClassKey,
   type PhotoCandidate,
 } from './studentPhotoNames';
@@ -639,30 +641,77 @@ export async function uploadStudentPhoto(
   const folderId = ready?.folderId || (await ensureClassFolderId(cls, token, pickedFolderId));
   const name = photoFileName(cls, student.num, student.name, file.name);
 
-  const existing = await findByExactName(folderId, name, token);
-  const uploaded = existing
-    ? await replaceContent(existing, file, token)
+  // ⚠️ 확장자까지 맞는 것만 찾으면 안 된다.
+  //    올리기 전에 줄이면 이름이 .webp로 바뀌고(lib/imageShrink.ts), 이미 가벼워
+  //    줄이지 않은 사진은 원래 확장자 그대로 올라간다. 그래서 같은 학생인데
+  //    한 번은 .webp, 한 번은 .jpg가 된다. 확장자까지 맞는 것만 찾으면 서로를
+  //    못 알아보고 두 장이 남는데, 화면은 PHOTO_EXTENSIONS 차례대로 .webp를
+  //    먼저 고르므로 방금 올린 .jpg가 아니라 옛 .webp가 계속 보인다.
+  //    확장자를 뗀 이름으로 한 식구를 다 찾아, 한 장만 남긴다.
+  const base = photoBaseName(cls, student.num, student.name);
+  const siblings = await findPhotoSiblings(folderId, base, token);
+  const same = siblings.find((f) => f.name === name);
+
+  const uploaded = same
+    ? await replaceContent(same.id, file, token)
     : await createFile(folderId, name, file, token);
 
+  // 확장자만 다른 옛 사진은 치운다. 남겨 두면 어느 것이 보일지 알 수 없다.
+  for (const old of siblings) {
+    if (old.id === uploaded.id) continue;
+    try {
+      await trashFile(old.id, token);
+    } catch (e) {
+      // 못 치워도 방금 올린 것은 올라갔다. 다음에 다시 치워진다.
+      console.warn('옛 사진을 치우지 못했습니다.', old.name, e);
+    }
+    forgetPhoto(old.id);
+  }
+
   // 갈아끼운 파일은 재어 둔 것이 낡았다. 지워야 다음에 새 사진을 받는다.
-  const stale = objectUrls.get(uploaded.id);
-  objectUrls.delete(uploaded.id);
-  if (stale) URL.revokeObjectURL(stale);
-  cacheDelete(uploaded.id);
+  forgetPhoto(uploaded.id);
   return { ...uploaded, shrink };
 }
 
-async function findByExactName(
+/** 재어 둔 사진 한 장을 잊는다 (내용이 바뀌었거나 사라졌을 때) */
+function forgetPhoto(fileId: string): void {
+  const stale = objectUrls.get(fileId);
+  objectUrls.delete(fileId);
+  if (stale) URL.revokeObjectURL(stale);
+  cacheDelete(fileId);
+}
+
+/**
+ * 같은 학생의 사진을 확장자만 달리해서 모두 찾는다.
+ *
+ * 이름이 아니라 '확장자를 뗀 이름'이 그 학생을 가리킨다. 올릴 때 줄이기가
+ * 걸리느냐에 따라 확장자가 달라지므로(줄이면 webp, 못 줄이면 원래 것),
+ * 한 식구를 다 걷어 와야 옛것을 치울 수 있다.
+ */
+async function findPhotoSiblings(
   folderId: string,
-  name: string,
+  base: string,
   token: string
-): Promise<string | null> {
-  const q = encodeURIComponent(
-    `'${folderId}' in parents and name='${name.replace(/'/g, "\\'")}' and trashed=false`
+): Promise<{ id: string; name: string }[]> {
+  // 드라이브 질의문 안의 홑따옴표와 역슬래시는 앞에 역슬래시를 붙여 준다
+  const esc = (s: string) => s.split('\\').join('\\\\').split("'").join("\\'");
+  const names = PHOTO_EXTENSIONS.map((ext) => `name='${esc(base)}.${ext}'`).join(' or ');
+  const q = encodeURIComponent(`'${esc(folderId)}' in parents and (${names}) and trashed=false`);
+  const res = await driveFetch(
+    `${DRIVE_FILES}?q=${q}&fields=files(id,name)&pageSize=${PHOTO_EXTENSIONS.length}`,
+    token
   );
-  const res = await driveFetch(`${DRIVE_FILES}?q=${q}&fields=files(id)&pageSize=1`, token);
   const data = await res.json();
-  return data.files?.[0]?.id || null;
+  return (data.files || []) as { id: string; name: string }[];
+}
+
+/** 파일을 휴지통으로 보낸다. 아주 지우지 않는 편이 되돌릴 길을 남긴다. */
+async function trashFile(fileId: string, token: string): Promise<void> {
+  await driveFetch(`${DRIVE_FILES}/${fileId}`, token, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trashed: true }),
+  });
 }
 
 async function createFile(
