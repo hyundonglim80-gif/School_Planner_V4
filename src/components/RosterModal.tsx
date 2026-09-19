@@ -120,6 +120,8 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   const [bulkReport, setBulkReport] = useState<{
     picked: number;
     uploaded: number;
+    /** 번호 없이 이름만 보고 짝지은 것. 눈으로 확인하시라고 적어 둔다. */
+    weak: string[];
     unmatched: string[];
     notPhotos: string[];
     duplicates: string[];
@@ -366,6 +368,9 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       setBulkReport({
         picked: files.length,
         uploaded,
+        weak: plan.matched
+          .filter((m) => m.by !== 'numAndName')
+          .map((m) => `${m.student.num}번 ${m.student.name} ← ${m.file.name}`),
         unmatched: plan.unmatched.map((f) => f.name),
         notPhotos: plan.notPhotos.map((f) => f.name),
         duplicates: plan.duplicates.map((f) => f.name),
@@ -1395,6 +1400,13 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                           .slice(0, 5)
                           .join(', ')}${bulkReport.unmatched.length > 5 ? ' …' : ''}`}
                     </span>
+                    {bulkReport.weak.length > 0 && (
+                      <span className="text-2xs text-slate-600 font-semibold">
+                        번호 없이 이름만 보고 짝지은 것 {bulkReport.weak.length}건 — 맞는지 봐 주세요:{' '}
+                        {bulkReport.weak.slice(0, 5).join(' · ')}
+                        {bulkReport.weak.length > 5 ? ' …' : ''}
+                      </span>
+                    )}
                     {bulkReport.notPhotos.length > 0 && (
                       <span className="text-2xs text-slate-500 font-semibold">
                         사진이 아닌 파일 {bulkReport.notPhotos.length}개는 건너뛰었습니다.

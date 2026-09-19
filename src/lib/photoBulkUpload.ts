@@ -19,6 +19,11 @@
 //
 // 넓은 규칙일수록 엉뚱하게 걸리기 쉬우므로, 좁은 규칙에서 이미 짝을 지은
 // 학생은 건너뛴다. 한 학생에게 두 파일이 걸리면 뒤엣것은 버린다.
+//
+// ⚠️ 후보가 둘 이상이면 아무도 고르지 않는다.
+//    올릴 때 파일 이름을 학생 이름으로 바꿔 쓰므로, 잘못 짝지으면 드라이브에
+//    틀린 이름이 박힌다. 사람이 나중에 알아채기도 어렵다. 애매하면 짝을 짓지
+//    않고 남겨 두는 편이 낫다. 남은 것은 화면이 이름까지 적어 알려 준다.
 import {
   classFolderName,
   normalizeName,
@@ -38,6 +43,11 @@ export interface PlannedUpload<T extends UploadCandidate> {
   student: { num: number; name: string };
   /** 어느 규칙으로 짝지었는가 (화면에서 확신의 정도를 보여 주려고) */
   by: 'numAndName' | 'name' | 'num';
+}
+
+/** 후보가 하나일 때만 고른다. 둘 이상이면 아무도 고르지 않는다. */
+function only<A>(candidates: A[]): A | null {
+  return candidates.length === 1 ? candidates[0] : null;
 }
 
 export interface BulkUploadPlan<T extends UploadCandidate> {
@@ -118,52 +128,58 @@ export function planBulkUpload<T extends UploadCandidate>(
 
   // 1. 학년도-학년-반-번호-이름 (번호는 두 자리든 한 자리든)
   pass((base) => {
-    for (const st of students) {
-      const n = normalizeName(st.name);
-      if (!n) continue;
-      if (base === `${prefix}-${padNum(st.num)}-${n}` || base === `${prefix}-${st.num}-${n}`) {
-        return { student: st, by: 'numAndName' };
-      }
-    }
-    return null;
+    const hit = only(
+      students.filter((st) => {
+        const n = normalizeName(st.name);
+        return (
+          !!n && (base === `${prefix}-${padNum(st.num)}-${n}` || base === `${prefix}-${st.num}-${n}`)
+        );
+      })
+    );
+    return hit ? { student: hit, by: 'numAndName' } : null;
   });
 
-  // 2. 번호-이름 (학급 앞머리는 있어도 없어도 된다)
+  // 2. 번호-이름 (학급 앞머리 없이)
   pass((base) => {
-    for (const st of students) {
-      const n = normalizeName(st.name);
-      if (!n) continue;
-      if (base === `${st.num}-${n}` || base === `${padNum(st.num)}-${n}`) {
-        return { student: st, by: 'numAndName' };
-      }
-    }
-    return null;
+    const hit = only(
+      students.filter((st) => {
+        const n = normalizeName(st.name);
+        return !!n && (base === `${st.num}-${n}` || base === `${padNum(st.num)}-${n}`);
+      })
+    );
+    return hit ? { student: hit, by: 'numAndName' } : null;
   });
 
   // 3. 이름 (앞머리가 붙어 있어도 된다). 겹치는 이름은 제외.
   pass((base) => {
-    for (const [n, st] of uniqueByName) {
-      if (base === n || base === `${prefix}-${n}` || base.endsWith(`-${n}`)) {
-        return { student: st, by: 'name' };
-      }
-    }
-    return null;
+    const hit = only(
+      [...uniqueByName].filter(
+        ([n]) => base === n || base === `${prefix}-${n}` || base.endsWith(`-${n}`)
+      )
+    );
+    return hit ? { student: hit[1], by: 'name' } : null;
   });
 
   // 4. 번호만 ('5.png'도 '05.png'도 5번으로 본다)
   pass((base) => {
     if (!/^\d+$/.test(base)) return null;
     const num = Number(base);
-    const st = students.find((s) => s.num === num);
-    return st ? { student: st, by: 'num' } : null;
+    const hit = only(students.filter((s) => s.num === num));
+    return hit ? { student: hit, by: 'num' } : null;
   });
 
-  // 5. 이름이 어딘가 들어 있기만 해도 (IMG_2026-3-1-최지우(1).png 같은 것)
+  /**
+   * 5. 이름이 어딘가 들어 있기만 해도 (IMG_0421_홍길동(1).png 같은 것)
+   *
+   * ⚠️ 여기가 가장 위험하다. 한 학생의 이름이 다른 학생 이름 안에 들어 있으면
+   *    (이경 / 이경빈) 엉뚱한 사람에게 붙는다. 그래서 두 가지를 건다.
+   *    · 세 글자 이상만 본다. 두 글자 이름은 남의 이름 속에 너무 쉽게 들어간다.
+   *    · 걸린 이름이 둘 이상이면 아무도 고르지 않는다.
+   */
   pass((base) => {
-    for (const [n, st] of uniqueByName) {
-      if (n.length >= 2 && base.includes(n)) return { student: st, by: 'name' };
-    }
-    return null;
+    const hits = [...uniqueByName].filter(([n]) => n.length >= 3 && base.includes(n));
+    const hit = only(hits);
+    return hit ? { student: hit[1], by: 'name' } : null;
   });
 
   return { matched, unmatched: left, notPhotos, duplicates };

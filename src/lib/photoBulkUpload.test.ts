@@ -96,6 +96,49 @@ describe('사람이 붙인 여러 모양', () => {
       '23:IMG_0421_최지우(1).png',
     ]);
   });
+});
+
+describe('애매하면 짝짓지 않는다', () => {
+  // 올릴 때 파일 이름을 학생 이름으로 바꿔 쓰므로, 잘못 짝지으면 드라이브에
+  // 틀린 이름이 박힌다. 애매한 것은 남겨 두고 사람에게 알린다.
+  it('두 글자 이름이 긴 이름 속에 들어 있어도 가로채지 않는다', () => {
+    const roster = [
+      { num: 7, name: '이경' },
+      { num: 21, name: '이경빈' },
+    ];
+    // 이름만 든 파일은 정확히 이경빈으로 걸린다
+    expect(pairs(planBulkUpload(f('이경빈.png'), cls, roster))).toEqual(['21:이경빈.png']);
+    // 군더더기가 붙어도 세 글자 이름만 보므로 이경이 가로채지 못한다
+    expect(pairs(planBulkUpload(f('IMG_이경빈_0421.png'), cls, roster))).toEqual([
+      '21:IMG_이경빈_0421.png',
+    ]);
+  });
+
+  it('세 글자 이름이 둘 다 들어 있으면 아무도 고르지 않는다', () => {
+    const roster = [
+      { num: 3, name: '김지우' },
+      { num: 9, name: '박하은' },
+    ];
+    const plan = planBulkUpload(f('김지우_박하은_같이찍은사진.png'), cls, roster);
+    expect(plan.matched).toEqual([]);
+    expect(plan.unmatched).toHaveLength(1);
+  });
+
+  it('두 글자 이름은 남의 이름 속에서 찾지 않는다', () => {
+    const roster = [{ num: 7, name: '하윤' }];
+    const plan = planBulkUpload(f('IMG_손하윤_1.png'), cls, roster);
+    expect(plan.matched).toEqual([]);
+  });
+
+  it('번호가 겹치는 명단이면 번호만으로는 짝짓지 않는다', () => {
+    const roster = [
+      { num: 5, name: '홍길동' },
+      { num: 5, name: '김철수' },
+    ];
+    const plan = planBulkUpload(f('05.png'), cls, roster);
+    expect(plan.matched).toEqual([]);
+    expect(plan.unmatched).toHaveLength(1);
+  });
 
   it('공백과 대소문자를 가리지 않는다', () => {
     expect(pairs(planBulkUpload(f('2026-3-1-23-최 지우.PNG'), cls, students))).toEqual([
