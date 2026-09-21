@@ -8,6 +8,9 @@ import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
 import { showToast, showErrorToast } from '../utils/toast';
+import { attachmentImageSrc } from '../lib/driveApi';
+import { collectImages, collectFiles, type ViewerImage } from '../lib/attachments';
+import ImageViewerModal from './ImageViewerModal';
 
 interface LinkViewerModalProps {
   isOpen: boolean;
@@ -27,6 +30,10 @@ export interface NormalizedLink {
   title: string;
   targetFId: string;
   liveText?: string;
+  /** 연결된 항목에 붙어 있는 파일들 (사진·캡처 포함) */
+  liveAttachments?: any[];
+  /** 붙임 목록이 생기기 전에 쓰던 자리. 옛 자료에 남아 있다. */
+  liveImageUrl?: string;
   loadingText?: boolean;
 }
 
@@ -49,6 +56,9 @@ export default function LinkViewerModal({
   const { selectedGroupId, setCurrentDate, setScope, openDetailEdit, openEntryEditor } = useAppStore();
   const [links, setLinks] = useState<NormalizedLink[]>([]);
   const [loading, setLoading] = useState(false);
+  // 붙임 사진 크게 보기
+  const [viewerImages, setViewerImages] = useState<ViewerImage[] | null>(null);
+  const [viewerIndex, setViewerIndex] = useState(0);
 
   const getColPath = useCallback((col: string, fId?: string) => {
     const uid = auth.currentUser?.uid;
@@ -58,28 +68,41 @@ export default function LinkViewerModal({
       : `groups/${targetFId}/${col}`;
   }, [selectedGroupId]);
 
-  // 실시간 아이템 텍스트 조회 (V3 fetchItemText 이식)
-  const fetchItemText = useCallback(async (
+  /**
+   * 연결된 항목의 지금 내용을 읽는다. (V3 fetchItemText 이식)
+   *
+   * 예전에는 글자만 돌려주고 붙임은 버렸다. 그래서 사진을 붙여 둔 기록을
+   * 링크로 열면 글만 보이고 사진이 없어, 링크가 엉뚱한 곳을 가리키는 것처럼
+   * 보였다. 붙임도 함께 들고 온다. 네 갈래가 모두 같은 자리에 담고 있다.
+   */
+  const fetchItemContent = useCallback(async (
     type: string,
     dateStr: string,
     id: string,
     period: string | number | undefined,
     fId: string
-  ): Promise<string> => {
+  ): Promise<{ text: string; attachments: any[]; imageUrl?: string }> => {
+    const empty = { text: '', attachments: [] as any[] };
+    const of = (item: any, text: string) => ({
+      text,
+      attachments: item?.attachments || [],
+      imageUrl: item?.imageUrl,
+    });
+
     try {
       if (type === 'event') {
         const snap = await getDoc(doc(db, getColPath('events', fId), dateStr));
         if (snap.exists()) {
           const list = snap.data().eventList || [];
           const item = list.find((e: any) => String(e.id) === String(id));
-          return item?.content || item?.text || '';
+          if (item) return of(item, item.content || item.text || '');
         }
       } else if (type === 'journal') {
         const snap = await getDoc(doc(db, getColPath('journals', fId), dateStr));
         if (snap.exists()) {
           const entries = snap.data().entries || [];
           const item = entries.find((e: any) => String(e.id) === String(id));
-          return item?.content || '';
+          if (item) return of(item, item.content || '');
         }
       } else if (type === 'schedule') {
         const snap = await getDoc(doc(db, getColPath('schedules', fId), dateStr));
@@ -89,19 +112,20 @@ export default function LinkViewerModal({
           const item = periods[p];
           if (item) {
             const subjectStr = item.subject ? `[${item.subject}] ` : '';
-            return `${subjectStr}${item.memo || item.content || ''}`.trim();
+            return of(item, `${subjectStr}${item.memo || item.content || ''}`.trim());
           }
         }
       } else if (type === 'memo') {
         const snap = await getDoc(doc(db, getColPath('tasks', fId), id));
         if (snap.exists()) {
-          return snap.data().content || snap.data().text || '';
+          const item = snap.data();
+          return of(item, item.content || item.text || '');
         }
       }
     } catch (err) {
-      console.warn('fetchItemText failed:', err);
+      console.warn('fetchItemContent failed:', err);
     }
-    return '';
+    return empty;
   }, [getColPath]);
 
   // 링크 목록 조회 (V3 호환 구조 추출)
@@ -186,7 +210,7 @@ export default function LinkViewerModal({
       // 비동기로 실시간 본문 로드
       const updatedLinks = await Promise.all(
         initialLinks.map(async (item) => {
-          const text = await fetchItemText(
+          const live = await fetchItemContent(
             item.targetType,
             item.targetDate,
             item.targetId,
@@ -195,7 +219,9 @@ export default function LinkViewerModal({
           );
           return {
             ...item,
-            liveText: text || item.title || '(내용 없음)',
+            liveText: live.text || item.title || '(내용 없음)',
+            liveAttachments: live.attachments,
+            liveImageUrl: live.imageUrl,
             loadingText: false,
           };
         })
@@ -205,7 +231,7 @@ export default function LinkViewerModal({
       console.error('fetchLinks failed:', e);
       setLoading(false);
     }
-  }, [sourceType, sourceDateStr, sourceId, sourcePeriod, sourceFId, selectedGroupId, getColPath, fetchItemText]);
+  }, [sourceType, sourceDateStr, sourceId, sourcePeriod, sourceFId, selectedGroupId, getColPath, fetchItemContent]);
 
   useEffect(() => {
     if (isOpen) {
@@ -508,6 +534,47 @@ export default function LinkViewerModal({
                       link.liveText || <span className="text-slate-400">(내용 없음)</span>
                     )}
                   </div>
+
+                  {/* 붙임. 사진은 눌러서 크게 보고, 그 밖의 파일은 새 창에서 연다.
+                      글만 보이고 사진이 없으면 링크가 엉뚱한 곳을 가리키는 것처럼
+                      보인다. 실제로 그렇게 보였다. */}
+                  {(() => {
+                    const live = { attachments: link.liveAttachments, imageUrl: link.liveImageUrl };
+                    const images = collectImages(live, attachmentImageSrc);
+                    const files = collectFiles(live);
+                    if (images.length === 0 && files.length === 0) return null;
+
+                    return (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        {images.map((img, i) => (
+                          <button
+                            key={img.url}
+                            type="button"
+                            onClick={() => {
+                              setViewerImages(images);
+                              setViewerIndex(i);
+                            }}
+                            title={img.name}
+                            className="w-14 h-14 rounded-lg overflow-hidden border border-slate-200 hover:border-primary transition-colors shrink-0"
+                          >
+                            <img src={img.url} alt={img.name} loading="lazy" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                        {files.map((att, i) => (
+                          <a
+                            key={att.url || i}
+                            href={att.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={att.name}
+                            className="max-w-[150px] truncate px-2 py-1 rounded-lg border border-slate-200 bg-white text-2xs font-bold text-slate-600 hover:border-primary hover:text-primary transition-colors"
+                          >
+                            📎 {att.name || '첨부 파일'}
+                          </a>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })
@@ -524,6 +591,16 @@ export default function LinkViewerModal({
           </button>
         </div>
       </div>
+
+      {/* 사진 크게 보기. 링크 팝업 위에 뜬다. */}
+      {viewerImages && (
+        <ImageViewerModal
+          isOpen
+          images={viewerImages}
+          startIndex={viewerIndex}
+          onClose={() => setViewerImages(null)}
+        />
+      )}
     </div>
   );
 }

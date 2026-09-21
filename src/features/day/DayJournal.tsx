@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { isLongEntry, previewLine } from '../../lib/entryCollapse';
 import { useLabels } from '../../hooks/useLabels';
 import { attachmentImageSrc } from '../../lib/driveApi';
+import { isImageAttachment as isImageAtt } from '../../lib/attachments';
 import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
 import EntryDrawer, { type EntryDraft } from '../../components/EntryDrawer';
 import { showToast } from '../../utils/toast';
@@ -103,8 +104,10 @@ export default function DayJournal({
   const [viewerImages, setViewerImages] = useState<ViewerImage[] | null>(null);
   const [viewerIndex, setViewerIndex] = useState(0);
 
-  const isImageAttachment = (att: Attachment) =>
-    att.type === 'image' || /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(att.url || '');
+  // 가려내는 규칙은 lib/attachments.ts 한 곳에 둔다. 예전에는 화면마다 같은
+  // 정규식이 복사돼 있어, 드라이브 주소처럼 확장자가 없는 것을 한 곳에서만
+  // 고치고 나머지를 잊었다.
+  const isImageAttachment = (att: Attachment) => isImageAtt(att);
 
   // 기록에 붙은 이미지(구버전 imageUrl 포함)를 뷰어용 목록으로 모은다.
   const getEntryImages = (entry: JournalEntry): ViewerImage[] => {
