@@ -91,9 +91,16 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                   하는 것들이다. */}
               <div className="flex flex-wrap items-center justify-between gap-x-1 gap-y-1 pb-2.5 border-b border-slate-100 mb-3">
                 <div className="flex items-center gap-1 min-w-0">
+                  {/*
+                    ⚠️ bg-white/70 을 함께 두면 안 된다. 같은 성질(배경색)의
+                       두 클래스는 적는 차례가 아니라 스타일시트에 실린 차례로
+                       이긴다. 실제로 bg-white/70 이 bg-primary 를 이겨서,
+                       오늘 칸의 요일 글자가 흰 바탕에 흰 글씨가 되어 통째로
+                       보이지 않았다. 오늘이 아닐 때만 흰 바탕을 준다.
+                  */}
                   <span
-                    className={`w-6 h-6 shrink-0 rounded-lg flex items-center justify-center font-black text-xs bg-white/70 ${
-                      day.isToday ? 'bg-primary text-white shadow-xs' : DAY_NUMBER_COLOR[tone]
+                    className={`w-6 h-6 shrink-0 rounded-lg flex items-center justify-center font-black text-xs ${
+                      day.isToday ? 'bg-primary text-white shadow-xs' : `bg-white/70 ${DAY_NUMBER_COLOR[tone]}`
                     }`}
                   >
                     {day.dayName}
