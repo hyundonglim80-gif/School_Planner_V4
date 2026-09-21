@@ -32,6 +32,22 @@ interface MonthGridProps {
   showWeekend?: boolean;
   onToggleEvent: (dateStr: string, eventId: string) => void;
   onDeleteEvent: (dateStr: string, eventId: string, item?: any) => void;
+  /**
+   * 휴대폰처럼 한 칸이 50px 남짓인 곳에서 쓰는 촘촘한 모양.
+   *
+   * ⚠️ PC 칸을 그대로 휴대폰에 넣으면 달력 꼴은 남지만 읽을 수가 없다.
+   *    재어 보니 390px에서 한 칸이 53px인데, 일정 제목이 한 글자씩 세로로
+   *    쪼개지고("독서/록 검/사") 교시 칩 여섯은 알아볼 수 없는 초록 막대가
+   *    되며, 한 줄 높이가 261~312px이라 한 화면에 두 주 반밖에 안 들어갔다.
+   *
+   *    그래서 칸의 '모양'은 그대로 두고 '안에 든 것'만 줄인다.
+   *      · 라벨은 이름을 적지 않고 왼쪽 색 띠로만 (이름이 칸의 절반을 먹었다)
+   *      · 제목은 한 줄로 자르고, 칸 너비에 맞춰 글자를 줄인다
+   *      · 교시는 칩 여섯 대신 과목 첫 글자를 한 줄로
+   *    이렇게 하니 줄 높이가 117~134px, 문서 높이가 882px이 되어 한 달이
+   *    한 화면에 들어온다.
+   */
+  compact?: boolean;
 }
 
 // 요일 머리글도 같은 규칙을 쓴다 (일=빨강, 토=파랑)
@@ -45,7 +61,7 @@ const ALL_WEEKDAYS = [
   { name: '토', color: WEEKDAY_HEADER_COLOR.saturday },
 ];
 
-export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, showWeekend = true, onToggleEvent, onDeleteEvent }: MonthGridProps) {
+export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, showWeekend = true, onToggleEvent, onDeleteEvent, compact = false }: MonthGridProps) {
   const currentWeekdays = showWeekend ? ALL_WEEKDAYS : ALL_WEEKDAYS.slice(1, 6);
   const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal, selectedGroupId } = useAppStore();
 
@@ -101,7 +117,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
               key={dayObj.dateStr}
               data-today={dayObj.isToday ? 'true' : undefined}
               onClick={() => onSelectDate(dayObj.dateStr)}
-              className={`min-h-[74px] p-2 flex flex-col justify-between transition-all cursor-pointer group hover:brightness-98 min-w-0 overflow-hidden ${
+              className={`${compact ? 'min-h-[64px] p-1' : 'min-h-[74px] p-2'} flex flex-col justify-between transition-all cursor-pointer group hover:brightness-98 min-w-0 overflow-hidden ${
                 !dayObj.isCurrentMonth ? 'bg-slate-50/40 opacity-40' : DAY_CELL_BG[tone]
               } ${dayObj.isToday ? 'ring-2 ring-inset ring-primary/40' : ''}`}
             >
@@ -141,7 +157,55 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                   </div>
                 </div>
                 
-                {showClass && hasClasses && (
+                {/* 휴대폰에서는 공휴일 이름을 날짜 옆에 둘 자리가 없다.
+                    53px 칸에서 '개천절'이 '개…'가 됐다. 제 줄로 내려 칸 너비를
+                    다 쓰고, 그래도 길면 글자를 줄인다. */}
+                {holidayName && compact && (
+                  <div
+                    className="w-full mb-1 text-center overflow-hidden [container-type:inline-size]"
+                    title={holidayName}
+                  >
+                    <span
+                      className="font-bold text-red-600 whitespace-nowrap"
+                      style={{ fontSize: fitToWidthFontSize(holidayName) }}
+                    >
+                      {holidayName}
+                    </span>
+                  </div>
+                )}
+
+                {/* 휴대폰: 칩 여섯을 나란히 두면 하나가 8px이라 글자가 사라진다.
+                    과목 첫 글자만 한 줄로 모아 칸 너비에 맞춰 줄인다.
+                    (자세한 것은 날짜를 누르면 하루 화면에서 본다) */}
+                {showClass && hasClasses && compact && (() => {
+                  const initials = periodArray
+                    .map((p) => {
+                      const t = schedules[p]?.subject?.trim() || '';
+                      return t && t.toUpperCase() !== 'X' ? t[0] : '·';
+                    })
+                    .join('');
+                  const full = periodArray
+                    .map((p) => {
+                      const t = schedules[p]?.subject?.trim() || '';
+                      return `${p}교시 ${t && t.toUpperCase() !== 'X' ? t : '-'}`;
+                    })
+                    .join(' / ');
+                  return (
+                    <div
+                      className="mb-1 mt-0.5 w-full rounded-[3px] border border-emerald-300 bg-emerald-50 text-emerald-700 font-bold text-center leading-tight overflow-hidden [container-type:inline-size]"
+                      title={full}
+                    >
+                      <span
+                        className="text-2xs whitespace-nowrap tracking-tighter"
+                        style={{ fontSize: fitToWidthFontSize(initials) }}
+                      >
+                        {initials}
+                      </span>
+                    </div>
+                  );
+                })()}
+
+                {showClass && hasClasses && !compact && (
                   <div className="flex flex-nowrap gap-[1px] w-full mb-1.5 mt-0.5">
                     {periodArray.map((p) => {
                       const item = schedules[p];
@@ -212,7 +276,16 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                             });
                           }
                         }}
-                        className={`group relative px-1.5 py-0.5 rounded ${BODY_TEXT.month} font-medium leading-tight transition-all border block hover:shadow-sm cursor-pointer break-words ${
+                        style={
+                          compact && labelColor && !ev.completed
+                            ? { borderLeftWidth: '3px', borderLeftColor: labelColor.border }
+                            : undefined
+                        }
+                        className={`group relative rounded ${BODY_TEXT.month} font-medium leading-tight transition-all border block hover:shadow-sm cursor-pointer ${
+                          compact
+                            ? 'px-1 py-[1px] truncate whitespace-nowrap [container-type:inline-size]'
+                            : 'px-1.5 py-0.5 break-words'
+                        } ${
                           selectedEventIds.includes(ev.id)
                             ? 'bg-primary/10 border border-primary text-primary'
                             : ev.completed
@@ -230,7 +303,10 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                           />
                         )}
                         {/* 💡 유효한 라벨일 때만 렌더링, 클릭 시 완료 토글(이월 라벨이면 이월도 정지) */}
-                        {labelColor && !isMultiSelectMode && (
+                        {/* 압축 모드에서는 라벨 이름을 적지 않는다. '달력'·'수업X'
+                            같은 이름이 53px 칸의 절반을 먹어, 정작 무슨 일정인지가
+                            두 글자밖에 안 남았다. 색은 왼쪽 띠로 남긴다. */}
+                        {labelColor && !isMultiSelectMode && !compact && (
                           <span
                             onClick={(e) => {
                               e.stopPropagation();
@@ -247,7 +323,13 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                             {labelName}
                           </span>
                         )}
-                        <span className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}>
+                        {/* 압축 모드에서는 칸 너비에 맞춰 글자를 줄인다. 긴 제목은
+                            가장 작은 크기(7px)까지 줄어든 뒤 말줄임으로 잘린다.
+                            '생활…' 두 글자보다 '생활기록부…' 다섯 글자가 낫다. */}
+                        <span
+                          className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}
+                          style={compact ? { fontSize: fitToWidthFontSize(eventDisplayContent(ev)) } : undefined}
+                        >
                           {eventDisplayContent(ev)}
                         </span>
                         

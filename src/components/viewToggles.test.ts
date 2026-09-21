@@ -20,9 +20,11 @@ const read = (suffix: string) => {
 const expectations: Record<string, string[]> = {
   'day/DayScreen.tsx': ['showEvents', 'showClass'],
   'week/WeekGrid.tsx': ['showEvents', 'showClass'],
+  // 월간은 휴대폰에서도 같은 격자를 쓴다. 예전에 있던 목록판(MonthAgenda)은
+  // 지웠으므로 여기서도 뺀다.
   'month/MonthGrid.tsx': ['showEvents', 'showClass'],
-  'month/MonthAgenda.tsx': ['showEvents', 'showClass'],
   'year/YearScreen.tsx': ['showEvents', 'showClass', 'showWeekend'],
+  'year/YearMonthCard.tsx': ['showEvents', 'showClass', 'showWeekend'],
 };
 
 describe('표시 토글은 버튼과 화면이 같이 움직인다', () => {

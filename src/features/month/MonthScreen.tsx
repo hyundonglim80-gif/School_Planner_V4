@@ -3,7 +3,6 @@ import { useAppStore } from '../../store/useAppStore';
 import { getMonthCalendarDays, parseDateStr } from '../../lib/dateUtils';
 import { useCalendarData } from '../../hooks/useCalendarData';
 import MonthGrid from './MonthGrid';
-import MonthAgenda from './MonthAgenda';
 import QuickAddModal from '../../components/QuickAddModal';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { useState } from 'react';
@@ -53,19 +52,16 @@ export default function MonthScreen() {
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-primary" />
           <p className="text-xs text-slate-400 font-medium">데이터를 불러오는 중...</p>
         </div>
-      ) : isMobile ? (
-        // 좁은 화면에서 7열 격자는 한 칸이 50px 남짓이라 제목이 거의 안 보인다.
-        <MonthAgenda
-          onQuickAdd={(date) => setQuickAddDate(date)}
-          days={calendarDays}
-          dataMap={dataMap}
-          onSelectDate={handleSelectDate}
-          showWeekend={showWeekend}
-          onToggleEvent={toggleEventItem}
-          onDeleteEvent={deleteEventItem}
-        />
       ) : (
+        /*
+          휴대폰에서도 달력 격자를 쓴다.
+          예전에는 목록(MonthAgenda, 이 커밋에서 지웠다)으로 갈아 끼웠다. 한 칸이 50px 남짓이라
+          제목이 거의 안 보인다는 까닭이었는데, 그러면 월간이 '하루를 길게 이어
+          붙인 것'이 되어 달력을 여는 뜻이 없어진다. 칸을 바꾸는 대신 칸 안에
+          든 것을 줄이는 쪽으로 풀었다(MonthGrid 의 compact 참고).
+        */
         <MonthGrid
+          compact={isMobile}
           onQuickAdd={(date) => setQuickAddDate(date)}
           days={calendarDays}
           dataMap={dataMap}

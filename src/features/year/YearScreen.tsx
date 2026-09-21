@@ -289,7 +289,12 @@ export default function YearScreen() {
           <p className="text-xs text-slate-400 font-medium">데이터를 불러오는 중...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        /*
+          휴대폰에서도 두 열로 둔다. 한 열이면 접힌 달 머리글이 세로로 열두 개
+          쌓여, 훑는 데 뜻이 있는 화면인데도 끝없이 스크롤해야 했다.
+          펼친 달은 좁으면 읽기 어려우므로 두 칸을 다 쓴다(YearMonthCard 참고).
+        */
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4">
           {months.slice(0, shownMonths).map((mInfo) => {
             const monthKey = `${mInfo.year}-${mInfo.month}`;
             const now = new Date();

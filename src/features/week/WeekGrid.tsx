@@ -46,7 +46,17 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
 
   return (
     <>
-    <div className={"grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 " + (days.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-7") + " gap-3"}>
+    {/*
+      ⚠️ 휴대폰에서 한 줄에 하루씩 두지 않는다.
+         예전에는 grid-cols-1이라 날짜 카드가 세로로 일곱 개 쌓였다. 그러면
+         '주간'이 아니라 '하루 화면을 일곱 번 이어 붙인 것'처럼 보인다.
+         재어 보니 390px에서 두 열로 두어도 칸이 181px이라 '1교시 과학',
+         '이월 독서록 검사' 가 잘리지 않고 다 들어간다(넘침 0, 잘린 글자 0).
+         세로 길이는 2,885px에서 1,827px로 줄어 한눈에 훑기도 낫다.
+         세 열은 390px에서 120px밖에 안 되어 한글 과목명이 들어가지 않으므로,
+         세 열은 지금처럼 sm(640px) 이상에서만 쓴다.
+    */}
+    <div className={"grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 " + (days.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-7") + " gap-2 sm:gap-3"}>
       {days.map((day) => {
         const summary = dataMap[day.dateStr] || {};
         const rawEvents = summary.eventList || [];

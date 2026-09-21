@@ -113,7 +113,13 @@ function YearMonthCard({
 
   return (
     <div
-      className={`bg-white rounded-2xl border shadow-sm p-4 sm:p-5 flex flex-col transition-all ${
+      className={`bg-white rounded-2xl border shadow-sm flex flex-col transition-all ${
+        isMobile ? 'p-2.5' : 'p-4 sm:p-5'
+      } ${
+        // 휴대폰에서 펼친 달은 두 칸을 다 쓴다. 반 칸(약 190px)에 날짜 줄을
+        // 밀어 넣으면 일정 제목이 잘린다. 접힌 달만 나란히 둔다.
+        isMobile && isOpen ? 'col-span-2' : ''
+      } ${
         isCurrentMonthCard ? 'border-primary ring-2 ring-primary/10' : 'border-slate-200/80 hover:shadow-md'
       }`}
     >
