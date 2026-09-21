@@ -11,9 +11,20 @@ export interface DDayItem {
   date: string; // YYYY-MM-DD
 }
 
-export function calculateDDay(targetDateStr: string): { text: string; daysDiff: number } {
+/**
+ * 남은 날짜를 센다.
+ *
+ * 기준은 오늘이다. 'D-100'은 오늘부터 100일이라는 뜻으로 통용되므로 그 말을
+ * 지킨다. 다만 하루 화면에서 다른 날을 펼쳐 놓고 "이 날 기준으로는 며칠?"을
+ * 알고 싶을 때가 있어, 기준 날짜를 넘길 수 있게 열어 둔다. 넘기지 않으면
+ * 예전과 똑같이 오늘을 센다.
+ */
+export function calculateDDay(
+  targetDateStr: string,
+  baseDateStr?: string
+): { text: string; daysDiff: number } {
   const target = new Date(targetDateStr + 'T00:00:00');
-  const today = new Date();
+  const today = baseDateStr ? new Date(baseDateStr + 'T00:00:00') : new Date();
   today.setHours(0, 0, 0, 0);
 
   const diffTime = target.getTime() - today.getTime();
