@@ -73,3 +73,21 @@ export function fitToWidthFontSize(text: string): string {
   const chars = Math.max(1, text.trim().length);
   return `clamp(${MIN_FIT_PX}px, calc(100cqw / ${chars} * ${FIT_RATIO}), var(--text-2xs))`;
 }
+
+/**
+ * 세로로 쓰는 글자의 크기 (달력 칸의 교시 칩).
+ *
+ * ⚠️ 왜 세로쓰기인가.
+ *    휴대폰 월간은 한 칸이 53px인데 교시가 여섯이라 칩 하나가 8px이다.
+ *    가로로 쓰면 '과학'이 들어갈 자리가 없어 글자가 통째로 사라진다.
+ *    첫 글자만 모아 '과수영미실사'로 적어 보았더니 무슨 과목인지 알 수 없어
+ *    더 나빴다. 세로로 쓰면 8px 폭에 한 글자씩 내려 쓰면 되므로 이름이 온전히
+ *    남는다.
+ *
+ * 가로쓰기와 정해지는 방식이 다르다. 가로는 '글자 수'가 폭을 먹지만, 세로는
+ * 글자 하나의 폭만 있으면 된다. 그래서 칩 너비 = 글자 하나 크기로 잡는다.
+ * 위로는 정해진 단계(text-2xs)를 넘지 않는다. 그보다 키우면 줄이 두꺼워진다.
+ */
+export function verticalFitFontSize(): string {
+  return `clamp(${MIN_FIT_PX}px, calc(100cqw * ${FIT_RATIO}), var(--text-2xs))`;
+}

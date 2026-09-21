@@ -700,12 +700,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             날짜 이동은 모든 화면에 공통이므로 좁은 화면에서도 늘 첫 줄에 둔다. */}
         {scope !== 'memo' && (
           <div className="flex flex-wrap sm:flex-nowrap items-center justify-between border-t border-dashed border-slate-200 pt-2.5 mt-0.5 max-w-7xl mx-auto w-full gap-2 sm:overflow-x-auto">
-            {/* 좌측 옵션 버튼 (주말 숨기기, 학기 필터).
-                좁은 화면에서는 년간의 학기 칩만 남고, 그때는 아랫줄로 내린다. */}
+            {/* 좌측 옵션 단추 (주말/일정/수업 토글, 년간의 학기 칩).
+                ⚠️ 좁은 화면에서 이것을 숨기고 ⋮ 메뉴로 내려 두었더니, 늘 쓰는
+                   토글을 쓰려면 메뉴를 먼저 열어야 했다. PC와 같게 왼쪽에 둔다.
+                   다만 날짜 이동과 한 줄에 다 넣으면 390px에서 넘치므로
+                   (토글 셋 156px + 날짜 230px), 좁을 때는 아랫줄로 내려 왼쪽에
+                   붙인다. 년간의 학기 칩이 이미 그렇게 하고 있다. */}
             <div
-              className={`${
-                scope === 'year' ? 'flex order-2 sm:order-1 w-full sm:w-auto' : 'hidden sm:flex'
-              } items-center gap-1.5 flex-none`}
+              className="flex order-2 sm:order-1 w-full sm:w-auto items-center gap-1.5 flex-none"
             >
               {scope === 'year' && (
                 <div className="flex bg-slate-100 p-0.5 rounded-xl gap-0.5">
@@ -729,9 +731,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   </button>
                 </div>
               )}
-              {/* 표시 토글 - 켜짐/꺼짐이 한눈에 구분되게 채움 vs 흐림으로 나눈다.
-                  좁은 화면에서는 날짜 이동만 남기고 ⋮ 메뉴로 내린다. */}
-              <div className="hidden sm:flex items-center gap-1.5">
+              {/* 표시 토글 - 켜짐/꺼짐이 한눈에 구분되게 채움 vs 흐림으로 나눈다. */}
+              <div className="flex items-center gap-1.5">
                 {viewToggles.map((t) => (
                   <button
                     key={t.key}

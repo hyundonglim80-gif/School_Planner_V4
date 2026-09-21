@@ -14,7 +14,7 @@ import {
   DAY_NUMBER_COLOR,
   WEEKDAY_HEADER_COLOR,
 } from '../../lib/holiday';
-import { fitToWidthFontSize } from '../../lib/typeScale';
+import { fitToWidthFontSize, verticalFitFontSize } from '../../lib/typeScale';
 import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import { BODY_TEXT } from '../../lib/typeScale';
 import JournalCountBadge from '../../components/JournalCountBadge';
@@ -135,7 +135,9 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                     >
                       {dayObj.day}
                     </span>
-                    {holidayName && <HolidayName name={holidayName} tier="month" />}
+                    {/* 휴대폰에서는 날짜 옆에 둘 자리가 없어 아래 제 줄로 내린다.
+                        여기까지 그리면 '개천절'이 '3 개…' 와 '개천절' 두 번 나온다. */}
+                    {holidayName && !compact && <HolidayName name={holidayName} tier="month" />}
                   </div>
                   
                   {/* 표식은 줄어들면 안 된다. 셋이 나란히 설 수 있으므로
@@ -174,36 +176,59 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                   </div>
                 )}
 
-                {/* 휴대폰: 칩 여섯을 나란히 두면 하나가 8px이라 글자가 사라진다.
-                    과목 첫 글자만 한 줄로 모아 칸 너비에 맞춰 줄인다.
-                    (자세한 것은 날짜를 누르면 하루 화면에서 본다) */}
-                {showClass && hasClasses && compact && (() => {
-                  const initials = periodArray
-                    .map((p) => {
-                      const t = schedules[p]?.subject?.trim() || '';
-                      return t && t.toUpperCase() !== 'X' ? t[0] : '·';
-                    })
-                    .join('');
-                  const full = periodArray
-                    .map((p) => {
-                      const t = schedules[p]?.subject?.trim() || '';
-                      return `${p}교시 ${t && t.toUpperCase() !== 'X' ? t : '-'}`;
-                    })
-                    .join(' / ');
-                  return (
-                    <div
-                      className="mb-1 mt-0.5 w-full rounded-[3px] border border-emerald-300 bg-emerald-50 text-emerald-700 font-bold text-center leading-tight overflow-hidden [container-type:inline-size]"
-                      title={full}
-                    >
-                      <span
-                        className="text-2xs whitespace-nowrap tracking-tighter"
-                        style={{ fontSize: fitToWidthFontSize(initials) }}
-                      >
-                        {initials}
-                      </span>
-                    </div>
-                  );
-                })()}
+                {/*
+                  휴대폰: 교시 칸을 여섯으로 나누면 칩 하나가 8px이다.
+                  가로로 쓰면 '과학'이 들어갈 자리가 없어 글자가 통째로 사라진다.
+                  첫 글자만 모아 '과수영미실사'로 적어 보았더니 무슨 과목인지
+                  알 수 없어 더 나빴다.
+
+                  세로로 쓴다. 8px 폭에 한 글자씩 내려 쓰면 되므로 이름이 온전히
+                  남는다. 글자는 칩 너비에 맞춰 줄여, 두 글자짜리 과목이라도
+                  줄이 16px 남짓에서 그치게 한다(그보다 키우면 줄이 두꺼워진다).
+                  교시 자리는 PC와 같게 여섯 칸을 그대로 둔다 — 몇 교시인지는
+                  자리로 읽는 것이라 빈 교시를 빼면 차례가 어긋난다.
+                */}
+                {showClass && hasClasses && compact && (
+                  <div className="flex flex-nowrap gap-[1px] w-full mb-1 mt-0.5 items-stretch">
+                    {periodArray.map((p) => {
+                      const item = schedules[p];
+                      const text = item?.subject?.trim() || '';
+
+                      if (text && text.toUpperCase() !== 'X') {
+                        return (
+                          <div
+                            key={p}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDetailModal({
+                                isOpen: true,
+                                type: 'schedule',
+                                dateStr: dayObj.dateStr,
+                                itemId: p,
+                                initialData: item,
+                              });
+                            }}
+                            className="flex-1 min-w-0 py-[1px] flex items-center justify-center border border-emerald-300 rounded-[3px] bg-emerald-50 text-emerald-700 font-bold overflow-hidden cursor-pointer [container-type:inline-size]"
+                            title={`${text} (${p}교시)`}
+                          >
+                            <span
+                              className="whitespace-nowrap leading-none tracking-tighter [writing-mode:vertical-rl] [text-orientation:upright]"
+                              style={{ fontSize: verticalFitFontSize() }}
+                            >
+                              {text}
+                            </span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div
+                          key={p}
+                          className="flex-1 min-w-0 border border-slate-200 rounded-[3px] bg-slate-50"
+                        />
+                      );
+                    })}
+                  </div>
+                )}
 
                 {showClass && hasClasses && !compact && (
                   <div className="flex flex-nowrap gap-[1px] w-full mb-1.5 mt-0.5">
