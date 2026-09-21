@@ -39,6 +39,27 @@ export function calculateDDay(
   }
 }
 
+/**
+ * 화면 위쪽에 세울 D-Day. 사용자가 고른 것 하나뿐이다.
+ *
+ * 고른 것이 없으면 아무것도 세우지 않는다. 예전에는 가장 가까운 미래의
+ * D-Day를 대신 세워 두었는데, 팝업에서 별을 눌러 '상단 표시 해제'를 해도
+ * 다른 것이 곧바로 그 자리에 들어서서 해제가 안 되는 것처럼 보였다.
+ * V3도 고른 것이 없으면 'D-Day 설정'만 띄운다.
+ *
+ * 고른 것을 지웠을 때도 마찬가지다. 가리키는 id는 남아 있는데 목록에 없으므로
+ * 아무것도 세우지 않는다.
+ */
+export function pickPrimaryDDay(
+  list: DDayItem[],
+  selectedId: string | null
+): (DDayItem & { text: string; daysDiff: number }) | null {
+  if (!selectedId) return null;
+  const selected = list.find((d) => d.id === selectedId);
+  if (!selected) return null;
+  return { ...selected, ...calculateDDay(selected.date) };
+}
+
 export function useDDay() {
   const [dDayList, setDDayList] = useState<DDayItem[]>([]);
   // V3는 상단에 "선택한" D-Day 하나를 보여주고, 그 선택을 settings/preferences의
@@ -146,25 +167,10 @@ export function useDDay() {
     showToast('🗑️ D-Day를 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
   }, [mutateDDays]);
 
-  // 사용자가 고른 D-Day. 고른 게 없으면 가장 가까운 미래의 D-Day를 보여준다.
-  const primaryDDay = useMemo(() => {
-    if (dDayList.length === 0) return null;
-    const selected = selectedDDayId ? dDayList.find((d) => d.id === selectedDDayId) : null;
-    const top =
-      selected ||
-      [...dDayList].sort((a, b) => {
-        const diffA = calculateDDay(a.date).daysDiff;
-        const diffB = calculateDDay(b.date).daysDiff;
-        if (diffA >= 0 && diffB >= 0) return diffA - diffB;
-        if (diffA >= 0) return -1;
-        if (diffB >= 0) return 1;
-        return diffB - diffA;
-      })[0];
-    return {
-      ...top,
-      ...calculateDDay(top.date),
-    };
-  }, [dDayList, selectedDDayId]);
+  const primaryDDay = useMemo(
+    () => pickPrimaryDDay(dDayList, selectedDDayId),
+    [dDayList, selectedDDayId]
+  );
 
   return {
     dDayList,

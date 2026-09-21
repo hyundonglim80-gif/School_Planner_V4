@@ -67,7 +67,9 @@ export default function DDayModal({ isOpen, onClose }: DDayModalProps) {
           <div className="space-y-2">
             <div className="text-xs font-bold text-slate-500">
               등록된 D-Day ({dDayList.length})
-              <span className="font-medium text-slate-400"> · 항목을 누르면 상단에 표시됩니다</span>
+              {/* 고른 것 하나만 상단에 선다. 해제하면 아무것도 서지 않으므로
+                  다시 고르는 길도 함께 적어 둔다. */}
+              <span className="font-medium text-slate-400"> · 항목을 누르면 상단에 표시되고, 다시 누르면 내려갑니다</span>
             </div>
             {dDayList.length > 0 ? (
               dDayList.map((item) => {
