@@ -139,6 +139,9 @@ export default function EntryDrawer({
 
   const [content, setContent] = useState('');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  /** 미리 골라 둘 라벨. 배너를 여는 그 순간의 값만 쓴다. */
+  const defaultLabelRef = useRef(defaultLabel);
+  defaultLabelRef.current = defaultLabel;
   const [attachments, setAttachments] = useState<EntryAttachment[]>([]);
   const [linkedItems, setLinkedItems] = useState<any[]>([]);
 
@@ -167,11 +170,16 @@ export default function EntryDrawer({
       setAttachments(normalizeAttachments(source.attachments, source.imageUrl));
     } else {
       setContent('');
-      setSelectedLabels(defaultLabel && defaultLabel !== '전체' ? [defaultLabel] : []);
+      // 미리 골라 둘 라벨은 '열 때'의 값으로 정한다. 라벨은 구독으로 들어와서
+      // 열고 나서 바뀔 수 있는데, 그 변화를 좇아 여기가 다시 돌면 적고 있던
+      // 내용까지 함께 지워진다. 그래서 ref로 읽고 deps에서는 뺀다.
+      const preset = defaultLabelRef.current;
+      setSelectedLabels(preset && preset !== '전체' ? [preset] : []);
       setAttachments([]);
       setLinkedItems([]);
     }
-  }, [entryKey, isOpen, defaultLabel]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entryKey, isOpen]);
 
   useEffect(() => {
     handleSubmitRef.current = () => handleSubmit();

@@ -282,7 +282,10 @@ export default function MemoScreen() {
               }
             : undefined
         }
-        defaultLabel={currentFilter}
+        // 보고 있던 라벨을 그대로 고른 채로 연다. '전체'를 보고 있었으면 맨 위
+        // 라벨을 골라 둔다. 매번 손으로 고르게 하면 안 고른 채로 저장되기 쉽고,
+        // 그러면 어느 갈래에도 걸리지 않는다. 눌러서 뗄 수 있다. (기록과 같다)
+        defaultLabel={currentFilter !== '전체' ? currentFilter : memoLabels[0]}
       />
     </div>
   );

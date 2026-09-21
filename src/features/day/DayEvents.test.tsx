@@ -131,6 +131,32 @@ describe("DayEvents - 새 일정 추가 폼도 '일정 수정'과 같은 구성"
     expect(screen.getByRole('button', { name: '저장' })).toBeInTheDocument();
   });
 
+  it('맨 위 라벨이 미리 골라져 있고, 눌러서 뗄 수 있다', async () => {
+    // 매번 손으로 고르게 하면 안 고른 채로 저장되기 쉽고, 그러면 그 일정은
+    // 어느 갈래에도 걸리지 않는다
+    const user = userEvent.setup();
+    renderEvents({ events: [] });
+
+    await openAddForm(user);
+
+    const first = screen.getByRole('button', { name: '달력' }); // 라벨 목록의 맨 위
+    expect(first).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(first);
+    expect(first).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('미리 골라 둔 라벨만 있으면 밖을 눌러도 적은 것으로 치지 않는다', async () => {
+    // 손대지 않았는데 라벨 하나 때문에 칸이 안 닫히면 안 된다
+    const user = userEvent.setup();
+    renderEvents({ events: [] });
+
+    await openAddForm(user);
+    await user.click(document.body);
+
+    expect(screen.queryByText('일정 내용')).toBeNull();
+  });
+
   it('아무것도 안 적은 채로 밖을 누르면 칸이 닫힌다', async () => {
     // 열어만 두고 딴 데를 누르면, 빈 칸이 '적다 만 일정'처럼 계속 눈에 걸린다
     const user = userEvent.setup();

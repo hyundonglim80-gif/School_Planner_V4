@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { EventItem } from '../../hooks/useDayData';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
@@ -19,6 +19,10 @@ interface DayEventsProps {
   onForwardIncomplete?: () => Promise<number>;
   onReorderEvents?: (sourceIndex: number, targetIndex: number) => Promise<void>;
 }
+
+/** 라벨 목록이 같은가. 차례까지 같아야 같은 것으로 본다. */
+const sameLabels = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((name, i) => name === b[i]);
 
 export default function DayEvents({
   events,
@@ -68,6 +72,25 @@ export default function DayEvents({
   const formattedDate = formatDateStr(new Date(currentDate));
 
   /**
+   * 새 일정을 열 때 미리 골라 둘 라벨. 통합 라벨 관리의 맨 위 하나다.
+   *
+   * 매번 손으로 고르게 하면 안 고른 채로 저장되기 쉽고, 그러면 그 일정은
+   * 어느 갈래에도 걸리지 않는다. 마음에 안 들면 눌러서 뗄 수 있다.
+   * 기록·메모도 같은 방식으로 맨 위 라벨을 골라 둔다.
+   */
+  const defaultNewLabels = () => (eventLabels[0]?.name ? [eventLabels[0].name] : []);
+
+  /* 칸을 열 때와 라벨이 늦게 도착했을 때 맨 위 라벨을 골라 둔다.
+     라벨은 구독으로 들어와서, 칸을 여는 순간에는 아직 비어 있을 수 있다.
+     이미 손댄 뒤라면 건드리지 않는다 — 고르던 것을 덮어쓰게 된다. */
+  useEffect(() => {
+    if (!isFormOpen || newLabels.length > 0 || newText.trim()) return;
+    const preset = defaultNewLabels();
+    if (preset.length > 0) setNewLabels(preset);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFormOpen, eventLabels]);
+
+  /**
    * 새 일정 칸에 아직 아무것도 손대지 않았는가.
    *
    * 글자뿐 아니라 라벨·알림·링크와 단추들(달력·이월·기간·반복·수업X)까지 본다.
@@ -76,7 +99,9 @@ export default function DayEvents({
    */
   const isNewFormUntouched =
     !newText.trim() &&
-    newLabels.length === 0 &&
+    // 미리 골라 둔 라벨은 사용자가 고른 것이 아니다. 그대로면 손대지 않은
+    // 것으로 본다. (뗀 채로 비어 있는 것도 마찬가지)
+    sameLabels(newLabels, defaultNewLabels()) &&
     !newAlarmTime &&
     newLinkedItems.length === 0 &&
     newCalendar && // 처음부터 켜져 있다
@@ -257,7 +282,7 @@ export default function DayEvents({
         skip: newSkip,
       });
       setNewText('');
-      setNewLabels([]);
+      setNewLabels(defaultNewLabels());
       setNewLinkedItems([]);
       setNewAlarmTime('');
       setNewCalendar(true);
@@ -391,6 +416,7 @@ export default function DayEvents({
                     key={l.id}
                     type="button"
                     onClick={() => handleLabelToggle(l.name)}
+                    aria-pressed={isSelected}
                     className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all border ${isSelected ? 'ring-2 ring-primary ring-offset-1 shadow-xs' : 'opacity-70 hover:opacity-100 bg-white text-slate-600 border-slate-200'}`}
                     style={isSelected ? { backgroundColor: c.bg, color: c.text, borderColor: c.border } : {}}
                   >
