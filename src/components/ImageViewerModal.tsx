@@ -14,10 +14,17 @@ interface ImageViewerModalProps {
   onClose: () => void;
   images: ViewerImage[];
   startIndex?: number;
+  /**
+   * 그림 아래에 붙일 것 (이 그림으로 할 수 있는 일).
+   *
+   * 머리말이 아니라 아래에 둔다. 휴대폰에서는 위쪽이 손가락에서 가장 먼 자리라,
+   * 사진을 크게 띄워 놓고 바꾸려면 화면 꼭대기까지 손을 올려야 했다.
+   */
+  footer?: React.ReactNode;
 }
 
 // 메모/기록에 첨부된 캡처 이미지를 팝업으로 바로 확인하는 뷰어.
-export default function ImageViewerModal({ isOpen, onClose, images, startIndex = 0 }: ImageViewerModalProps) {
+export default function ImageViewerModal({ isOpen, onClose, images, startIndex = 0, footer }: ImageViewerModalProps) {
   useBodyScrollLock(isOpen);
   const vv = useVisualViewport(isOpen);
   const zIndex = useModalLayer(isOpen, onClose);
@@ -98,6 +105,10 @@ export default function ImageViewerModal({ isOpen, onClose, images, startIndex =
             </>
           )}
         </div>
+
+        {footer && (
+          <div className="flex items-center justify-center gap-2 pt-1">{footer}</div>
+        )}
       </div>
     </div>
   );

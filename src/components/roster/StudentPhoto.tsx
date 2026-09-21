@@ -18,6 +18,14 @@ interface StudentPhotoProps {
   onUpload?: (file: File) => void;
   /** 번호는 안 맞고 이름만으로 되찾은 사진 (번호가 밀렸다는 신호) */
   loose?: boolean;
+  /**
+   * 사진이 있을 때 눌렀을 때 할 일 (크게 띄우기).
+   *
+   * ⚠️ 이것을 주면 사진 위의 카메라 단추는 그리지 않는다. 단추가 사진의
+   *    오른쪽 위를 덮고 있어서, 얼굴을 보려고 눌렀는데 파일 고르는 창이
+   *    열리는 일이 있었다. 바꾸는 것은 크게 띄운 창의 아래에서 한다.
+   */
+  onOpen?: () => void;
   className?: string;
 }
 
@@ -49,6 +57,7 @@ export default function StudentPhoto({
   uploading = false,
   onUpload,
   loose = false,
+  onOpen,
   className = '',
 }: StudentPhotoProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -83,7 +92,12 @@ export default function StudentPhoto({
 
   if (url) {
     return (
-      <div className={`relative ${box} bg-slate-100 ${className}`} style={style}>
+      <div
+        className={`relative ${box} bg-slate-100 ${onOpen ? 'cursor-zoom-in' : ''} ${className}`}
+        style={style}
+        onClick={onOpen ? (e) => { e.stopPropagation(); onOpen(); } : undefined}
+        title={onOpen ? `${name} 사진 크게 보기` : undefined}
+      >
         <img
           src={url}
           alt={`${name} 사진`}
@@ -98,7 +112,9 @@ export default function StudentPhoto({
             번호 다름
           </span>
         )}
-        {canUpload && !isCircle && (
+        {/* 크게 띄우는 길이 있으면 사진 위에 단추를 얹지 않는다.
+            바꾸는 것은 띄운 창의 아래에서 한다. */}
+        {canUpload && !isCircle && !onOpen && (
           <>
             <button
               type="button"

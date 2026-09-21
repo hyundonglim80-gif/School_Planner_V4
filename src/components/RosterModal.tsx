@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { showToast, showErrorToast } from '../utils/toast';
@@ -18,6 +18,7 @@ import RosterManageTab, { type RosterView } from './roster/RosterManageTab';
 import RosterSearchTab from './roster/RosterSearchTab';
 import RosterMemorizeTab from './roster/RosterMemorizeTab';
 import PhotoStatusBar from './roster/PhotoStatusBar';
+import ImageViewerModal from './ImageViewerModal';
 import { useStudentPhotos } from '../hooks/useStudentPhotos';
 import {
   yearOptions,
@@ -146,6 +147,15 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     }
   });
   const [view, setView] = useState<RosterView>('list');
+  /**
+   * 크게 띄워 보는 학생 사진.
+   *
+   * 사진 위에 얹혀 있던 카메라 단추를 걷어내고, 바꾸는 일을 이 창의 아래로
+   * 옮겼다. 손가락이 닿기 쉬운 자리이기도 하고, 무엇을 바꾸는지 얼굴을
+   * 보면서 고를 수 있다.
+   */
+  const [photoViewer, setPhotoViewer] = useState<{ student: Student; url: string } | null>(null);
+  const replaceInputRef = useRef<HTMLInputElement>(null);
   const [editingClass, setEditingClass] = useState(false);
   /** 검색 탭에서 누른 학생을 관리 탭에서 잠깐 짚어 준다 */
   const [highlightNum, setHighlightNum] = useState<number | null>(null);
@@ -296,6 +306,18 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
         showErrorToast(e?.message || '사진을 불러오지 못했습니다.');
       });
     }
+  };
+
+  /**
+   * 구글에 이어 붙이고 사진을 불러온다 (권한 창이 떠도 되는 자리).
+   *
+   * 사진 보기를 켜 둔 채로 팝업을 열면 토큰이 없을 때 'needs-auth'로 멈추는데,
+   * 그때 이 단추로 한 번에 잇는다. 예전에는 사진을 껐다가 다시 켜야 했다.
+   */
+  const handleAuthorizePhotos = () => {
+    photoState.authorize().catch((e: any) => {
+      showErrorToast(e?.message || '사진을 불러오지 못했습니다.');
+    });
   };
 
   /** 못 읽는 폴더에 묶인 것을 풀고 앱이 맡아 두는 자리로 되돌아간다 */
@@ -877,10 +899,24 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
      '사진 불러오기' 단추는 뺐다. 위쪽 '사진'을 누르면 필요한 로그인까지
      그 자리에서 하므로, 같은 뜻을 두 번 묻는 단추였다. 권한 창을 닫았거나
      거절한 사람에게 무엇을 하면 되는지만 알려 준다. */
+  /*
+    ⚠️ 여기에 단추가 있어야 한다.
+       사진 보기를 켜 둔 채로 팝업을 열면, 토큰이 없을 때 조용히 'needs-auth'로
+       멈춘다. 그 상태에서 안내 글만 있으면 '사진을 껐다가 다시 켜는' 두 번을
+       거쳐야 로그인 창이 떴다. 사진이 안 나오는데 까닭도 안 보이니 고장으로
+       읽힌다. 여기서 한 번에 잇는다.
+       (권한 창은 누른 그 자리에서만 열 수 있어 자동으로는 띄울 수 없다)
+  */
   const needsAuthBand = (
-    <div className="text-2xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2">
-      구글 연결이 끊겨 사진을 불러오지 못했습니다. 위쪽 <strong className="text-slate-700">사진</strong> 단추를
-      다시 누르면 연결합니다. 명단은 그대로 쓰실 수 있습니다.
+    <div className="flex items-center justify-between gap-2 text-2xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 flex-wrap">
+      <span>구글 연결이 끊겨 사진을 불러오지 못했습니다. 명단은 그대로 쓰실 수 있습니다.</span>
+      <button
+        type="button"
+        onClick={handleAuthorizePhotos}
+        className="px-2.5 py-1 bg-primary hover:bg-primary/90 rounded text-2xs font-bold text-white transition-colors cursor-pointer shrink-0"
+      >
+        구글 연결하고 사진 불러오기
+      </button>
     </div>
   );
 
@@ -1289,6 +1325,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                 canUploadPhoto
                 uploadingNum={photoState.uploading}
                 onUploadPhoto={handleUploadPhoto}
+                onOpenPhoto={(st, url) => setPhotoViewer({ student: st, url })}
                 onUpdateStudent={handleUpdateStudent}
                 onRemoveStudent={handleRemoveStudent}
                 highlightNum={highlightNum}
@@ -1476,6 +1513,43 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
           </>
         )}
       </div>
+
+      {/* 학생 사진을 크게 띄운 창. 바꾸는 단추는 아래에 둔다. */}
+      {photoViewer && (
+        <>
+          <ImageViewerModal
+            isOpen
+            onClose={() => setPhotoViewer(null)}
+            images={[{ url: photoViewer.url, name: `${photoViewer.student.num}번 ${photoViewer.student.name}` }]}
+            footer={
+              <button
+                type="button"
+                onClick={() => replaceInputRef.current?.click()}
+                disabled={photoState.uploading === photoViewer.student.num}
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-white/15 text-white hover:bg-white/25 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {photoState.uploading === photoViewer.student.num ? '올리는 중...' : '📷 사진 바꾸기'}
+              </button>
+            }
+          />
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            ref={replaceInputRef}
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              // 같은 파일을 두 번 고를 수 있게 값을 비운다
+              e.target.value = '';
+              if (!file) return;
+              const target = photoViewer.student;
+              await handleUploadPhoto(target, file);
+              // 올리고 나면 창을 닫는다. 바뀐 사진은 목록에서 바로 보인다.
+              setPhotoViewer(null);
+            }}
+          />
+        </>
+      )}
     </ModalShell>
   );
 }

@@ -23,6 +23,8 @@ interface RosterManageTabProps {
   /** 지금 올리고 있는 학생의 번호 */
   uploadingNum: number | null;
   onUploadPhoto: (student: Student, file: File) => void;
+  /** 사진을 눌렀을 때 크게 띄운다 (사진이 있을 때만 준다) */
+  onOpenPhoto?: (student: Student, url: string) => void;
   onUpdateStudent: (idx: number, field: keyof Student, val: any) => void;
   onRemoveStudent: (idx: number) => void;
   /** 검색 탭에서 넘어온 학생을 잠깐 짚어 준다 */
@@ -37,6 +39,7 @@ export default function RosterManageTab({
   canUploadPhoto,
   uploadingNum,
   onUploadPhoto,
+  onOpenPhoto,
   onUpdateStudent,
   onRemoveStudent,
   highlightNum,
@@ -51,7 +54,10 @@ export default function RosterManageTab({
 
   if (view === 'tile') {
     return (
-      <div className="grid grid-cols-6 gap-2">
+      /* ⚠️ 휴대폰에서 여섯 칸으로 나누면 한 칸이 55px이라 얼굴도 이름도 못 읽는다.
+            세 칸으로 두면 한 칸이 115px 남짓이 되어 이름이 잘리지 않는다.
+            PC는 예전처럼 여섯 칸. */
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
         {students.map((st, idx) => {
           const photo = photos.get(st.num);
           return (
@@ -70,6 +76,7 @@ export default function RosterManageTab({
                   uploading={uploadingNum === st.num}
                   onUpload={(file) => onUploadPhoto(st, file)}
                   loose={photo?.exact === false}
+                  onOpen={photo?.url && onOpenPhoto ? () => onOpenPhoto(st, photo.url) : undefined}
                 />
                 {st.isActive === false && (
                   <span className="absolute top-1.5 left-1.5 bg-slate-600/90 text-white text-2xs font-bold rounded px-1.5 py-0.5">
@@ -77,8 +84,10 @@ export default function RosterManageTab({
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-1.5 px-2 py-1.5">
-                <span className="bg-blue-50 text-primary rounded text-2xs font-extrabold px-1.5 py-0.5 shrink-0">
+              {/* 이름 줄. 좁은 칸에서는 번호·이름·✕가 서로 밀어내 이름이 먼저
+                  잘린다. 좌우 여백을 줄이고 이름에 남는 자리를 다 준다. */}
+              <div className="flex items-center gap-1 px-1.5 py-1.5 sm:gap-1.5 sm:px-2">
+                <span className="bg-blue-50 text-primary rounded text-2xs font-extrabold px-1 sm:px-1.5 py-0.5 shrink-0">
                   {st.num}
                 </span>
                 <input
@@ -139,6 +148,7 @@ export default function RosterManageTab({
                         uploading={uploadingNum === st.num}
                         onUpload={(file) => onUploadPhoto(st, file)}
                         loose={photo?.exact === false}
+                        onOpen={photo?.url && onOpenPhoto ? () => onOpenPhoto(st, photo.url) : undefined}
                       />
                     </div>
                   </td>
