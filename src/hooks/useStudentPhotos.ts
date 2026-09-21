@@ -134,6 +134,8 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
   // 비동기로 받아온 결과가 뒤늦게 도착해 다른 학급 화면을 덮어쓰지 않게
   // 마지막 요청만 반영한다.
   const runIdRef = useRef(0);
+  /** 사용자가 눌러서 부른 불러오기가 진행 중인가 (권한 창이 떠 있을 수 있다) */
+  const interactiveRef = useRef(false);
   /** 마지막으로 쓸 수 있었던 토큰. 사진을 받아 올 때 쓴다. */
   const tokenRef = useRef<string>('');
   const studentsRef = useRef(students);
@@ -169,7 +171,17 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
    */
   const load = useCallback(
     async (interactive = false, freshScan = false) => {
-      if (!enabled || !cls || !className) return;
+      // interactive는 사용자가 '사진'을 눌러 부른 자리다. 그 순간에는 enabled가
+      // 아직 켜지기 전이라(상태가 다음 그림에서야 바뀐다) enabled를 보고 막으면
+      // 켜는 그 한 번이 통째로 건너뛰어진다. 누른 사람의 뜻은 분명하므로 지나간다.
+      if ((!enabled && !interactive) || !cls || !className) return;
+
+      // 켜는 순간에는 두 번 불린다. 누른 사람이 부른 것과, enabled가 켜지며
+      // 아래 효과가 부르는 조용한 것. 조용한 쪽이 먼저 'needs-auth'로 멈추면
+      // 권한 창을 마치고 돌아온 결과가 뒤늦은 것으로 몰려 버려진다. 비켜선다.
+      if (!interactive && interactiveRef.current) return;
+      if (interactive) interactiveRef.current = true;
+
       const runId = ++runIdRef.current;
 
       setStatus('loading');
@@ -177,7 +189,8 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
       try {
         const token = interactive ? await getValidGoogleToken() : await getGoogleTokenQuietly();
         if (!token) {
-          setStatus('needs-auth');
+          // 이 사이에 더 새 것이 떴으면 그쪽에 맡긴다
+          if (runId === runIdRef.current) setStatus('needs-auth');
           return;
         }
         tokenRef.current = token;
@@ -196,6 +209,8 @@ export function useStudentPhotos(cls: ClassKey | null, students: Student[], enab
         setError(
           e instanceof PhotoAccessError ? e.message : e?.message || '사진을 불러오지 못했습니다.'
         );
+      } finally {
+        if (interactive) interactiveRef.current = false;
       }
     },
     [enabled, cls, className, rootId, pickedId]

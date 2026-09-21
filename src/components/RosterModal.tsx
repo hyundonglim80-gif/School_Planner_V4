@@ -270,18 +270,32 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     }
   };
 
+  /**
+   * 사진 보기를 켜고 끈다.
+   *
+   * 켤 때는 필요하면 구글 권한 창까지 여기서 띄운다. 예전에는 켜기만 하고,
+   * 연결이 없으면 '구글 연결이 끊겼습니다' 띠를 내어 단추를 한 번 더 누르게
+   * 했다. 사진을 보겠다고 누른 사람에게 같은 뜻을 두 번 묻는 셈이었다.
+   *
+   * 권한 창은 누른 그 순간에만 열 수 있다(브라우저가 팝업을 막는다). 그래서
+   * 상태가 바뀌기를 기다리지 않고 이 자리에서 바로 부른다.
+   */
   const togglePhotos = () => {
-    setShowPhotos((on) => {
-      const next = !on;
-      try {
-        localStorage.setItem('sp4-roster-photos', next ? '1' : '0');
-      } catch {
-        /* 시크릿 모드 등. 이번 판에서만 켜진다. */
-      }
-      // 사진을 끄면 타일 보기는 뜻이 없다 (빈 칸만 늘어선다)
-      if (!next) setView('list');
-      return next;
-    });
+    const next = !showPhotos;
+    try {
+      localStorage.setItem('sp4-roster-photos', next ? '1' : '0');
+    } catch {
+      /* 시크릿 모드 등. 이번 판에서만 켜진다. */
+    }
+    // 사진을 끄면 타일 보기는 뜻이 없다 (빈 칸만 늘어선다)
+    if (!next) setView('list');
+    setShowPhotos(next);
+
+    if (next) {
+      photoState.authorize().catch((e: any) => {
+        showErrorToast(e?.message || '사진을 불러오지 못했습니다.');
+      });
+    }
   };
 
   /** 못 읽는 폴더에 묶인 것을 풀고 앱이 맡아 두는 자리로 되돌아간다 */
@@ -316,15 +330,6 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       }
     } catch (e: any) {
       showErrorToast(e?.message || '폴더를 연결하지 못했습니다.');
-    }
-  };
-
-  /** 구글에 다시 이어 붙이고 사진을 불러온다 (권한 창이 떠도 되는 자리) */
-  const handleAuthorizePhotos = async () => {
-    try {
-      await photoState.authorize();
-    } catch (e: any) {
-      showErrorToast(e?.message || '구글 연결에 실패했습니다.');
     }
   };
 
@@ -868,16 +873,14 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   /* 구글 연결이 끊겼을 때의 띠. 팝업을 여는 것만으로 로그인 창을 띄우지
      않기로 했으므로(useStudentPhotos 참고), 눌러 주실 때까지 기다린다.
      관리 탭과 암기 탭이 같은 것을 쓴다. */
+  /* 구글 연결이 안 됐을 때의 띠.
+     '사진 불러오기' 단추는 뺐다. 위쪽 '사진'을 누르면 필요한 로그인까지
+     그 자리에서 하므로, 같은 뜻을 두 번 묻는 단추였다. 권한 창을 닫았거나
+     거절한 사람에게 무엇을 하면 되는지만 알려 준다. */
   const needsAuthBand = (
-    <div className="flex items-center justify-between gap-2 text-2xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 flex-wrap">
-      <span>구글 연결이 끊겨 사진을 불러오지 못했습니다. 명단은 그대로 쓰실 수 있습니다.</span>
-      <button
-        type="button"
-        onClick={handleAuthorizePhotos}
-        className="px-2.5 py-1 bg-primary hover:bg-primary/90 rounded text-2xs font-bold text-white transition-colors cursor-pointer"
-      >
-        사진 불러오기
-      </button>
+    <div className="text-2xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2">
+      구글 연결이 끊겨 사진을 불러오지 못했습니다. 위쪽 <strong className="text-slate-700">사진</strong> 단추를
+      다시 누르면 연결합니다. 명단은 그대로 쓰실 수 있습니다.
     </div>
   );
 
