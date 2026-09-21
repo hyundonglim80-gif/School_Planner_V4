@@ -130,6 +130,15 @@ let dbRef: Firestore | null = null;
 // 그래서 '살아 있다는 신호'를 기다린다. 로그인까지 끝났는데 그 신호가 한 번도
 // 오지 않으면 캐시가 깨진 것으로 보고 비우고 다시 시작한다.
 let aliveSeen = false;
+/**
+ * 구독이 '한 번이라도' 답을 줬는가 (캐시에서 온 것도 친다).
+ *
+ * ⚠️ 이 둘을 갈라 두지 않으면 서로 다른 두 사고를 구별할 수 없다.
+ *    · 사용기록을 지워 저장소가 잠긴 경우 — 콜백이 한 번도 안 불린다. 화면이 빈다.
+ *    · 그냥 새로고침한 경우 — 캐시 콜백은 오고 서버 콜백만 안 온다. 화면은 멀쩡하다.
+ *    앞의 것은 반드시 고쳐야 하고, 뒤의 것은 건드리면 안 된다.
+ */
+let anyAnswerSeen = false;
 let watchdog: ReturnType<typeof setTimeout> | null = null;
 
 /**
@@ -140,6 +149,8 @@ let watchdog: ReturnType<typeof setTimeout> | null = null;
  *    만족해 버리고, 정작 화면은 빈 채로 남았다. 서버에서 온 답만 인정한다.
  */
 export function markFirestoreAlive(fromServer: boolean = true) {
+  // 캐시에서 온 답도 '구독이 살아서 불리고는 있다'는 뜻은 된다. 그것만 따로 센다.
+  anyAnswerSeen = true;
   if (!fromServer) return;
   aliveSeen = true;
   if (watchdog) {
@@ -192,6 +203,22 @@ export function startPersistenceWatchdog(db: Firestore, ms = 10000) {
     watchdog = null;
     if (aliveSeen) return;
 
+    // ⚠️ 구독이 한 번도 안 불렸으면 서버에 물어볼 것도 없다.
+    //    사용기록을 지우면 잠긴 저장소 때문에 콜백이 아예 오지 않는데, 서버
+    //    직접 조회(getDocFromServer)는 그와 상관없이 답할 수 있다. 그 답만 보고
+    //    '멀쩡하다'로 넘기면 화면이 빈 채로 영영 남는다. 실제로 그렇게 됐다.
+    //    캐시 답조차 없다 = 저장소가 잠긴 것이다. 곧바로 되살린다.
+    if (!anyAnswerSeen) {
+      console.warn(
+        '[SP4] 로그인은 됐는데 구독이 한 번도 답하지 않았습니다. ' +
+        '오프라인 저장소를 못 잡은 것으로 보고 저장소 없이 다시 시작합니다.'
+      );
+      recoverByGivingUpPersistence('no-response', '구독이 한 번도 불리지 않음');
+      return;
+    }
+
+    // 여기까지 왔으면 캐시 답은 오고 있다 = 화면에는 내용이 떠 있다.
+    // 서버 답만 안 온 것이 정말 고장인지 한 번 더 확인한다.
     void serverReachable().then((reachable) => {
       if (aliveSeen) return;
       if (reachable) {
