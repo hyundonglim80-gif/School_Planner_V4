@@ -62,12 +62,20 @@ export default function LinkCreateModal({
   const [label, setLabel] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // 열 때마다 빈 칸에서 시작한다
+  // 열 때마다 빈 칸에서 시작하되, 라벨은 맨 위 것을 골라 둔다.
+  //
+  // 다른 새 항목 칸들(하루의 '+ 새 일정', 주간·월간·년간의 빠른 추가,
+  // 기록·메모 배너)과 같게 맞춘다. 어디서 만들었느냐에 따라 라벨이 붙기도
+  // 하고 안 붙기도 하면, 라벨로 걸러 볼 때 왜 빠졌는지 알 길이 없다.
+  //
+  // 라벨 목록은 일부러 deps에 넣지 않는다. 라벨은 구독으로 들어와서 열고 나서
+  // 바뀔 수 있는데, 그때 이 효과가 다시 돌면 적고 있던 내용까지 지워진다.
   useEffect(() => {
     if (!isOpen) return;
     setContent('');
     setDateStr(defaultDate);
-    setLabel('');
+    setLabel(labelNames[0] || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, defaultDate]);
 
   // 라벨은 종류마다 담긴 모양이 다르다. 여기서 이름만 뽑아 한 줄로 맞춘다.

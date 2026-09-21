@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { showToast, showErrorToast } from '../utils/toast';
@@ -22,6 +22,24 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [linkedItems, setLinkedItems] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+
+  /**
+   * 미리 골라 둘 라벨. 통합 라벨 관리의 맨 위 하나다.
+   *
+   * 하루 화면의 '+ 새 일정'과 같게 맞춘다. 같은 일정을 더하는데 어느 화면에서
+   * 눌렀느냐에 따라 라벨이 붙기도 하고 안 붙기도 하면, 나중에 라벨로 걸러 볼 때
+   * 왜 빠졌는지 알 길이 없다. 마음에 안 들면 눌러서 뗄 수 있다.
+   */
+  const defaultLabels = () => (eventLabels[0]?.name ? [eventLabels[0].name] : []);
+
+  /* 라벨은 구독으로 들어와서 팝업을 여는 순간에는 아직 비어 있을 수 있다.
+     도착하면 그때 골라 둔다. 이미 손댄 뒤라면 건드리지 않는다. */
+  useEffect(() => {
+    if (!isOpen || selectedLabels.length > 0 || text.trim()) return;
+    const preset = defaultLabels();
+    if (preset.length > 0) setSelectedLabels(preset);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, eventLabels]);
 
   // 라벨 다중 선택 토글
   const handleLabelToggle = (labelName: string) => {
@@ -85,7 +103,8 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
       }
 
       setText('');
-      setSelectedLabels([]);
+      // 이어서 하나 더 적을 수 있으므로, 비우지 말고 다시 골라 둔다
+      setSelectedLabels(defaultLabels());
       setLinkedItems([]);
       showToast('✅ 일정이 추가되었습니다.');
     } catch (e: any) {
@@ -139,6 +158,7 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
                     key={l.id}
                     type="button"
                     onClick={() => handleLabelToggle(l.name)}
+                    aria-pressed={isSelected}
                     className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all border ${
                       isSelected 
                         ? 'ring-2 ring-primary ring-offset-1 shadow-xs' 

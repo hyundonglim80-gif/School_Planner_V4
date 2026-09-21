@@ -101,11 +101,28 @@ describe('새 항목 만들어 연결 - 저장', () => {
     expect(payload.labels).toEqual(['업무']);
   });
 
-  it('라벨을 고르지 않아도 저장된다', async () => {
+  it('라벨을 안 골라도 맨 위 라벨이 붙어 저장된다', async () => {
+    // 다른 새 항목 칸들과 같게 맞춘다. 안 고른 채로 저장되면 그 항목은
+    // 어느 갈래에도 걸리지 않아, 라벨로 걸러 볼 때 통째로 빠진다.
     const user = userEvent.setup();
     const onCreated = vi.fn();
     render(<LinkCreateModal {...props} type="memo" onClose={vi.fn()} onCreated={onCreated} />);
 
+    expect(screen.getByRole('button', { name: '업무' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.type(screen.getByPlaceholderText('새 메모 내용'), '메모만');
+    await user.click(screen.getByRole('button', { name: '저장' }));
+
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    expect((addDocMock as any).mock.calls[0][1].labels).toEqual(['업무']);
+  });
+
+  it("'없음'을 누르면 라벨 없이 저장된다", async () => {
+    const user = userEvent.setup();
+    const onCreated = vi.fn();
+    render(<LinkCreateModal {...props} type="memo" onClose={vi.fn()} onCreated={onCreated} />);
+
+    await user.click(screen.getByRole('button', { name: '없음' }));
     await user.type(screen.getByPlaceholderText('새 메모 내용'), '메모만');
     await user.click(screen.getByRole('button', { name: '저장' }));
 
