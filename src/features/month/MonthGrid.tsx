@@ -289,11 +289,12 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                 )}
 
                 {showEvents && (
-                /* 휴대폰에서는 접지 않고 다 보여준다. 세 개만 두고 '+1개'로
-                   줄이면 그 하나가 무엇인지 알 수 없어, 결국 날짜를 눌러
-                   들어가 봐야 한다. 접어서 아낀 자리보다 잃는 것이 크다. */
+                /* 접지 않고 다 보여준다. 세 개만 두고 '+1개'로 줄이면 그 하나가
+                   무엇인지 알 수 없어, 결국 날짜를 눌러 들어가 봐야 한다.
+                   접어서 아낀 자리보다 잃는 것이 크다. 줄 높이가 날마다
+                   달라지지만, 달력은 그날 무엇이 있는지 보려고 여는 것이다. */
                 <div className={compact ? 'space-y-[2px]' : 'space-y-1'}>
-                  {(compact ? events : events.slice(0, 3)).map((ev) => {
+                  {events.map((ev) => {
                     // 라벨 해석은 lib/eventLabels 한 곳에서만 한다
                     const labelDef = resolveEventLabel(ev, eventLabels, { keepUnknown: !labelsLoaded });
                     const labelName = labelDef?.name || '';
@@ -406,11 +407,6 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                       </div>
                     );
                   })}
-                  {!compact && events.length > 3 && (
-                    <div className="text-xs font-bold text-slate-400 pl-1">
-                      +{events.length - 3}개
-                    </div>
-                  )}
                 </div>
                 )}
               </div>
