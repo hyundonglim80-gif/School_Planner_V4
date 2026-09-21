@@ -124,7 +124,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
               <div>
                 {/* 자리가 모자라면 표식이 아랫줄로 내려간다. 날짜와 공휴일
                     이름을 가리는 것보다 한 줄 더 쓰는 편이 낫다. */}
-                <div className="flex flex-wrap items-center justify-between gap-x-1 gap-y-0.5 mb-1.5">
+                <div className={`flex flex-wrap items-center justify-between gap-x-1 gap-y-0.5 ${compact ? 'mb-0.5' : 'mb-1.5'}`}>
                   {/* 날짜 뒤에 공휴일 이름. 남는 자리를 다 쓰도록 min-w-0 flex-1 을 준다.
                       예전에는 max-w-[65px]로 묶어 두어 '대체공휴일'이 '대체공...'으로 잘렸다. */}
                   <div className="flex items-center gap-1 min-w-0">
@@ -164,7 +164,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                     다 쓰고, 그래도 길면 글자를 줄인다. */}
                 {holidayName && compact && (
                   <div
-                    className="w-full mb-1 text-center overflow-hidden [container-type:inline-size]"
+                    className="w-full mb-0.5 text-center overflow-hidden [container-type:inline-size]"
                     title={holidayName}
                   >
                     <span
@@ -182,53 +182,66 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                   첫 글자만 모아 '과수영미실사'로 적어 보았더니 무슨 과목인지
                   알 수 없어 더 나빴다.
 
-                  세로로 쓴다. 8px 폭에 한 글자씩 내려 쓰면 되므로 이름이 온전히
-                  남는다. 글자는 칩 너비에 맞춰 줄여, 두 글자짜리 과목이라도
-                  줄이 16px 남짓에서 그치게 한다(그보다 키우면 줄이 두꺼워진다).
-                  교시 자리는 PC와 같게 여섯 칸을 그대로 둔다 — 몇 교시인지는
-                  자리로 읽는 것이라 빈 교시를 빼면 차례가 어긋난다.
-                */}
-                {showClass && hasClasses && compact && (
-                  <div className="flex flex-nowrap gap-[1px] w-full mb-1 mt-0.5 items-stretch">
-                    {periodArray.map((p) => {
-                      const item = schedules[p];
-                      const text = item?.subject?.trim() || '';
+                  세로로 쓴다. 8px 폭에 한 글자씩 내려 쓰면 되므로 이름이 온전히 남는다.
 
-                      if (text && text.toUpperCase() !== 'X') {
+                  ⚠️ 뒤쪽 빈 교시는 그리지 않는다.
+                     시간표가 5교시까지인데 여섯째 칸이 빈 채로 서 있으면
+                     '6교시가 있는데 비었다'로 읽힌다. 실제로 그렇게 보였다.
+                     사이에 낀 빈 교시(3교시만 없는 날)는 그대로 둔다 — 그건
+                     자리로 읽어야 차례가 맞는다. 끝에 남는 것만 잘라 낸다.
+                     칸이 줄면 남은 칩이 넓어져 글자도 그만큼 커진다.
+                */}
+                {showClass && hasClasses && compact && (() => {
+                  let last = 0;
+                  for (const p of periodArray) {
+                    const t = schedules[p]?.subject?.trim() || '';
+                    if (t && t.toUpperCase() !== 'X') last = p;
+                  }
+                  const shown = periodArray.filter((p) => p <= last);
+                  return (
+                    <div className="flex flex-nowrap gap-[1px] w-full mb-0.5 items-stretch">
+                      {shown.map((p) => {
+                        const item = schedules[p];
+                        const text = item?.subject?.trim() || '';
+
+                        if (text && text.toUpperCase() !== 'X') {
+                          return (
+                            <div
+                              key={p}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDetailModal({
+                                  isOpen: true,
+                                  type: 'schedule',
+                                  dateStr: dayObj.dateStr,
+                                  itemId: p,
+                                  initialData: item,
+                                });
+                              }}
+                              className="flex-1 min-w-0 flex items-center justify-center border border-emerald-300 rounded-[3px] bg-emerald-50 text-emerald-700 font-bold overflow-hidden cursor-pointer [container-type:inline-size]"
+                              title={`${text} (${p}교시)`}
+                            >
+                              {/* 세로쓰기에서 글자 사이를 벌리는 것은 letter-spacing이다.
+                                  줄을 얇게 하려고 음수로 당긴다. */}
+                              <span
+                                className="whitespace-nowrap leading-none [writing-mode:vertical-rl] [text-orientation:upright] [letter-spacing:-0.06em]"
+                                style={{ fontSize: verticalFitFontSize() }}
+                              >
+                                {text}
+                              </span>
+                            </div>
+                          );
+                        }
                         return (
                           <div
                             key={p}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDetailModal({
-                                isOpen: true,
-                                type: 'schedule',
-                                dateStr: dayObj.dateStr,
-                                itemId: p,
-                                initialData: item,
-                              });
-                            }}
-                            className="flex-1 min-w-0 py-[1px] flex items-center justify-center border border-emerald-300 rounded-[3px] bg-emerald-50 text-emerald-700 font-bold overflow-hidden cursor-pointer [container-type:inline-size]"
-                            title={`${text} (${p}교시)`}
-                          >
-                            <span
-                              className="whitespace-nowrap leading-none tracking-tighter [writing-mode:vertical-rl] [text-orientation:upright]"
-                              style={{ fontSize: verticalFitFontSize() }}
-                            >
-                              {text}
-                            </span>
-                          </div>
+                            className="flex-1 min-w-0 border border-slate-200 rounded-[3px] bg-slate-50"
+                          />
                         );
-                      }
-                      return (
-                        <div
-                          key={p}
-                          className="flex-1 min-w-0 border border-slate-200 rounded-[3px] bg-slate-50"
-                        />
-                      );
-                    })}
-                  </div>
-                )}
+                      })}
+                    </div>
+                  );
+                })()}
 
                 {showClass && hasClasses && !compact && (
                   <div className="flex flex-nowrap gap-[1px] w-full mb-1.5 mt-0.5">
@@ -276,8 +289,11 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                 )}
 
                 {showEvents && (
-                <div className="space-y-1">
-                  {events.slice(0, 3).map((ev) => {
+                /* 휴대폰에서는 접지 않고 다 보여준다. 세 개만 두고 '+1개'로
+                   줄이면 그 하나가 무엇인지 알 수 없어, 결국 날짜를 눌러
+                   들어가 봐야 한다. 접어서 아낀 자리보다 잃는 것이 크다. */
+                <div className={compact ? 'space-y-[2px]' : 'space-y-1'}>
+                  {(compact ? events : events.slice(0, 3)).map((ev) => {
                     // 라벨 해석은 lib/eventLabels 한 곳에서만 한다
                     const labelDef = resolveEventLabel(ev, eventLabels, { keepUnknown: !labelsLoaded });
                     const labelName = labelDef?.name || '';
@@ -390,7 +406,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                       </div>
                     );
                   })}
-                  {events.length > 3 && (
+                  {!compact && events.length > 3 && (
                     <div className="text-xs font-bold text-slate-400 pl-1">
                       +{events.length - 3}개
                     </div>

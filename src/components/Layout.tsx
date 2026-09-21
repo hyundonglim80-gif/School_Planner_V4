@@ -700,46 +700,50 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             날짜 이동은 모든 화면에 공통이므로 좁은 화면에서도 늘 첫 줄에 둔다. */}
         {scope !== 'memo' && (
           <div className="flex flex-wrap sm:flex-nowrap items-center justify-between border-t border-dashed border-slate-200 pt-2.5 mt-0.5 max-w-7xl mx-auto w-full gap-2 sm:overflow-x-auto">
-            {/* 좌측 옵션 단추 (주말/일정/수업 토글, 년간의 학기 칩).
-                ⚠️ 좁은 화면에서 이것을 숨기고 ⋮ 메뉴로 내려 두었더니, 늘 쓰는
-                   토글을 쓰려면 메뉴를 먼저 열어야 했다. PC와 같게 왼쪽에 둔다.
-                   다만 날짜 이동과 한 줄에 다 넣으면 390px에서 넘치므로
-                   (토글 셋 156px + 날짜 230px), 좁을 때는 아랫줄로 내려 왼쪽에
-                   붙인다. 년간의 학기 칩이 이미 그렇게 하고 있다. */}
-            <div
-              className="flex order-2 sm:order-1 w-full sm:w-auto items-center gap-1.5 flex-none"
-            >
-              {scope === 'year' && (
-                <div className="flex bg-slate-100 p-0.5 rounded-xl gap-0.5">
+            {/* 년간의 학기 칩.
+                ⚠️ 좁은 화면에서는 아랫줄로 내린다. 토글 셋과 날짜 이동만으로도
+                   360px가 꽉 차서, 학기 칩까지 같은 줄에 두면 '▶'가 4px 밀려
+                   나갔다(실제로 그랬다). PC에서는 예전처럼 토글 왼쪽에 선다. */}
+            {scope === 'year' && (
+              <div className="order-3 w-full sm:order-1 sm:w-auto flex-none">
+                <div className="inline-flex bg-slate-100 p-0.5 rounded-xl gap-0.5">
                   <button
                     onClick={() => setSemesterFilter('all')}
-                    className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${semesterFilter === 'all' ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-1.5 py-0.5 text-2xs sm:px-2 sm:py-1 sm:text-xs rounded-lg font-bold whitespace-nowrap transition-all ${semesterFilter === 'all' ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                   >
                     전체
                   </button>
                   <button
                     onClick={() => setSemesterFilter(1)}
-                    className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${semesterFilter === 1 ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-1.5 py-0.5 text-2xs sm:px-2 sm:py-1 sm:text-xs rounded-lg font-bold whitespace-nowrap transition-all ${semesterFilter === 1 ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                   >
                     1학기
                   </button>
                   <button
                     onClick={() => setSemesterFilter(2)}
-                    className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${semesterFilter === 2 ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-1.5 py-0.5 text-2xs sm:px-2 sm:py-1 sm:text-xs rounded-lg font-bold whitespace-nowrap transition-all ${semesterFilter === 2 ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                   >
                     2학기
                   </button>
                 </div>
-              )}
-              {/* 표시 토글 - 켜짐/꺼짐이 한눈에 구분되게 채움 vs 흐림으로 나눈다. */}
-              <div className="flex items-center gap-1.5">
+              </div>
+            )}
+
+            {/* 주말/일정/수업 토글.
+                ⚠️ 좁은 화면에서 이것을 숨기고 ⋮ 메뉴로 내려 두었더니, 늘 쓰는
+                   토글을 쓰려면 메뉴를 먼저 열어야 했다. PC와 같게 왼쪽에 둔다.
+                   좁은 화면에서는 단추를 작게 줄여 날짜와 한 줄에 세운다. */}
+            <div className="flex order-1 sm:order-2 items-center gap-1 sm:gap-1.5 flex-none">
                 {viewToggles.map((t) => (
                   <button
                     key={t.key}
                     onClick={() => t.set(!t.on)}
                     aria-pressed={t.on}
                     title={`${t.label} ${t.on ? '숨기기' : '보이기'}${t.hint ? ` (단축키: ${t.hint})` : ''}`}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${
+                    /* 좁은 화면에서는 작게 줄여 날짜와 한 줄에 선다.
+                       390px 기준 한 단추 34px * 3 + 사이 8px = 110px 로,
+                       날짜 칸(약 230px)과 함께 들어간다. */
+                    className={`px-1.5 py-0.5 text-2xs sm:px-3 sm:py-1 sm:text-xs rounded-lg font-bold border transition-all whitespace-nowrap ${
                       t.on
                         ? 'bg-primary text-white border-primary shadow-xs'
                         : 'bg-white text-slate-400 border-slate-200 line-through decoration-slate-300'
@@ -748,11 +752,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     {t.label}
                   </button>
                 ))}
-              </div>
             </div>
 
             {/* 중앙 날짜 네비게이션 (가운데 정렬, 왼쪽 이전, 오른쪽 다음, 날짜 클릭 시 오늘) */}
-            <div className="flex items-center justify-center gap-3 sm:gap-4 basis-full sm:basis-auto sm:flex-1 min-w-0 order-1 sm:order-2">
+            {/* 토글을 작게 만들어 같은 줄에 넣었으므로, 날짜 칸이 한 줄을
+                통째로 차지하지 않게 한다(basis-full 을 뗀다). */}
+            <div className="flex items-center justify-center gap-1.5 sm:gap-4 flex-1 min-w-0 order-2 sm:order-3">
               <button
                 onClick={handlePrevDate}
                 className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs sm:text-sm transition-all shadow-2xs cursor-pointer"
