@@ -12,6 +12,13 @@ import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
+import {
+  nextCell,
+  parseClipboardGrid,
+  isSingleCell,
+  clipboardWrites,
+  type CellPos,
+} from '../lib/gridNav';
 
 interface TimetableTemplateModalProps {
   isOpen: boolean;
@@ -47,6 +54,9 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
 
   // 현재 편집 중인 템플릿의 로컬 상태
   const [editingTemplates, setEditingTemplates] = useState<Record<string, TimetableTemplateItem>>({});
+  // 시간표 표. 칸을 오갈 때 이 안에서 찾는다.
+  // (아래에 isOpen 조건부 반환이 있어, 훅은 그보다 위에 있어야 한다)
+  const gridRef = React.useRef<HTMLTableSectionElement>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('1학기 시간표');
 
   // 방학 기간 로컬 상태 (학기는 여기서 계산한다)
@@ -195,6 +205,75 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
       data: curData,
     };
     setEditingTemplates(updated);
+  };
+
+  // ── 표 안에서 엑셀처럼 움직이고 붙여 넣기 ──────────────────────────
+  //
+  // 시간표는 엑셀로 만들어 두고 옮겨 적는 일이 잦다. 옮겨 적는 동안 손이
+  // 마우스로 가면 스물다섯 칸이 스물다섯 번이다. 규칙은 lib/gridNav.ts에 있다.
+  //
+  // 칸 0은 교시명, 칸 1부터가 요일이다.
+  const gridCols = DAYS.length + 1;
+  const gridSize = { rows: periodNames.length, cols: gridCols };
+
+  /** 옮겨 간 칸에 커서를 놓고 글자를 통째로 고른다 (엑셀처럼 덮어쓰기 좋게) */
+  const focusCell = (pos: CellPos) => {
+    const el = gridRef.current?.querySelector<HTMLInputElement>(
+      `input[data-cell="${pos.row}-${pos.col}"]`
+    );
+    if (!el) return;
+    el.focus();
+    el.select();
+  };
+
+  const handleCellKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, row: number, col: number) => {
+    const el = e.currentTarget;
+    const target = nextCell(
+      { row, col },
+      gridSize,
+      {
+        key: e.key,
+        shift: e.shiftKey,
+        // 고른 글자가 있으면 커서가 양 끝에 다 닿은 것으로 본다. 통째로
+        // 고른 상태에서 좌우를 누르면 옆 칸으로 가는 편이 자연스럽다.
+        atStart: el.selectionStart === 0,
+        atEnd: el.selectionEnd === el.value.length,
+      }
+    );
+    if (!target) return; // 표 끝이거나 다루지 않는 키 - 브라우저에 맡긴다
+    e.preventDefault();
+    focusCell(target);
+  };
+
+  /** 한 칸에 한 값씩 넣는다. 한 번에 모아 써야 앞의 것이 덮이지 않는다. */
+  const handleCellPaste = (e: React.ClipboardEvent<HTMLInputElement>, row: number, col: number) => {
+    const text = e.clipboardData.getData('text/plain');
+    if (!text || isSingleCell(text)) return; // 칸 하나짜리는 브라우저에 맡긴다
+    e.preventDefault();
+
+    const writes = clipboardWrites({ row, col }, gridSize, parseClipboardGrid(text));
+    if (writes.length === 0) return;
+
+    const names = [...periodNames];
+    const data: WeekTimetable = { ...(currentTpl.data || {}) };
+    for (const w of writes) {
+      if (w.col === 0) {
+        names[w.row] = w.value;
+      } else {
+        const day = DAYS[w.col - 1].key;
+        data[day] = { ...(data[day] || {}), [w.row + 1]: w.value };
+      }
+    }
+
+    setEditingTemplates({
+      ...editingTemplates,
+      [selectedTemplate]: { ...currentTpl, names, data },
+    });
+
+    const last = writes[writes.length - 1];
+    // 붙여 넣은 마지막 칸으로 커서를 옮겨 둔다. 어디까지 들어갔는지 눈으로 보인다.
+    requestAnimationFrame(() => focusCell({ row: last.row, col: last.col }));
+    showToast(`✅ ${writes.length}칸을 붙여 넣었습니다.`);
   };
 
   // 저장이 안전한 시점인지. 클라우드 값을 아직 못 읽었으면 저장하면 안 된다.
@@ -365,6 +444,11 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
               </div>
             </div>
 
+            {/* 쓸 수 있는 줄 모르면 없는 기능이나 마찬가지다. 한 줄 적어 둔다. */}
+            <p className="text-2xs text-slate-400 font-semibold mb-1.5">
+              화살표·엔터·탭으로 칸을 옮기고, 엑셀에서 복사한 표를 Ctrl+V로 한 번에 붙여 넣을 수 있습니다.
+            </p>
+
             <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-center border-collapse">
@@ -378,7 +462,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100" ref={gridRef}>
                     {periodNames.map((name, pIdx) => {
                       const periodNum = pIdx + 1;
                       return (
@@ -387,18 +471,24 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
                             <input
                               type="text"
                               value={name}
+                              data-cell={`${pIdx}-0`}
                               onChange={(e) => handleUpdatePeriodName(pIdx, e.target.value)}
+                              onKeyDown={(e) => handleCellKeyDown(e, pIdx, 0)}
+                              onPaste={(e) => handleCellPaste(e, pIdx, 0)}
                               className="w-full text-center bg-transparent font-bold text-slate-700 focus:outline-none focus:bg-white focus:border focus:border-blue-400 rounded px-1 py-0.5"
                             />
                           </td>
-                          {DAYS.map((d) => {
+                          {DAYS.map((d, dIdx) => {
                             const val = (gridData[d.key] || {})[periodNum] || '';
                             return (
                               <td key={d.key} className="p-1 border-r border-slate-100 last:border-r-0">
                                 <input
                                   type="text"
                                   value={val}
+                                  data-cell={`${pIdx}-${dIdx + 1}`}
                                   onChange={(e) => handleUpdateSubject(d.key, periodNum, e.target.value)}
+                                  onKeyDown={(e) => handleCellKeyDown(e, pIdx, dIdx + 1)}
+                                  onPaste={(e) => handleCellPaste(e, pIdx, dIdx + 1)}
                                   placeholder="과목"
                                   className="w-full text-center bg-white border border-transparent hover:border-slate-200 focus:border-blue-500 rounded px-1 py-1 font-bold text-slate-800 focus:outline-none"
                                 />
