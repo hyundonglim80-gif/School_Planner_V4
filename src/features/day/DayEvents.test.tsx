@@ -131,6 +131,33 @@ describe("DayEvents - 새 일정 추가 폼도 '일정 수정'과 같은 구성"
     expect(screen.getByRole('button', { name: '저장' })).toBeInTheDocument();
   });
 
+  it('아무것도 안 적은 채로 밖을 누르면 칸이 닫힌다', async () => {
+    // 열어만 두고 딴 데를 누르면, 빈 칸이 '적다 만 일정'처럼 계속 눈에 걸린다
+    const user = userEvent.setup();
+    renderEvents({ events: [] });
+
+    await openAddForm(user);
+    expect(screen.getByText('일정 내용')).toBeInTheDocument();
+
+    await user.click(document.body);
+
+    expect(screen.queryByText('일정 내용')).toBeNull();
+    expect(screen.getByRole('button', { name: /새 일정/ })).toBeInTheDocument();
+  });
+
+  it('한 글자라도 적었으면 밖을 눌러도 닫히지 않는다', async () => {
+    // 잘못 누른 한 번에 적던 것이 날아가면 안 된다
+    const user = userEvent.setup();
+    renderEvents({ events: [] });
+
+    await openAddForm(user);
+    await user.type(screen.getByPlaceholderText(/일정을 입력/), '교직원 회의');
+
+    await user.click(document.body);
+
+    expect(screen.getByDisplayValue('교직원 회의')).toBeInTheDocument();
+  });
+
   it('내용 입력칸이 여러 줄로 늘어나는 입력칸이다', async () => {
     const user = userEvent.setup();
     renderEvents({ events: [] });

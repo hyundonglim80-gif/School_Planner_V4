@@ -67,6 +67,32 @@ export default function DayEvents({
   const [newAlarmModalOpen, setNewAlarmModalOpen] = useState(false);
   const formattedDate = formatDateStr(new Date(currentDate));
 
+  /**
+   * 새 일정 칸에 아직 아무것도 손대지 않았는가.
+   *
+   * 글자뿐 아니라 라벨·알림·링크와 단추들(달력·이월·기간·반복·수업X)까지 본다.
+   * 라벨만 골라 두고 잠깐 다른 데를 눌렀는데 골라 둔 것이 사라지면, 잘못 누른
+   * 한 번에 한 일이 날아간 셈이 된다.
+   */
+  const isNewFormUntouched =
+    !newText.trim() &&
+    newLabels.length === 0 &&
+    !newAlarmTime &&
+    newLinkedItems.length === 0 &&
+    newCalendar && // 처음부터 켜져 있다
+    !newForward &&
+    !newPeriod &&
+    !newRecur &&
+    !newSkip;
+
+  /* 열어만 두고 딴 데를 누르면 닫는다. 빈 칸이 남아 있으면 '일정을 적다 만
+     것'처럼 보여서, 실제로는 아무것도 안 적었는데 계속 눈에 걸린다.
+     적다 만 것이 있으면 그대로 둔다 ('취소'를 눌러야 닫힌다). */
+  const addFormRef = useClickOutside<HTMLFormElement>(
+    isFormOpen && isNewFormUntouched,
+    () => setIsFormOpen(false)
+  );
+
   const formatAlarmBadge = (time?: string) => {
     if (!time) return null;
     const d = new Date(time);
@@ -311,6 +337,7 @@ export default function DayEvents({
       {/* 새 일정 추가 - '일정 수정'과 같은 구성으로 맞춘다 */}
       {isFormOpen && (
         <form
+          ref={addFormRef}
           onSubmit={handleSubmit}
           className="p-3.5 mb-4 rounded-xl border border-primary/50 bg-blue-50/30 flex flex-col gap-3 shadow-xs"
         >
