@@ -41,7 +41,7 @@ export default function DayScreen() {
 
   return (
     <div className="animate-fade-in pb-12">
-      {/* 날짜 네비게이션 헤더 */}{loading ? (
+      {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-primary" />
           <p className="text-xs text-slate-400 font-medium">데이터를 불러오는 중입니다...</p>

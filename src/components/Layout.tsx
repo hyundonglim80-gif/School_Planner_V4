@@ -5,7 +5,8 @@ import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { useAuth } from '../features/auth/useAuth';
 import { useAppStore } from '../store/useAppStore';
 import { useGroups } from '../hooks/useGroups';
-import { useDDay } from '../hooks/useDDay';
+import { useDDay, calculateDDay } from '../hooks/useDDay';
+import { formatDateStr, isToday } from '../lib/dateUtils';
 // 모달은 처음 열 때 받아오면 충분하다. 전부 첫 화면 번들에 넣으면
 // 초기 로딩만 느려지므로, 열릴 때만 그려서 그때 청크를 내려받는다.
 const GroupModal = lazyWithReload(() => import('./GroupModal'));
@@ -102,6 +103,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   } = useAppStore();
   const { groups, loading: groupsLoading } = useGroups();
   const { primaryDDay } = useDDay();
+
+  // 왼쪽 ⏳ 배지는 늘 오늘을 센다. 'D-100'은 오늘부터 100일이라는 뜻이고, 그
+  // 배지는 모든 화면에 떠 있어 기준이 화면마다 달라지면 알아볼 수가 없다.
+  //
+  // 대신 하루 화면에서 다른 날을 펼쳐 놓았을 때는 그 날 기준도 궁금하다.
+  // 날짜 바로 옆에 두어 '이 날짜에 딸린 것'으로 읽히게 하고, 기준을 글로
+  // 적어 둔다. 오늘을 보고 있을 때는 ⏳ 배지와 값이 같으므로 내보내지 않는다.
+  // 주간·월간·년간은 '보고 있는 날'이 하나가 아니라 여기서 뺀다.
+  const viewedDateStr = formatDateStr(new Date(currentDate));
+  const dDayHere =
+    scope === 'day' && primaryDDay && !isToday(viewedDateStr)
+      ? calculateDDay(primaryDDay.date, viewedDateStr)
+      : null;
 
   // 어느 계정으로 들어와 있는지 언제든 확인할 수 있게 한다. 계정이 여럿인 경우
   // V3와 다른 계정으로 들어와도 화면만 봐서는 알 수가 없었다.
@@ -758,6 +772,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   onSelectDate={(newDate) => setCurrentDate(newDate)}
                 />
               </div>
+
+              {dDayHere && (
+                <span
+                  onClick={() => setIsDDayModalOpen(true)}
+                  title={`${primaryDDay!.title} (${primaryDDay!.date}) 까지, 지금 보고 있는 날 기준`}
+                  className="px-2 py-0.5 rounded-full text-2xs sm:text-xs font-bold bg-rose-50 text-rose-600 border border-rose-100 whitespace-nowrap shrink-0 cursor-pointer hover:bg-rose-100 transition-colors"
+                >
+                  {/* '이 날 기준'을 빼면 왼쪽 ⏳ 배지(오늘 기준)와 숫자가 달라
+                      어느 쪽이 맞는지 알 수 없게 된다. 기준을 함께 적는다. */}
+                  이 날 기준 {primaryDDay!.title} {dDayHere.text}
+                </span>
+              )}
               <button
                 onClick={handleNextDate}
                 className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs sm:text-sm transition-all shadow-2xs cursor-pointer"
