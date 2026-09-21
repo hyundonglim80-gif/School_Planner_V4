@@ -779,9 +779,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   title={`${primaryDDay!.title} (${primaryDDay!.date}) 까지, 지금 보고 있는 날 기준`}
                   className="px-2 py-0.5 rounded-full text-2xs sm:text-xs font-bold bg-rose-50 text-rose-600 border border-rose-100 whitespace-nowrap shrink-0 cursor-pointer hover:bg-rose-100 transition-colors"
                 >
-                  {/* '이 날 기준'을 빼면 왼쪽 ⏳ 배지(오늘 기준)와 숫자가 달라
-                      어느 쪽이 맞는지 알 수 없게 된다. 기준을 함께 적는다. */}
-                  이 날 기준 {primaryDDay!.title} {dDayHere.text}
+                  {/* 날짜 바로 옆이라 무엇을 기준으로 센 것인지는 자리가 말해
+                      준다. 무슨 D-Day인지와 목표 날짜는 올려 두면 나온다. */}
+                  {dDayHere.text}
                 </span>
               )}
               <button
