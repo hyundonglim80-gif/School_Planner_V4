@@ -328,3 +328,36 @@ describe('DayJournal - 긴 기록은 접은 채로 시작한다', () => {
     expect(screen.getByText('나'.repeat(400))).toBeInTheDocument();
   });
 });
+
+// Firestore는 배열 안에 든 undefined를 거부한다. 게다가 어느 밭인지도 안 알려 준다
+// ("Unsupported field value: undefined (found in document users/…/tasks/…)").
+// 크기가 안 적힌 옛 첨부가 붙은 항목은 그래서 저장할 때마다 실패했다.
+describe('EntryDrawer - 저장으로 나가는 첨부에 undefined가 없다', () => {
+  const withLegacyAttachment: JournalEntry[] = [
+    {
+      id: 'jr_a',
+      content: '옛 첨부가 붙은 기록',
+      createdAt: 1,
+      labelIds: [],
+      linkedItems: [],
+      // 크기도 종류도 안 적혀 있다 (V3 시절 자료가 이렇다)
+      attachments: [{ name: '사진.png', url: 'https://example.test/a.png' } as any],
+    },
+  ];
+
+  it('없는 값은 키째로 빠진다', async () => {
+    const user = userEvent.setup();
+    const { props } = renderJournal(withLegacyAttachment);
+
+    await user.click(screen.getByText('옛 첨부가 붙은 기록'));
+    await screen.findByDisplayValue('옛 첨부가 붙은 기록');
+    await user.click(screen.getByRole('button', { name: '저장' }));
+
+    expect(props.onUpdateJournal).toHaveBeenCalledTimes(1);
+    const payload = (props.onUpdateJournal as any).mock.calls[0].at(-1);
+    for (const att of payload.attachments) {
+      // 값이 undefined인 키가 하나라도 있으면 Firestore가 저장을 통째로 막는다
+      expect(Object.entries(att).filter(([, v]) => v === undefined)).toEqual([]);
+    }
+  });
+});

@@ -166,12 +166,16 @@ export default function DayJournal({
     const labelIds = draft.labels
       .map((name) => journalLabels.find((l) => l.name === name)?.id)
       .filter((id): id is string => !!id);
+    // ⚠️ 없는 값은 키째로 뺀다. undefined를 담으면 Firestore가 저장을 통째로
+    //    거부하는데(배열 안의 undefined), 어느 밭인지도 알려 주지 않는다.
+    //    크기가 안 적힌 옛 첨부가 붙은 항목이 그래서 저장되지 않았다.
     const attachments: Attachment[] = draft.attachments.map((att) => ({
-      id: att.id,
       name: att.name,
       url: att.url,
       type: att.type || 'file',
-      size: att.size,
+      ...(att.id !== undefined ? { id: att.id } : {}),
+      ...(att.size !== undefined ? { size: att.size } : {}),
+      ...(att.driveId !== undefined ? { driveId: att.driveId } : {}),
     }));
 
     // 저장해도 배너는 열려 있으므로, 방금 만든 기록이 있으면 그것을 고친다.

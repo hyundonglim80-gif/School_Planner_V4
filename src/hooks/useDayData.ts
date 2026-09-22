@@ -25,6 +25,8 @@ export interface Attachment {
   url: string;
   type: string;
   size?: number;
+  /** 구글 드라이브 파일 id. 미리보기와 나중의 삭제에 쓴다. */
+  driveId?: string;
 }
 
 export interface EventItem {

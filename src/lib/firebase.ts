@@ -67,8 +67,17 @@ export const USING_MEMORY_CACHE = true;
 //
 // 되돌리려면 localCache를 아래로 바꾸면 된다. 위 사고가 함께 돌아온다.
 //   persistentLocalCache({ tabManager: persistentSingleTabManager({ forceOwnership: true }) })
+// ignoreUndefinedProperties: 값이 undefined인 밭은 빼고 보낸다.
+//
+// 이것이 없으면 저장이 통째로 막힌다. 특히 배열 안에 undefined가 하나라도 들어가면
+// Firestore가 거부하면서 어느 밭인지도 알려 주지 않는다.
+//   Unsupported field value: undefined (found in document users/…/tasks/…)
+// 실제로 크기가 안 적힌 옛 첨부가 붙은 메모는 저장할 때마다 이걸로 실패했다.
+// undefined는 어차피 '지운다'는 뜻이 아니므로(지우려면 deleteField를 쓴다),
+// 빼고 보내는 것이 값이 통째로 안 써지는 것보다 언제나 낫다.
 export const db = initializeFirestore(app, {
   localCache: memoryLocalCache(),
+  ignoreUndefinedProperties: true,
 });
 
 export const auth = getAuth(app);

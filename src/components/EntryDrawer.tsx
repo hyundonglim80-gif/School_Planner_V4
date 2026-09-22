@@ -97,12 +97,17 @@ const normalizeAttachments = (raw: unknown[] | undefined, legacyImageUrl?: strin
     const obj = item as any;
     const url = obj.url || obj.downloadUrl || obj.fileUrl || '';
     if (!url || typeof url !== 'string') continue;
+    // ⚠️ 없는 값은 키를 아예 빼야 한다. undefined를 담아 두면 그대로 저장으로
+    //    흘러가는데, Firestore는 배열 안에 든 undefined를 거부한다. 게다가 그
+    //    오류는 어느 밭인지도 안 알려 준다("found in document …"). 실제로 크기가
+    //    안 적힌 옛 첨부가 붙은 메모는 저장할 때마다 실패했다.
     list.push({
-      id: typeof obj.id === 'string' ? obj.id : undefined,
       name: obj.name || url.split('/').pop()?.split('?')[0] || '파일',
       url,
-      type: typeof obj.type === 'string' ? obj.type : undefined,
-      size: typeof obj.size === 'number' ? obj.size : undefined,
+      ...(typeof obj.id === 'string' ? { id: obj.id } : {}),
+      ...(typeof obj.type === 'string' ? { type: obj.type } : {}),
+      ...(typeof obj.size === 'number' ? { size: obj.size } : {}),
+      ...(typeof obj.driveId === 'string' ? { driveId: obj.driveId } : {}),
     });
   }
   // 첨부 목록이 없던 구버전 항목은 imageUrl 한 장만 갖고 있다.
@@ -219,22 +224,25 @@ export default function EntryDrawer({
     driveId?: string
   ): EntryAttachment => {
     const isImage = mimeType.startsWith('image/');
+    // size도 driveId와 같이 있을 때만 담는다 (undefined를 담으면 저장이 통째로 막힌다)
+    const optional = {
+      ...(typeof size === 'number' ? { size } : {}),
+      ...(driveId ? { driveId } : {}),
+    };
     if (kind === 'journal') {
       return {
         id: `file_${Date.now()}_${seq}`,
         name,
         url,
         type: isImage ? 'image' : 'file',
-        size,
-        ...(driveId ? { driveId } : {}),
+        ...optional,
       };
     }
     return {
       name,
       url,
       type: mimeType || 'application/octet-stream',
-      size,
-      ...(driveId ? { driveId } : {}),
+      ...optional,
     };
   };
 
