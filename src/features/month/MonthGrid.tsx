@@ -80,6 +80,34 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
   const maxPeriods = templates[currentTemplateName]?.names.length || 6;
   const periodArray = Array.from({ length: maxPeriods }, (_, i) => i + 1);
 
+  /**
+   * 휴대폰에서 교시 칸을 몇 개까지 그릴지.
+   *
+   * 뒤쪽 빈 교시를 그리지 않는 규칙은 그대로다. 시간표가 6교시까지인데 학교가
+   * 5교시까지만 돌면, 여섯째 칸이 빈 채로 서서 '6교시가 있는데 비었다'로 읽힌다.
+   *
+   * ⚠️ 다만 그 잘라내기를 '그날 마지막 수업'으로 재면 안 된다. 그러면 5교시
+   *    수업을 3교시로 옮긴 날 하나가 칸 셋으로 줄어들고, 비어 있던 4·5교시가
+   *    통째로 사라진다. 옆 날짜는 다섯 칸인데 그 날만 셋이라 차례도 안 맞는다.
+   *    실제로 그렇게 보였다(PC는 늘 시간표 교시 수대로 그려 멀쩡했다).
+   *
+   * 그래서 화면에 보이는 달 전체에서 가장 늦은 교시로 잰다. 한 날을 고쳐도
+   * 그 날만 좁아지지 않고, 달에 5교시가 하나라도 있으면 모든 날이 다섯 칸이다.
+   */
+  const compactPeriodCount = React.useMemo(() => {
+    if (!compact) return maxPeriods;
+    let last = 0;
+    for (const dayObj of displayDays) {
+      const sch = dataMap[dayObj.dateStr]?.schedules || {};
+      for (let p = maxPeriods; p > last; p--) {
+        const t = sch[p]?.subject?.trim() || '';
+        if (t && t.toUpperCase() !== 'X') { last = p; break; }
+      }
+    }
+    // 달이 통째로 비어 있으면 잘라낼 것도 없다
+    return last || maxPeriods;
+  }, [compact, displayDays, dataMap, maxPeriods]);
+
   const [detailModal, setDetailModal] = useState<{
     isOpen: boolean;
     type: 'schedule' | 'event';
@@ -197,14 +225,12 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                      사이에 낀 빈 교시(3교시만 없는 날)는 그대로 둔다 — 그건
                      자리로 읽어야 차례가 맞는다. 끝에 남는 것만 잘라 낸다.
                      칸이 줄면 남은 칩이 넓어져 글자도 그만큼 커진다.
+
+                     몇 칸까지 그릴지는 날마다 재지 않고 달 전체로 잰다
+                     (compactPeriodCount 참고).
                 */}
                 {showClass && hasClasses && compact && (() => {
-                  let last = 0;
-                  for (const p of periodArray) {
-                    const t = schedules[p]?.subject?.trim() || '';
-                    if (t && t.toUpperCase() !== 'X') last = p;
-                  }
-                  const shown = periodArray.filter((p) => p <= last);
+                  const shown = periodArray.filter((p) => p <= compactPeriodCount);
                   return (
                     <div className="flex flex-nowrap gap-[1px] w-full mb-0.5 items-stretch">
                       {shown.map((p) => {
@@ -239,9 +265,12 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                             </div>
                           );
                         }
+                        // 빈 교시에도 몇 교시 자리인지 붙여 둔다. 빈 칸이 이어지면
+                        // 몇째 칸인지 세어야 알 수 있었다.
                         return (
                           <div
                             key={p}
+                            title={`${p}교시`}
                             className="flex-1 min-w-0 border border-slate-200 rounded-[3px] bg-slate-50"
                           />
                         );
@@ -288,6 +317,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                       return (
                         <div
                           key={p}
+                          title={`${p}교시`}
                           className="flex-1 min-w-0 h-[20px] flex items-center justify-center border border-slate-200 rounded-[3px] bg-slate-50"
                         />
                       );
