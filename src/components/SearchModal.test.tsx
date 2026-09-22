@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import SearchModal from './SearchModal';
+import { useAppStore } from '../store/useAppStore';
 import {
   getDocs as getDocsMock,
   collection as collectionMock,
@@ -121,4 +122,44 @@ describe('검색 - 메모 기간', () => {
     expect(screen.getByText('작년 메모')).toBeInTheDocument();
     expect(screen.getByText('겨울 메모')).toBeInTheDocument();
   }, 30000);
+});
+
+// 검색 기간도 링크 추가와 같다. 고른 기간의 날짜를 보여 주고 거기서 고칠 수 있다.
+describe('검색 - 고른 기간의 날짜', () => {
+  // 기준 날짜를 고정한다. 안 그러면 해가 바뀔 때 학기 날짜가 달라져 깨진다.
+  beforeEach(() => {
+    useAppStore.setState({ currentDate: new Date(2026, 8, 15).toISOString() });
+  });
+
+  it('기간을 고르면 그 범위의 날짜가 칸에 들어 있다', async () => {
+    const user = userEvent.setup();
+    render(<SearchModal isOpen onClose={() => {}} />);
+
+    await user.selectOptions(screen.getByRole('combobox'), 'sem1');
+
+    expect(screen.getByLabelText('시작일')).toHaveValue('2026-03-01');
+    expect(screen.getByLabelText('종료일')).toHaveValue('2026-08-15');
+  });
+
+  it("'해당 학년도 전체'는 날짜 제한이 없다고 알린다", async () => {
+    const user = userEvent.setup();
+    render(<SearchModal isOpen onClose={() => {}} />);
+
+    await user.selectOptions(screen.getByRole('combobox'), 'year');
+
+    expect(screen.getByText('날짜 제한 없음')).toBeInTheDocument();
+    expect(screen.queryByLabelText('시작일')).toBeNull();
+  });
+
+  it("날짜를 고치면 '직접 지정'으로 넘어간다", async () => {
+    const user = userEvent.setup();
+    render(<SearchModal isOpen onClose={() => {}} />);
+
+    await user.selectOptions(screen.getByRole('combobox'), 'sem1');
+    fireEvent.change(screen.getByLabelText('종료일'), { target: { value: '2026-07-20' } });
+
+    expect(screen.getByLabelText('종료일')).toHaveValue('2026-07-20');
+    expect(screen.getByRole('combobox')).toHaveValue('custom');
+    expect(screen.getByLabelText('시작일')).toHaveValue('2026-03-01');
+  });
 });

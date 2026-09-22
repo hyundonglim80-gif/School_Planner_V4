@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import LinkerModal from './LinkerModal';
 import { getDocs as getDocsMock, getDoc as getDocMock } from 'firebase/firestore';
@@ -93,5 +93,41 @@ describe('링크 추가 - 날짜마다 한 건씩 읽지 않는다', () => {
     // 하루씩 읽으면 getDoc이 날짜 수만큼 불린다. 범위 조회는 그럴 일이 없다.
     expect((getDocMock as unknown as { mock: { calls: unknown[] } }).mock.calls.length)
       .toBeLessThan(10);
+  });
+});
+
+// 드롭다운만 있으면 '±1주일'이 실제로 며칠부터 며칠까지인지 알 수 없고,
+// 하루만 늘리려 해도 '기간 설정'을 고른 뒤 두 날짜를 처음부터 다시 찍어야 했다.
+describe('링크 추가 - 고른 범위의 날짜를 보여 주고 고칠 수 있다', () => {
+  it('±1주일을 고르면 그 범위의 날짜가 칸에 들어 있다', async () => {
+    render(<LinkerModal {...props} />);
+
+    // 기준 2026-09-15의 앞뒤 7일
+    expect(await screen.findByLabelText('시작일')).toHaveValue('2026-09-08');
+    expect(screen.getByLabelText('종료일')).toHaveValue('2026-09-22');
+  });
+
+  it('범위를 바꾸면 날짜도 따라 바뀐다', async () => {
+    const user = userEvent.setup();
+    render(<LinkerModal {...props} />);
+
+    const select = await screen.findByDisplayValue('±1주일');
+    await user.selectOptions(select, 'sem1');
+
+    await waitFor(() => expect(screen.getByLabelText('시작일')).toHaveValue('2026-03-01'));
+    expect(screen.getByLabelText('종료일')).toHaveValue('2026-08-31');
+  });
+
+  it("날짜를 직접 고치면 '기간 설정'으로 넘어간다", async () => {
+    render(<LinkerModal {...props} />);
+
+    const start = await screen.findByLabelText('시작일');
+    fireEvent.change(start, { target: { value: '2026-09-01' } });
+
+    await waitFor(() => expect(screen.getByLabelText('시작일')).toHaveValue('2026-09-01'));
+    // 고친 날짜가 드롭다운 이름과 어긋난 채로 남지 않는다
+    expect(screen.getByDisplayValue('기간 설정')).toBeInTheDocument();
+    // 건드리지 않은 종료일은 그대로다
+    expect(screen.getByLabelText('종료일')).toHaveValue('2026-09-22');
   });
 });

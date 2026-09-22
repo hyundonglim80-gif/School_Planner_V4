@@ -12,6 +12,7 @@ import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
 import { ModalCloseButton } from './ModalShell';
+import DateRangeFields from './DateRangeFields';
 
 interface SearchResultItem {
   id: string;
@@ -119,6 +120,9 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
     }
     return { start, end };
   };
+
+  /** 지금 고른 기간의 실제 날짜. '해당 학년도 전체'는 날짜 제한이 없어 빈 값이다. */
+  const shownRange = getTargetDateRange() || { start: '', end: '' };
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -394,12 +398,20 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
               <option value="custom">직접 지정(Custom)...</option>
             </select>
             
-            {searchScope === 'custom' && (
-              <div className="flex items-center gap-1">
-                <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="text-xs p-1.5 border border-slate-200 rounded-lg outline-none bg-white" />
-                <span className="text-xs font-bold text-slate-500">~</span>
-                <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="text-xs p-1.5 border border-slate-200 rounded-lg outline-none bg-white" />
-              </div>
+            {/* 고른 기간이 실제로 며칠부터 며칠까지인지 늘 보여 주고, 그 자리에서
+                고칠 수 있게 한다. 고치면 '직접 지정'으로 넘어간다. */}
+            {searchScope === 'year' ? (
+              <span className="text-xs font-semibold text-slate-400">날짜 제한 없음</span>
+            ) : (
+              <DateRangeFields
+                start={shownRange.start}
+                end={shownRange.end}
+                onChange={(s, e) => {
+                  setCustomStart(s);
+                  setCustomEnd(e);
+                  setSearchScope('custom');
+                }}
+              />
             )}
           </div>
         </div>

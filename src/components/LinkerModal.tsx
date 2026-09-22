@@ -15,6 +15,7 @@ import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
 import LinkCreateModal, { type CreatedItem } from './LinkCreateModal';
+import DateRangeFields from './DateRangeFields';
 
 interface LinkerModalProps {
   isOpen: boolean;
@@ -172,6 +173,9 @@ export default function LinkerModal({
     }
     return { start: formatDateStr(s), end: formatDateStr(e) };
   }, [dateRange, sourceDateStr, customStart, customEnd]);
+
+  /** 지금 고른 범위의 실제 날짜. 화면에 그대로 보여 주고 여기서 고칠 수 있다. */
+  const shownRange = computeDateRange();
 
   // 메모 전체 로드
   const fetchMemoData = useCallback(async () => {
@@ -771,29 +775,23 @@ export default function LinkerModal({
                   </button>
                 </div>
 
-                {dateRange === 'custom' && (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="date"
-                      value={customStart}
-                      onChange={(e) => {
-                        setCustomStart(e.target.value);
-                        setCurrentPage(1);
-                      }}
-                      className="px-2 py-1 text-xs border rounded-lg bg-white"
-                    />
-                    <span className="text-xs text-slate-400">~</span>
-                    <input
-                      type="date"
-                      value={customEnd}
-                      onChange={(e) => {
-                        setCustomEnd(e.target.value);
-                        setCurrentPage(1);
-                      }}
-                      className="px-2 py-1 text-xs border rounded-lg bg-white"
-                    />
-                  </div>
-                )}
+                {/* 고른 범위가 실제로 며칠부터 며칠까지인지 늘 보여 주고,
+                    그 자리에서 고칠 수 있게 한다. 고치면 '기간 설정'으로 넘어간다
+                    (고른 날짜가 드롭다운 이름과 어긋난 채로 남지 않게). */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <DateRangeFields
+                    dense
+                    start={shownRange.start}
+                    end={shownRange.end}
+                    onChange={(s, e) => {
+                      setCustomStart(s);
+                      setCustomEnd(e);
+                      setDateRange('custom');
+                      setCurrentPage(1);
+                    }}
+                  />
+                  <span className="text-xs text-slate-400">날짜를 고친 뒤 '조회'를 누르세요</span>
+                </div>
               </div>
 
               {/* 라벨 칩 필터 - 탭(일정/기록/메모)에 맞는 라벨을 보여준다 */}
