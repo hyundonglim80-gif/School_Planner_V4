@@ -18,7 +18,7 @@
 // 저장소를 비우고 한 번 새로고침하면 정상으로 돌아온다. 사용자가 F5를 눌러
 // 해결하던 것을 앱이 스스로 하게 한다. 되풀이하지 않도록 표시를 남긴다.
 import { terminate, clearIndexedDbPersistence, type Firestore } from 'firebase/firestore';
-import { MEMORY_CACHE_MARK } from './firebase';
+import { MEMORY_CACHE_MARK, USING_MEMORY_CACHE } from './firebase';
 
 const MARK = 'sp4-firestore-recovered';
 
@@ -210,6 +210,18 @@ export function noteFirestoreError(err: unknown): boolean {
  * 곁다리로만 해 본다.
  */
 function recoverByGivingUpPersistence(code: string, message: string) {
+  // 이제는 오프라인 저장소를 처음부터 쓰지 않는다(firebase.ts 참고). 포기할 저장소가
+  // 없으니 새로고침해도 똑같은 자리로 돌아온다. 인터넷이 끊겼을 때 공연히 한 번 더
+  // 새로고침하는 일만 생기므로, 알리기만 하고 그대로 둔다.
+  if (USING_MEMORY_CACHE) {
+    console.warn(
+      '[SP4] Firestore가 답하지 않습니다(' + code + '). 오프라인 저장소는 원래 쓰지 않으므로 ' +
+      '새로고침하지 않습니다. 인터넷 연결을 확인해 주세요.',
+      message
+    );
+    return;
+  }
+
   let already = false;
   try {
     already = sessionStorage.getItem(MEMORY_CACHE_MARK) === '1';
