@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { getDoc, writeBatch } from 'firebase/firestore';
 import PeriodModal from './PeriodModal';
 
 // 공휴일은 Firestore에서 읽어온다. 여기서는 표만 갈아 끼운다.
@@ -88,5 +89,71 @@ describe('PeriodModal - 공휴일', () => {
     await user.click(screen.getByLabelText(/주말/));
 
     expect(screen.getByRole('button', { name: '등록 (7일)' })).toBeInTheDocument();
+  });
+});
+
+describe('PeriodModal - 있는 일정을 기간으로 바꾸기', () => {
+  // 예전에는 등록한 뒤에 원래 한 건을 따로 지웠다. 그 지우기가 화면이 들고 있던
+  // 옛 목록을 통째로 덮어써서, 방금 만든 첫날 일정까지 같이 사라졌다.
+  // 이제는 같은 일괄 쓰기 안에서 뺀다.
+  const written: any[] = [];
+
+  beforeEach(() => {
+    written.length = 0;
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.mocked(getDoc).mockResolvedValue({
+      exists: () => true,
+      data: () => ({ eventList: [{ id: 'ev_old', content: '여름방학' }] }),
+    } as any);
+    vi.mocked(writeBatch).mockReturnValue({
+      set: (_ref: any, data: any) => written.push(data),
+      delete: vi.fn(),
+      commit: async () => {},
+    } as any);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('첫날 문서에 원래 한 건은 빠지고 새 일정은 남는다', async () => {
+    const user = userEvent.setup();
+    render(
+      <PeriodModal
+        isOpen
+        onClose={vi.fn()}
+        startDate={MONDAY}
+        defaultContent="여름방학"
+        replace={{ dateStr: MONDAY, id: 'ev_old' }}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText('종료일'), { target: { value: '2026-09-25' } });
+    await user.click(screen.getByRole('button', { name: '등록 (5일)' }));
+
+    await waitFor(() => expect(written.length).toBe(5));
+    const firstDay = written[0].eventList;
+    expect(firstDay.some((e: any) => e.id === 'ev_old')).toBe(false);
+    expect(firstDay.some((e: any) => e.content === '여름방학 (1/5)')).toBe(true);
+  });
+
+  it('등록이 끝났다고 알린다', async () => {
+    const user = userEvent.setup();
+    const onRegistered = vi.fn();
+    render(
+      <PeriodModal
+        isOpen
+        onClose={vi.fn()}
+        startDate={MONDAY}
+        defaultContent="여름방학"
+        replace={{ dateStr: MONDAY, id: 'ev_old' }}
+        onRegistered={onRegistered}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText('종료일'), { target: { value: '2026-09-25' } });
+    await user.click(screen.getByRole('button', { name: '등록 (5일)' }));
+
+    await waitFor(() => expect(onRegistered).toHaveBeenCalledWith(5));
   });
 });

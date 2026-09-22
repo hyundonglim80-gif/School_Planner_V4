@@ -14,6 +14,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
 import { loadHolidayYears } from '../hooks/useGovHolidays';
 import { eventDocPayload, readEventList } from '../lib/eventText';
+import { moveToTrash } from '../utils/trashHelper';
 import { formatDateStr, parseDateStr } from '../lib/dateUtils';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 
@@ -31,6 +32,15 @@ export interface PeriodModalProps {
   labels?: string[];
   /** 등록 화면에서 켜 둔 나머지 속성. 만들어지는 모든 날짜에 같이 붙는다. */
   attrs?: { calendar?: boolean; forward?: boolean; skip?: boolean };
+  /**
+   * 이미 있는 한 건을 기간 묶음으로 바꾸는 경우, 치워야 할 그 한 건.
+   *
+   * ⚠️ 등록한 뒤에 따로 지우면 안 된다. 화면이 들고 있던 목록에는 방금 만든
+   *    첫날 일정이 아직 없어서, 지우기가 그 옛 목록을 통째로 덮어쓰며 첫날에
+   *    만든 일정까지 같이 지워 버린다(실제로 첫날만 사라졌다).
+   *    같은 일괄 쓰기 안에서 빼야 안전하다.
+   */
+  replace?: { dateStr: string; id: string };
   /** 등록에 성공했을 때. 만든 날짜 수를 넘긴다. */
   onRegistered?: (count: number) => void;
 }
@@ -42,6 +52,7 @@ export default function PeriodModal({
   defaultContent = '',
   labels = [],
   attrs,
+  replace,
   onRegistered,
 }: PeriodModalProps) {
   const { selectedGroupId } = useAppStore();
@@ -142,13 +153,26 @@ export default function PeriodModal({
       const groupId = `group_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
       const labelStr = labels.join(',');
 
-      const refs = dates.map((dateStr) => doc(db, colPath, dateStr));
-      const snaps = await Promise.all(refs.map((ref) => getDoc(ref)));
+      // 손댈 날짜: 만들 날짜 + (기간으로 바뀌는 한 건이 다른 날에 있으면) 그 날
+      const writeDates = [...dates];
+      if (replace && !writeDates.includes(replace.dateStr)) writeDates.push(replace.dateStr);
 
-      const batch = writeBatch(db);
+      const refs = new Map(writeDates.map((dateStr) => [dateStr, doc(db, colPath, dateStr)]));
+      const snaps = await Promise.all(writeDates.map((dateStr) => getDoc(refs.get(dateStr)!)));
+
+      const lists = new Map<string, any[]>();
+      let replaced: any = null;
+      writeDates.forEach((dateStr, i) => {
+        let list = snaps[i].exists() ? readEventList(snaps[i].data()) : [];
+        if (replace && dateStr === replace.dateStr) {
+          replaced = list.find((e: any) => String(e.id) === String(replace.id)) || null;
+          list = list.filter((e: any) => String(e.id) !== String(replace.id));
+        }
+        lists.set(dateStr, list);
+      });
+
       dates.forEach((dateStr, i) => {
-        const snap = snaps[i];
-        const list = snap.exists() ? readEventList(snap.data()) : [];
+        const list = lists.get(dateStr)!;
         // 며칠째인지 본문에 남긴다 (V3와 같다). '여름방학 (3/10)'처럼 보인다.
         const numbered = `${text} (${i + 1}/${dates.length})`;
         list.push({
@@ -169,10 +193,31 @@ export default function PeriodModal({
           ...(attrs?.skip !== undefined ? { skip: attrs.skip } : {}),
           createdAt: Date.now(),
         });
-        batch.set(refs[i], eventDocPayload(list), { merge: true });
       });
 
+      const batch = writeBatch(db);
+      for (const [dateStr, list] of lists) {
+        batch.set(refs.get(dateStr)!, eventDocPayload(list), { merge: true });
+      }
       await batch.commit();
+
+      // 기간으로 바뀌면서 치운 한 건은 휴지통에 남긴다. 붙어 있던 링크나
+      // 첨부는 새 묶음으로 옮겨가지 않으므로, 되찾을 길은 있어야 한다.
+      if (replaced) {
+        try {
+          await moveToTrash({
+            id: String(replaced.id),
+            type: 'event',
+            originalDateStr: replace!.dateStr,
+            fId: selectedGroupId || 'personal',
+            content: String(replaced.content || ''),
+            data: replaced,
+          });
+        } catch (err) {
+          console.error('휴지통으로 옮기지 못했습니다:', err);
+        }
+      }
+
       showToast(`✅ ${dates.length}개 날짜에 기간 일정을 등록했습니다.`);
       onRegistered?.(dates.length);
     } catch (e: any) {

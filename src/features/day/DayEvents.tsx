@@ -6,10 +6,10 @@ import { showToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
 import { resolveEventLabelNames, eventDisplayContent } from '../../lib/eventLabels';
 import { useClickOutside } from '../../hooks/useClickOutside';
-import { baseContentOf, groupIdOf } from '../../lib/eventGroups';
+import { baseContentOf } from '../../lib/eventGroups';
+import { useGroupDelete } from '../../hooks/useGroupDelete';
 import EventAlarmModal from '../../components/EventAlarmModal';
 import PeriodModal from '../../components/PeriodModal';
-import GroupDeleteModal from '../../components/GroupDeleteModal';
 import AutoTextarea from '../../components/AutoTextarea';
 import EventItemActions from '../../components/EventItemActions';
 
@@ -84,9 +84,18 @@ export default function DayEvents({
   /* 기간 설정 팝업을 누구를 위해 열었는가. 새로 적는 일정이면 'new',
      이미 있는 일정을 기간으로 바꾸는 중이면 그 일정의 id를 들고 있는 'edit'. */
   const [periodTarget, setPeriodTarget] = useState<{ kind: 'new' } | { kind: 'edit'; id: string } | null>(null);
-  /** 기간·반복으로 묶인 일정을 지우려 할 때, 어디까지 지울지 고르는 팝업의 대상 */
-  const [groupDeleteTarget, setGroupDeleteTarget] = useState<EventItem | null>(null);
   const formattedDate = formatDateStr(new Date(currentDate));
+
+  // 기간·반복으로 묶인 일정은 지우기 전에 어디까지 지울지 묻는다.
+  const { requestDelete, groupDeleteModal } = useGroupDelete({
+    fId: selectedGroupId,
+    deleteOne: async (_dateStr, id) => {
+      await onDeleteEvent(id);
+      setEditingId(null);
+      showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+    },
+    onDeleted: () => setEditingId(null),
+  });
 
   /* '기간'을 켜면 곧바로 기간 설정 팝업을 띄운다 (V3와 같다).
      기간은 하루짜리 속성이 아니라 '언제부터 언제까지'를 정해야 뜻이 생긴다.
@@ -267,16 +276,8 @@ export default function DayEvents({
     if (on) setPeriodTarget({ kind: 'edit', id });
   };
 
-  const deleteEditing = async (id: string) => {
-    // 기간·반복으로 묶인 일정은 어디까지 지울지 먼저 묻는다.
-    const target = events.find((e) => String(e.id) === String(id));
-    if (target && groupIdOf(target)) {
-      setGroupDeleteTarget(target);
-      return;
-    }
-    await onDeleteEvent(id);
-    setEditingId(null);
-    showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+  const deleteEditing = (id: string) => {
+    requestDelete(formattedDate, id, events.find((e) => String(e.id) === String(id)));
   };
 
   const handleEditLabelToggle = (labelName: string) => {
@@ -901,12 +902,16 @@ export default function DayEvents({
             ? { calendar: newCalendar, forward: newForward, skip: newSkip }
             : { calendar: editCalendar, forward: editForward, skip: editSkip }
         }
+        // 고치던 한 건은 여러 날짜의 묶음이 된다. 그 한 건을 치우는 일은
+        // 팝업이 같은 일괄 쓰기 안에서 한다 - 따로 지우면 방금 만든 첫날
+        // 일정까지 옛 목록에 덮여 같이 사라진다.
+        replace={periodTarget.kind === 'edit' ? { dateStr: formattedDate, id: periodTarget.id } : undefined}
         onClose={() => {
           if (periodTarget.kind === 'new') setNewPeriod(false);
           else setEditPeriod(false);
           setPeriodTarget(null);
         }}
-        onRegistered={async () => {
+        onRegistered={() => {
           const target = periodTarget;
           setPeriodTarget(null);
           if (target.kind === 'new') {
@@ -914,27 +919,13 @@ export default function DayEvents({
             setIsFormOpen(false);
             return;
           }
-          // 고치던 한 건은 여러 날짜의 묶음으로 바뀌었다. 첫날에 같은 일정이
-          // 두 번 남지 않도록 원래 한 건은 치운다 (휴지통에 남는다).
           setEditingId(null);
-          await onDeleteEvent(target.id);
         }}
       />
     )}
 
     {/* 기간·반복으로 묶인 일정을 지울 때: 이 날만 / 이 날부터 / 전부 */}
-    {groupDeleteTarget && (
-      <GroupDeleteModal
-        isOpen
-        dateStr={formattedDate}
-        fId={selectedGroupId || 'personal'}
-        groupId={groupIdOf(groupDeleteTarget) || ''}
-        content={eventDisplayContent(groupDeleteTarget)}
-        onDeleteThisOnly={() => onDeleteEvent(groupDeleteTarget.id)}
-        onDeleted={() => setEditingId(null)}
-        onClose={() => setGroupDeleteTarget(null)}
-      />
-    )}
+    {groupDeleteModal}
 
     {editAlarmModalOpen && editingId && (
       <EventAlarmModal

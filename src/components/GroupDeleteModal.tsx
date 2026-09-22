@@ -72,8 +72,9 @@ export default function GroupDeleteModal({
     setBusy(scope);
     try {
       if (scope === 'only') {
+        // 안내 토스트는 부르는 쪽(기존 한 건 삭제 경로)이 띄운다. 여기서 또 띄우면
+        // 화면에 따라 같은 말이 두 번 뜬다.
         await onDeleteThisOnly();
-        showToast('🗑️ 이 날짜의 일정만 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
       } else {
         const target = scope === 'after' ? afterHits : hits || [];
         const removed = await deleteGroupEvents(fId, target);

@@ -22,6 +22,7 @@ import EvalCountBadge from '../../components/EvalCountBadge';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import DetailEditModal from '../../components/DetailEditModal';
 import EventItemActions from '../../components/EventItemActions';
+import { useGroupDelete } from '../../hooks/useGroupDelete';
 import { useState } from 'react';
 
 interface MonthGridProps {
@@ -86,6 +87,12 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
     itemId: string | number;
     initialData: any;
   } | null>(null);
+
+  // 기간·반복으로 묶인 일정은 지우기 전에 어디까지 지울지 묻는다
+  const { requestDelete, groupDeleteModal } = useGroupDelete({
+    fId: selectedGroupId,
+    deleteOne: onDeleteEvent,
+  });
 
   return (
     <>
@@ -392,7 +399,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                         {!isMultiSelectMode && (
                           <EventItemActions
                             floating
-                            onDelete={() => onDeleteEvent(dayObj.dateStr, ev.id, ev)}
+                            onDelete={() => requestDelete(dayObj.dateStr, ev.id, ev)}
                           />
                         )}
                       </div>
@@ -417,6 +424,8 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
         initialData={detailModal.initialData}
       />
     )}
+
+    {groupDeleteModal}
     </>
   );
 }

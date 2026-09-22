@@ -15,6 +15,7 @@ import { moveToTrash } from '../../utils/trashHelper';
 import { showToast, showErrorToast } from '../../utils/toast';
 import DetailEditModal from '../../components/DetailEditModal';
 import QuickAddModal from '../../components/QuickAddModal';
+import { useGroupDelete } from '../../hooks/useGroupDelete';
 import YearMonthCard from './YearMonthCard';
 
 /**
@@ -281,6 +282,13 @@ export default function YearScreen() {
     }
   }, [selectedGroupId]);
 
+  // 기간·반복으로 묶인 일정은 지우기 전에 어디까지 지울지 묻는다.
+  // (requestDelete는 붙들려 있어야 달 카드의 memo가 살아 있다)
+  const { requestDelete, groupDeleteModal } = useGroupDelete({
+    fId: selectedGroupId,
+    deleteOne: handleDeleteEvent,
+  });
+
   return (
     <div className="animate-fade-in pb-12">
       {loading ? (
@@ -329,7 +337,7 @@ export default function YearScreen() {
                 onToggleMonth={toggleMonth}
                 onDateClick={handleDateClick}
                 onToggleEvent={handleToggleEvent}
-                onDeleteEvent={handleDeleteEvent}
+                onDeleteEvent={requestDelete}
                 onQuickAdd={handleQuickAdd}
                 onOpenDetail={handleOpenDetail}
                 onToggleSelection={toggleEventSelection}
@@ -351,6 +359,8 @@ export default function YearScreen() {
         />
       )}
       
+      {groupDeleteModal}
+
       {quickAddDate && <QuickAddModal isOpen={true} onClose={() => setQuickAddDate(null)} dateStr={quickAddDate} />}
     </div>
   );

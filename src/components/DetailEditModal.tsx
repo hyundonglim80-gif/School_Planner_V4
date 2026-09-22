@@ -550,11 +550,12 @@ export default function DetailEditModal({
           defaultContent={baseContentOf(content)}
           labels={labels}
           attrs={{ calendar: itemCalendar, forward: itemForward, skip: itemSkip }}
+          // 고치던 한 건을 치우는 일은 팝업이 같은 일괄 쓰기 안에서 한다
+          // (따로 지우면 방금 만든 첫날 일정까지 옛 목록에 덮여 사라진다)
+          replace={{ dateStr, id: String(itemId) }}
           onClose={() => { setPeriodModalOpen(false); setItemPeriod(false); }}
-          onRegistered={async () => {
+          onRegistered={() => {
             setPeriodModalOpen(false);
-            // 고치던 한 건이 여러 날짜의 묶음이 되었다. 첫날에 두 번 남지 않게 치운다.
-            await deleteEventItem(String(itemId), initialData);
             onClose();
           }}
         />
@@ -568,7 +569,10 @@ export default function DetailEditModal({
           fId={targetGroupId || 'personal'}
           groupId={groupIdOf(currentItem || initialData) || ''}
           content={String((currentItem || initialData)?.content || '')}
-          onDeleteThisOnly={() => deleteEventItem(String(itemId), initialData)}
+          onDeleteThisOnly={async () => {
+            await deleteEventItem(String(itemId), initialData);
+            showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+          }}
           onDeleted={onClose}
           onClose={() => setGroupDeleteOpen(false)}
         />
