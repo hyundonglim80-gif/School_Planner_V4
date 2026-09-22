@@ -9,7 +9,7 @@
 //
 // 일정은 events/{날짜} 문서 안의 배열에 들어 있어서 서버에서 골라낼 수 없다.
 // 그래서 V3와 같이 날짜 문서를 훑어 배열 안을 직접 본다.
-import { collection, doc, getDocs, writeBatch, type CollectionReference } from 'firebase/firestore';
+import { collection, doc, getDocsFromServer, writeBatch, type CollectionReference } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { eventDocPayload, readEventList } from './eventText';
 import { moveToTrash } from '../utils/trashHelper';
@@ -48,7 +48,14 @@ export interface GroupHit {
   items: any[];
 }
 
-/** 같은 묶음에 속한 일정을 날짜 순으로 모두 찾는다. */
+/**
+ * 같은 묶음에 속한 일정을 날짜 순으로 모두 찾는다.
+ *
+ * ⚠️ 반드시 서버에서 읽는다. 여기서 읽은 목록은 지울 때 '남길 것'으로 그대로
+ *    다시 써진다. 캐시가 비었거나 뒤처진 답을 믿으면 (인터넷 사용 기록을 지운
+ *    직후가 그렇다) 그 사이 다른 데서 더한 일정까지 함께 지워진다.
+ *    못 읽으면 던진다 - 모르는 채로 지우느니 아무것도 안 하는 편이 낫다.
+ */
 export async function findGroupEvents(
   fId: string | null | undefined,
   groupId: string
@@ -56,7 +63,7 @@ export async function findGroupEvents(
   const col = eventsColRef(fId);
   if (!col || !groupId) return [];
 
-  const snap = await getDocs(col);
+  const snap = await getDocsFromServer(col);
   const hits: GroupHit[] = [];
   snap.forEach((docSnap) => {
     const list = readEventList(docSnap.data());

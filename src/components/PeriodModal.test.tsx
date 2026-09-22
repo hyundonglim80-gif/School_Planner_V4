@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { getDoc, writeBatch } from 'firebase/firestore';
+import { getDocFromServer, writeBatch } from 'firebase/firestore';
 import PeriodModal from './PeriodModal';
 
 // 공휴일은 Firestore에서 읽어온다. 여기서는 표만 갈아 끼운다.
@@ -101,7 +101,8 @@ describe('PeriodModal - 있는 일정을 기간으로 바꾸기', () => {
   beforeEach(() => {
     written.length = 0;
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    vi.mocked(getDoc).mockResolvedValue({
+    // 서버에서 읽는다 (캐시 답을 믿으면 그날 일정을 통째로 덮어쓴다)
+    vi.mocked(getDocFromServer).mockResolvedValue({
       exists: () => true,
       data: () => ({ eventList: [{ id: 'ev_old', content: '여름방학' }] }),
     } as any);
@@ -135,6 +136,30 @@ describe('PeriodModal - 있는 일정을 기간으로 바꾸기', () => {
     const firstDay = written[0].eventList;
     expect(firstDay.some((e: any) => e.id === 'ev_old')).toBe(false);
     expect(firstDay.some((e: any) => e.content === '여름방학 (1/5)')).toBe(true);
+  });
+
+  // 인터넷 사용 기록을 지운 직후가 딱 이 상태다. 캐시는 비어 있고 서버 답은
+  // 아직 없다. 그 말을 믿고 목록을 다시 쓰면 그날 일정이 통째로 지워진다.
+  it('서버가 답하지 않으면 한 글자도 쓰지 않는다', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getDocFromServer).mockRejectedValue(new Error('offline'));
+
+    render(
+      <PeriodModal
+        isOpen
+        onClose={vi.fn()}
+        startDate={MONDAY}
+        defaultContent="여름방학"
+        replace={{ dateStr: MONDAY, id: 'ev_old' }}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText('종료일'), { target: { value: '2026-09-25' } });
+    await user.click(screen.getByRole('button', { name: '등록 (5일)' }));
+
+    // 저장이 끝나면 단추 글씨가 '등록 중...'에서 되돌아온다
+    await waitFor(() => expect(screen.getByRole('button', { name: '등록 (5일)' })).toBeEnabled());
+    expect(written).toEqual([]);
   });
 
   it('등록이 끝났다고 알린다', async () => {

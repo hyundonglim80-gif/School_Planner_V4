@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 import { showToast, showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { eventDocPayload, readEventList } from '../lib/eventText';
@@ -109,7 +110,12 @@ export default function RecurringModal({ isOpen, onClose, defaultContent = '', d
           ? `groups/${selectedGroupId}/events`
           : `users/${uid}/events`;
         const ref = doc(db, colPath, dateStr);
-        const snap = await getDoc(ref);
+        // ⚠️ getDoc(캐시 우선)을 믿으면 안 된다. 캐시가 비어 있을 때 "문서 없다"는
+        //    답을 믿고 목록을 다시 쓰면 그날 있던 일정이 통째로 지워진다.
+        const { snap, fromServer } = await getDocTrustingServer(ref);
+        if (!fromServer) {
+          throw new Error('서버와 연결이 확실하지 않습니다. 그냥 진행하면 그날 있던 일정을 지울 수 있어 멈췄습니다.');
+        }
         const eventList = snap.exists() ? readEventList(snap.data()) : [];
 
         // 💡 예전에는 text만 쓰고 content를 빼먹어서, 읽기 쪽 필터(content가 비면 제외)에

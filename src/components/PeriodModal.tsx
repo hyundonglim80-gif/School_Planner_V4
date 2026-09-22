@@ -7,8 +7,9 @@
 // period: true가 붙을 뿐 여러 날에 걸친 일정이 만들어지지 않아, 선생님 눈에는 '체크했는데
 // 아무 일도 안 일어나는' 칸이었다.
 import { useEffect, useMemo, useState } from 'react';
-import { doc, getDoc, writeBatch } from 'firebase/firestore';
+import { doc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 import { showToast, showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
@@ -158,12 +159,25 @@ export default function PeriodModal({
       if (replace && !writeDates.includes(replace.dateStr)) writeDates.push(replace.dateStr);
 
       const refs = new Map(writeDates.map((dateStr) => [dateStr, doc(db, colPath, dateStr)]));
-      const snaps = await Promise.all(writeDates.map((dateStr) => getDoc(refs.get(dateStr)!)));
+
+      // ⚠️ 그냥 getDoc을 쓰면 안 된다. 기기 캐시가 비어 있으면 (인터넷 사용 기록을
+      //    지운 직후가 바로 그렇다) 서버에 멀쩡히 있는 문서를 "없다"고 답한다.
+      //    그 답을 믿고 목록을 통째로 다시 쓰면 그날 있던 일정이 전부 지워진다.
+      //    휴지통에도 남지 않는다. 서버가 답하지 않으면 아예 쓰지 않는다.
+      const reads = await Promise.all(
+        writeDates.map((dateStr) => getDocTrustingServer(refs.get(dateStr)!))
+      );
+      if (reads.some((r) => !r.fromServer)) {
+        return showErrorToast(
+          '서버와 연결이 확실하지 않아 등록을 멈췄습니다. 그냥 진행하면 그날 있던 일정을 지울 수 있습니다. 연결을 확인하고 다시 해 주세요.'
+        );
+      }
 
       const lists = new Map<string, any[]>();
       let replaced: any = null;
       writeDates.forEach((dateStr, i) => {
-        let list = snaps[i].exists() ? readEventList(snaps[i].data()) : [];
+        const snap = reads[i].snap;
+        let list = snap.exists() ? readEventList(snap.data()) : [];
         if (replace && dateStr === replace.dateStr) {
           replaced = list.find((e: any) => String(e.id) === String(replace.id)) || null;
           list = list.filter((e: any) => String(e.id) !== String(replace.id));
