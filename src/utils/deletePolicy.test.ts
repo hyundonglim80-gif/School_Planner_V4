@@ -28,6 +28,7 @@ const CONFIRM_ALLOWED: Record<string, string> = {
   'TimetableTemplateModal.tsx': '시간표 일괄 적용 - 기간 전체를 덮어쓴다',
   'ForwardingModal.tsx': '미완료 일정 일괄 전달 - 여러 건',
   'RecurringModal.tsx': '반복 일정 일괄 생성 - 여러 건',
+  'PeriodModal.tsx': '기간 일정 일괄 생성 - 여러 건',
   'LabelModal.tsx': '라벨 일괄 복구 - 여러 건',
   'LinkViewerModal.tsx': '연결 해제 - 양쪽에서 끊기고 휴지통에 남지 않는다',
   'DaySchedule.tsx': '기본 시간표 불러오기 - 과목을 덮어쓴다',

@@ -7,6 +7,7 @@ import { formatDateStr } from '../../lib/dateUtils';
 import { resolveEventLabelNames, eventDisplayContent } from '../../lib/eventLabels';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import EventAlarmModal from '../../components/EventAlarmModal';
+import PeriodModal from '../../components/PeriodModal';
 import AutoTextarea from '../../components/AutoTextarea';
 import EventItemActions from '../../components/EventItemActions';
 
@@ -78,7 +79,16 @@ export default function DayEvents({
   const [alarmTarget, setAlarmTarget] = useState<EventItem | null>(null);
   const [newAlarmTime, setNewAlarmTime] = useState('');
   const [newAlarmModalOpen, setNewAlarmModalOpen] = useState(false);
+  const [periodModalOpen, setPeriodModalOpen] = useState(false);
   const formattedDate = formatDateStr(new Date(currentDate));
+
+  /* '기간'을 켜면 곧바로 기간 설정 팝업을 띄운다 (V3와 같다).
+     기간은 하루짜리 속성이 아니라 '언제부터 언제까지'를 정해야 뜻이 생긴다.
+     V4에는 그 자리가 없어서, 체크해도 그날 하루에 표시만 남고 아무 일도
+     일어나지 않았다. 체크상자와 기간 라벨 어느 쪽으로 켜도 여기서 받는다. */
+  useEffect(() => {
+    if (isFormOpen && newPeriod) setPeriodModalOpen(true);
+  }, [isFormOpen, newPeriod]);
 
   /**
    * 새 일정을 열 때 미리 골라 둘 라벨. 통합 라벨 관리의 맨 위 하나다.
@@ -274,6 +284,19 @@ export default function DayEvents({
     });
   };
 
+  /** 새 일정 칸을 처음 상태로 되돌린다 */
+  const resetNewForm = () => {
+    setNewText('');
+    setNewLabels(defaultNewLabels());
+    setNewLinkedItems([]);
+    setNewAlarmTime('');
+    setNewCalendar(true);
+    setNewForward(false);
+    setNewPeriod(false);
+    setNewRecur(false);
+    setNewSkip(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newText.trim()) return;
@@ -290,15 +313,7 @@ export default function DayEvents({
         recur: newRecur,
         skip: newSkip,
       });
-      setNewText('');
-      setNewLabels(defaultNewLabels());
-      setNewLinkedItems([]);
-      setNewAlarmTime('');
-      setNewCalendar(true);
-      setNewForward(false);
-      setNewPeriod(false);
-      setNewRecur(false);
-      setNewSkip(false);
+      resetNewForm();
       // 이어서 바로 칠 수 있게, 그리고 ESC가 다시 먹게 초점을 돌려준다
       newTextRef.current?.focus();
     } finally {
@@ -836,6 +851,24 @@ export default function DayEvents({
         initialTime={newAlarmTime}
         onSave={(time) => setNewAlarmTime(time)}
         onTurnOff={() => setNewAlarmTime('')}
+      />
+    )}
+
+    {/* 기간 설정. 닫기만 하면 '기간'은 다시 꺼진다 - 기간을 안 정한 채로 켜져 있으면
+        하루짜리 일정에 쓸모없는 표시만 남는다 (V3도 취소하면 되돌린다). */}
+    {periodModalOpen && (
+      <PeriodModal
+        isOpen
+        startDate={formattedDate}
+        defaultContent={newText.trim()}
+        labels={newLabels}
+        attrs={{ calendar: newCalendar, forward: newForward, skip: newSkip }}
+        onClose={() => { setPeriodModalOpen(false); setNewPeriod(false); }}
+        onRegistered={() => {
+          setPeriodModalOpen(false);
+          resetNewForm();
+          setIsFormOpen(false);
+        }}
       />
     )}
 

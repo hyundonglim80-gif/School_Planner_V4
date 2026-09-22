@@ -229,6 +229,55 @@ describe("DayEvents - 새 일정 추가 폼도 '일정 수정'과 같은 구성"
   });
 });
 
+describe('DayEvents - 기간 속성', () => {
+  // '기간'은 하루짜리 표시가 아니라 '언제부터 언제까지'를 정해야 뜻이 생긴다.
+  // 켜도 아무것도 안 뜨면 체크만 남고 여러 날짜에 일정이 생기지 않는다.
+  const openAddFormAndCheckPeriod = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole('button', { name: /새 일정/ }));
+    const propBox = screen.getByText('속성 설정').closest('div')!;
+    const periodBox = within(propBox).getAllByRole('checkbox')[2]; // 달력·이월·기간 순
+    await user.click(periodBox);
+    return periodBox as HTMLInputElement;
+  };
+
+  it("'기간'을 켜면 기간을 정하는 칸이 뜬다", async () => {
+    const user = userEvent.setup();
+    renderEvents({ events: [] });
+
+    await openAddFormAndCheckPeriod(user);
+
+    expect(await screen.findByRole('heading', { name: /연속 기간 등록/ })).toBeInTheDocument();
+    expect(screen.getByLabelText('시작일')).toBeInTheDocument();
+    expect(screen.getByLabelText('종료일')).toBeInTheDocument();
+  });
+
+  it('적던 내용을 그대로 가지고 간다', async () => {
+    const user = userEvent.setup();
+    renderEvents({ events: [] });
+
+    await user.click(screen.getByRole('button', { name: /새 일정/ }));
+    await user.type(screen.getByPlaceholderText(/새로운 일정/), '여름방학');
+    const propBox = screen.getByText('속성 설정').closest('div')!;
+    await user.click(within(propBox).getAllByRole('checkbox')[2]);
+
+    await screen.findByRole('heading', { name: /연속 기간 등록/ });
+    expect(screen.getByLabelText('일정 내용')).toHaveValue('여름방학');
+  });
+
+  it('기간을 정하지 않고 닫으면 체크도 다시 풀린다', async () => {
+    const user = userEvent.setup();
+    renderEvents({ events: [] });
+
+    const periodBox = await openAddFormAndCheckPeriod(user);
+    await screen.findByRole('heading', { name: /연속 기간 등록/ });
+
+    await user.click(screen.getByTitle('닫기'));
+
+    expect(screen.queryByRole('heading', { name: /연속 기간 등록/ })).toBeNull();
+    expect(periodBox.checked).toBe(false);
+  });
+});
+
 describe('DayEvents - 바깥 클릭으로 수정 섹션 닫기', () => {
   it('페이지의 다른 곳을 누르면 수정 섹션이 닫힌다', async () => {
     const user = userEvent.setup();
