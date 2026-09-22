@@ -16,10 +16,12 @@ import DateRangeFields from './DateRangeFields';
 
 interface SearchResultItem {
   id: string;
-  type: 'memo' | 'event' | 'journal' | 'schedule' | 'schedule_memo' | 'schedule_supplies' | 'eval';
+  type: 'memo' | 'event' | 'journal' | 'schedule' | 'schedule_memo' | 'schedule_supplies' | 'eval' | 'attachment';
   dateStr?: string;
   title: string;
   snippet: string;
+  /** 눌렀을 때 갈 곳. 첨부는 어디에 붙어 있었느냐에 따라 다르다. */
+  goTo?: 'memo' | 'day';
 }
 
 /** 한 번에 그릴 결과 수. '더 보기'로 이만큼씩 늘린다. */
@@ -39,6 +41,10 @@ const FILTER_OPTIONS = [
   { id: 'memo', label: '메모(수업)' },
   { id: 'supplies', label: '비고' },
   { id: 'eval', label: '조사표명' },
+  // 첨부는 일정·기록·수업·메모 어디에나 붙는다. 그래서 갈래가 아니라
+  // '붙어 있는 파일만 모아 보기'로 따로 둔다. 검색어를 비우고 이것만 고르면
+  // 그 기간에 올린 파일이 한눈에 나온다.
+  { id: 'attachment', label: '첨부파일' },
 ];
 
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
@@ -178,28 +184,56 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
         return dateStr >= range.start && dateStr <= range.end;
       };
 
+      /**
+       * 첨부는 일정·기록·수업·메모에 딸려 있다. 그래서 그 갈래들을 다 읽어야 한다.
+       * '첨부파일'만 골랐어도 아래 네 컬렉션을 모두 읽는 까닭이다.
+       */
+      const wantAttachment = hasType('attachment');
+
+      /** 파일 이름이나 붙어 있던 글에 걸리면 한 건으로 담는다. */
+      const pushAttachments = (
+        atts: any,
+        ctx: { key: string; dateStr?: string; where: string; parentText?: string; goTo?: 'memo' | 'day' }
+      ) => {
+        if (!wantAttachment || !Array.isArray(atts)) return;
+        atts.forEach((att: any, i: number) => {
+          // 문자열 하나만 저장된 옛 첨부도 있다
+          const name = String((typeof att === 'string' ? att.split('/').pop() : att?.name) || '').trim();
+          const shown = name || '이름 없는 파일';
+          if (!checkMatch(shown) && !checkMatch(ctx.parentText || '')) return;
+          searchResults.push({
+            id: `att_${ctx.key}_${i}`,
+            type: 'attachment',
+            dateStr: ctx.dateStr,
+            title: `첨부 · ${ctx.where}${ctx.dateStr ? ` (${ctx.dateStr})` : ''}`,
+            snippet: ctx.parentText ? `📎 ${shown}\n${ctx.parentText}` : `📎 ${shown}`,
+            goTo: ctx.goTo,
+          });
+        });
+      };
+
       const promises: Promise<any>[] = [];
 
       // 1. 메모 (tasks)
-      if (hasType('task')) {
+      if (hasType('task') || wantAttachment) {
         const col = selectedGroupId ? collection(db, 'groups', selectedGroupId, 'tasks') : collection(db, 'users', user.uid, 'tasks');
         promises.push(getDocs(col).then((snap) => ({ type: 'tasks', snap })));
       }
       
       // 2. 일정 (events)
-      if (hasType('event')) {
+      if (hasType('event') || wantAttachment) {
         const col = selectedGroupId ? collection(db, 'groups', selectedGroupId, 'events') : collection(db, 'users', user.uid, 'events');
         promises.push(getDocs(query(col, ...dateQuery)).then((snap) => ({ type: 'events', snap })));
       }
 
       // 3. 기록 (journals)
-      if (hasType('journal')) {
+      if (hasType('journal') || wantAttachment) {
         const col = selectedGroupId ? collection(db, 'groups', selectedGroupId, 'journals') : collection(db, 'users', user.uid, 'journals');
         promises.push(getDocs(query(col, ...dateQuery)).then((snap) => ({ type: 'journals', snap })));
       }
 
       // 4. 수업, 메모(수업), 비고 (schedules)
-      if (hasType('subject') || hasType('memo') || hasType('supplies')) {
+      if (hasType('subject') || hasType('memo') || hasType('supplies') || wantAttachment) {
         const col = selectedGroupId ? collection(db, 'groups', selectedGroupId, 'schedules') : collection(db, 'users', user.uid, 'schedules');
         promises.push(getDocs(query(col, ...dateQuery)).then((snap) => ({ type: 'schedules', snap })));
       }
@@ -219,7 +253,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
             const dateStr = memoDateOf(data);
             if (!memoInRange(dateStr)) return;
             const text = data.content || data.text || '';
-            if (checkMatch(text)) {
+            if (hasType('task') && checkMatch(text)) {
               searchResults.push({
                 id: d.id,
                 type: 'memo',
@@ -228,6 +262,13 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 snippet: text,
               });
             }
+            pushAttachments(data.attachments, {
+              key: `task_${d.id}`,
+              dateStr: dateStr || undefined,
+              where: '메모',
+              parentText: text,
+              goTo: 'memo',
+            });
           });
         } else if (type === 'events') {
           snap.forEach((d: any) => {
@@ -238,9 +279,15 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
               items = parseV3EventText(data.eventText || '');
             }
             items.forEach((item: any, idx: number) => {
-              if (checkMatch(item.content)) {
+              if (hasType('event') && checkMatch(item.content)) {
                 searchResults.push({ id: `ev_${dateStr}_${idx}`, type: 'event', dateStr, title: `일정 (${dateStr})`, snippet: item.content });
               }
+              pushAttachments(item.attachments, {
+                key: `ev_${dateStr}_${idx}`,
+                dateStr,
+                where: '일정',
+                parentText: item.content,
+              });
             });
           });
         } else if (type === 'journals') {
@@ -248,9 +295,15 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
             const dateStr = d.id;
             const entries = d.data().entries || [];
             entries.forEach((entry: any, idx: number) => {
-              if (checkMatch(entry.content)) {
+              if (hasType('journal') && checkMatch(entry.content)) {
                 searchResults.push({ id: `jr_${dateStr}_${idx}`, type: 'journal', dateStr, title: `기록 (${dateStr} - ${entry.label || '일반'})`, snippet: entry.content });
               }
+              pushAttachments(entry.attachments, {
+                key: `jr_${dateStr}_${idx}`,
+                dateStr,
+                where: '기록',
+                parentText: entry.content,
+              });
             });
           });
         } else if (type === 'schedules') {
@@ -267,6 +320,12 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
               if (hasType('supplies') && checkMatch(pData.supplies)) {
                 searchResults.push({ id: `sc_sup_${dateStr}_${p}`, type: 'schedule_supplies', dateStr, title: `비고 (${dateStr} ${p}교시)`, snippet: pData.supplies });
               }
+              pushAttachments(pData.attachments, {
+                key: `sc_${dateStr}_${p}`,
+                dateStr,
+                where: `수업 ${p}교시`,
+                parentText: pData.subject || pData.memo || '',
+              });
             });
           });
         } else if (type === 'evaluations') {
@@ -299,7 +358,8 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   };
 
   const handleItemClick = (item: SearchResultItem) => {
-    if (item.type === 'memo') {
+    // 첨부는 메모에 붙은 것이면 메모 화면으로, 그 밖에는 그 날짜로 간다.
+    if (item.type === 'memo' || item.goTo === 'memo') {
       setScope('memo');
     } else if (item.dateStr) {
       setCurrentDate(parseDateStr(item.dateStr));
@@ -379,29 +439,33 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
           </div>
           
           {/* 검색 기간 선택 */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <span className="text-xs font-bold text-slate-700 whitespace-nowrap">
+          {/* 드롭다운과 날짜를 한 줄에 둔다.
+              기간이 날짜로 바로 보이므로, 드롭다운 이름에 들어 있던 날짜 풀이
+              ('1학기 (3월 ~ 8월 15일)')는 뚜다. 같은 말을 두 번 적지 않고,
+              그만큼 줄이 짧아져 한 줄에 들어간다. */}
+          <div className="flex items-center flex-wrap gap-x-2 gap-y-1.5">
+            <span className="text-xs font-bold text-slate-700 whitespace-nowrap shrink-0">
               검색 기간:
-              <span className="ml-1 font-semibold text-slate-500">(메모는 만든 날 기준)</span>
             </span>
             <select
               value={searchScope}
               onChange={(e) => setSearchScope(e.target.value)}
-              className="text-xs p-1.5 border border-slate-200 rounded-lg outline-none bg-white font-semibold cursor-pointer focus:ring-1 focus:ring-primary"
+              title="메모는 날짜 문서가 아니라 만든 날을 기준으로 거릅니다"
+              className="text-xs px-1.5 py-1 border border-slate-200 rounded-lg outline-none bg-white font-semibold cursor-pointer focus:ring-1 focus:ring-primary shrink-0"
             >
-              <option value="year">해당 학년도 전체 (모든 데이터)</option>
-              <option value="sem1">1학기 (3월 ~ 8월 15일)</option>
-              <option value="sem2">2학기 (8월 16일 ~ 2월 말)</option>
+              <option value="year">학년도 전체</option>
+              <option value="sem1">1학기</option>
+              <option value="sem2">2학기</option>
               <option value="month">해당 월</option>
               <option value="week">해당 주</option>
               <option value="day">해당 일</option>
-              <option value="custom">직접 지정(Custom)...</option>
+              <option value="custom">직접 지정</option>
             </select>
             
             {/* 고른 기간이 실제로 며칠부터 며칠까지인지 늘 보여 주고, 그 자리에서
                 고칠 수 있게 한다. 고치면 '직접 지정'으로 넘어간다. */}
             {searchScope === 'year' ? (
-              <span className="text-xs font-semibold text-slate-400">날짜 제한 없음</span>
+              <span className="text-2xs font-semibold text-slate-400 shrink-0">날짜 제한 없음</span>
             ) : (
               <DateRangeFields
                 start={shownRange.start}
@@ -443,6 +507,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                   case 'schedule_memo': badgeClass = 'bg-lime-50 text-lime-700 border-lime-200'; badgeText = '수업 메모'; break;
                   case 'schedule_supplies': badgeClass = 'bg-orange-50 text-orange-700 border-orange-200'; badgeText = '비고'; break;
                   case 'eval': badgeClass = 'bg-cyan-50 text-cyan-700 border-cyan-200'; badgeText = '조사표'; break;
+                  case 'attachment': badgeClass = 'bg-rose-50 text-rose-700 border-rose-200'; badgeText = '첨부파일'; break;
                 }
 
                 return (

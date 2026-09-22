@@ -1,4 +1,4 @@
-//src/components/QuickAddModal.tsx
+//src/components/LinkerModal.tsx
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { doc, getDoc, setDoc, getDocs, collection, query, where, documentId } from 'firebase/firestore';
@@ -743,55 +743,54 @@ export default function LinkerModal({
           ) : (
             /* 일정/기록/메모 탭 공통 필터 영역 */
             <div className="flex flex-col gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-              {/* 기간 범위 필터 (일정/기록/메모 공통) */}
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-600 shrink-0">조회 범위:</span>
-                  <select
-                    value={dateRange}
-                    onChange={(e) => {
-                      setDateRange(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 bg-white"
-                  >
-                    <option value="1week">±1주일</option>
-                    <option value="1month">±1개월</option>
-                    <option value="sem1">1학기 전체</option>
-                    <option value="sem2">2학기 전체</option>
-                    <option value="year">학년도 전체</option>
-                    <option value="custom">기간 설정</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (currentTab === 'memo') fetchMemoData();
-                      else fetchDateRangeData();
-                      setCurrentPage(1);
-                    }}
-                    className="ml-auto px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 transition-colors"
-                  >
-                    조회
-                  </button>
-                </div>
+              {/* 기간 범위 필터 (일정/기록/메모 공통).
+                  드롭다운·날짜·조회를 한 줄에 둔다. 날짜가 아랫줄로 내려가면
+                  필터만 두 줄이 되어 정작 봐야 할 목록이 그만큼 밀린다. */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-slate-600 shrink-0">조회 범위:</span>
+                <select
+                  value={dateRange}
+                  onChange={(e) => {
+                    setDateRange(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="px-1.5 py-1 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 bg-white shrink-0"
+                >
+                  <option value="1week">±1주일</option>
+                  <option value="1month">±1개월</option>
+                  <option value="sem1">1학기 전체</option>
+                  <option value="sem2">2학기 전체</option>
+                  <option value="year">학년도 전체</option>
+                  <option value="custom">기간 설정</option>
+                </select>
 
-                {/* 고른 범위가 실제로 며칠부터 며칠까지인지 늘 보여 주고,
-                    그 자리에서 고칠 수 있게 한다. 고치면 '기간 설정'으로 넘어간다
-                    (고른 날짜가 드롭다운 이름과 어긋난 채로 남지 않게). */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <DateRangeFields
-                    dense
-                    start={shownRange.start}
-                    end={shownRange.end}
-                    onChange={(s, e) => {
-                      setCustomStart(s);
-                      setCustomEnd(e);
-                      setDateRange('custom');
-                      setCurrentPage(1);
-                    }}
-                  />
-                  <span className="text-xs text-slate-400">날짜를 고친 뒤 '조회'를 누르세요</span>
-                </div>
+                {/* 고른 범위의 날짜를 그대로 보여 주고, 그 자리에서 고칠 수 있게 한다.
+                    고치면 '기간 설정'으로 넘어간다 (고른 날짜가 드롭다운 이름과
+                    어긋난 채로 남지 않게). */}
+                <DateRangeFields
+                  dense
+                  start={shownRange.start}
+                  end={shownRange.end}
+                  onChange={(s, e) => {
+                    setCustomStart(s);
+                    setCustomEnd(e);
+                    setDateRange('custom');
+                    setCurrentPage(1);
+                  }}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (currentTab === 'memo') fetchMemoData();
+                    else fetchDateRangeData();
+                    setCurrentPage(1);
+                  }}
+                  title="날짜를 고친 뒤에도 이것을 눌러 다시 불러옵니다"
+                  className="ml-auto shrink-0 px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 transition-colors"
+                >
+                  조회
+                </button>
               </div>
 
               {/* 라벨 칩 필터 - 탭(일정/기록/메모)에 맞는 라벨을 보여준다 */}

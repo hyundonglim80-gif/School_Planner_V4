@@ -163,3 +163,92 @@ describe('검색 - 고른 기간의 날짜', () => {
     expect(screen.getByLabelText('시작일')).toHaveValue('2026-03-01');
   });
 });
+
+// 첨부는 일정·기록·수업·메모 어디에나 붙는다. 갈래로는 찾을 수 없어서
+// '붙어 있는 파일만 모아 보는' 갈래를 따로 뒀다.
+describe('검색 - 첨부파일', () => {
+  beforeEach(() => {
+    useAppStore.setState({ currentDate: new Date(2026, 8, 15).toISOString() });
+    (getDocsMock as any).mockImplementation(async (ref: any) => {
+      const path = String(ref?.path || '');
+      if (path.includes('events')) {
+        return {
+          forEach: (cb: any) =>
+            [
+              {
+                id: '2026-09-10',
+                data: () => ({
+                  eventList: [
+                    {
+                      id: 'ev_1',
+                      content: '학예회 준비',
+                      attachments: [{ name: '학예회_순서지.pdf', url: 'https://x/1' }],
+                    },
+                    { id: 'ev_2', content: '첨부 없는 일정' },
+                  ],
+                }),
+              },
+            ].forEach(cb),
+          docs: [],
+        };
+      }
+      if (path.includes('journals')) {
+        return {
+          forEach: (cb: any) =>
+            [
+              {
+                id: '2026-09-11',
+                data: () => ({
+                  entries: [{ id: 'jr_1', content: '상담 기록', attachments: [{ name: '상담지.png', url: 'https://x/2' }] }],
+                }),
+              },
+            ].forEach(cb),
+          docs: [],
+        };
+      }
+      return { forEach: () => {}, docs: [] };
+    });
+  });
+
+  const pickOnlyAttachment = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole('button', { name: '첨부파일' }));
+  };
+
+  it('첨부파일만 골라 찾으면 파일만 나온다', async () => {
+    const user = userEvent.setup();
+    render(<SearchModal isOpen onClose={vi.fn()} />);
+
+    await pickOnlyAttachment(user);
+    await user.click(screen.getByRole('button', { name: '데이터 찾기' }));
+
+    expect(await screen.findByText(/학예회_순서지\.pdf/)).toBeInTheDocument();
+    expect(screen.getByText(/상담지\.png/)).toBeInTheDocument();
+    // 첨부가 없는 일정은 나오지 않는다
+    expect(screen.queryByText('첨부 없는 일정')).toBeNull();
+    // 일정 본문만 걸리는 카드도 나오지 않는다 (첨부만 골랐으므로)
+    expect(screen.queryAllByText('첨부파일').length).toBeGreaterThan(0);
+  }, 20000);
+
+  it('파일 이름으로 찾을 수 있다', async () => {
+    const user = userEvent.setup();
+    render(<SearchModal isOpen onClose={vi.fn()} />);
+
+    await pickOnlyAttachment(user);
+    await user.type(screen.getByPlaceholderText(/검색어/), '순서지');
+    await user.click(screen.getByRole('button', { name: '데이터 찾기' }));
+
+    expect(await screen.findByText(/학예회_순서지\.pdf/)).toBeInTheDocument();
+    expect(screen.queryByText(/상담지\.png/)).toBeNull();
+  }, 20000);
+
+  it('첨부를 고르지 않으면 파일은 나오지 않는다', async () => {
+    const user = userEvent.setup();
+    render(<SearchModal isOpen onClose={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: '일정' }));
+    await user.click(screen.getByRole('button', { name: '데이터 찾기' }));
+
+    expect(await screen.findByText('학예회 준비')).toBeInTheDocument();
+    expect(screen.queryByText(/학예회_순서지\.pdf/)).toBeNull();
+  }, 20000);
+});
