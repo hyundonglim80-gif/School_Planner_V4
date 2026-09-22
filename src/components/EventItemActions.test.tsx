@@ -15,6 +15,14 @@ describe('EventItemActions', () => {
     expect(screen.getByTitle('일정 삭제')).toBeInTheDocument();
   });
 
+  // 주간·월간·년간은 항목을 누르면 바로 수정 팝업이 열린다. 거기서는 ✏️를 주지 않는다.
+  it('onEdit을 주지 않으면 수정 아이콘을 그리지 않는다', () => {
+    render(<EventItemActions onDelete={vi.fn()} />);
+
+    expect(screen.queryByTitle('일정 수정')).toBeNull();
+    expect(screen.getByTitle('일정 삭제')).toBeInTheDocument();
+  });
+
   it('수정 아이콘은 항목 클릭으로 번지지 않는다', async () => {
     const user = userEvent.setup();
     const onEdit = vi.fn();

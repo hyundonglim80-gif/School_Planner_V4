@@ -9,6 +9,9 @@ import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
 import EventAlarmModal from './EventAlarmModal';
+import PeriodModal from './PeriodModal';
+import GroupDeleteModal from './GroupDeleteModal';
+import { baseContentOf, groupIdOf } from '../lib/eventGroups';
 import AutoTextarea from './AutoTextarea';
 
 function formatAlarmBadge(time?: string) {
@@ -61,6 +64,10 @@ export default function DetailEditModal({
 
   const [saving, setSaving] = useState(false);
   const [alarmModalOpen, setAlarmModalOpen] = useState(false);
+  /** '기간'을 켜서 날짜를 고르는 중인가 */
+  const [periodModalOpen, setPeriodModalOpen] = useState(false);
+  /** 기간·반복으로 묶인 일정을 지우려 할 때, 어디까지 지울지 고르는 중인가 */
+  const [groupDeleteOpen, setGroupDeleteOpen] = useState(false);
 
   // Edit states
   const [subject, setSubject] = useState('');
@@ -173,7 +180,22 @@ export default function DetailEditModal({
 
   if (!isOpen) return null;
 
+  /**
+   * '기간'을 켜면 날짜부터 고르게 한다.
+   *
+   * 켜 두기만 하면 그 하루에 표시만 남고 여러 날짜에 일정이 생기지 않는다.
+   * 팝업을 열 때 이미 켜져 있던 것에는 뜨지 않는다 - 사용자가 직접 켠 순간에만 지난다.
+   */
+  const turnItemPeriod = (on: boolean) => {
+    setItemPeriod(on);
+    if (on && type === 'event') setPeriodModalOpen(true);
+  };
+
   const toggleLabel = (labelName: string) => {
+    // 기간 라벨을 새로 붙이는 것도 '기간을 켠 것'이다.
+    const picked = eventLabels.find(l => l.name === labelName);
+    if (!labels.includes(labelName) && picked?.period && type === 'event') setPeriodModalOpen(true);
+
     setLabels(prev => {
       const willSelect = !prev.includes(labelName);
       const next = willSelect
@@ -233,7 +255,12 @@ export default function DetailEditModal({
   };
 
   // 확인창 대신 바로 지우고, 되돌릴 수 있다는 안내를 토스트로 알린다.
+  // 다만 기간·반복으로 묶인 일정은 어디까지 지울지 먼저 묻는다.
   const handleDelete = async () => {
+    if (type === 'event' && groupIdOf(currentItem || initialData)) {
+      setGroupDeleteOpen(true);
+      return;
+    }
     try {
       setSaving(true);
       if (type === 'schedule') {
@@ -430,7 +457,7 @@ export default function DetailEditModal({
                         <input
                           type="checkbox"
                           checked={itemPeriod}
-                          onChange={(e) => setItemPeriod(e.target.checked)}
+                          onChange={(e) => turnItemPeriod(e.target.checked)}
                           className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                         />
                         <span className="font-semibold text-xs">기간</span>
@@ -512,6 +539,38 @@ export default function DetailEditModal({
           onTurnOff={async () => {
             await updateEventItem(String(itemId), { time: '', alarmTriggered: false });
           }}
+        />
+      )}
+
+      {/* 기간 설정. 정하지 않고 닫으면 '기간'도 다시 꺼진다. */}
+      {type === 'event' && periodModalOpen && (
+        <PeriodModal
+          isOpen
+          startDate={dateStr}
+          defaultContent={baseContentOf(content)}
+          labels={labels}
+          attrs={{ calendar: itemCalendar, forward: itemForward, skip: itemSkip }}
+          onClose={() => { setPeriodModalOpen(false); setItemPeriod(false); }}
+          onRegistered={async () => {
+            setPeriodModalOpen(false);
+            // 고치던 한 건이 여러 날짜의 묶음이 되었다. 첫날에 두 번 남지 않게 치운다.
+            await deleteEventItem(String(itemId), initialData);
+            onClose();
+          }}
+        />
+      )}
+
+      {/* 기간·반복으로 묶인 일정을 지울 때: 이 날만 / 이 날부터 / 전부 */}
+      {type === 'event' && groupDeleteOpen && (
+        <GroupDeleteModal
+          isOpen
+          dateStr={dateStr}
+          fId={targetGroupId || 'personal'}
+          groupId={groupIdOf(currentItem || initialData) || ''}
+          content={String((currentItem || initialData)?.content || '')}
+          onDeleteThisOnly={() => deleteEventItem(String(itemId), initialData)}
+          onDeleted={onClose}
+          onClose={() => setGroupDeleteOpen(false)}
         />
       )}
     </div>

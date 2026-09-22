@@ -338,7 +338,6 @@ function YearMonthCard({
                               {!isMultiSelectMode && (
                                 <EventItemActions
                                   floating
-                                  onEdit={() => onOpenDetail('event', dObj.dateStr, ev.id, ev)}
                                   onDelete={() => onDeleteEvent(dObj.dateStr, ev.id, ev)}
                                 />
                               )}

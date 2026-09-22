@@ -99,6 +99,10 @@ export default function RecurringModal({ isOpen, onClose, defaultContent = '', d
       const uid = auth.currentUser?.uid;
       if (!uid) return;
 
+      // 한 번에 만든 것끼리 묶어 둔다. 나중에 '이 날부터 뒤로' 처럼 범위를 골라
+      // 지울 수 있는 것은 이 id가 있을 때뿐이다 (lib/eventGroups).
+      const seriesId = `group_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+
       const batch = writeBatch(db);
       for (const dateStr of dates) {
         const colPath = selectedGroupId && selectedGroupId !== 'personal'
@@ -117,6 +121,8 @@ export default function RecurringModal({ isOpen, onClose, defaultContent = '', d
           label: labelName || '',
           labelIds: labelName ? [labelName] : [],
           completed: false,
+          groupId: seriesId,
+          recur: true,
           createdAt: Date.now()
         });
 

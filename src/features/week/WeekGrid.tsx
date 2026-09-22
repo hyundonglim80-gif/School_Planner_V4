@@ -294,15 +294,6 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                           {!isMultiSelectMode && (
                             <EventItemActions
                               floating
-                              onEdit={() =>
-                                setDetailModal({
-                                  isOpen: true,
-                                  type: 'event',
-                                  dateStr: day.dateStr,
-                                  itemId: ev.id,
-                                  initialData: ev,
-                                })
-                              }
                               onDelete={() => onDeleteEvent(day.dateStr, ev.id, ev)}
                             />
                           )}

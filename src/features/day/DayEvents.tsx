@@ -6,8 +6,10 @@ import { showToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
 import { resolveEventLabelNames, eventDisplayContent } from '../../lib/eventLabels';
 import { useClickOutside } from '../../hooks/useClickOutside';
+import { baseContentOf, groupIdOf } from '../../lib/eventGroups';
 import EventAlarmModal from '../../components/EventAlarmModal';
 import PeriodModal from '../../components/PeriodModal';
+import GroupDeleteModal from '../../components/GroupDeleteModal';
 import AutoTextarea from '../../components/AutoTextarea';
 import EventItemActions from '../../components/EventItemActions';
 
@@ -45,7 +47,7 @@ export default function DayEvents({
   const [newLinkedItems, setNewLinkedItems] = useState<any[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  const { openLinkerModal, openLinkViewerModal, openLabelModal, currentDate, isMultiSelectMode, selectedEventIds, toggleEventSelection } = useAppStore();
+  const { openLinkerModal, openLinkViewerModal, openLabelModal, currentDate, selectedGroupId, isMultiSelectMode, selectedEventIds, toggleEventSelection } = useAppStore();
   const { eventLabels, getLabelColor, labelsLoaded } = useLabels();
   
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -79,7 +81,11 @@ export default function DayEvents({
   const [alarmTarget, setAlarmTarget] = useState<EventItem | null>(null);
   const [newAlarmTime, setNewAlarmTime] = useState('');
   const [newAlarmModalOpen, setNewAlarmModalOpen] = useState(false);
-  const [periodModalOpen, setPeriodModalOpen] = useState(false);
+  /* 기간 설정 팝업을 누구를 위해 열었는가. 새로 적는 일정이면 'new',
+     이미 있는 일정을 기간으로 바꾸는 중이면 그 일정의 id를 들고 있는 'edit'. */
+  const [periodTarget, setPeriodTarget] = useState<{ kind: 'new' } | { kind: 'edit'; id: string } | null>(null);
+  /** 기간·반복으로 묶인 일정을 지우려 할 때, 어디까지 지울지 고르는 팝업의 대상 */
+  const [groupDeleteTarget, setGroupDeleteTarget] = useState<EventItem | null>(null);
   const formattedDate = formatDateStr(new Date(currentDate));
 
   /* '기간'을 켜면 곧바로 기간 설정 팝업을 띄운다 (V3와 같다).
@@ -87,7 +93,7 @@ export default function DayEvents({
      V4에는 그 자리가 없어서, 체크해도 그날 하루에 표시만 남고 아무 일도
      일어나지 않았다. 체크상자와 기간 라벨 어느 쪽으로 켜도 여기서 받는다. */
   useEffect(() => {
-    if (isFormOpen && newPeriod) setPeriodModalOpen(true);
+    if (isFormOpen && newPeriod) setPeriodTarget((prev) => prev ?? { kind: 'new' });
   }, [isFormOpen, newPeriod]);
 
   /**
@@ -248,13 +254,37 @@ export default function DayEvents({
     showToast('✅ 일정을 저장했습니다.');
   };
 
+  /**
+   * 이미 있는 일정에 '기간'을 켜면 날짜부터 고르게 한다.
+   *
+   * 켜 두기만 해서는 그 하루에 표시만 남는다. V3는 기간 라벨을 붙이는 순간
+   * 기간 팝업을 띄워 며칠짜리인지 물었다 (viewDay.toggleEventLabel).
+   * 수정 칸을 열 때 이미 켜져 있던 것(기간으로 만들어진 일정)에는 뜨지 않는다 -
+   * 여기는 사용자가 직접 켠 순간에만 지나간다.
+   */
+  const turnEditPeriod = (id: string, on: boolean) => {
+    setEditPeriod(on);
+    if (on) setPeriodTarget({ kind: 'edit', id });
+  };
+
   const deleteEditing = async (id: string) => {
+    // 기간·반복으로 묶인 일정은 어디까지 지울지 먼저 묻는다.
+    const target = events.find((e) => String(e.id) === String(id));
+    if (target && groupIdOf(target)) {
+      setGroupDeleteTarget(target);
+      return;
+    }
     await onDeleteEvent(id);
     setEditingId(null);
     showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
   };
 
   const handleEditLabelToggle = (labelName: string) => {
+    // 기간 라벨을 새로 붙이는 것도 '기간을 켠 것'이다. 날짜부터 고르게 한다.
+    const picked = eventLabels.find((l) => l.name === labelName);
+    const alreadyOn = (editLabel ? editLabel.split(',').filter(Boolean) : []).includes(labelName);
+    if (!alreadyOn && picked?.period && editingId) setPeriodTarget({ kind: 'edit', id: editingId });
+
     setEditLabel(prev => {
       const currentLabels = prev ? prev.split(',').filter(Boolean) : [];
       const willSelect = !currentLabels.includes(labelName);
@@ -614,7 +644,7 @@ export default function DayEvents({
                         <span className="font-semibold text-xs">이월</span>
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="연속 기간 등록">
-                        <input type="checkbox" checked={editPeriod} onChange={(e) => setEditPeriod(e.target.checked)} className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
+                        <input type="checkbox" checked={editPeriod} onChange={(e) => turnEditPeriod(event.id, e.target.checked)} className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer" />
                         <span className="font-semibold text-xs">기간</span>
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-900" title="매주/매월 반복">
@@ -856,19 +886,53 @@ export default function DayEvents({
 
     {/* 기간 설정. 닫기만 하면 '기간'은 다시 꺼진다 - 기간을 안 정한 채로 켜져 있으면
         하루짜리 일정에 쓸모없는 표시만 남는다 (V3도 취소하면 되돌린다). */}
-    {periodModalOpen && (
+    {periodTarget && (
       <PeriodModal
         isOpen
         startDate={formattedDate}
-        defaultContent={newText.trim()}
-        labels={newLabels}
-        attrs={{ calendar: newCalendar, forward: newForward, skip: newSkip }}
-        onClose={() => { setPeriodModalOpen(false); setNewPeriod(false); }}
-        onRegistered={() => {
-          setPeriodModalOpen(false);
-          resetNewForm();
-          setIsFormOpen(false);
+        defaultContent={periodTarget.kind === 'new' ? newText.trim() : baseContentOf(editText)}
+        labels={
+          periodTarget.kind === 'new'
+            ? newLabels
+            : editLabel ? editLabel.split(',').filter(Boolean) : []
+        }
+        attrs={
+          periodTarget.kind === 'new'
+            ? { calendar: newCalendar, forward: newForward, skip: newSkip }
+            : { calendar: editCalendar, forward: editForward, skip: editSkip }
+        }
+        onClose={() => {
+          if (periodTarget.kind === 'new') setNewPeriod(false);
+          else setEditPeriod(false);
+          setPeriodTarget(null);
         }}
+        onRegistered={async () => {
+          const target = periodTarget;
+          setPeriodTarget(null);
+          if (target.kind === 'new') {
+            resetNewForm();
+            setIsFormOpen(false);
+            return;
+          }
+          // 고치던 한 건은 여러 날짜의 묶음으로 바뀌었다. 첫날에 같은 일정이
+          // 두 번 남지 않도록 원래 한 건은 치운다 (휴지통에 남는다).
+          setEditingId(null);
+          await onDeleteEvent(target.id);
+        }}
+      />
+    )}
+
+    {/* 기간·반복으로 묶인 일정을 지울 때: 이 날만 / 이 날부터 / 전부 */}
+    {groupDeleteTarget && (
+      <GroupDeleteModal
+        isOpen
+        dateStr={formattedDate}
+        fId={selectedGroupId || 'personal'}
+        groupId={groupIdOf(groupDeleteTarget) || ''}
+        content={eventDisplayContent(groupDeleteTarget)}
+        onDeleteThisOnly={() => onDeleteEvent(groupDeleteTarget.id)}
+        onDeleted={() => setEditingId(null)}
+        onClose={() => setGroupDeleteTarget(null)}
       />
     )}
 

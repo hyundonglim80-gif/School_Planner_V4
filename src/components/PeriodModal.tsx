@@ -6,12 +6,13 @@
 // V4에는 '기간' 체크상자만 있고 기간을 정할 자리가 없었다. 그래서 체크해도 그날 하루에
 // period: true가 붙을 뿐 여러 날에 걸친 일정이 만들어지지 않아, 선생님 눈에는 '체크했는데
 // 아무 일도 안 일어나는' 칸이었다.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { doc, getDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { showToast, showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
+import { loadHolidayYears } from '../hooks/useGovHolidays';
 import { eventDocPayload, readEventList } from '../lib/eventText';
 import { formatDateStr, parseDateStr } from '../lib/dateUtils';
 import ModalShell, { ModalCloseButton } from './ModalShell';
@@ -49,9 +50,34 @@ export default function PeriodModal({
   const [content, setContent] = useState(defaultContent);
   const [start, setStart] = useState(startDate);
   const [end, setEnd] = useState(startDate);
-  // V3와 같게 주말 제외를 기본으로 켜 둔다. 학교 일정은 대부분 평일에만 돈다.
+  // V3와 같게 쉬는 날 제외를 기본으로 켜 둔다. 학교 일정은 대부분 수업일에만 돈다.
   const [excludeWeekend, setExcludeWeekend] = useState(true);
+  const [holidays, setHolidays] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+
+  // 기간이 걸친 해의 공휴일을 받아 둔다. 겨울방학처럼 해를 넘기면 두 해가 필요하다.
+  const years = useMemo(() => {
+    const s = start ? parseDateStr(start).getFullYear() : NaN;
+    const e = end ? parseDateStr(end).getFullYear() : NaN;
+    if (!Number.isFinite(s) || !Number.isFinite(e) || e < s) return [];
+    return Array.from({ length: e - s + 1 }, (_, i) => s + i);
+  }, [start, end]);
+  const yearsKey = years.join(',');
+
+  useEffect(() => {
+    if (years.length === 0) return;
+    let alive = true;
+    loadHolidayYears(years)
+      .then((days) => { if (alive) setHolidays((prev) => ({ ...prev, ...days })); })
+      // 공휴일을 못 읽어도 등록은 되어야 한다. 주말만 빠진다.
+      .catch((err) => console.warn('공휴일을 읽지 못했습니다.', err));
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [yearsKey]);
+
+  /** 쉬는 날 제외를 켰을 때 빠지는 날인가 (토·일 또는 공휴일) */
+  const isOffDay = (dateStr: string, weekday: number) =>
+    weekday === 0 || weekday === 6 || !!holidays[dateStr];
 
   const dates = useMemo(() => {
     if (!start || !end) return [];
@@ -61,12 +87,31 @@ export default function PeriodModal({
     const out: string[] = [];
     const cur = new Date(s);
     while (cur <= e) {
-      const day = cur.getDay();
-      if (!(excludeWeekend && (day === 0 || day === 6))) out.push(formatDateStr(cur));
+      const dateStr = formatDateStr(cur);
+      if (!(excludeWeekend && isOffDay(dateStr, cur.getDay()))) out.push(dateStr);
       cur.setDate(cur.getDate() + 1);
     }
     return out;
-  }, [start, end, excludeWeekend]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [start, end, excludeWeekend, holidays]);
+
+  /** 제외된 공휴일 이름. 무엇 때문에 며칠이 빠졌는지 보여 준다. */
+  const skippedHolidays = useMemo(() => {
+    if (!excludeWeekend || !start || !end) return [];
+    const s = parseDateStr(start);
+    const e = parseDateStr(end);
+    if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return [];
+    const names: string[] = [];
+    const cur = new Date(s);
+    while (cur <= e) {
+      const dateStr = formatDateStr(cur);
+      const name = holidays[dateStr];
+      // 주말에 겹친 공휴일은 어차피 빠지므로 따로 알리지 않는다
+      if (name && cur.getDay() !== 0 && cur.getDay() !== 6) names.push(name);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return names;
+  }, [start, end, excludeWeekend, holidays]);
 
   const handleRegister = async () => {
     const text = content.trim();
@@ -76,7 +121,7 @@ export default function PeriodModal({
       return showErrorToast('종료일이 시작일보다 빠를 수 없습니다.');
     }
     if (dates.length === 0) {
-      return showErrorToast('등록할 날짜가 없습니다. 주말 제외를 끄거나 기간을 늘려 주세요.');
+      return showErrorToast('등록할 날짜가 없습니다. 쉬는 날 제외를 끄거나 기간을 늘려 주세요.');
     }
     if (dates.length > MAX_DAYS) {
       return showErrorToast(`한 번에 ${MAX_DAYS}일까지 등록할 수 있습니다. 기간을 나눠서 등록해 주세요.`);
@@ -209,9 +254,14 @@ export default function PeriodModal({
               onChange={(e) => setExcludeWeekend(e.target.checked)}
               className="rounded text-primary focus:ring-0 w-3.5 h-3.5 cursor-pointer"
             />
-            주말(토/일) 제외하고 계산하기
+            주말(토/일)과 공휴일 제외하고 계산하기
           </label>
-          <p className="mt-1 ml-6 text-xs text-slate-500">켜 두면 평일에만 등록됩니다.</p>
+          <p className="mt-1 ml-6 text-xs text-slate-500">켜 두면 수업이 있는 평일에만 등록됩니다.</p>
+          {skippedHolidays.length > 0 && (
+            <p className="mt-1 ml-6 text-xs text-rose-600">
+              빠지는 공휴일: {skippedHolidays.join(', ')}
+            </p>
+          )}
         </div>
 
         {/* 라벨과 나머지 속성은 일정을 적던 칸에서 고른 것을 그대로 따른다.
@@ -243,7 +293,7 @@ export default function PeriodModal({
         <p className="text-xs text-slate-500">
           {dates.length > 0
             ? `${dates[0]} ~ ${dates[dates.length - 1]} 중 ${dates.length}일에 등록됩니다. 내용 뒤에 (1/${dates.length}) 처럼 며칠째인지 붙습니다.`
-            : '등록할 날짜가 없습니다. 기간과 주말 제외를 확인해 주세요.'}
+            : '등록할 날짜가 없습니다. 기간과 쉬는 날 제외를 확인해 주세요.'}
         </p>
       </div>
     </ModalShell>

@@ -36,6 +36,19 @@ function loadYear(year: number): Promise<Record<string, string>> {
   return task;
 }
 
+/**
+ * 여러 해의 공휴일을 한 장의 표로 받는다 ('2026-10-03' -> '개천절').
+ *
+ * 훅은 지금 보고 있는 날짜의 해만 읽는다. 기간 일정처럼 해를 넘길 수 있는 곳
+ * (겨울방학 12월~2월)에서는 걸친 해를 모두 읽어야 공휴일을 빠짐없이 걸러낸다.
+ * 이미 받아 둔 해는 위 캐시에서 그대로 쓴다.
+ */
+export async function loadHolidayYears(years: number[]): Promise<Record<string, string>> {
+  const uniq = [...new Set(years)].filter((y) => Number.isFinite(y));
+  const maps = await Promise.all(uniq.map(loadYear));
+  return Object.assign({}, ...maps) as Record<string, string>;
+}
+
 /** 개발자가 그 해 공휴일을 새로 저장했을 때, 다시 읽도록 캐시를 비운다. */
 export function clearHolidayCache(year?: number) {
   if (year === undefined) {

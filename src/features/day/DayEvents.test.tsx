@@ -278,6 +278,76 @@ describe('DayEvents - 기간 속성', () => {
   });
 });
 
+describe('DayEvents - 기존 일정을 기간으로 바꾸기', () => {
+  it('수정 중에 기간을 켜면 날짜를 고르는 팝업이 뜬다', async () => {
+    const user = userEvent.setup();
+    renderEvents();
+
+    await user.click(screen.getByText('교직원 회의'));
+    await screen.findByDisplayValue('교직원 회의');
+
+    const propBox = screen.getByText('속성 설정').closest('div')!;
+    await user.click(within(propBox).getAllByRole('checkbox')[2]); // 기간
+
+    expect(await screen.findByRole('heading', { name: /연속 기간 등록/ })).toBeInTheDocument();
+    expect(screen.getByLabelText('시작일')).toBeInTheDocument();
+  });
+
+  it('이미 기간으로 만들어진 일정을 열기만 할 때는 뜨지 않는다', async () => {
+    // 고칠 때마다 팝업이 튀어나오면 내용 한 글자도 못 고친다
+    const user = userEvent.setup();
+    renderEvents({
+      events: [{ id: 'ev_p', content: '여름방학 (1/5)', period: true, groupId: 'group_x', completed: false }],
+    });
+
+    await user.click(screen.getByText('여름방학 (1/5)'));
+    await screen.findByDisplayValue('여름방학 (1/5)');
+
+    expect(screen.queryByRole('heading', { name: /연속 기간 등록/ })).toBeNull();
+  });
+});
+
+describe('DayEvents - 묶인 일정 삭제 범위', () => {
+  const grouped: EventItem[] = [
+    { id: 'ev_g', content: '여름방학 (1/5)', period: true, groupId: 'group_x', completed: false },
+  ];
+
+  it('묶인 일정을 지우면 어디까지 지울지 먼저 묻는다', async () => {
+    const user = userEvent.setup();
+    const { props } = renderEvents({ events: grouped });
+
+    await user.click(screen.getByTitle('일정 삭제'));
+
+    expect(await screen.findByRole('heading', { name: /연결된 일정 삭제/ })).toBeInTheDocument();
+    // 고르기 전에는 아무것도 지우지 않는다
+    expect(props.onDeleteEvent).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /이 날짜의 일정만 삭제/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /이 날짜와 이후 일정 모두 삭제/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /연결된 일정 전체 삭제/ })).toBeInTheDocument();
+  });
+
+  it("'이 날짜의 일정만'을 고르면 그 한 건만 지운다", async () => {
+    const user = userEvent.setup();
+    const { props } = renderEvents({ events: grouped });
+
+    await user.click(screen.getByTitle('일정 삭제'));
+    await screen.findByRole('heading', { name: /연결된 일정 삭제/ });
+    await user.click(screen.getByRole('button', { name: /이 날짜의 일정만 삭제/ }));
+
+    expect(props.onDeleteEvent).toHaveBeenCalledWith('ev_g');
+  });
+
+  it('묶이지 않은 일정은 묻지 않고 바로 지운다', async () => {
+    const user = userEvent.setup();
+    const { props } = renderEvents();
+
+    await user.click(screen.getAllByTitle('일정 삭제')[0]);
+
+    expect(props.onDeleteEvent).toHaveBeenCalledWith('ev_1');
+    expect(screen.queryByRole('heading', { name: /연결된 일정 삭제/ })).toBeNull();
+  });
+});
+
 describe('DayEvents - 바깥 클릭으로 수정 섹션 닫기', () => {
   it('페이지의 다른 곳을 누르면 수정 섹션이 닫힌다', async () => {
     const user = userEvent.setup();

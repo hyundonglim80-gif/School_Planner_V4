@@ -392,15 +392,6 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                         {!isMultiSelectMode && (
                           <EventItemActions
                             floating
-                            onEdit={() =>
-                              setDetailModal({
-                                isOpen: true,
-                                type: 'event',
-                                dateStr: dayObj.dateStr,
-                                itemId: ev.id,
-                                initialData: ev,
-                              })
-                            }
                             onDelete={() => onDeleteEvent(dayObj.dateStr, ev.id, ev)}
                           />
                         )}
