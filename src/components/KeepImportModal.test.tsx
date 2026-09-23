@@ -82,3 +82,60 @@ describe('Keep 가져오기', () => {
     expect(screen.getByRole('button', { name: /메모 0건 가져오기/ })).toBeDisabled();
   });
 });
+
+// Takeout의 Keep 폴더에는 파일이 수백 개라 한 번에 다 고르지 못하는 경우가 많다.
+// 예전에는 새로 고를 때마다 앞서 고른 것이 통째로 날아가 두 번째 묶음만 들어갔다.
+describe('Keep 가져오기 - 파일을 나눠 고르기', () => {
+  it('두 번 나눠 골라도 앞서 고른 것이 남는다', async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    await pickFiles(user, [file('1.json', { textContent: '첫째' })]);
+    expect(await screen.findByText(/메모 1건 가져오기/)).toBeInTheDocument();
+
+    await pickFiles(user, [file('2.json', { textContent: '둘째' })]);
+
+    expect(await screen.findByText(/메모 2건 가져오기/)).toBeInTheDocument();
+    expect(screen.getByText('첫째')).toBeInTheDocument();
+    expect(screen.getByText('둘째')).toBeInTheDocument();
+  });
+
+  it('같은 파일을 또 골라도 한 번만 센다', async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    // 디스크의 같은 파일을 두 번 고르는 것과 같다 (이름·크기·고친 때가 같다)
+    const same = file('1.json', { textContent: '첫째' });
+    await pickFiles(user, [same]);
+    await screen.findByText(/메모 1건 가져오기/);
+    await pickFiles(user, [same]);
+
+    // 두 번 골랐지만 메모는 하나다
+    expect(await screen.findByText(/메모 1건 가져오기/)).toBeInTheDocument();
+  });
+
+  it('고른 파일을 비울 수 있다', async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    await pickFiles(user, [file('1.json', { textContent: '첫째' })]);
+    await screen.findByText(/메모 1건 가져오기/);
+
+    await user.click(screen.getByRole('button', { name: '고른 파일 비우기' }));
+
+    expect(await screen.findByText(/메모 0건 가져오기/)).toBeInTheDocument();
+    expect(screen.queryByText('첫째')).toBeNull();
+  });
+
+  it('쌓인 파일 수와 메모 수를 알려 준다', async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    await pickFiles(user, [
+      file('1.json', { textContent: '첫째' }),
+      file('2.json', { textContent: '둘째' }),
+    ]);
+
+    expect(await screen.findByText(/파일 2개 · 메모 2건/)).toBeInTheDocument();
+  });
+});

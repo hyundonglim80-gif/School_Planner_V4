@@ -26,30 +26,63 @@ export interface KeepImportModalProps {
 
 export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImportModalProps) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [notes, setNotes] = useState<KeepNote[]>([]);
-  const [readCount, setReadCount] = useState(0);
+  /**
+   * 고른 파일을 묶음으로 쌓아 둔다.
+   *
+   * 한 번에 다 고르지 못하는 경우가 많다. Takeout의 Keep 폴더에는 파일이 수백 개라
+   * 나눠 고르기도 하고, 폴더가 여러 개로 갈려 오기도 한다. 예전에는 새로 고를 때마다
+   * 앞서 고른 것이 통째로 날아가서, 두 번째 묶음만 들어갔다.
+   *
+   * 같은 파일을 또 골라도 한 번만 센다. 이름·크기·고친 때가 같으면 같은 파일로 본다.
+   */
+  const [batches, setBatches] = useState<{ key: string; notes: KeepNote[] }[]>([]);
   const [opts, setOpts] = useState<KeepImportOptions>({ includeArchived: false, keepLabels: true });
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(0);
 
+  const notes = batches.flatMap((b) => b.notes);
   const picked = selectNotesToImport(notes, opts);
 
   const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
+    const chosen = Array.from(e.target.files || []);
+    if (chosen.length === 0) return;
     setBusy(true);
     try {
-      const all: KeepNote[] = [];
-      for (const file of files) {
+      const fresh: { key: string; notes: KeepNote[] }[] = [];
+      let skippedKind = 0;
+      for (const file of chosen) {
         // Takeout 폴더에는 .html 같은 것도 섞여 있다. JSON만 읽고 나머지는 건너뛴다.
-        if (!file.name.toLowerCase().endsWith('.json')) continue;
+        if (!file.name.toLowerCase().endsWith('.json')) {
+          skippedKind += 1;
+          continue;
+        }
         const text = await file.text();
-        all.push(...parseKeepFile(text, file.name));
+        fresh.push({
+          key: `${file.name}|${file.size}|${file.lastModified}`,
+          notes: parseKeepFile(text, file.name),
+        });
       }
-      setNotes(all);
-      setReadCount(files.length);
-      if (all.length === 0) {
-        showErrorToast('메모를 찾지 못했습니다. Takeout의 Keep 폴더에 있는 .json 파일을 골라 주세요.');
+
+      // 알림은 상태 바꾸는 함수 안에서 띄우지 않는다. React가 그 함수를 두 번
+      // 부를 수 있어(개발 모드) 같은 알림이 두 번 뜬다.
+      const seen = new Set(batches.map((b) => b.key));
+      const added = fresh.filter((b) => !seen.has(b.key));
+      const again = fresh.length - added.length;
+      if (added.length > 0) setBatches((prev) => [...prev, ...added]);
+
+      if (added.length === 0 && fresh.length > 0) {
+        showToast(`이미 고른 파일입니다 (${again}개).`);
+      } else if (added.length > 0) {
+        const foundNotes = added.reduce((n, b) => n + b.notes.length, 0);
+        const tail = again > 0 ? ` (이미 고른 ${again}개는 건너뜀)` : '';
+        showToast(`📂 파일 ${added.length}개에서 메모 ${foundNotes}건을 더했습니다.${tail}`);
+      }
+
+      if (fresh.length === 0) {
+        showErrorToast(
+          `메모 파일을 찾지 못했습니다${skippedKind > 0 ? ` (.json이 아닌 파일 ${skippedKind}개)` : ''}. ` +
+            'Takeout의 Keep 폴더에 있는 .json 파일을 골라 주세요.'
+        );
       }
     } catch (err) {
       showErrorToast('파일을 읽지 못했습니다.', err);
@@ -75,8 +108,7 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
         setDone(made);
       }
       showToast(`✅ Keep 메모 ${made}건을 가져왔습니다.`);
-      setNotes([]);
-      setReadCount(0);
+      setBatches([]);
       onClose();
     } catch (err) {
       // 도중에 끊겨도 여기까지 들어간 것은 남는다. 몇 건이 들어갔는지 알려 준다.
@@ -133,7 +165,10 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
               에서 <b>Keep</b>만 골라 내보냅니다.
             </li>
             <li>받은 압축 파일을 풀면 <b>Takeout / Keep</b> 폴더에 메모마다 <b>.json</b> 파일이 하나씩 있습니다.</li>
-            <li>아래에서 그 <b>.json 파일을 모두</b> 고릅니다 (폴더째 골라도 됩니다).</li>
+            <li>
+              아래에서 그 <b>.json 파일을 모두</b> 고릅니다. <b>여러 번 나눠 골라도</b> 됩니다 —
+              고른 것이 쌓입니다(같은 파일을 또 골라도 한 번만 셉니다).
+            </li>
           </ol>
         </div>
 
@@ -144,7 +179,7 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
             disabled={busy}
             className="px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
           >
-            📂 Keep 파일 고르기
+            📂 {batches.length > 0 ? 'Keep 파일 더 고르기' : 'Keep 파일 고르기'}
           </button>
           <input
             ref={fileRef}
@@ -155,10 +190,20 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
             className="hidden"
             aria-label="Keep 파일"
           />
-          {readCount > 0 && (
-            <span className="text-xs text-slate-500">
-              파일 {readCount}개에서 메모 {notes.length}건을 찾았습니다
-            </span>
+          {batches.length > 0 && (
+            <>
+              <span className="text-xs text-slate-500">
+                지금까지 파일 {batches.length}개 · 메모 {notes.length}건
+              </span>
+              <button
+                type="button"
+                onClick={() => setBatches([])}
+                disabled={busy}
+                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold disabled:opacity-40 cursor-pointer"
+              >
+                고른 파일 비우기
+              </button>
+            </>
           )}
         </div>
 
