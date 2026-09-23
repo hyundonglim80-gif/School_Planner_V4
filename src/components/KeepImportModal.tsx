@@ -6,7 +6,7 @@
 //    도메인 위임을 걸어 서비스 계정으로만 부를 수 있다. 개인 지메일 계정에는
 //    받을 수 있는 권한(scope) 자체가 없어서, 브라우저에서 도는 이 앱이 선생님
 //    Keep을 직접 읽을 길이 없다. 그래서 구글이 주는 내보내기를 읽는 쪽으로 간다.
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
 import { doc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -43,6 +43,11 @@ export interface KeepImportModalProps {
   existingMemos?: ExistingMemo[];
   /** 이미 있는데 내용이 달라졌을 때 고쳐 쓴다 */
   onUpdateMemo?: (firestoreId: string, data: MemoDraft & { keepId?: string }) => Promise<unknown>;
+  /**
+   * 다른 창에서 이미 고른 파일을 넘겨받는다.
+   * ('내보내기/가져오기'에 Keep 파일을 넣으면 그대로 이리로 넘어온다)
+   */
+  initialFiles?: File[];
 }
 
 export default function KeepImportModal({
@@ -51,6 +56,7 @@ export default function KeepImportModal({
   onAddMemo,
   existingMemos = [],
   onUpdateMemo,
+  initialFiles,
 }: KeepImportModalProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   /**
@@ -104,6 +110,16 @@ export default function KeepImportModal({
     return { draft, attachNames, missing, found, action } as const;
   };
 
+  /* 다른 창('내보내기/가져오기')에서 고른 파일을 그대로 받아 읽는다.
+     한 번만 읽는다 - 다시 읽으면 같은 파일을 또 세게 된다. */
+  const tookInitial = useRef(false);
+  useEffect(() => {
+    if (!isOpen || tookInitial.current || !initialFiles || initialFiles.length === 0) return;
+    tookInitial.current = true;
+    void ingest(initialFiles);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialFiles]);
+
   const plans = picked.map(planFor);
   const willAdd = plans.filter((p) => p.action === 'add').length;
   const willUpdate = plans.filter((p) => p.action === 'update').length;
@@ -112,6 +128,13 @@ export default function KeepImportModal({
 
   const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const chosen = Array.from(e.target.files || []);
+    // 같은 파일을 다시 고를 수 있게 비운다 (목록은 위에서 이미 받아 두었다)
+    if (e.target) e.target.value = '';
+    await ingest(chosen);
+  };
+
+  /** 고른 파일(또는 다른 창에서 넘겨받은 파일)을 읽어 쌓는다 */
+  const ingest = async (chosen: File[]) => {
     if (chosen.length === 0) return;
     setBusy(true);
     try {
@@ -169,8 +192,6 @@ export default function KeepImportModal({
       showErrorToast('파일을 읽지 못했습니다.', err);
     } finally {
       setBusy(false);
-      // 같은 파일을 다시 고를 수 있게 비운다
-      e.target.value = '';
     }
   };
 

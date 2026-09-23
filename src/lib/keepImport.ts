@@ -95,6 +95,36 @@ export function parseKeepNote(raw: any, sourceName?: string): KeepNote | null {
   };
 }
 
+/**
+ * 이 JSON이 Keep 메모인가 (V4 백업 파일과 가려낸다).
+ *
+ * 백업 파일은 events/schedules/tasks 처럼 갈래별 묶음을 담고, Keep 메모는 글 한 건의
+ * 생김새(textContent/listContent/…)를 그대로 갖는다. 내보내기/가져오기 창에 Keep 파일을
+ * 넣는 일이 잦아서, 어느 쪽인지 알아보고 맞는 길로 보내려고 쓴다.
+ */
+export function looksLikeKeepNote(raw: any): boolean {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+  const keepish =
+    'textContent' in raw ||
+    'listContent' in raw ||
+    'isTrashed' in raw ||
+    'isArchived' in raw ||
+    'userEditedTimestampUsec' in raw;
+  const backupish =
+    'events' in raw || 'schedules' in raw || 'journals' in raw || 'tasks' in raw || 'rosters' in raw;
+  return keepish && !backupish;
+}
+
+/** 파일 내용이 Keep 메모인가. 파일을 읽어 본 문자열을 그대로 받는다. */
+export function fileLooksLikeKeep(text: string): boolean {
+  try {
+    const data = JSON.parse(text);
+    return Array.isArray(data) ? data.some(looksLikeKeepNote) : looksLikeKeepNote(data);
+  } catch {
+    return false;
+  }
+}
+
 /** 파일 하나를 읽는다. Takeout은 메모마다 파일 하나지만, 배열로 준 것도 받아 준다. */
 export function parseKeepFile(text: string, sourceName?: string): KeepNote[] {
   let data: any;

@@ -5,6 +5,9 @@ import { showToast, showErrorToast, showToastAfterReload } from '../utils/toast'
 import { collection, getDocs, doc, setDoc, query, where, documentId, getDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useGroups } from '../hooks/useGroups';
+import { useMemos } from '../hooks/useMemos';
+import { fileLooksLikeKeep } from '../lib/keepImport';
+import KeepImportModal from './KeepImportModal';
 import { useAppStore } from '../store/useAppStore';
 import { readEventList, eventContentOf } from '../lib/eventText';
 import { formatDate } from '../lib/dateUtils';
@@ -37,12 +40,19 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
 
   const backdrop = useBackdropClose();
   const { groups } = useGroups();
+  // Keep 파일을 여기에 넣는 일이 잦다. 그때는 Keep 전용 창으로 그대로 넘긴다.
+  const [keepFiles, setKeepFiles] = useState<File[] | null>(null);
   const { eventLabels, journalLabels } = useLabels();
   const { templates, currentTemplateName } = useTimetableTemplate();
   const { scope: appScope, currentDate: appCurrentDate } = useAppStore();
 
   // 1. 개인 or 그룹 선택
   const [selectedScope, setSelectedScope] = useState<'personal' | string>('personal');
+
+  // Keep 창에 넘길 것들. 고른 공간(개인/공유그룹)의 메모를 본다.
+  const { memos, addMemo, updateMemo } = useMemos(
+    selectedScope === 'personal' ? null : selectedScope
+  );
   
   // 2. 내보내기 채널 대상 (구글 캘린더, 구글 시트, 로컬 CSV, JSON)
   const [exportTarget, setExportTarget] = useState<ExportTarget>('sheets');
@@ -807,6 +817,16 @@ ${summary}
     const json = chosen.filter((f) => f.name.toLowerCase().endsWith('.json'));
     const csv = chosen.filter((f) => !f.name.toLowerCase().endsWith('.json'));
 
+    // 구글 Keep에서 내보낸 파일이면 Keep 전용 창으로 넘긴다. 생김새가 아주 달라서
+    // (갈래별 묶음이 아니라 메모 한 건의 모양) 백업 복원 길로는 읽을 수 없고,
+    // Keep 쪽은 라벨·사진·중복 건너뛰기를 따로 챙겨야 한다.
+    // 사진도 함께 넘겨야 메모에 다시 붙일 수 있으므로 고른 것을 통째로 넘긴다.
+    if (json.length > 0 && (await fileLooksLikeKeep(await json[0].text()))) {
+      setKeepFiles(chosen);
+      showToast('📥 구글 Keep 파일이네요. Keep 전용 가져오기 창으로 넘깁니다.');
+      return;
+    }
+
     if (json.length > 0) await importJsonFiles(json, csv.length);
     else await importRosterCsv(csv[0], csv.length);
   };
@@ -1040,6 +1060,18 @@ ${summary}
           </div>
         </div>
       </div>
+
+      {/* Keep 파일을 넣었을 때. 라벨 등록·사진 붙이기·중복 건너뛰기를 그 창이 맡는다. */}
+      {keepFiles && (
+        <KeepImportModal
+          isOpen
+          onClose={() => setKeepFiles(null)}
+          initialFiles={keepFiles}
+          onAddMemo={addMemo}
+          existingMemos={memos}
+          onUpdateMemo={updateMemo}
+        />
+      )}
     </div>
   );
 }

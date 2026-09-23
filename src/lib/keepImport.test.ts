@@ -8,6 +8,7 @@ import {
   findExistingMemo,
   memoNeedsUpdate,
   mergeMemoLabels,
+  fileLooksLikeKeep,
   type KeepImportOptions,
 } from './keepImport';
 
@@ -190,5 +191,27 @@ describe('메모 라벨 목록에 더하기', () => {
 
   it('빈 이름은 넣지 않는다', () => {
     expect(mergeMemoLabels([], ['  ', ''])).toEqual([]);
+  });
+});
+
+// 내보내기/가져오기 창에 Keep 파일을 넣는 일이 잦다. 어느 쪽 파일인지 가려내야
+// 맞는 길로 보낼 수 있다 (백업 복원 길로는 Keep 파일을 읽을 수 없다).
+describe('Keep 파일과 V4 백업 파일 가려내기', () => {
+  it('Keep 메모는 Keep으로 본다', () => {
+    expect(fileLooksLikeKeep(JSON.stringify({ textContent: '메모', isTrashed: false }))).toBe(true);
+    expect(fileLooksLikeKeep(JSON.stringify({ listContent: [{ text: '항목' }] }))).toBe(true);
+  });
+
+  it('V4 백업은 Keep이 아니다', () => {
+    const backup = { events: { '2026-09-01': {} }, tasks: { m1: {} } };
+    expect(fileLooksLikeKeep(JSON.stringify(backup))).toBe(false);
+  });
+
+  it('메모만 담은 V4 백업도 Keep이 아니다', () => {
+    expect(fileLooksLikeKeep(JSON.stringify({ tasks: { m1: { text: '메모' } } }))).toBe(false);
+  });
+
+  it('JSON이 아니면 Keep이 아니다', () => {
+    expect(fileLooksLikeKeep('<html>')).toBe(false);
   });
 });

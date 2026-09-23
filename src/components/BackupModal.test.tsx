@@ -116,3 +116,47 @@ describe('내보내기/가져오기 - 고른 항목만 되돌린다', () => {
     expect(paths.some((p: string) => p.includes('/events/'))).toBe(false);
   });
 });
+
+// Keep에서 내보낸 파일을 이 창에 넣는 일이 잦다. 생김새가 아주 달라 백업 복원
+// 길로는 읽을 수 없으므로(갈래별 묶음이 아니라 메모 한 건의 모양),
+// 라벨·사진·중복 건너뛰기를 챙기는 Keep 전용 창으로 넘긴다.
+describe('내보내기/가져오기 - Keep 파일을 넣었을 때', () => {
+  const keepNote = new File(
+    [JSON.stringify({ textContent: '운동회 준비', isTrashed: false })],
+    'note.json',
+    { type: 'application/json' }
+  );
+
+  it('Keep 전용 가져오기 창으로 넘긴다', async () => {
+    const user = userEvent.setup();
+    render(<BackupModal isOpen onClose={vi.fn()} />);
+
+    await user.upload(screen.getByLabelText('가져올 백업 파일'), [keepNote]);
+
+    expect(await screen.findByRole('heading', { name: /Keep 메모 가져오기/ })).toBeInTheDocument();
+    // 백업 복원 확인창은 뜨지 않는다 (덮어쓰기와 아무 상관이 없다)
+    expect(window.confirm).not.toHaveBeenCalled();
+    expect(setDocMock).not.toHaveBeenCalled();
+  });
+
+  it('넘겨준 파일을 그 창이 바로 읽는다', async () => {
+    const user = userEvent.setup();
+    render(<BackupModal isOpen onClose={vi.fn()} />);
+
+    await user.upload(screen.getByLabelText('가져올 백업 파일'), [keepNote]);
+
+    expect(await screen.findByText('운동회 준비')).toBeInTheDocument();
+  });
+
+  it('V4 백업 파일은 그대로 복원한다', async () => {
+    const user = userEvent.setup();
+    render(<BackupModal isOpen onClose={vi.fn()} />);
+
+    await user.upload(screen.getByLabelText('가져올 백업 파일'), [
+      backup('백업.json', { tasks: { m1: { text: '메모1' } } }),
+    ]);
+
+    await waitFor(() => expect(setDocMock).toHaveBeenCalled());
+    expect(screen.queryByRole('heading', { name: /Keep 메모 가져오기/ })).toBeNull();
+  });
+});
