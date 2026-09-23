@@ -65,3 +65,45 @@ describe('메모 Ctrl+S 저장', () => {
     expect(addDocMock).toHaveBeenCalledTimes(1);
   });
 });
+
+// 고른 라벨에 연한 라벨색만 깔려서, 색이 옅은 라벨은 안 고른 것과 거의 같아 보였다.
+// 무엇으로 걸러 보고 있는지 모른 채 '메모가 없다'고 여기기 쉬웠다.
+describe('메모 필터 - 고른 것이 분명히 보인다', () => {
+  const chip = (name: string) => screen.getByRole('button', { name: new RegExp(name) });
+
+  it('처음에는 전체 메모가 골라져 있다', async () => {
+    render(<MemoScreen />);
+
+    expect(await screen.findByRole('button', { name: /전체 메모/ })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    expect(chip('업무')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('라벨을 누르면 그 라벨만 골라진 것으로 보인다', async () => {
+    const user = userEvent.setup();
+    render(<MemoScreen />);
+
+    await user.click(await screen.findByRole('button', { name: /업무/ }));
+
+    expect(chip('업무')).toHaveAttribute('aria-pressed', 'true');
+    expect(chip('전체 메모')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('고른 것에는 ✓와 테두리 고리가 붙고, 안 고른 것은 흐리다', async () => {
+    const user = userEvent.setup();
+    render(<MemoScreen />);
+
+    await user.click(await screen.findByRole('button', { name: /업무/ }));
+
+    const picked = chip('업무');
+    expect(picked).toHaveTextContent('✓');
+    expect(picked.className).toContain('ring-2');
+    expect(picked.className).not.toContain('opacity-60');
+
+    const other = chip('전체 메모');
+    expect(other).not.toHaveTextContent('✓');
+    expect(other.className).toContain('opacity-60');
+  });
+});

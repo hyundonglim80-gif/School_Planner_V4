@@ -107,12 +107,21 @@ export default function MemoScreen() {
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide max-w-full">
           <button
             onClick={() => setCurrentFilter('전체')}
-            className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${
-              currentFilter === '전체' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            aria-pressed={currentFilter === '전체'}
+            className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-all cursor-pointer ${
+              currentFilter === '전체'
+                ? 'font-black bg-slate-800 text-white ring-2 ring-slate-900/70 ring-offset-1 shadow-sm'
+                : 'font-bold bg-slate-100 text-slate-600 opacity-60 hover:opacity-100 hover:bg-slate-200'
             }`}
           >
+            {currentFilter === '전체' && <span className="mr-0.5">✓</span>}
             전체 메모
           </button>
+          {/* 고른 라벨이 어느 것인지 한눈에 들어와야 한다.
+              예전에는 고른 것에 연한 라벨색만 깔려서, 색이 옅은 라벨(노랑·회색)은
+              안 고른 것과 거의 같아 보였다. 무엇으로 걸러 보고 있는지 모른 채
+              '메모가 없다'고 여기기 쉬웠다.
+              고른 것에는 테두리 고리(ring)와 ✓를 붙이고, 안 고른 것은 흐리게 둔다. */}
           {memoLabels.map((labelName) => {
             const isSelected = currentFilter === labelName;
             const color = getLabelColor(labelName);
@@ -120,13 +129,19 @@ export default function MemoScreen() {
               <button
                 key={labelName}
                 onClick={() => setCurrentFilter(labelName)}
-                className="px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border"
+                aria-pressed={isSelected}
+                className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-all border cursor-pointer ${
+                  isSelected
+                    ? 'font-black ring-2 ring-slate-900/70 ring-offset-1 shadow-sm'
+                    : 'font-bold opacity-60 hover:opacity-100'
+                }`}
                 style={
                   isSelected
-                    ? { backgroundColor: color.bg, color: color.text, borderColor: color.border, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }
+                    ? { backgroundColor: color.bg, color: color.text, borderColor: color.border }
                     : { backgroundColor: '#f8fafc', color: '#64748b', borderColor: '#e2e8f0' }
                 }
               >
+                {isSelected && <span className="mr-0.5">✓</span>}
                 {labelName}
               </button>
             );
