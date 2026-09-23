@@ -61,8 +61,23 @@ await signInWithEmailAndPassword(auth, 'teacher@example.com', 'test1234').catch(
 
 buildSite();
 
+// ⚠️ 여기서 dist를 '한 번' 베낀다. 예전에는 그게 전부라, 서버를 띄워 둔 채
+//    다시 빌드하면 새 빌드가 아니라 처음 베낀 것이 계속 나갔다. 고친 판과 안 고친
+//    판을 견주는 점검이 통째로 헛돌았다(둘 다 같은 것을 재고 있었다).
+//    요청마다 dist가 더 새것인지 보고, 새것이면 다시 베낀다.
+let copiedAt = Date.now();
+async function refreshIfRebuilt() {
+  const info = await stat('dist/index.html').catch(() => null);
+  if (info && info.mtimeMs > copiedAt) {
+    console.log('dist가 새로 빌드되었다. 다시 베낀다.');
+    buildSite();
+    copiedAt = Date.now();
+  }
+}
+
 createServer(async (req, res) => {
   try {
+    await refreshIfRebuilt();
     let path = decodeURIComponent((req.url || '/').split('?')[0]);
     if (path.endsWith('/')) path += 'index.html';
     const file = join(ROOT, path);
