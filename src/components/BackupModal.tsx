@@ -578,167 +578,238 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
     }
   };
 
-  // 파일 업로드 복원 처리
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // 가져오기로 되돌릴 갈래. '4. 포함할 데이터 항목'에서 고른 것만 되돌린다.
+  //
+  // ⚠️ 예전에는 고르든 말든 파일에 든 것을 전부 되돌렸다. 메모만 가져오려고
+  //    메모만 골라 두어도 그날 일정·수업·기록까지 백업 시점 것으로 바뀌었다.
+  //    같은 화면에서 고른 항목이 내보낼 때만 쓰이고 가져올 때는 무시되던 셈이다.
+  const IMPORT_KINDS = [
+    { bag: 'events', label: '일정', unit: '일', on: incEvents },
+    { bag: 'schedules', label: '수업', unit: '일', on: incSchedules },
+    { bag: 'journals', label: '기록', unit: '일', on: incJournals },
+    { bag: 'tasks', label: '메모', unit: '건', on: incMemos },
+    { bag: 'evaluations', label: '조사표', unit: '건', on: incEvals },
+    { bag: 'rosters', label: '명렬표', unit: '개', on: incRosters },
+  ] as const;
+
+  /** 백업 JSON 한 덩이를 고른 항목에 맞춰 되돌린다 */
+  const applyBackupJson = async (data: any, uid: string, withSettings: boolean) => {
+    const put = async (colName: string, bag: any) => {
+      for (const id in bag || {}) {
+        await setDoc(doc(getColRef(colName), id), bag[id], { merge: true });
+      }
+    };
+
+    if (incEvents) await put('events', data.events);
+    if (incSchedules) await put('schedules', data.schedules);
+    if (incJournals) await put('journals', data.journals);
+    if (incMemos) await put('tasks', data.tasks);
+    if (incEvals) await put('evaluations', data.evaluations);
+
+    // 설정과 명렬표는 개인 공간에만 있다. 예전에는 백업에 담기지도,
+    // 복원되지도 않아서 라벨과 시간표가 그대로 사라진 채로 남았다.
+    if (selectedScope === 'personal') {
+      if (withSettings) {
+        for (const id in data.settings || {}) {
+          if (id === 'backup_config') continue;
+          await setDoc(doc(db, 'users', uid, 'settings', id), data.settings[id], { merge: true });
+        }
+      }
+      if (incRosters) {
+        for (const id in data.rosters || {}) {
+          await setDoc(doc(db, 'users', uid, 'settings', id), data.rosters[id], { merge: true });
+        }
+      }
+    }
+  };
+
+  /**
+   * JSON 백업을 되돌린다. 파일을 여러 개 골라도 한 번에 받는다.
+   *
+   * 백업은 기간을 나눠 받는 일이 많아(학기별로 따로 받아 두는 식) 되돌릴 때도
+   * 여러 개를 함께 고르게 된다. 예전에는 한 번에 하나뿐이라 파일 수만큼 이
+   * 과정을 되풀이해야 했고, 그때마다 화면이 새로고침되어 더 번거로웠다.
+   */
+  const importJsonFiles = async (files: File[], skippedCsv: number) => {
+    const user = auth.currentUser;
+    if (!user) return;
 
     const scopeLabel =
       selectedScope === 'personal' ? '개인' : groups.find((g) => g.id === selectedScope)?.name || '공유그룹';
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
+    setProcessing(true);
+    setStatusMsg('파일을 읽는 중...');
+
+    const parsed: { name: string; data: any }[] = [];
+    const broken: string[] = [];
+    for (const file of files) {
       try {
-        setProcessing(true);
-        setStatusMsg('파일 데이터 복원 중...');
-        const user = auth.currentUser;
-        if (!user) return;
+        parsed.push({ name: file.name, data: JSON.parse(await file.text()) });
+      } catch {
+        // 한 파일이 깨졌다고 나머지까지 멈추지 않는다
+        broken.push(file.name);
+      }
+    }
 
-        const text = event.target?.result as string;
-        if (file.name.endsWith('.json')) {
-          const data = JSON.parse(text);
+    const stop = (msg: string) => {
+      setProcessing(false);
+      setStatusMsg('');
+      showErrorToast(msg);
+    };
 
-          // 같은 날짜의 문서는 통째로 백업 시점 것으로 바뀐다. 문서 단위로 덮어쓰므로
-          // 그 날 일정 목록 전체가 교체된다(항목별로 합쳐지지 않는다).
-          // 되돌릴 방법이 없으니 먼저 묻는다. 예전에는 파일을 고르는 즉시 덮어썼다.
-          const counts = [
-            data.events && `일정 ${Object.keys(data.events).length}일`,
-            data.schedules && `수업 ${Object.keys(data.schedules).length}일`,
-            data.journals && `기록 ${Object.keys(data.journals).length}일`,
-            data.tasks && `메모 ${Object.keys(data.tasks).length}건`,
-            data.settings && `설정 ${Object.keys(data.settings).length}개`,
-          ].filter(Boolean).join(', ');
+    if (parsed.length === 0) {
+      return stop(`읽을 수 있는 백업 파일이 없습니다. (${broken.join(', ') || '파일 없음'})`);
+    }
 
-          const ok = confirm(
-            `[${scopeLabel}]에 복원합니다.
+    // 고른 갈래가 실제로 몇 건 들어오는지 미리 센다
+    const counts = IMPORT_KINDS.filter((k) => k.on)
+      .map((k) => {
+        const n = parsed.reduce((sum, p) => sum + Object.keys(p.data[k.bag] || {}).length, 0);
+        return n > 0 ? `${k.label} ${n}${k.unit}` : null;
+      })
+      .filter(Boolean)
+      .join(', ');
 
-${counts}
+    if (!counts) {
+      return stop("고른 항목에 해당하는 내용이 파일에 없습니다. '4. 포함할 데이터 항목'을 확인해 주세요.");
+    }
 
-같은 날짜에 지금 들어 있는 내용은 백업 시점 것으로 바뀝니다.
-되돌릴 수 없습니다. 계속할까요?`
-          );
-          if (!ok) {
-            setProcessing(false);
-            setStatusMsg('');
-            if (e.target) e.target.value = '';
-            return;
-          }
+    // 설정(라벨·시간표·환경설정)에는 체크상자가 없다. 항목을 하나라도 줄여 골랐다면
+    // '이것만 가져오겠다'는 뜻으로 보고 설정은 건드리지 않는다. 메모만 가져오려다
+    // 라벨과 시간표가 통째로 바뀌는 일이 없어야 한다.
+    const withSettings = selectedScope === 'personal' && availableItems.every((it) => it.checked);
 
-          if (data.events) {
-            for (const id in data.events) {
-              await setDoc(doc(getColRef('events'), id), data.events[id], { merge: true });
-            }
-          }
-          if (data.schedules) {
-            for (const id in data.schedules) {
-              await setDoc(doc(getColRef('schedules'), id), data.schedules[id], { merge: true });
-            }
-          }
-          if (data.journals) {
-            for (const id in data.journals) {
-              await setDoc(doc(getColRef('journals'), id), data.journals[id], { merge: true });
-            }
-          }
-          if (data.tasks) {
-            for (const id in data.tasks) {
-              await setDoc(doc(getColRef('tasks'), id), data.tasks[id], { merge: true });
-            }
-          }
-          if (data.evaluations) {
-            for (const id in data.evaluations) {
-              await setDoc(doc(getColRef('evaluations'), id), data.evaluations[id], { merge: true });
-            }
-          }
-          // 설정과 명렬표는 개인 공간에만 있다. 예전에는 백업에 담기지도,
-          // 복원되지도 않아서 라벨과 시간표가 그대로 사라진 채로 남았다.
-          if (selectedScope === 'personal') {
-            for (const id in data.settings || {}) {
-              if (id === 'backup_config') continue;
-              await setDoc(doc(db, 'users', user.uid, 'settings', id), data.settings[id], { merge: true });
-            }
-            for (const id in data.rosters || {}) {
-              await setDoc(doc(db, 'users', user.uid, 'settings', id), data.rosters[id], { merge: true });
-            }
-          }
-          // 바로 아래에서 새로고침하므로 지금 띄우면 읽기도 전에 쓸려 나간다.
-          // 새로고침을 건너온 뒤에 띄우도록 맡긴다.
-          showToastAfterReload(`✅ 백업 파일(${file.name}) 복원이 성공적으로 완료되었습니다.`);
-          onClose();
-          window.location.reload();
-        } else {
-          // CSV는 명렬표만 되읽는다. 일정·수업·기록 CSV는 사람이 보라고 만든 것이라
-          // 되돌릴 수 있을 만큼의 정보(항목 id 등)가 들어 있지 않다.
-          // 예전에는 파일을 읽지도 않고 "복원되었습니다"라고 알린 뒤 새로고침했다.
-          //
-          // 내보내는 자리는 '학급 정보(명렬표) 관리'로 옮겼지만, 되읽는 길은
-          // 여기도 열어 둔다. 예전에 이 화면에서 받아 둔 파일이 있기 때문이다.
-          const table = parseCsv(text);
-          const header = (table[0] || []).map((h) => String(h ?? '').trim());
-          const looksLikeRoster = ['번호', '이름'].every((key) => header.includes(key));
+    const ok = confirm(
+      `[${scopeLabel}]에 백업 파일 ${parsed.length}개를 복원합니다.\n\n` +
+        parsed.map((p) => `· ${p.name}`).join('\n') +
+        `\n\n${counts}\n` +
+        (withSettings
+          ? '설정(라벨·시간표·환경설정)도 함께 복원합니다.\n'
+          : '고른 항목만 복원합니다 (설정은 그대로 둡니다).\n') +
+        (broken.length > 0 ? `\n읽지 못한 파일 ${broken.length}개는 건너뜁니다.\n` : '') +
+        (skippedCsv > 0 ? `\nCSV 파일 ${skippedCsv}개는 따로 가져와 주세요.\n` : '') +
+        '\n같은 날짜에 지금 들어 있는 내용은 백업 시점 것으로 바뀝니다.\n되돌릴 수 없습니다. 계속할까요?'
+    );
+    if (!ok) {
+      setProcessing(false);
+      setStatusMsg('');
+      return;
+    }
 
-          if (!looksLikeRoster) {
-            showErrorToast(
-              `명렬표 CSV가 아닙니다. 머리말에 ${ROSTER_CSV_HEADER.join(', ')} 가 있어야 합니다.
+    try {
+      let nth = 0;
+      for (const p of parsed) {
+        nth += 1;
+        setStatusMsg(`복원 중... (${nth}/${parsed.length}) ${p.name}`);
+        await applyBackupJson(p.data, user.uid, withSettings);
+      }
+      // 바로 아래에서 새로고침하므로 지금 띄우면 읽기도 전에 쓸려 나간다.
+      // 새로고침을 건너온 뒤에 띄우도록 맡긴다.
+      showToastAfterReload(`✅ 백업 파일 ${parsed.length}개를 복원했습니다.`);
+      onClose();
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      showErrorToast('파일 복원 중 오류가 발생했습니다.');
+    } finally {
+      setProcessing(false);
+      setStatusMsg('');
+    }
+  };
+
+  /**
+   * CSV는 명렬표만 되읽는다. 일정·수업·기록 CSV는 사람이 보라고 만든 것이라
+   * 되돌릴 수 있을 만큼의 정보(항목 id 등)가 들어 있지 않다.
+   * 예전에는 파일을 읽지도 않고 "복원되었습니다"라고 알린 뒤 새로고침했다.
+   *
+   * 내보내는 자리는 '학급 정보(명렬표) 관리'로 옮겼지만, 되읽는 길은 여기도
+   * 열어 둔다. 예전에 이 화면에서 받아 둔 파일이 있기 때문이다.
+   */
+  const importRosterCsv = async (file: File, totalCsv: number) => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+      setProcessing(true);
+      setStatusMsg('파일 데이터 복원 중...');
+
+      const text = await file.text();
+      const table = parseCsv(text);
+      const header = (table[0] || []).map((h) => String(h ?? '').trim());
+      const looksLikeRoster = ['번호', '이름'].every((key) => header.includes(key));
+
+      if (!looksLikeRoster) {
+        showErrorToast(
+          `명렬표 CSV가 아닙니다. 머리말에 ${ROSTER_CSV_HEADER.join(', ')} 가 있어야 합니다.
 일정·수업·기록은 JSON 백업 파일로 복원해 주세요.`
-            );
-            return;
-          }
-          if (selectedScope !== 'personal') {
-            showErrorToast('명렬표는 개인 공간에만 있습니다. 대상 공간을 개인으로 바꿔 주세요.');
-            return;
-          }
+        );
+        return;
+      }
+      if (selectedScope !== 'personal') {
+        showErrorToast('명렬표는 개인 공간에만 있습니다. 대상 공간을 개인으로 바꿔 주세요.');
+        return;
+      }
 
-          const { classList: incoming, skipped } = parseRosterCsvRows(table);
-          if (incoming.length === 0) {
-            showErrorToast('CSV에서 학생을 찾지 못했습니다. 번호·이름·학년·반이 채워져 있는지 확인해 주세요.');
-            return;
-          }
+      const { classList: incoming, skipped } = parseRosterCsvRows(table);
+      if (incoming.length === 0) {
+        showErrorToast('CSV에서 학생을 찾지 못했습니다. 번호·이름·학년·반이 채워져 있는지 확인해 주세요.');
+        return;
+      }
 
-          const summary = incoming
-            .map((c) => `${c.year}년 ${c.grade}학년 ${c.classNum}반 (${c.students.length}명)`)
-            .join('\n');
-          const ok = confirm(
-            `다음 학급의 명단을 파일 내용으로 바꿉니다.
+      const summary = incoming
+        .map((c) => `${c.year}년 ${c.grade}학년 ${c.classNum}반 (${c.students.length}명)`)
+        .join('\n');
+      const ok = confirm(
+        `다음 학급의 명단을 파일 내용으로 바꿉니다.
 
 ${summary}
 
-파일에 없는 학급은 그대로 둡니다.
+파일에 없는 학급은 그대로 둡니다.${totalCsv > 1 ? `\n(명렬표 CSV는 한 번에 하나씩만 읽습니다. 고른 ${totalCsv}개 중 첫 파일을 씁니다)` : ''}
 계속할까요?`
-          );
-          if (!ok) return;
+      );
+      if (!ok) return;
 
-          const rosterRef = doc(db, 'users', user.uid, 'settings', 'rosters');
-          const snap = await getDoc(rosterRef);
-          const current: any[] = snap.exists()
-            ? snap.data().classList || snap.data().rosters || snap.data().list || []
-            : [];
+      const rosterRef = doc(db, 'users', user.uid, 'settings', 'rosters');
+      const snap = await getDoc(rosterRef);
+      const current: any[] = snap.exists()
+        ? snap.data().classList || snap.data().rosters || snap.data().list || []
+        : [];
 
-          await setDoc(
-            rosterRef,
-            { classList: mergeRosters(current, incoming), updatedAt: Date.now() },
-            { merge: true }
-          );
+      await setDoc(
+        rosterRef,
+        { classList: mergeRosters(current, incoming), updatedAt: Date.now() },
+        { merge: true }
+      );
 
-          const students = incoming.reduce((sum, c) => sum + c.students.length, 0);
-          showToast(
-            `✅ 학급 ${incoming.length}개, 학생 ${students}명을 되돌렸습니다.` +
-              (skipped > 0 ? ` (읽지 못한 줄 ${skipped}개는 건너뛰었습니다)` : '')
-          );
-          onClose();
-          window.location.reload();
-        }
-      } catch (err: any) {
-        console.error(err);
-        showErrorToast('파일 복원 중 오류가 발생했습니다.');
-      } finally {
-        setProcessing(false);
-        setStatusMsg('');
-        if (e.target) e.target.value = '';
-      }
-    };
-    reader.readAsText(file);
+      const students = incoming.reduce((sum, c) => sum + c.students.length, 0);
+      showToast(
+        `✅ 학급 ${incoming.length}개, 학생 ${students}명을 되돌렸습니다.` +
+          (skipped > 0 ? ` (읽지 못한 줄 ${skipped}개는 건너뛰었습니다)` : '')
+      );
+      onClose();
+      window.location.reload();
+    } catch (err: any) {
+      console.error(err);
+      showErrorToast('파일 복원 중 오류가 발생했습니다.');
+    } finally {
+      setProcessing(false);
+      setStatusMsg('');
+    }
   };
 
+  // 파일 업로드 복원 처리. JSON은 여러 개, 명렬표 CSV는 하나씩 받는다.
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const chosen = Array.from(e.target.files || []);
+    // 같은 파일을 다시 고를 수 있게 비운다 (위에서 이미 목록을 받아 두었다)
+    if (e.target) e.target.value = '';
+    if (chosen.length === 0) return;
+
+    const json = chosen.filter((f) => f.name.toLowerCase().endsWith('.json'));
+    const csv = chosen.filter((f) => !f.name.toLowerCase().endsWith('.json'));
+
+    if (json.length > 0) await importJsonFiles(json, csv.length);
+    else await importRosterCsv(csv[0], csv.length);
+  };
   return (
     <div className="fixed inset-0 flex items-start justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} {...backdrop}>
       <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-full" onClick={(e) => e.stopPropagation()}>
@@ -927,12 +998,16 @@ ${summary}
         </div>
 
         {/* 숨겨진 파일 인풋 (가져오기용) */}
+        {/* JSON 백업은 여러 개를 한 번에 고를 수 있다. 백업을 기간별로 나눠 받아
+            두는 일이 많아(학기별 등) 되돌릴 때도 여러 개를 함께 고르게 된다. */}
         <input
           id="backup-hidden-file-input"
           type="file"
           accept=".json,.csv"
+          multiple
           onChange={handleFileUpload}
           className="hidden"
+          aria-label="가져올 백업 파일"
         />
 
         {/* 푸터 버튼 바 (🔥 가져오기 / 내보내기 버튼) */}
@@ -948,6 +1023,7 @@ ${summary}
             <button
               onClick={handleExecuteImport}
               disabled={processing}
+              title="JSON 백업은 여러 개를 한 번에 고를 수 있습니다. '4. 포함할 데이터 항목'에서 고른 것만 되돌립니다."
               className="px-5 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-extrabold shadow-2xs transition-all flex items-center gap-1.5"
             >
               <span>📤</span> 가져오기
