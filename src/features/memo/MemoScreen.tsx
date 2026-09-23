@@ -5,6 +5,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
 import MemoCard from './MemoCard';
 import EntryDrawer, { type EntryDraft } from '../../components/EntryDrawer';
+import KeepImportModal from '../../components/KeepImportModal';
 import { showToast } from '../../utils/toast';
 
 export default function MemoScreen() {
@@ -15,6 +16,7 @@ export default function MemoScreen() {
   const [currentFilter, setCurrentFilter] = useState('전체');
   const [hideCompleted, setHideCompleted] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [keepImportOpen, setKeepImportOpen] = useState(false);
   const [editingMemo, setEditingMemo] = useState<Memo | null>(null);
   // 방금 만든 메모. setEditingMemo는 다음 그림에서야 반영되므로,
   // 연달아 저장이 들어와도 새로 만들지 않도록 여기에도 담아 둔다.
@@ -160,6 +162,16 @@ export default function MemoScreen() {
 
           <button
             type="button"
+            onClick={() => setKeepImportOpen(true)}
+            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-all text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            title="구글 Keep에서 내보낸 메모 가져오기"
+          >
+            <span>📥</span>
+            <span>Keep 가져오기</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleOpenCreate}
             className="bg-primary hover:bg-blue-600 active:scale-98 text-white px-4 py-2 rounded-xl font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-xs cursor-pointer"
           >
@@ -287,6 +299,14 @@ export default function MemoScreen() {
         // 그러면 어느 갈래에도 걸리지 않는다. 눌러서 뗄 수 있다. (기록과 같다)
         defaultLabel={currentFilter !== '전체' ? currentFilter : memoLabels[0]}
       />
+
+      {keepImportOpen && (
+        <KeepImportModal
+          isOpen
+          onClose={() => setKeepImportOpen(false)}
+          onAddMemo={addMemo}
+        />
+      )}
     </div>
   );
 }
