@@ -9,11 +9,13 @@ import { showToast } from '../../utils/toast';
 import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
 import { isLongEntry, previewLine } from '../../lib/entryCollapse';
 import { attachmentImageSrc } from '../../lib/driveApi';
+import { isImageAttachment } from '../../lib/attachments';
 
 interface MemoCardProps {
   memo: Memo;
   onEdit?: (memo: Memo) => void;
   onToggleComplete?: (memo: Memo) => void;
+  onToggleFavorite?: (memo: Memo) => void;
   onDelete?: (firestoreId: string) => void;
 }
 
@@ -43,20 +45,13 @@ const normalizeAttachment = (att: any): NormalizedAttachment | null => {
   };
 };
 
-const isImageFile = (att: NormalizedAttachment): boolean => {
-  if (att.type && typeof att.type === 'string' && att.type.startsWith('image/')) {
-    return true;
-  }
-  if (att.url && typeof att.url === 'string' && att.url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)) {
-    return true;
-  }
-  if (att.name && typeof att.name === 'string' && att.name.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-    return true;
-  }
-  return false;
-};
+// ⚠️ 그림인지 가리는 규칙을 여기서 따로 만들지 않는다. 예전에는 이 카드가
+//    제 것을 들고 있었는데, 기록이 쓰는 type: 'image' 를 못 알아보고
+//    확장자도 몇 개 빠져 있어서 '어떤 그림은 미리보기가 되고 어떤 것은 안 되는'
+//    일이 생겼다. 규칙은 lib/attachments 한 곳에만 둔다.
+const isImageFile = isImageAttachment;
 
-export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: MemoCardProps) {
+export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavorite, onDelete }: MemoCardProps) {
   const { openLinkViewerModal } = useAppStore();
   const { memoLabels } = useLabels();
 
@@ -133,6 +128,25 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onDelete }: M
               onChange={() => onToggleComplete?.(memo)}
               className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 accent-primary cursor-pointer"
             />
+            {/* 즐겨찾기. 켠 것은 목록 맨 위에 모이고 '⭐ 즐겨찾기'로 걸러 볼 수 있다.
+                수정·삭제 단추처럼 가리켰을 때만 보이게 하면 휴대폰에서는 누를 길이
+                없어진다(손가락에는 hover가 없다). 늘 보여 둔다. */}
+            {onToggleFavorite && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleFavorite(memo);
+                }}
+                aria-pressed={!!memo.favorite}
+                className={`p-0.5 text-sm leading-none transition-colors cursor-pointer shrink-0 ${
+                  memo.favorite ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400'
+                }`}
+                title={memo.favorite ? '즐겨찾기 해제' : '즐겨찾기'}
+              >
+                {memo.favorite ? '★' : '☆'}
+              </button>
+            )}
             <span className="text-xs text-slate-400">
               {new Date(memo.createdAt).toLocaleDateString('ko-KR', {
                 month: 'short',

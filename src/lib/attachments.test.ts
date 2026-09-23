@@ -80,3 +80,63 @@ describe('그림 아닌 파일 모으기', () => {
     expect(hasAnyAttachment(null)).toBe(false);
   });
 });
+
+// '어떤 그림은 미리보기가 되고 어떤 것은 안 되는' 일이 있었다. 가리는 규칙이
+// 세 군데에 따로 적혀 있었고, 복사본마다 빠진 것이 달랐다.
+//   메모 카드  : type: 'image'(기록이 쓰는 모양)를 몰랐다
+//   수정 배너  : 주소만 보고 이름은 안 봐서, 확장자 없는 드라이브 주소를 놓쳤다
+describe('그림 가려내기 - 빠뜨렸던 경우들', () => {
+  it("기록이 쓰는 type: 'image'도 그림으로 본다", () => {
+    expect(isImageAttachment({ name: '사진', url: 'https://x/y', type: 'image' })).toBe(true);
+  });
+
+  it('확장자 없는 드라이브 주소는 파일 이름으로 가린다', () => {
+    expect(
+      isImageAttachment({
+        name: '운동회.jpg',
+        url: 'https://drive.google.com/file/d/abc123/view',
+        type: '',
+      })
+    ).toBe(true);
+  });
+
+  it('heic·bmp·avif도 그림이다 (휴대폰 사진이 heic로 온다)', () => {
+    for (const ext of ['heic', 'bmp', 'avif', 'webp', 'gif']) {
+      expect(isImageAttachment({ name: `사진.${ext}`, url: '' })).toBe(true);
+    }
+  });
+
+  it('대문자 확장자도 알아본다', () => {
+    expect(isImageAttachment({ name: 'PHOTO.JPG', url: '' })).toBe(true);
+  });
+
+  it('그림이 아닌 것은 그대로 파일이다', () => {
+    expect(isImageAttachment({ name: '안내문.pdf', url: 'https://x/a.pdf' })).toBe(false);
+    expect(isImageAttachment({ name: '명단.xlsx', url: '', type: 'application/vnd.ms-excel' })).toBe(false);
+  });
+});
+
+// 규칙이 또 복사되면 같은 사고가 되풀이된다. 한 곳에만 있도록 묶어 둔다.
+describe('그림 가려내는 규칙은 한 곳에만 있다', () => {
+  const sources = import.meta.glob('../{components,features,hooks}/**/*.{ts,tsx}', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  }) as Record<string, string>;
+
+  /** 그림 가리기가 아닌 다른 일로 확장자를 쓰는 곳. 왜 다른지 함께 적는다. */
+  const OTHER_PURPOSE: Record<string, string> = {
+    'components/KeepImportModal.tsx':
+      "고른 파일 중 '메모에 딸린 것'을 가린다 - 그림뿐 아니라 소리·PDF도 받는다",
+  };
+
+  it('lib/attachments 말고는 확장자 목록을 적지 않는다', () => {
+    const offenders = Object.entries(sources)
+      .filter(([path]) => !path.includes('.test.'))
+      .filter(([, src]) => /jpe?g\|png|png\|gif/.test(src))
+      .map(([path]) => path.replace('../', ''))
+      .filter((name) => !(name in OTHER_PURPOSE));
+
+    expect(offenders, offenders.join(' / ')).toEqual([]);
+  });
+});

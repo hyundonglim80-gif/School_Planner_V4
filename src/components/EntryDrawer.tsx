@@ -13,6 +13,10 @@ import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
 import { usePasteImageUpload } from '../hooks/usePasteImageUpload';
 import ImageViewerModal, { type ViewerImage } from './ImageViewerModal';
+// ⚠️ 그림인지 가리는 규칙은 lib/attachments 한 곳에만 둔다. 예전에는 여기서
+//    주소만 보고 가렸는데, 드라이브 주소에는 확장자가 없어(.../file/d/<id>/view)
+//    type이 비어 있는 옛 자료는 그림인 줄 못 알아봤다.
+import { isImageAttachment } from '../lib/attachments';
 import AutoTextarea from './AutoTextarea';
 
 export type EntryKind = 'memo' | 'journal';
@@ -77,12 +81,7 @@ const KIND_TEXT: Record<EntryKind, { noun: string; contentLabel: string; placeho
   },
 };
 
-const isImageAttachment = (att: EntryAttachment) => {
-  const type = att?.type || '';
-  // 기록은 type에 'image'를, 메모는 'image/png' 같은 MIME 타입을 저장한다.
-  if (type === 'image' || type.startsWith('image/')) return true;
-  return /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(att?.url || '');
-};
+
 
 const normalizeAttachments = (raw: unknown[] | undefined, legacyImageUrl?: string): EntryAttachment[] => {
   const list: EntryAttachment[] = [];

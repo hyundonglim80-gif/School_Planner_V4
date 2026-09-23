@@ -8,9 +8,12 @@ import EntryDrawer, { type EntryDraft } from '../../components/EntryDrawer';
 import KeepImportModal from '../../components/KeepImportModal';
 import { showToast } from '../../utils/toast';
 
+/** 라벨이 아닌 '즐겨찾기' 거르개. 라벨 이름과 겹치지 않게 별표를 붙여 둔다. */
+const FAVORITE_FILTER = '⭐ 즐겨찾기';
+
 export default function MemoScreen() {
   const { selectedGroupId } = useAppStore();
-  const { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, deleteCompletedMemos } = useMemos(selectedGroupId);
+  const { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, toggleFavorite, deleteCompletedMemos } = useMemos(selectedGroupId);
   const { getLabelColor, memoLabels } = useLabels(); 
 
   const [currentFilter, setCurrentFilter] = useState('전체');
@@ -36,9 +39,20 @@ export default function MemoScreen() {
     return () => window.removeEventListener('resize', updateCols);
   }, []);
 
-  const filteredMemos = currentFilter === '전체'
-    ? memos
-    : memos.filter(memo => memo.labels?.includes(currentFilter));
+  const matching =
+    currentFilter === '전체'
+      ? memos
+      : currentFilter === FAVORITE_FILTER
+      ? memos.filter((memo) => memo.favorite)
+      : memos.filter((memo) => memo.labels?.includes(currentFilter));
+
+  // 즐겨찾기를 맨 위로 올린다. 정렬은 안정적이므로 그 안에서는
+  // 원래 차례(나중에 만든 것이 앞)가 그대로 남는다.
+  const filteredMemos = [...matching].sort(
+    (a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0)
+  );
+
+  const favoriteCount = memos.filter((m) => m.favorite).length;
 
   const activeMemos = filteredMemos.filter(m => !m.completed);
   const completedMemos = filteredMemos.filter(m => m.completed);
@@ -116,6 +130,24 @@ export default function MemoScreen() {
           >
             {currentFilter === '전체' && <span className="mr-0.5">✓</span>}
             전체 메모
+          </button>
+
+          {/* 즐겨찾기만 모아 보기. 라벨과 나란히 두되, 라벨이 아니므로
+              별표 빛깔로 구별한다. 개수도 같이 보여 준다. */}
+          <button
+            type="button"
+            onClick={() => setCurrentFilter(FAVORITE_FILTER)}
+            aria-pressed={currentFilter === FAVORITE_FILTER}
+            title="즐겨찾기한 메모만 보기"
+            className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-all border cursor-pointer ${
+              currentFilter === FAVORITE_FILTER
+                ? 'font-black bg-amber-100 text-amber-900 border-amber-300 ring-2 ring-slate-900/70 ring-offset-1 shadow-sm'
+                : 'font-bold bg-slate-50 text-slate-500 border-slate-200 opacity-60 hover:opacity-100'
+            }`}
+          >
+            {currentFilter === FAVORITE_FILTER && <span className="mr-0.5">✓</span>}
+            ⭐ 즐겨찾기
+            {favoriteCount > 0 && <span className="ml-1 font-black">{favoriteCount}</span>}
           </button>
           {/* 고른 라벨이 어느 것인지 한눈에 들어와야 한다.
               예전에는 고른 것에 연한 라벨색만 깔려서, 색이 옅은 라벨(노랑·회색)은
@@ -214,6 +246,7 @@ export default function MemoScreen() {
                         memo={memo}
                         onEdit={handleOpenEdit}
                         onToggleComplete={toggleComplete}
+                        onToggleFavorite={toggleFavorite}
                         onDelete={deleteMemo}
                       />
                     </div>
@@ -258,6 +291,7 @@ export default function MemoScreen() {
                             memo={memo}
                             onEdit={handleOpenEdit}
                             onToggleComplete={toggleComplete}
+                        onToggleFavorite={toggleFavorite}
                             onDelete={deleteMemo}
                           />
                         </div>
@@ -275,7 +309,11 @@ export default function MemoScreen() {
             📝
           </div>
           <p className="text-slate-600 font-bold text-base">
-            {currentFilter === '전체' ? '작성된 메모가 없습니다.' : `'${currentFilter}' 라벨의 메모가 없습니다.`}
+            {currentFilter === '전체'
+              ? '작성된 메모가 없습니다.'
+              : currentFilter === FAVORITE_FILTER
+              ? '즐겨찾기한 메모가 없습니다. 메모의 ☆를 눌러 놓으면 여기 모입니다.'
+              : `'${currentFilter}' 라벨의 메모가 없습니다.`}
           </p>
           <p className="text-slate-400 text-xs mt-1.5">
             우측 상단의 '+ 새 메모 작성' 버튼을 눌러 생각을 기록해보세요.

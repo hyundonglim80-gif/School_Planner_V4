@@ -107,3 +107,30 @@ describe('메모 필터 - 고른 것이 분명히 보인다', () => {
     expect(other.className).toContain('opacity-60');
   });
 });
+
+// 자주 보는 메모가 아래로 밀려 내려가 찾기 어려웠다.
+describe('메모 즐겨찾기', () => {
+  it('메모마다 즐겨찾기 단추가 있다', async () => {
+    const user = userEvent.setup();
+    await 새메모작성(user);
+
+    expect(screen.getAllByTitle(/즐겨찾기/).length).toBeGreaterThan(0);
+  });
+
+  it('즐겨찾기 거르개가 라벨 옆에 있다', async () => {
+    render(<MemoScreen />);
+
+    const chip = await screen.findByRole('button', { name: /즐겨찾기/ });
+    expect(chip).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('즐겨찾기 거르개를 누르면 그것만 골라진 것으로 보인다', async () => {
+    const user = userEvent.setup();
+    render(<MemoScreen />);
+
+    await user.click(await screen.findByRole('button', { name: /⭐ 즐겨찾기/ }));
+
+    expect(screen.getByRole('button', { name: /⭐ 즐겨찾기/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /전체 메모/ })).toHaveAttribute('aria-pressed', 'false');
+  });
+});

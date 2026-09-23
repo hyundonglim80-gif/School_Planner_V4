@@ -24,6 +24,8 @@ export interface Memo {
   attachments?: MemoAttachment[];
   /** 구글 Keep에서 가져온 메모라면 그 메모를 알아보는 열쇠 (lib/keepImport) */
   keepId?: string;
+  /** 즐겨찾기. 켜 두면 목록 맨 위에 모인다. */
+  favorite?: boolean;
   authorId?: string;
   authorName?: string;
   groupId?: string;
@@ -122,7 +124,7 @@ export function useMemos(groupId: string | null = null) {
     return ref;
   };
 
-  const updateMemo = async (firestoreId: string, data: { content?: string; labels?: string[]; completed?: boolean; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[]; keepId?: string }) => {
+  const updateMemo = async (firestoreId: string, data: { content?: string; labels?: string[]; completed?: boolean; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[]; keepId?: string; favorite?: boolean }) => {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
 
@@ -141,6 +143,7 @@ export function useMemos(groupId: string | null = null) {
     if (data.attachments !== undefined) updateData.attachments = data.attachments;
     if (data.linkedItems !== undefined) updateData.linkedItems = data.linkedItems;
     if (data.keepId !== undefined) updateData.keepId = data.keepId;
+    if (data.favorite !== undefined) updateData.favorite = data.favorite;
 
     const previous = memos.find((m) => m.firestoreId === firestoreId);
     const result = await updateDoc(docRef, updateData);
@@ -184,6 +187,11 @@ export function useMemos(groupId: string | null = null) {
     return await updateMemo(memo.firestoreId, { completed: !memo.completed });
   };
 
+  /** 즐겨찾기 켜고 끄기. 켠 메모는 목록 맨 위에 모인다. */
+  const toggleFavorite = async (memo: Memo) => {
+    return await updateMemo(memo.firestoreId, { favorite: !memo.favorite });
+  };
+
   const deleteCompletedMemos = async (memosToDelete?: Memo[]) => {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
@@ -213,5 +221,5 @@ export function useMemos(groupId: string | null = null) {
     );
   };
 
-  return { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, deleteCompletedMemos };
+  return { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, toggleFavorite, deleteCompletedMemos };
 }
