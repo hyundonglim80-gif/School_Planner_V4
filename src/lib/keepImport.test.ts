@@ -4,6 +4,10 @@ import {
   parseKeepFile,
   selectNotesToImport,
   toMemoDraft,
+  keepIdOf,
+  findExistingMemo,
+  memoNeedsUpdate,
+  mergeMemoLabels,
   type KeepImportOptions,
 } from './keepImport';
 
@@ -117,5 +121,74 @@ describe('메모로 바꾸기', () => {
     const note = parseKeepNote({ textContent: '메모', labels: [{ name: '업무' }] })!;
 
     expect(toMemoDraft(note, { includeArchived: false, keepLabels: false }).labels).toEqual([]);
+  });
+});
+
+describe('이미 있는 메모 알아보기', () => {
+  const note = (over: any = {}) => ({
+    content: '운동회 준비',
+    labels: [] as string[],
+    createdAt: 1772323200000,
+    archived: false,
+    trashed: false,
+    pinned: false,
+    attachmentNames: [] as string[],
+    ...over,
+  });
+
+  it('만든 때로 열쇠를 만든다 (고쳐도 바뀌지 않는다)', () => {
+    expect(keepIdOf(note())).toBe('keep_1772323200000');
+    expect(keepIdOf(note({ content: '내용을 고쳤다' }))).toBe('keep_1772323200000');
+  });
+
+  it('만든 때를 모르면 내용으로 열쇠를 만든다', () => {
+    const a = keepIdOf(note({ createdAt: 0 }));
+    const b = keepIdOf(note({ createdAt: 0 }));
+    const c = keepIdOf(note({ createdAt: 0, content: '다른 메모' }));
+    expect(a).toBe(b);
+    expect(a).not.toBe(c);
+  });
+
+  it('열쇠로 먼저 찾고, 없으면 같은 내용으로 찾는다', () => {
+    const n = note();
+    const byKey = { firestoreId: 'a', content: '아무거나', keepId: 'keep_1772323200000' };
+    expect(findExistingMemo(n, [byKey], '운동회 준비')?.firestoreId).toBe('a');
+
+    const byBody = { firestoreId: 'b', content: '운동회 준비' };
+    expect(findExistingMemo(n, [byBody], '운동회 준비')?.firestoreId).toBe('b');
+    expect(findExistingMemo(n, [], '운동회 준비')).toBeUndefined();
+  });
+
+  it('글·라벨·붙은 파일 중 하나라도 달라지면 고쳐 쓴다', () => {
+    const memo = { firestoreId: 'a', content: '운동회 준비', labels: ['학교행사'], attachments: [{ name: '사진.jpg' }] };
+    const same = { content: '운동회 준비', labels: ['학교행사'], attachmentNames: ['사진.jpg'] };
+
+    expect(memoNeedsUpdate(same, memo)).toBe(false);
+    expect(memoNeedsUpdate({ ...same, content: '고침' }, memo)).toBe(true);
+    expect(memoNeedsUpdate({ ...same, labels: [] }, memo)).toBe(true);
+    expect(memoNeedsUpdate({ ...same, attachmentNames: [] }, memo)).toBe(true);
+  });
+
+  it('라벨 차례가 달라도 같은 것으로 본다', () => {
+    const memo = { firestoreId: 'a', content: 'x', labels: ['가', '나'], attachments: [] };
+    expect(memoNeedsUpdate({ content: 'x', labels: ['나', '가'], attachmentNames: [] }, memo)).toBe(false);
+  });
+});
+
+describe('메모 라벨 목록에 더하기', () => {
+  it('없던 이름만 더한다', () => {
+    expect(mergeMemoLabels(['업무'], ['업무', '학교행사'])).toEqual(['업무', '학교행사']);
+  });
+
+  it('저장된 모양을 따른다 ({id,name,color}로 되어 있으면 그 모양으로)', () => {
+    const merged = mergeMemoLabels([{ id: 'm1', name: '업무', color: 'blue' }], ['학교행사']);
+
+    expect(merged).toHaveLength(2);
+    expect(merged[1]).toMatchObject({ name: '학교행사' });
+    expect(typeof merged[1]).toBe('object');
+  });
+
+  it('빈 이름은 넣지 않는다', () => {
+    expect(mergeMemoLabels([], ['  ', ''])).toEqual([]);
   });
 });

@@ -8,13 +8,21 @@
 //    Keep을 직접 읽을 길이 없다. 그래서 구글이 주는 내보내기를 읽는 쪽으로 간다.
 import { useRef, useState } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
+import { doc, setDoc } from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
+import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 import {
   parseKeepFile,
   selectNotesToImport,
   toMemoDraft,
   assetKey,
+  keepIdOf,
+  findExistingMemo,
+  memoNeedsUpdate,
+  mergeMemoLabels,
   type KeepNote,
   type KeepImportOptions,
+  type ExistingMemo,
 } from '../lib/keepImport';
 import { uploadToDrive, driveUrlToStore } from '../lib/driveApi';
 import ModalShell, { ModalCloseButton } from './ModalShell';
@@ -30,10 +38,20 @@ export interface KeepImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   /** 메모 한 건 만들기. 메모 화면의 addMemo를 그대로 받는다. */
-  onAddMemo: (data: MemoDraft) => Promise<unknown>;
+  onAddMemo: (data: MemoDraft & { keepId?: string }) => Promise<unknown>;
+  /** 이미 들어와 있는 메모. 같은 Keep 메모를 두 번 넣지 않기 위해 본다. */
+  existingMemos?: ExistingMemo[];
+  /** 이미 있는데 내용이 달라졌을 때 고쳐 쓴다 */
+  onUpdateMemo?: (firestoreId: string, data: MemoDraft & { keepId?: string }) => Promise<unknown>;
 }
 
-export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImportModalProps) {
+export default function KeepImportModal({
+  isOpen,
+  onClose,
+  onAddMemo,
+  existingMemos = [],
+  onUpdateMemo,
+}: KeepImportModalProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   /**
    * 고른 파일을 묶음으로 쌓아 둔다.
@@ -64,6 +82,33 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
   const matchedAssets = new Set(
     picked.flatMap((n) => n.attachmentNames.map(assetKey)).filter((k) => assets.has(k))
   );
+
+  /**
+   * 메모 한 건을 어떻게 넣을지 미리 정한다. 올리기 전에 세어 보여 주는 데도,
+   * 실제로 넣을 때도 같은 것을 쓴다 (미리보기와 결과가 어긋나지 않게).
+   */
+  const planFor = (note: KeepNote) => {
+    const attachNames: string[] = [];
+    const missing: string[] = [];
+    for (const raw of note.attachmentNames) {
+      if (withFiles && assets.has(assetKey(raw))) attachNames.push(raw);
+      else missing.push(raw);
+    }
+    const draft = toMemoDraft(note, opts, missing);
+    const found = findExistingMemo(note, existingMemos, draft.content);
+    const action = !found
+      ? 'add'
+      : memoNeedsUpdate({ content: draft.content, labels: draft.labels, attachmentNames: attachNames }, found)
+      ? 'update'
+      : 'skip';
+    return { draft, attachNames, missing, found, action } as const;
+  };
+
+  const plans = picked.map(planFor);
+  const willAdd = plans.filter((p) => p.action === 'add').length;
+  const willUpdate = plans.filter((p) => p.action === 'update').length;
+  const willSkip = plans.filter((p) => p.action === 'skip').length;
+  const willTouch = willAdd + willUpdate;
 
   const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const chosen = Array.from(e.target.files || []);
@@ -129,14 +174,46 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
     }
   };
 
+  /**
+   * Keep 라벨을 메모 라벨 목록(users/{uid}/settings/labels 의 memoLabels)에 더한다.
+   * 새로 들어간 개수를 준다.
+   *
+   * ⚠️ 서버에서 읽지 못하면 아무것도 쓰지 않는다. 목록을 통째로 다시 쓰는 자리라,
+   *    캐시가 비었을 때의 답을 믿으면 선생님이 만들어 둔 라벨이 날아간다.
+   */
+  const registerMemoLabels = async (names: string[]): Promise<number> => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || names.length === 0) return 0;
+    try {
+      const ref = doc(db, 'users', uid, 'settings', 'labels');
+      const { snap, fromServer } = await getDocTrustingServer(ref);
+      if (!fromServer) {
+        console.warn('[SP4] 라벨 목록을 서버에서 읽지 못해 Keep 라벨 등록을 건너뜁니다.');
+        return 0;
+      }
+      const current = (snap.exists() ? (snap.data() as any)?.memoLabels : null) || [];
+      const merged = mergeMemoLabels(current, names);
+      const addedCount = merged.length - (Array.isArray(current) ? current.length : 0);
+      if (addedCount <= 0) return 0;
+      await setDoc(ref, { memoLabels: merged, updatedAt: Date.now() }, { merge: true });
+      return addedCount;
+    } catch (err) {
+      console.error('Keep 라벨을 메모 라벨 목록에 넣지 못했습니다:', err);
+      return 0;
+    }
+  };
+
   const handleImport = async () => {
     if (picked.length === 0 || busy) return;
     setBusy(true);
     setDone(0);
     setStep('');
     let made = 0;
+    let changed = 0;
+    let skippedSame = 0;
     let uploaded = 0;
     let failedUpload = 0;
+    let labelsAdded = 0;
     // 같은 파일을 두 메모가 함께 달고 있을 수 있다. 한 번만 올린다.
     const cache = new Map<string, { name: string; url: string; type?: string; size?: number }>();
 
@@ -145,12 +222,19 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
       // 옛 메모부터 넣어야 Keep에서 보던 차례와 비슷해진다.
       const ordered = [...picked].sort((a, b) => a.createdAt - b.createdAt);
       for (const note of ordered) {
-        const attachments: { name: string; url: string; type?: string; size?: number }[] = [];
-        const missing: string[] = [];
+        const plan = planFor(note);
+        // 이미 들어와 있고 달라진 것도 없으면 건드리지 않는다
+        if (plan.action === 'skip') {
+          skippedSame += 1;
+          continue;
+        }
 
-        for (const raw of note.attachmentNames) {
+        const attachments: { name: string; url: string; type?: string; size?: number }[] = [];
+        const missing = [...plan.missing];
+
+        for (const raw of plan.attachNames) {
           const key = assetKey(raw);
-          const file = withFiles ? assets.get(key) : undefined;
+          const file = assets.get(key);
           if (!file) {
             missing.push(raw);
             continue;
@@ -183,18 +267,41 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
         setStep('');
         const draft = toMemoDraft(note, opts, missing);
         const firstImage = attachments.find((a) => (a.type || '').startsWith('image/'));
-        await onAddMemo({
+        const payload = {
           ...draft,
+          keepId: keepIdOf(note),
           ...(attachments.length > 0 ? { attachments } : {}),
           ...(firstImage ? { imageUrl: firstImage.url } : {}),
-        });
-        made += 1;
-        setDone(made);
+        };
+
+        if (plan.action === 'update' && plan.found && onUpdateMemo) {
+          // 라벨이나 붙은 파일만 바뀐 경우가 많다. 그 자리를 그대로 고쳐 쓴다.
+          await onUpdateMemo(plan.found.firestoreId, {
+            ...payload,
+            // 붙일 것이 없으면 빈 목록으로 적어, 지워진 첨부가 남지 않게 한다
+            attachments: attachments,
+          });
+          changed += 1;
+        } else {
+          await onAddMemo(payload);
+          made += 1;
+        }
+        setDone(made + changed);
+      }
+
+      // Keep에서 쓰던 라벨을 메모 라벨 목록에도 넣는다. 목록에 없으면 메모 화면
+      // 위의 라벨 단추에 나오지 않아 그 라벨로 걸러 볼 수가 없다.
+      if (opts.keepLabels) {
+        const names = [...new Set(picked.flatMap((n) => n.labels))];
+        labelsAdded = await registerMemoLabels(names);
       }
 
       const tail = [
+        changed > 0 ? `${changed}건은 바뀐 내용으로 고쳐 씀` : '',
+        skippedSame > 0 ? `${skippedSame}건은 그대로라 건너뜀` : '',
         uploaded > 0 ? `사진·파일 ${uploaded}개 함께` : '',
         failedUpload > 0 ? `${failedUpload}개는 올리지 못해 이름만 남김` : '',
+        labelsAdded > 0 ? `라벨 ${labelsAdded}개 새로 등록` : '',
       ]
         .filter(Boolean)
         .join(', ');
@@ -224,14 +331,16 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
           <button
             type="button"
             onClick={handleImport}
-            disabled={busy || picked.length === 0}
+            disabled={busy || willTouch === 0}
             className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-xs hover:bg-primary/90 disabled:opacity-40 transition-all cursor-pointer"
           >
             {busy && step
               ? step
               : busy && done > 0
-              ? `가져오는 중... (${done}/${picked.length})`
-              : `메모 ${picked.length}건 가져오기`}
+              ? `가져오는 중... (${done}/${willTouch})`
+              : willUpdate > 0
+              ? `메모 ${willAdd}건 가져오고 ${willUpdate}건 고치기`
+              : `메모 ${willAdd}건 가져오기`}
           </button>
         </>
       }
@@ -355,6 +464,23 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
               <h3 className="text-xs font-bold text-slate-800 mb-1.5">
                 가져올 메모 미리보기 ({picked.length}건)
               </h3>
+              {/* 같은 메모를 두 번 넣지 않는다. 이미 있는데 라벨이나 붙은 파일이
+                  달라졌으면 그 자리를 고쳐 쓴다. */}
+              <p className="text-xs text-slate-600 mb-1.5 flex flex-wrap gap-x-2">
+                <span title="새로 넣을 메모" className="text-primary font-bold">
+                  새로 {willAdd}건
+                </span>
+                {willUpdate > 0 && (
+                  <span title="고쳐 쓸 메모" className="text-amber-600 font-bold">
+                    바뀌어서 고쳐 쓸 것 {willUpdate}건
+                  </span>
+                )}
+                {willSkip > 0 && (
+                  <span title="건너뛸 메모" className="text-slate-500 font-bold">
+                    이미 있고 그대로라 건너뛸 것 {willSkip}건
+                  </span>
+                )}
+              </p>
               <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-48 overflow-y-auto">
                 {picked.slice(0, 20).map((note, i) => (
                   <div key={i} className="px-3 py-2">

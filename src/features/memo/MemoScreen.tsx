@@ -305,6 +305,8 @@ export default function MemoScreen() {
           isOpen
           onClose={() => setKeepImportOpen(false)}
           onAddMemo={addMemo}
+          existingMemos={memos}
+          onUpdateMemo={updateMemo}
         />
       )}
     </div>

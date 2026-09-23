@@ -22,6 +22,8 @@ export interface Memo {
   labels?: string[];
   imageUrl?: string;
   attachments?: MemoAttachment[];
+  /** 구글 Keep에서 가져온 메모라면 그 메모를 알아보는 열쇠 (lib/keepImport) */
+  keepId?: string;
   authorId?: string;
   authorName?: string;
   groupId?: string;
@@ -85,7 +87,7 @@ export function useMemos(groupId: string | null = null) {
     return () => unsubscribe();
   }, [groupId, auth.currentUser?.uid]);
 
-  const addMemo = async (data: { content: string; labels?: string[]; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[] }) => {
+  const addMemo = async (data: { content: string; labels?: string[]; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[]; keepId?: string }) => {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
 
@@ -106,7 +108,9 @@ export function useMemos(groupId: string | null = null) {
       linkedItems: data.linkedItems || [],
       authorId: user.uid,
       authorName: user.displayName || '이름 없음',
-      sharedGroupIds: groupId ? [groupId] : []
+      sharedGroupIds: groupId ? [groupId] : [],
+      // Keep에서 가져온 메모만 붙는다. 다음에 또 가져올 때 같은 메모를 알아본다.
+      ...(data.keepId ? { keepId: data.keepId } : {})
     };
 
     const ref = await addDoc(collectionRef, newMemoData);
@@ -118,7 +122,7 @@ export function useMemos(groupId: string | null = null) {
     return ref;
   };
 
-  const updateMemo = async (firestoreId: string, data: { content?: string; labels?: string[]; completed?: boolean; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[] }) => {
+  const updateMemo = async (firestoreId: string, data: { content?: string; labels?: string[]; completed?: boolean; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[]; keepId?: string }) => {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
 
@@ -136,6 +140,7 @@ export function useMemos(groupId: string | null = null) {
     if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
     if (data.attachments !== undefined) updateData.attachments = data.attachments;
     if (data.linkedItems !== undefined) updateData.linkedItems = data.linkedItems;
+    if (data.keepId !== undefined) updateData.keepId = data.keepId;
 
     const previous = memos.find((m) => m.firestoreId === firestoreId);
     const result = await updateDoc(docRef, updateData);

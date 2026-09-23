@@ -145,6 +145,92 @@ export function toMemoDraft(
 }
 
 /**
+ * 같은 Keep 메모인지 알아보는 열쇠.
+ *
+ * Takeout에는 Keep이 쓰는 메모 id가 들어 있지 않다. 대신 '만든 때'는 마이크로초까지
+ * 적혀 있고 메모를 고쳐도 바뀌지 않으므로, 그것을 열쇠로 쓴다. 이 값을 메모에 적어
+ * 두면 다음에 또 가져올 때 이미 들어온 것을 알아볼 수 있다.
+ */
+export function keepIdOf(note: KeepNote): string {
+  if (note.createdAt > 0) return `keep_${note.createdAt}`;
+  // 만든 때를 모르는 옛 메모는 내용으로 열쇠를 만든다
+  let h = 0;
+  for (let i = 0; i < note.content.length; i++) {
+    h = ((h << 5) - h + note.content.charCodeAt(i)) | 0;
+  }
+  return `keep_c${Math.abs(h).toString(36)}`;
+}
+
+export interface ExistingMemo {
+  firestoreId: string;
+  content?: string;
+  text?: string;
+  labels?: string[];
+  attachments?: { name?: string }[];
+  keepId?: string;
+}
+
+/** 이미 들어와 있는 메모를 찾는다. 열쇠가 먼저, 없으면 내용이 똑같은 것. */
+export function findExistingMemo(
+  note: KeepNote,
+  memos: ExistingMemo[],
+  draftContent: string
+): ExistingMemo | undefined {
+  const id = keepIdOf(note);
+  const byKey = memos.find((m) => m.keepId === id);
+  if (byKey) return byKey;
+  // 이 열쇠를 붙이기 전에 가져온 메모도 두 번 들어가면 안 된다
+  const body = draftContent.trim();
+  return memos.find((m) => !m.keepId && String(m.content ?? m.text ?? '').trim() === body);
+}
+
+const sameList = (a: string[], b: string[]) => {
+  const x = [...a].sort();
+  const y = [...b].sort();
+  return x.length === y.length && x.every((v, i) => v === y[i]);
+};
+
+/**
+ * 이미 있는 메모를 고쳐 써야 하는가.
+ * 글·라벨·붙은 파일 가운데 하나라도 달라졌으면 고쳐 쓴다.
+ */
+export function memoNeedsUpdate(
+  draft: { content: string; labels: string[]; attachmentNames: string[] },
+  memo: ExistingMemo
+): boolean {
+  if (String(memo.content ?? memo.text ?? '').trim() !== draft.content.trim()) return true;
+  if (!sameList(memo.labels || [], draft.labels)) return true;
+  const had = (memo.attachments || []).map((a) => assetKey(String(a?.name ?? ''))).filter(Boolean);
+  return !sameList(had, draft.attachmentNames.map(assetKey));
+}
+
+/**
+ * Keep 라벨을 메모 라벨 목록에 더한다.
+ *
+ * 메모에 라벨 이름만 붙여 두면 목록에 없는 라벨이 되어, 메모 화면 위의 라벨 단추에
+ * 나오지 않고 색도 못 받는다. 그래서 목록에도 넣어 준다.
+ * 저장된 모양이 두 가지다(글자만인 것과 {id,name,color}인 것). 있던 모양을 따른다.
+ */
+export function mergeMemoLabels(existing: any[], names: string[]): any[] {
+  const list = Array.isArray(existing) ? [...existing] : [];
+  const nameOf = (l: any) => (typeof l === 'string' ? l : String(l?.name ?? ''));
+  const has = new Set(list.map(nameOf));
+  const asObject = list.length > 0 && typeof list[0] !== 'string';
+
+  for (const name of names) {
+    const clean = name.trim();
+    if (!clean || has.has(clean)) continue;
+    has.add(clean);
+    list.push(
+      asObject
+        ? { id: `memo_keep_${Math.random().toString(36).slice(2, 8)}`, name: clean, color: 'gray' }
+        : clean
+    );
+  }
+  return list;
+}
+
+/**
  * 파일 이름만 남기고 소문자로. 딸린 파일을 찾을 때 쓰는 열쇠다.
  *
  * Takeout의 filePath는 대개 이름뿐이지만 가끔 폴더가 앞에 붙는다. 그리고 파일

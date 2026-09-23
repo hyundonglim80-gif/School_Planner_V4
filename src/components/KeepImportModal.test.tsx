@@ -68,7 +68,7 @@ describe('Keep 가져오기', () => {
     await user.click(screen.getByRole('button', { name: /메모 1건 가져오기/ }));
 
     await waitFor(() => expect(onAddMemo).toHaveBeenCalledTimes(1));
-    expect(onAddMemo).toHaveBeenCalledWith({
+    expect(onAddMemo.mock.calls[0][0]).toMatchObject({
       content: '학부모 상담\n3시 김OO',
       labels: ['업무'],
     });
@@ -211,5 +211,100 @@ describe('Keep 가져오기 - 붙어 있던 사진·파일', () => {
 
     await waitFor(() => expect(onAddMemo).toHaveBeenCalled());
     expect((onAddMemo.mock.calls[0][0] as any).attachments).toBeUndefined();
+  });
+});
+
+// 같은 Takeout을 또 가져오는 일이 흔하다(사진을 빠뜨렸거나, Keep에서 고친 뒤 다시).
+// 그때 같은 메모가 두 번 들어가면 안 되고, 달라진 것은 반영돼야 한다.
+describe('Keep 가져오기 - 이미 있는 메모', () => {
+  const madeAt = Date.UTC(2026, 2, 1);
+  const note = (extra: any = {}) =>
+    file('n.json', { textContent: '운동회 준비', createdTimestampUsec: madeAt * 1000, ...extra });
+
+  /** 앞서 가져와 이미 들어와 있는 메모 */
+  const already = (extra: any = {}) => [
+    {
+      firestoreId: 'memo-1',
+      content: '운동회 준비',
+      labels: [],
+      attachments: [],
+      keepId: `keep_${madeAt}`,
+      ...extra,
+    },
+  ];
+
+  it('그대로인 메모는 건너뛴다', async () => {
+    const user = userEvent.setup();
+    const onAddMemo = vi.fn(async (_d: Record<string, any>) => ({}));
+    const onUpdateMemo = vi.fn(async () => ({}));
+    render(
+      <KeepImportModal
+        isOpen
+        onClose={vi.fn()}
+        onAddMemo={onAddMemo}
+        existingMemos={already()}
+        onUpdateMemo={onUpdateMemo}
+      />
+    );
+
+    await pickFiles(user, [note()]);
+
+    expect(await screen.findByTitle('건너뛸 메모')).toHaveTextContent('1건');
+    // 넣을 것이 없으니 단추가 눌리지 않는다
+    expect(screen.getByRole('button', { name: /메모 0건 가져오기/ })).toBeDisabled();
+  });
+
+  it('라벨이 달라졌으면 그 자리를 고쳐 쓴다', async () => {
+    const user = userEvent.setup();
+    const onAddMemo = vi.fn(async (_d: Record<string, any>) => ({}));
+    const onUpdateMemo = vi.fn(async (_id: string, _d: Record<string, any>) => ({}));
+    render(
+      <KeepImportModal
+        isOpen
+        onClose={vi.fn()}
+        onAddMemo={onAddMemo}
+        existingMemos={already()}
+        onUpdateMemo={onUpdateMemo}
+      />
+    );
+
+    // Keep에서 라벨을 붙인 뒤 다시 내보낸 파일
+    await pickFiles(user, [note({ labels: [{ name: '학교행사' }] })]);
+    await user.click(await screen.findByRole('button', { name: /1건 고치기/ }));
+
+    await waitFor(() => expect(onUpdateMemo).toHaveBeenCalled());
+    expect(onUpdateMemo.mock.calls[0][0]).toBe('memo-1');
+    expect(onUpdateMemo.mock.calls[0][1]).toMatchObject({ labels: ['학교행사'] });
+    // 새로 만들지는 않는다
+    expect(onAddMemo).not.toHaveBeenCalled();
+  });
+
+  it('열쇠가 없던 옛 메모도 내용이 같으면 두 번 넣지 않는다', async () => {
+    const user = userEvent.setup();
+    const onAddMemo = vi.fn(async (_d: Record<string, any>) => ({}));
+    render(
+      <KeepImportModal
+        isOpen
+        onClose={vi.fn()}
+        onAddMemo={onAddMemo}
+        existingMemos={[{ firestoreId: 'old-1', content: '운동회 준비', labels: [], attachments: [] }]}
+        onUpdateMemo={vi.fn(async () => ({}))}
+      />
+    );
+
+    await pickFiles(user, [note()]);
+
+    expect(await screen.findByTitle('건너뛸 메모')).toHaveTextContent('1건');
+  });
+
+  it('새 메모에는 다시 알아볼 열쇠를 붙인다', async () => {
+    const user = userEvent.setup();
+    const { onAddMemo } = renderModal();
+
+    await pickFiles(user, [note()]);
+    await user.click(await screen.findByRole('button', { name: /메모 1건 가져오기/ }));
+
+    await waitFor(() => expect(onAddMemo).toHaveBeenCalled());
+    expect((onAddMemo.mock.calls[0][0] as any).keepId).toBe(`keep_${madeAt}`);
   });
 });
