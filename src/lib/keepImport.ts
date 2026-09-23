@@ -128,13 +128,32 @@ export function selectNotesToImport(notes: KeepNote[], opts: KeepImportOptions):
  * 그것까지 옮기려면 드라이브에 하나씩 올려야 한다. 대신 무엇이 붙어 있었는지는
  * 본문 끝에 남겨, 나중에 Takeout 폴더에서 찾을 수 있게 한다.
  */
-export function toMemoDraft(note: KeepNote, opts: KeepImportOptions) {
+export function toMemoDraft(
+  note: KeepNote,
+  opts: KeepImportOptions,
+  /** 끝내 못 붙인 파일들. 기본값은 '전부 못 붙였다'. */
+  missing: string[] = note.attachmentNames
+) {
   const lines = [note.content];
-  if (note.attachmentNames.length > 0) {
-    lines.push(`📎 Keep에 붙어 있던 파일: ${note.attachmentNames.join(', ')}`);
+  if (missing.length > 0) {
+    lines.push(`📎 Keep에 붙어 있던 파일: ${missing.join(', ')}`);
   }
   return {
     content: lines.filter(Boolean).join('\n'),
     labels: opts.keepLabels ? note.labels : [],
   };
+}
+
+/**
+ * 파일 이름만 남기고 소문자로. 딸린 파일을 찾을 때 쓰는 열쇠다.
+ *
+ * Takeout의 filePath는 대개 이름뿐이지만 가끔 폴더가 앞에 붙는다. 그리고 파일
+ * 고르기 창에서 받은 이름과 대소문자가 다를 수 있어 맞춰 둔다.
+ */
+export function assetKey(path: string): string {
+  return String(path ?? '')
+    .split(/[\\/]/)
+    .pop()!
+    .trim()
+    .toLowerCase();
 }

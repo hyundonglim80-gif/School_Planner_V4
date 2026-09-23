@@ -3,6 +3,17 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import KeepImportModal from './KeepImportModal';
 
+// 드라이브 올리기는 구글 계정이 필요하다. 여기서는 올린 척만 한다.
+vi.mock('../lib/driveApi', () => ({
+  uploadToDrive: vi.fn(async (_file: File, name: string) => ({
+    id: 'drive-1',
+    name,
+    downloadLink: 'https://drive.test/drive-1',
+  })),
+  driveUrlToStore: (mime: string | undefined, f: any) =>
+    mime?.startsWith('image/') ? `https://drive.test/img/${f.id}` : f.downloadLink,
+}));
+
 // Takeout은 메모 하나에 파일 하나씩 준다.
 const file = (name: string, note: any) =>
   new File([JSON.stringify(note)], name, { type: 'application/json' });
@@ -15,7 +26,7 @@ const NOTES = [
 ];
 
 function renderModal() {
-  const onAddMemo = vi.fn(async (_data: { content: string; labels?: string[] }) => ({}));
+  const onAddMemo = vi.fn(async (_data: Record<string, any>) => ({}));
   const onClose = vi.fn();
   render(<KeepImportModal isOpen onClose={onClose} onAddMemo={onAddMemo} />);
   return { onAddMemo, onClose };
@@ -127,7 +138,7 @@ describe('Keep 가져오기 - 파일을 나눠 고르기', () => {
     expect(screen.queryByText('첫째')).toBeNull();
   });
 
-  it('쌓인 파일 수와 메모 수를 알려 준다', async () => {
+  it('쌓인 메모 수를 알려 준다', async () => {
     const user = userEvent.setup();
     renderModal();
 
@@ -136,6 +147,69 @@ describe('Keep 가져오기 - 파일을 나눠 고르기', () => {
       file('2.json', { textContent: '둘째' }),
     ]);
 
-    expect(await screen.findByText(/파일 2개 · 메모 2건/)).toBeInTheDocument();
+    expect(await screen.findByText(/지금까지 메모 2건/)).toBeInTheDocument();
+  });
+});
+
+// Takeout은 메모에 붙어 있던 사진을 같은 폴더에 따로 둔다. 메모의 .json에는
+// 파일 이름만 적혀 있어서, 사진까지 함께 골라야 이름으로 짝을 찾을 수 있다.
+describe('Keep 가져오기 - 붙어 있던 사진·파일', () => {
+  const photo = () =>
+    new File([new Uint8Array([1, 2, 3])], '사진.jpg', { type: 'image/jpeg' });
+  const noteWithPhoto = () =>
+    file('p.json', { textContent: '운동회', attachments: [{ filePath: '사진.jpg' }] });
+
+  it('같이 고른 사진은 짝을 찾아 알려 준다', async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    await pickFiles(user, [noteWithPhoto(), photo()]);
+
+    expect(await screen.findByText(/짝을 찾은 파일 1개/)).toBeInTheDocument();
+    expect(screen.getByText(/사진·파일 1개/)).toBeInTheDocument();
+  });
+
+  it('사진을 드라이브에 올려 메모에 붙인다', async () => {
+    const user = userEvent.setup();
+    const { onAddMemo } = renderModal();
+
+    await pickFiles(user, [noteWithPhoto(), photo()]);
+    await screen.findByText(/짝을 찾은 파일 1개/);
+    await user.click(screen.getByRole('button', { name: /메모 1건 가져오기/ }));
+
+    await waitFor(() => expect(onAddMemo).toHaveBeenCalled());
+    const sent = onAddMemo.mock.calls[0][0] as any;
+    expect(sent.attachments).toHaveLength(1);
+    expect(sent.attachments[0]).toMatchObject({ name: '사진.jpg', type: 'image/jpeg' });
+    // 첫 이미지는 메모의 대표 그림으로도 쓴다
+    expect(sent.imageUrl).toBeTruthy();
+    // 붙였으므로 본문에 이름을 또 남기지 않는다
+    expect(sent.content).toBe('운동회');
+  });
+
+  it('사진을 같이 고르지 않았으면 이름만 남긴다', async () => {
+    const user = userEvent.setup();
+    const { onAddMemo } = renderModal();
+
+    await pickFiles(user, [noteWithPhoto()]);
+    await user.click(await screen.findByRole('button', { name: /메모 1건 가져오기/ }));
+
+    await waitFor(() => expect(onAddMemo).toHaveBeenCalled());
+    const sent = onAddMemo.mock.calls[0][0] as any;
+    expect(sent.attachments).toBeUndefined();
+    expect(sent.content).toContain('📎 Keep에 붙어 있던 파일: 사진.jpg');
+  });
+
+  it("'사진·파일도 함께 붙이기'를 끄면 올리지 않는다", async () => {
+    const user = userEvent.setup();
+    const { onAddMemo } = renderModal();
+
+    await pickFiles(user, [noteWithPhoto(), photo()]);
+    await screen.findByText(/짝을 찾은 파일 1개/);
+    await user.click(screen.getByLabelText(/사진·파일도 함께 붙이기/));
+    await user.click(screen.getByRole('button', { name: /메모 1건 가져오기/ }));
+
+    await waitFor(() => expect(onAddMemo).toHaveBeenCalled());
+    expect((onAddMemo.mock.calls[0][0] as any).attachments).toBeUndefined();
   });
 });

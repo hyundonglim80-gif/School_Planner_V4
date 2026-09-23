@@ -12,16 +12,25 @@ import {
   parseKeepFile,
   selectNotesToImport,
   toMemoDraft,
+  assetKey,
   type KeepNote,
   type KeepImportOptions,
 } from '../lib/keepImport';
+import { uploadToDrive, driveUrlToStore } from '../lib/driveApi';
 import ModalShell, { ModalCloseButton } from './ModalShell';
+
+interface MemoDraft {
+  content: string;
+  labels?: string[];
+  attachments?: { name: string; url: string; type?: string; size?: number }[];
+  imageUrl?: string;
+}
 
 export interface KeepImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   /** 메모 한 건 만들기. 메모 화면의 addMemo를 그대로 받는다. */
-  onAddMemo: (data: { content: string; labels?: string[] }) => Promise<unknown>;
+  onAddMemo: (data: MemoDraft) => Promise<unknown>;
 }
 
 export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImportModalProps) {
@@ -36,12 +45,25 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
    * 같은 파일을 또 골라도 한 번만 센다. 이름·크기·고친 때가 같으면 같은 파일로 본다.
    */
   const [batches, setBatches] = useState<{ key: string; notes: KeepNote[] }[]>([]);
+  /**
+   * 메모에 딸려 있던 사진·파일. Takeout은 그림을 메모와 같은 폴더에 따로 둔다
+   * (메모의 .json 안에는 파일 이름만 적혀 있다). 그래서 폴더째 고르면 여기 모였다가,
+   * 가져올 때 이름으로 짝을 찾아 드라이브에 올린다.
+   */
+  const [assets, setAssets] = useState<Map<string, File>>(new Map());
   const [opts, setOpts] = useState<KeepImportOptions>({ includeArchived: false, keepLabels: true });
+  const [withFiles, setWithFiles] = useState(true);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(0);
+  const [step, setStep] = useState('');
 
   const notes = batches.flatMap((b) => b.notes);
   const picked = selectNotesToImport(notes, opts);
+
+  /** 고른 메모가 달고 있는 파일 중, 실제로 짝을 찾은 것 */
+  const matchedAssets = new Set(
+    picked.flatMap((n) => n.attachmentNames.map(assetKey)).filter((k) => assets.has(k))
+  );
 
   const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const chosen = Array.from(e.target.files || []);
@@ -49,11 +71,18 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
     setBusy(true);
     try {
       const fresh: { key: string; notes: KeepNote[] }[] = [];
+      const freshAssets = new Map<string, File>();
       let skippedKind = 0;
       for (const file of chosen) {
-        // Takeout 폴더에는 .html 같은 것도 섞여 있다. JSON만 읽고 나머지는 건너뛴다.
-        if (!file.name.toLowerCase().endsWith('.json')) {
-          skippedKind += 1;
+        const lower = file.name.toLowerCase();
+        // .json은 메모, 사진·소리 파일은 메모에 딸린 것으로 받아 둔다.
+        // .html 처럼 같은 내용을 한 번 더 담은 것만 건너뛴다.
+        if (!lower.endsWith('.json')) {
+          if (/\.(jpe?g|png|gif|webp|heic|bmp|3gp|m4a|mp3|wav|pdf)$/.test(lower)) {
+            freshAssets.set(assetKey(file.name), file);
+          } else {
+            skippedKind += 1;
+          }
           continue;
         }
         const text = await file.text();
@@ -63,6 +92,10 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
         });
       }
 
+      if (freshAssets.size > 0) {
+        setAssets((prev) => new Map([...prev, ...freshAssets]));
+      }
+
       // 알림은 상태 바꾸는 함수 안에서 띄우지 않는다. React가 그 함수를 두 번
       // 부를 수 있어(개발 모드) 같은 알림이 두 번 뜬다.
       const seen = new Set(batches.map((b) => b.key));
@@ -70,15 +103,18 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
       const again = fresh.length - added.length;
       if (added.length > 0) setBatches((prev) => [...prev, ...added]);
 
+      const assetTail = freshAssets.size > 0 ? ` · 사진·파일 ${freshAssets.size}개` : '';
       if (added.length === 0 && fresh.length > 0) {
-        showToast(`이미 고른 파일입니다 (${again}개).`);
+        showToast(`이미 고른 파일입니다 (${again}개).${assetTail}`);
       } else if (added.length > 0) {
         const foundNotes = added.reduce((n, b) => n + b.notes.length, 0);
         const tail = again > 0 ? ` (이미 고른 ${again}개는 건너뜀)` : '';
-        showToast(`📂 파일 ${added.length}개에서 메모 ${foundNotes}건을 더했습니다.${tail}`);
+        showToast(`📂 파일 ${added.length}개에서 메모 ${foundNotes}건을 더했습니다.${assetTail}${tail}`);
+      } else if (freshAssets.size > 0) {
+        showToast(`🖼️ 사진·파일 ${freshAssets.size}개를 받아 두었습니다.`);
       }
 
-      if (fresh.length === 0) {
+      if (fresh.length === 0 && freshAssets.size === 0) {
         showErrorToast(
           `메모 파일을 찾지 못했습니다${skippedKind > 0 ? ` (.json이 아닌 파일 ${skippedKind}개)` : ''}. ` +
             'Takeout의 Keep 폴더에 있는 .json 파일을 골라 주세요.'
@@ -97,18 +133,74 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
     if (picked.length === 0 || busy) return;
     setBusy(true);
     setDone(0);
+    setStep('');
     let made = 0;
+    let uploaded = 0;
+    let failedUpload = 0;
+    // 같은 파일을 두 메모가 함께 달고 있을 수 있다. 한 번만 올린다.
+    const cache = new Map<string, { name: string; url: string; type?: string; size?: number }>();
+
     try {
       // 만든 순서대로 넣는다. V4 메모는 나중에 만든 것이 위로 오므로,
       // 옛 메모부터 넣어야 Keep에서 보던 차례와 비슷해진다.
       const ordered = [...picked].sort((a, b) => a.createdAt - b.createdAt);
       for (const note of ordered) {
-        await onAddMemo(toMemoDraft(note, opts));
+        const attachments: { name: string; url: string; type?: string; size?: number }[] = [];
+        const missing: string[] = [];
+
+        for (const raw of note.attachmentNames) {
+          const key = assetKey(raw);
+          const file = withFiles ? assets.get(key) : undefined;
+          if (!file) {
+            missing.push(raw);
+            continue;
+          }
+          const already = cache.get(key);
+          if (already) {
+            attachments.push(already);
+            continue;
+          }
+          try {
+            setStep(`사진·파일 올리는 중... ${file.name}`);
+            const drive = await uploadToDrive(file, file.name);
+            const made2 = {
+              name: file.name,
+              url: driveUrlToStore(file.type, drive),
+              type: file.type || 'application/octet-stream',
+              size: file.size,
+            };
+            cache.set(key, made2);
+            attachments.push(made2);
+            uploaded += 1;
+          } catch (err) {
+            // 올리기가 막혀도 메모는 들어가야 한다. 어떤 파일이었는지는 글로 남긴다.
+            console.error('Keep 첨부 올리기 실패:', err);
+            failedUpload += 1;
+            missing.push(raw);
+          }
+        }
+
+        setStep('');
+        const draft = toMemoDraft(note, opts, missing);
+        const firstImage = attachments.find((a) => (a.type || '').startsWith('image/'));
+        await onAddMemo({
+          ...draft,
+          ...(attachments.length > 0 ? { attachments } : {}),
+          ...(firstImage ? { imageUrl: firstImage.url } : {}),
+        });
         made += 1;
         setDone(made);
       }
-      showToast(`✅ Keep 메모 ${made}건을 가져왔습니다.`);
+
+      const tail = [
+        uploaded > 0 ? `사진·파일 ${uploaded}개 함께` : '',
+        failedUpload > 0 ? `${failedUpload}개는 올리지 못해 이름만 남김` : '',
+      ]
+        .filter(Boolean)
+        .join(', ');
+      showToast(`✅ Keep 메모 ${made}건을 가져왔습니다.${tail ? ` (${tail})` : ''}`);
       setBatches([]);
+      setAssets(new Map());
       onClose();
     } catch (err) {
       // 도중에 끊겨도 여기까지 들어간 것은 남는다. 몇 건이 들어갔는지 알려 준다.
@@ -135,7 +227,11 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
             disabled={busy || picked.length === 0}
             className="px-5 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-xs hover:bg-primary/90 disabled:opacity-40 transition-all cursor-pointer"
           >
-            {busy && done > 0 ? `가져오는 중... (${done}/${picked.length})` : `메모 ${picked.length}건 가져오기`}
+            {busy && step
+              ? step
+              : busy && done > 0
+              ? `가져오는 중... (${done}/${picked.length})`
+              : `메모 ${picked.length}건 가져오기`}
           </button>
         </>
       }
@@ -164,10 +260,13 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
               </a>
               에서 <b>Keep</b>만 골라 내보냅니다.
             </li>
-            <li>받은 압축 파일을 풀면 <b>Takeout / Keep</b> 폴더에 메모마다 <b>.json</b> 파일이 하나씩 있습니다.</li>
             <li>
-              아래에서 그 <b>.json 파일을 모두</b> 고릅니다. <b>여러 번 나눠 골라도</b> 됩니다 —
-              고른 것이 쌓입니다(같은 파일을 또 골라도 한 번만 셉니다).
+              받은 압축 파일을 풀면 <b>Takeout / Keep</b> 폴더에 메모마다 <b>.json</b> 파일이
+              하나씩 있고, 메모에 붙어 있던 <b>사진·파일도 같은 폴더</b>에 함께 있습니다.
+            </li>
+            <li>
+              아래에서 그 폴더의 <b>파일을 모두</b> 고릅니다(전체 선택). 사진까지 같이 골라야
+              메모에 다시 붙습니다. <b>여러 번 나눠 골라도</b> 됩니다 — 고른 것이 쌓입니다.
             </li>
           </ol>
         </div>
@@ -184,20 +283,24 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
           <input
             ref={fileRef}
             type="file"
-            accept=".json,application/json"
+            accept=".json,application/json,image/*,audio/*,.pdf,.3gp"
             multiple
             onChange={handleFiles}
             className="hidden"
             aria-label="Keep 파일"
           />
-          {batches.length > 0 && (
+          {(batches.length > 0 || assets.size > 0) && (
             <>
               <span className="text-xs text-slate-500">
-                지금까지 파일 {batches.length}개 · 메모 {notes.length}건
+                지금까지 메모 {notes.length}건
+                {assets.size > 0 && ` · 사진·파일 ${assets.size}개`}
               </span>
               <button
                 type="button"
-                onClick={() => setBatches([])}
+                onClick={() => {
+                  setBatches([]);
+                  setAssets(new Map());
+                }}
                 disabled={busy}
                 className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold disabled:opacity-40 cursor-pointer"
               >
@@ -228,6 +331,20 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
                 />
                 보관(Archive)한 메모도 가져오기
               </label>
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={withFiles}
+                  onChange={(e) => setWithFiles(e.target.checked)}
+                  className="rounded text-primary focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                />
+                사진·파일도 함께 붙이기
+                <span className="font-normal text-slate-400">
+                  {matchedAssets.size > 0
+                    ? `(짝을 찾은 파일 ${matchedAssets.size}개를 드라이브에 올립니다)`
+                    : '(같이 고른 사진·파일이 없습니다)'}
+                </span>
+              </label>
               <p className="text-xs text-slate-500 pt-0.5">
                 휴지통에 있던 메모는 가져오지 않습니다.
                 {skipped > 0 && ` (지금 ${skipped}건이 빠집니다)`}
@@ -252,8 +369,8 @@ export default function KeepImportModal({ isOpen, onClose, onAddMemo }: KeepImpo
                 )}
               </div>
               <p className="text-xs text-slate-500 mt-1.5">
-                Keep에 붙어 있던 사진·파일은 함께 오지 않습니다. 어떤 파일이 있었는지는 메모
-                끝에 이름으로 남습니다.
+                사진·파일은 구글 드라이브에 올려 메모에 붙입니다(다른 첨부와 같은 자리입니다).
+                같이 고르지 않았거나 올리지 못한 것은 메모 끝에 이름으로 남습니다.
               </p>
             </div>
           </>
