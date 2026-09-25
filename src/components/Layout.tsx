@@ -47,6 +47,7 @@ import {
   type ShortcutId,
 } from '../lib/shortcuts';
 import { showToast, showErrorToast } from '../utils/toast';
+import { useSearchFocusRunner } from '../lib/searchFocus';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user } = useAuth();
@@ -133,6 +134,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, [groupsLoading, groups, selectedGroupId, setSelectedGroupId]);
 
   useGlobalGestures();
+  // 검색에서 '이동'한 항목을 찾아 스크롤하고 강조한다
+  useSearchFocusRunner();
 
   // 모달 상태 관리
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);

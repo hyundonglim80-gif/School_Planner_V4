@@ -85,3 +85,16 @@
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+/* 검색에서 '이동'한 항목을 잠깐 강조한다 (lib/searchFocus.ts).
+   항목마다 배경·테두리가 달라서, 바깥 고리와 연한 노랑으로 덮어 알아보게 한다. */
+@keyframes search-focus-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(245 158 11 / 0); }
+  25%, 65% { box-shadow: 0 0 0 4px rgb(245 158 11 / 0.8); }
+}
+.search-focus {
+  animation: search-focus-pulse 1.3s ease-in-out 2;
+  background-color: #fffbeb !important;
+  border-color: #f59e0b !important;
+  scroll-margin-top: calc(var(--app-header-h, 64px) + 16px);
+}

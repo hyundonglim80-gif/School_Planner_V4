@@ -59,6 +59,17 @@ export default function MemoScreen() {
   const columnsCount = useColumnCount(listRef);
   const isMobile = useIsMobile();
 
+  // 검색에서 메모로 '이동'해 오면, 걸러 둔 라벨이나 접어 둔 구역 때문에 그 메모가
+  // 가려지지 않도록 전체를 펼쳐 보인다.
+  const focusSection = useAppStore((s) => s.focusTarget?.section);
+  useEffect(() => {
+    if (focusSection === 'memo') {
+      setCurrentFilter('전체');
+      setActiveOpen(true);
+      setCompletedOpen(true);
+    }
+  }, [focusSection]);
+
   const isLabelFilter = currentFilter !== '전체' && currentFilter !== FAVORITE_FILTER;
   const chooseFilter = (filter: string) => setCurrentFilter(filter);
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { EventItem } from '../../hooks/useDayData';
 import { useAppStore } from '../../store/useAppStore';
+import { focusKey } from '../../lib/searchFocus';
 import { useLabels } from '../../hooks/useLabels';
 import { showToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
@@ -68,6 +69,15 @@ export default function DayEvents({
   const editRef = useClickOutside<HTMLDivElement>(editingId !== null, () => setEditingId(null));
 
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // 검색에서 이 칸의 항목으로 '이동'해 오면 접혀 있던 칸을 펼친다.
+  // 접힌 채로는 항목이 그려지지 않아 찾아 줄 수가 없다.
+  const focusSection = useAppStore((s) => s.focusTarget?.section);
+  useEffect(() => {
+    if (focusSection === 'event') {
+      setIsCollapsed(false);
+    }
+  }, [focusSection]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   /**
    * 새 일정 칸.
@@ -572,6 +582,7 @@ export default function DayEvents({
               return (
                 <div
                   key={event.id}
+                  data-focus-key={focusKey.event(formattedDate, event.id)}
                   ref={editRef}
                   className="p-3.5 rounded-xl border border-primary/50 bg-blue-50/30 flex flex-col gap-3 shadow-xs transition-all"
                 >
@@ -718,6 +729,7 @@ export default function DayEvents({
             return (
               <div
                 key={event.id}
+                data-focus-key={focusKey.event(formattedDate, event.id)}
                 onClick={() => {
                   if (isMultiSelectMode) toggleEventSelection(event.id, formattedDate);
                   else startEditing(event);

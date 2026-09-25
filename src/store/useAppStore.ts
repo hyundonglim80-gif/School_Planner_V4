@@ -8,6 +8,7 @@ import { showErrorToast } from '../utils/toast';
 import { FORWARD_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
 import type { ShortcutOverrides } from '../lib/shortcuts';
 import { applyFontScale, DEFAULT_FONT_SCALE, type FontScale } from '../lib/fontScale';
+import type { FocusTarget } from '../lib/searchFocus';
 
 type Scope = 'day' | 'week' | 'month' | 'year' | 'memo';
 
@@ -117,6 +118,12 @@ interface AppState {
     fId?: string;
   }) => void;
   closeDetailEdit: () => void;
+
+  // 검색에서 '이동'을 누른 항목. 그 화면에서 찾아 스크롤하고 강조한 뒤 비운다.
+  // (lib/searchFocus.ts) 기기에 남기지 않는다.
+  focusTarget: FocusTarget | null;
+  requestFocus: (target: FocusTarget) => void;
+  clearFocusTarget: () => void;
 
   /** 달력에서 기록 아이콘을 눌러 그날 기록을 들여다보는 창 */
   journalPeek: { dateStr: string; fId?: string | null } | null;
@@ -422,6 +429,10 @@ export const useAppStore = create<AppState>()(
       detailEditTarget: null,
       openDetailEdit: (t) => set({ isDetailEditOpen: true, detailEditTarget: t }),
       closeDetailEdit: () => set({ isDetailEditOpen: false, detailEditTarget: null }),
+
+      focusTarget: null,
+      requestFocus: (target) => set({ focusTarget: target }),
+      clearFocusTarget: () => set({ focusTarget: null }),
 
       journalPeek: null,
       openJournalPeek: (dateStr, fId) => set({ journalPeek: { dateStr, fId: fId ?? null } }),

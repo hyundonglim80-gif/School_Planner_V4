@@ -25,8 +25,8 @@ function semesterSchedules() {
   return { forEach: (cb: any) => docs.forEach(cb), docs };
 }
 
-// 결과 카드마다 하나씩 들어 있는 '이동 ➔' 표시로 센다
-const resultCards = () => screen.queryAllByText('이동 ➔');
+// 결과 카드마다 하나씩 들어 있는 '자세히 ➔' 표시로 센다
+const resultCards = () => screen.queryAllByText('자세히 ➔');
 
 const ms = (y: number, m: number, d: number) => new Date(y, m - 1, d).getTime();
 
@@ -251,4 +251,88 @@ describe('검색 - 첨부파일', () => {
     expect(await screen.findByText('학예회 준비')).toBeInTheDocument();
     expect(screen.queryByText(/학예회_순서지\.pdf/)).toBeNull();
   }, 20000);
+});
+
+// 결과를 누르면 곧바로 옮겨 가 버려서, 맞는 항목인지 보기 전에 검색 창이 닫혔다.
+// 먼저 자세히 보여 주고, '이동'을 눌러야 그 화면으로 가서 그 항목을 짚어 준다.
+describe('검색 - 자세히 보기와 이동', () => {
+  const eventDocs = () => ({
+    forEach: (cb: any) =>
+      [
+        {
+          id: '2026-04-10',
+          data: () => ({
+            eventList: [
+              { id: 'ev_a', content: '학부모 상담 주간', label: '학급운영', attachments: [{ name: '안내문.pdf', url: 'https://example.test/a.pdf' }] },
+              { content: '체육대회 준비' },
+            ],
+          }),
+        },
+      ].forEach(cb),
+    docs: [],
+  });
+
+  beforeEach(() => {
+    (getDocsMock as any).mockImplementation(async (ref: any) =>
+      String(ref?.path || '').includes('events') ? eventDocs() : { forEach: () => {}, docs: [] }
+    );
+    useAppStore.setState({ focusTarget: null, scope: 'week' });
+  });
+
+  async function 찾기(word: string) {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<SearchModal isOpen onClose={onClose} />);
+    await user.type(screen.getByPlaceholderText(/검색/), word);
+    await user.click(screen.getByRole('button', { name: '데이터 찾기' }));
+    await screen.findByText(/총 [0-9]+건/);
+    return { user, onClose };
+  }
+
+  it('결과를 누르면 이동하지 않고 자세히 보여 준다', async () => {
+    const { user, onClose } = await 찾기('상담');
+
+    await user.click(screen.getAllByText('자세히 ➔')[0]);
+
+    const detail = await screen.findByTestId('search-detail');
+    expect(detail).toHaveTextContent('학부모 상담 주간');
+    expect(detail).toHaveTextContent('#학급운영');
+    expect(detail).toHaveTextContent('안내문.pdf');
+    expect(onClose).not.toHaveBeenCalled();
+    expect(useAppStore.getState().scope).toBe('week');
+  });
+
+  it("'이동'을 누르면 그 날의 하루 화면으로 가서 그 항목을 짚는다", async () => {
+    const { user, onClose } = await 찾기('상담');
+    await user.click(screen.getAllByText('자세히 ➔')[0]);
+
+    await user.click(await screen.findByRole('button', { name: /2026-04-10 하루 화면으로 이동/ }));
+
+    const state = useAppStore.getState();
+    expect(state.scope).toBe('day');
+    expect(state.focusTarget).toEqual({ key: 'event:2026-04-10:ev_a', section: 'event' });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('id가 없던 옛 일정은 하루 화면과 같은 규칙(ev_순번)으로 짚는다', async () => {
+    const { user } = await 찾기('체육대회');
+    await user.click(screen.getAllByText('자세히 ➔')[0]);
+
+    await user.click(await screen.findByRole('button', { name: /하루 화면으로 이동/ }));
+
+    expect(useAppStore.getState().focusTarget).toEqual({ key: 'event:2026-04-10:ev_1', section: 'event' });
+  });
+
+  it('닫기를 누르면 검색 결과로 돌아온다', async () => {
+    const { user, onClose } = await 찾기('상담');
+    await user.click(screen.getAllByText('자세히 ➔')[0]);
+    await screen.findByTestId('search-detail');
+
+    const closeButtons = screen.getAllByRole('button', { name: '닫기' });
+    await user.click(closeButtons[closeButtons.length - 1]);
+
+    expect(screen.queryByTestId('search-detail')).not.toBeInTheDocument();
+    expect(screen.getByText(/총 [0-9]+건/)).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

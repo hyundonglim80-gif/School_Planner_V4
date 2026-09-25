@@ -1,7 +1,8 @@
-import React, { useState, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import type { PeriodSchedule } from '../../hooks/useDayData';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { useAppStore } from '../../store/useAppStore';
+import { focusKey } from '../../lib/searchFocus';
 import { parseDateStr } from '../../lib/dateUtils';
 import AutoTextarea from '../../components/AutoTextarea';
 import { useClickOutside } from '../../hooks/useClickOutside';
@@ -120,6 +121,15 @@ export default function DaySchedule({
   };
 
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // 검색에서 이 칸의 항목으로 '이동'해 오면 접혀 있던 칸을 펼친다.
+  // 접힌 채로는 항목이 그려지지 않아 찾아 줄 수가 없다.
+  const focusSection = useAppStore((s) => s.focusTarget?.section);
+  useEffect(() => {
+    if (focusSection === 'schedule') {
+      setIsCollapsed(false);
+    }
+  }, [focusSection]);
   const periods = Array.from({ length: maxPeriods }, (_, i) => i + 1);
 
   return (
@@ -162,6 +172,7 @@ export default function DaySchedule({
             return (
               <div
                 key={period}
+                data-focus-key={dateStr ? focusKey.period(dateStr, period) : undefined}
                 ref={editRef}
                 className="p-4 rounded-xl border-2 border-primary bg-blue-50/20 shadow-xs flex flex-col gap-2"
               >
@@ -258,6 +269,7 @@ export default function DaySchedule({
           return (
             <div
               key={period}
+              data-focus-key={dateStr ? focusKey.period(dateStr, period) : undefined}
               onClick={() => startEdit(period)}
               title="클릭하여 수정"
               className="group p-3.5 rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[40px] hover:border-primary/50 hover:bg-slate-50/50 cursor-pointer"

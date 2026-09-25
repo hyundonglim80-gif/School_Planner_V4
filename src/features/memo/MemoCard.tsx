@@ -10,6 +10,7 @@ import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewer
 import { isLongEntry, previewLine } from '../../lib/entryCollapse';
 import { attachmentImageSrc } from '../../lib/driveApi';
 import { isImageAttachment } from '../../lib/attachments';
+import { focusKey } from '../../lib/searchFocus';
 
 interface MemoCardProps {
   memo: Memo;
@@ -99,6 +100,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavor
 
   return (
     <div
+      data-focus-key={focusKey.memo(memo.firestoreId)}
       onClick={(e) => {
         e.stopPropagation();
         if (onEdit) onEdit(memo);

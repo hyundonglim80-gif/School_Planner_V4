@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { JournalEntry, Attachment } from '../../hooks/useDayData';
 import { useAppStore } from '../../store/useAppStore';
+import { focusKey } from '../../lib/searchFocus';
 import { isLongEntry, previewLine } from '../../lib/entryCollapse';
 import { useLabels } from '../../hooks/useLabels';
 import { attachmentImageSrc } from '../../lib/driveApi';
@@ -58,6 +59,15 @@ export default function DayJournal({
 
   const [currentFilter, setCurrentFilter] = useState('전체');
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // 검색에서 이 칸의 항목으로 '이동'해 오면 접혀 있던 칸을 펼친다.
+  // 접힌 채로는 항목이 그려지지 않아 찾아 줄 수가 없다.
+  const focusSection = useAppStore((s) => s.focusTarget?.section);
+  useEffect(() => {
+    if (focusSection === 'journal') {
+      setIsCollapsed(false);
+    }
+  }, [focusSection]);
 
   // 기록에 저장된 라벨을 등록된 라벨 목록에서 찾는다.
   //
@@ -348,6 +358,7 @@ export default function DayJournal({
                   return (
                     <div
                       key={entry.id}
+                      data-focus-key={focusKey.journal(dateStr, entry.id)}
                       onClick={() => openEdit(entry)}
                       title="클릭하여 수정"
                       className="w-full group p-4 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300 bg-white transition-all flex flex-col gap-2 cursor-pointer"

@@ -11,7 +11,8 @@ import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
-import { ModalCloseButton } from './ModalShell';
+import ModalShell, { ModalCloseButton } from './ModalShell';
+import { focusKey, type FocusSection } from '../lib/searchFocus';
 import DateRangeFields from './DateRangeFields';
 
 interface SearchResultItem {
@@ -22,7 +23,54 @@ interface SearchResultItem {
   snippet: string;
   /** 눌렀을 때 갈 곳. 첨부는 어디에 붙어 있었느냐에 따라 다르다. */
   goTo?: 'memo' | 'day';
+  /** 이동한 화면에서 찾아 강조할 항목 (lib/searchFocus) */
+  focus?: { key: string; section: FocusSection };
+  /** 자세히 보기 팝업에 보여 줄 것 */
+  detail?: SearchDetail;
 }
+
+interface SearchDetail {
+  /** 본문 전체 (목록에는 이것이 짧게 보인다) */
+  text?: string;
+  /** 이름: 값 으로 보여 줄 것 (시간, 교시 등) */
+  fields?: { label: string; value: string }[];
+  labels?: string[];
+  attachments?: { name: string; url?: string }[];
+}
+
+/** 첨부 목록을 이름과 주소만 남겨 고른다. 문자열 하나만 저장된 옛 첨부도 받는다. */
+const attachmentList = (atts: unknown): { name: string; url?: string }[] =>
+  Array.isArray(atts)
+    ? atts.map((a: any) =>
+        typeof a === 'string'
+          ? { name: a.split('/').pop() || '이름 없는 파일', url: a }
+          : { name: String(a?.name || '이름 없는 파일'), url: a?.url }
+      )
+    : [];
+
+/** 라벨은 배열(labels)로도, 쉼표로 이은 글자(label)로도 저장돼 있다. */
+const labelList = (...sources: unknown[]): string[] => {
+  const out: string[] = [];
+  for (const src of sources) {
+    const items = Array.isArray(src) ? src : typeof src === 'string' ? src.split(',') : [];
+    for (const l of items) {
+      const name = typeof l === 'string' ? l.trim() : '';
+      if (name && !out.includes(name)) out.push(name);
+    }
+  }
+  return out;
+};
+
+const BADGES: Record<SearchResultItem['type'], { text: string; className: string }> = {
+  memo: { text: '전체 메모', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+  event: { text: '일정', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+  journal: { text: '기록', className: 'bg-purple-50 text-purple-700 border-purple-200' },
+  schedule: { text: '수업', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  schedule_memo: { text: '수업 메모', className: 'bg-lime-50 text-lime-700 border-lime-200' },
+  schedule_supplies: { text: '비고', className: 'bg-orange-50 text-orange-700 border-orange-200' },
+  eval: { text: '조사표', className: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
+  attachment: { text: '첨부파일', className: 'bg-rose-50 text-rose-700 border-rose-200' },
+};
 
 /** 한 번에 그릴 결과 수. '더 보기'로 이만큼씩 늘린다. */
 const PAGE_SIZE = 50;
@@ -69,7 +117,9 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
-  const { currentDate, setCurrentDate, setScope, selectedGroupId } = useAppStore();
+  const { currentDate, setCurrentDate, setScope, selectedGroupId, requestFocus } = useAppStore();
+  // 자세히 보기 팝업에 띄운 결과
+  const [selected, setSelected] = useState<SearchResultItem | null>(null);
 
   if (!isOpen) return null;
 
@@ -193,7 +243,15 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
       /** 파일 이름이나 붙어 있던 글에 걸리면 한 건으로 담는다. */
       const pushAttachments = (
         atts: any,
-        ctx: { key: string; dateStr?: string; where: string; parentText?: string; goTo?: 'memo' | 'day' }
+        ctx: {
+          key: string;
+          dateStr?: string;
+          where: string;
+          parentText?: string;
+          goTo?: 'memo' | 'day';
+          focus?: SearchResultItem['focus'];
+          labels?: string[];
+        }
       ) => {
         if (!wantAttachment || !Array.isArray(atts)) return;
         atts.forEach((att: any, i: number) => {
@@ -208,6 +266,13 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
             title: `첨부 · ${ctx.where}${ctx.dateStr ? ` (${ctx.dateStr})` : ''}`,
             snippet: ctx.parentText ? `📎 ${shown}\n${ctx.parentText}` : `📎 ${shown}`,
             goTo: ctx.goTo,
+            focus: ctx.focus,
+            detail: {
+              text: ctx.parentText,
+              fields: [{ label: '붙어 있는 곳', value: ctx.where }],
+              labels: ctx.labels,
+              attachments: attachmentList([att]),
+            },
           });
         });
       };
@@ -253,6 +318,8 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
             const dateStr = memoDateOf(data);
             if (!memoInRange(dateStr)) return;
             const text = data.content || data.text || '';
+            const focus = { key: focusKey.memo(d.id), section: 'memo' as const };
+            const labels = labelList(data.labels);
             if (hasType('task') && checkMatch(text)) {
               searchResults.push({
                 id: d.id,
@@ -260,6 +327,16 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 dateStr: dateStr || undefined,
                 title: dateStr ? `메모 (${dateStr})` : '메모 (만든 날 모름)',
                 snippet: text,
+                focus,
+                detail: {
+                  text,
+                  fields: [
+                    ...(data.completed ? [{ label: '상태', value: '완료' }] : []),
+                    ...(data.favorite ? [{ label: '즐겨찾기', value: '⭐' }] : []),
+                  ],
+                  labels,
+                  attachments: attachmentList(data.attachments),
+                },
               });
             }
             pushAttachments(data.attachments, {
@@ -268,6 +345,8 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
               where: '메모',
               parentText: text,
               goTo: 'memo',
+              focus,
+              labels,
             });
           });
         } else if (type === 'events') {
@@ -279,14 +358,37 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
               items = parseV3EventText(data.eventText || '');
             }
             items.forEach((item: any, idx: number) => {
+              const focus = {
+                key: focusKey.event(dateStr, String(item.id || 'ev_' + idx)),
+                section: 'event' as const,
+              };
+              const labels = labelList(item.label);
               if (hasType('event') && checkMatch(item.content)) {
-                searchResults.push({ id: `ev_${dateStr}_${idx}`, type: 'event', dateStr, title: `일정 (${dateStr})`, snippet: item.content });
+                searchResults.push({
+                  id: `ev_${dateStr}_${idx}`,
+                  type: 'event',
+                  dateStr,
+                  title: `일정 (${dateStr})`,
+                  snippet: item.content,
+                  focus,
+                  detail: {
+                    text: item.content,
+                    fields: [
+                      ...(item.time ? [{ label: '알림', value: String(item.time).replace('T', ' ') }] : []),
+                      ...(item.completed ? [{ label: '상태', value: '완료' }] : []),
+                    ],
+                    labels,
+                    attachments: attachmentList(item.attachments),
+                  },
+                });
               }
               pushAttachments(item.attachments, {
                 key: `ev_${dateStr}_${idx}`,
                 dateStr,
                 where: '일정',
                 parentText: item.content,
+                focus,
+                labels,
               });
             });
           });
@@ -295,14 +397,29 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
             const dateStr = d.id;
             const entries = d.data().entries || [];
             entries.forEach((entry: any, idx: number) => {
+              const focus = {
+                key: focusKey.journal(dateStr, String(entry.id || 'jr_' + idx)),
+                section: 'journal' as const,
+              };
+              const labels = labelList(entry.labels, entry.label);
               if (hasType('journal') && checkMatch(entry.content)) {
-                searchResults.push({ id: `jr_${dateStr}_${idx}`, type: 'journal', dateStr, title: `기록 (${dateStr} - ${entry.label || '일반'})`, snippet: entry.content });
+                searchResults.push({
+                  id: `jr_${dateStr}_${idx}`,
+                  type: 'journal',
+                  dateStr,
+                  title: `기록 (${dateStr} - ${entry.label || '일반'})`,
+                  snippet: entry.content,
+                  focus,
+                  detail: { text: entry.content, labels, attachments: attachmentList(entry.attachments) },
+                });
               }
               pushAttachments(entry.attachments, {
                 key: `jr_${dateStr}_${idx}`,
                 dateStr,
                 where: '기록',
                 parentText: entry.content,
+                focus,
+                labels,
               });
             });
           });
@@ -311,20 +428,32 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
             const dateStr = d.id;
             const periods = d.data().periods || {};
             Object.entries(periods).forEach(([p, pData]: [string, any]) => {
+              const focus = { key: focusKey.period(dateStr, p), section: 'schedule' as const };
+              const detail: SearchDetail = {
+                text: pData.content || undefined,
+                fields: [
+                  { label: '교시', value: `${p}교시` },
+                  ...(pData.subject ? [{ label: '과목', value: String(pData.subject) }] : []),
+                  ...(pData.memo ? [{ label: '수업 메모', value: String(pData.memo) }] : []),
+                  ...(pData.supplies ? [{ label: '비고', value: String(pData.supplies) }] : []),
+                ],
+                attachments: attachmentList(pData.attachments),
+              };
               if (hasType('subject') && checkMatch(pData.subject)) {
-                searchResults.push({ id: `sc_sub_${dateStr}_${p}`, type: 'schedule', dateStr, title: `수업 (${dateStr} ${p}교시)`, snippet: pData.subject });
+                searchResults.push({ id: `sc_sub_${dateStr}_${p}`, type: 'schedule', dateStr, title: `수업 (${dateStr} ${p}교시)`, snippet: pData.subject, focus, detail });
               }
               if (hasType('memo') && checkMatch(pData.memo)) {
-                searchResults.push({ id: `sc_mem_${dateStr}_${p}`, type: 'schedule_memo', dateStr, title: `수업 메모 (${dateStr} ${p}교시)`, snippet: pData.memo });
+                searchResults.push({ id: `sc_mem_${dateStr}_${p}`, type: 'schedule_memo', dateStr, title: `수업 메모 (${dateStr} ${p}교시)`, snippet: pData.memo, focus, detail });
               }
               if (hasType('supplies') && checkMatch(pData.supplies)) {
-                searchResults.push({ id: `sc_sup_${dateStr}_${p}`, type: 'schedule_supplies', dateStr, title: `비고 (${dateStr} ${p}교시)`, snippet: pData.supplies });
+                searchResults.push({ id: `sc_sup_${dateStr}_${p}`, type: 'schedule_supplies', dateStr, title: `비고 (${dateStr} ${p}교시)`, snippet: pData.supplies, focus, detail });
               }
               pushAttachments(pData.attachments, {
                 key: `sc_${dateStr}_${p}`,
                 dateStr,
                 where: `수업 ${p}교시`,
                 parentText: pData.subject || pData.memo || '',
+                focus,
               });
             });
           });
@@ -334,7 +463,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
             const list = d.data().list || [];
             list.forEach((item: any, idx: number) => {
               if (checkMatch(item.title)) {
-                 searchResults.push({ id: `evl_${dateStr}_${idx}`, type: 'eval', dateStr, title: `조사표 (${dateStr})`, snippet: item.title });
+                 searchResults.push({ id: `evl_${dateStr}_${idx}`, type: 'eval', dateStr, title: `조사표 (${dateStr})`, snippet: item.title, detail: { text: item.title } });
               }
             });
           });
@@ -357,7 +486,12 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
     }
   };
 
-  const handleItemClick = (item: SearchResultItem) => {
+  // 결과를 누르면 먼저 자세히 보여 준다. 목록에는 글이 잘려 보이고,
+  // 라벨·첨부는 아예 보이지 않아 맞는 항목인지 알기 어려웠다.
+  const handleItemClick = (item: SearchResultItem) => setSelected(item);
+
+  /** 그 항목이 있는 화면으로 가서, 항목이 보이게 스크롤하고 강조한다. */
+  const goToItem = (item: SearchResultItem) => {
     // 첨부는 메모에 붙은 것이면 메모 화면으로, 그 밖에는 그 날짜로 간다.
     if (item.type === 'memo' || item.goTo === 'memo') {
       setScope('memo');
@@ -365,10 +499,20 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
       setCurrentDate(parseDateStr(item.dateStr));
       setScope('day');
     }
+    if (item.focus) requestFocus(item.focus);
+    setSelected(null);
     onClose();
   };
 
+  const destinationText = (item: SearchResultItem) =>
+    item.type === 'memo' || item.goTo === 'memo'
+      ? '메모 화면으로 이동'
+      : item.dateStr
+      ? `${item.dateStr} 하루 화면으로 이동`
+      : '이동';
+
   return (
+    <>
     <div
       className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4"
       style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
@@ -496,19 +640,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 )}
               </div>
               {results.slice(0, visibleCount).map((res) => {
-                let badgeClass = 'bg-slate-50 text-slate-700 border-slate-200';
-                let badgeText = '';
-
-                switch(res.type) {
-                  case 'memo': badgeClass = 'bg-amber-50 text-amber-700 border-amber-200'; badgeText = '전체 메모'; break;
-                  case 'event': badgeClass = 'bg-blue-50 text-blue-700 border-blue-200'; badgeText = '일정'; break;
-                  case 'journal': badgeClass = 'bg-purple-50 text-purple-700 border-purple-200'; badgeText = '기록'; break;
-                  case 'schedule': badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200'; badgeText = '수업'; break;
-                  case 'schedule_memo': badgeClass = 'bg-lime-50 text-lime-700 border-lime-200'; badgeText = '수업 메모'; break;
-                  case 'schedule_supplies': badgeClass = 'bg-orange-50 text-orange-700 border-orange-200'; badgeText = '비고'; break;
-                  case 'eval': badgeClass = 'bg-cyan-50 text-cyan-700 border-cyan-200'; badgeText = '조사표'; break;
-                  case 'attachment': badgeClass = 'bg-rose-50 text-rose-700 border-rose-200'; badgeText = '첨부파일'; break;
-                }
+                const { text: badgeText, className: badgeClass } = BADGES[res.type];
 
                 return (
                   <div
@@ -529,7 +661,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                     </div>
 
                     <span className="text-xs text-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                      이동 ➔
+                      자세히 ➔
                     </span>
                   </div>
                 );
@@ -562,5 +694,87 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
         </div>
       </div>
     </div>
+
+    {/* 자세히 보기. 검색 창 위에 뜨고, 닫으면 검색 결과로 돌아간다. */}
+    {selected && (
+      <ModalShell
+        isOpen
+        onClose={() => setSelected(null)}
+        width="md"
+        title={
+          <span className="flex items-center gap-2 min-w-0">
+            <span className={`px-2 py-0.5 rounded text-xs font-bold border shrink-0 ${BADGES[selected.type].className}`}>
+              {BADGES[selected.type].text}
+            </span>
+            <span className="truncate">{selected.title}</span>
+          </span>
+        }
+        footer={
+          <>
+            <ModalCloseButton onClose={() => setSelected(null)} />
+            {(selected.dateStr || selected.type === 'memo' || selected.goTo === 'memo') && (
+              <button
+                type="button"
+                onClick={() => goToItem(selected)}
+                className="px-4 py-2 bg-primary hover:bg-blue-600 text-white rounded-xl text-xs font-bold cursor-pointer"
+              >
+                {destinationText(selected)} ➔
+              </button>
+            )}
+          </>
+        }
+      >
+        <div className="space-y-3" data-testid="search-detail">
+          {selected.detail?.fields && selected.detail.fields.length > 0 && (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
+              {selected.detail.fields.map((field) => (
+                <React.Fragment key={field.label}>
+                  <dt className="font-bold text-slate-500">{field.label}</dt>
+                  <dd className="text-slate-800 whitespace-pre-wrap break-words">{field.value}</dd>
+                </React.Fragment>
+              ))}
+            </dl>
+          )}
+
+          {(selected.detail?.text ?? selected.snippet) && (
+            <div className="max-h-[50vh] overflow-y-auto p-3 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-800 whitespace-pre-wrap break-words leading-relaxed">
+              {selected.detail?.text ?? selected.snippet}
+            </div>
+          )}
+
+          {selected.detail?.labels && selected.detail.labels.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {selected.detail.labels.map((label) => (
+                <span key={label} className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-medium">
+                  #{label}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {selected.detail?.attachments && selected.detail.attachments.length > 0 && (
+            <ul className="space-y-1">
+              {selected.detail.attachments.map((att, i) => (
+                <li key={`${att.name}-${i}`}>
+                  {att.url ? (
+                    <a
+                      href={att.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline break-all"
+                    >
+                      📎 {att.name}
+                    </a>
+                  ) : (
+                    <span className="text-xs font-semibold text-slate-600 break-all">📎 {att.name}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </ModalShell>
+    )}
+    </>
   );
 }
