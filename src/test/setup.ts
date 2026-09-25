@@ -29,7 +29,7 @@ vi.mock('firebase/firestore', () => ({
   addDoc: vi.fn(async () => ({ id: 'new-id' })),
   onSnapshot: vi.fn(() => () => {}),
   runTransaction: vi.fn(async () => {}),
-  writeBatch: vi.fn(() => ({ set: vi.fn(), delete: vi.fn(), commit: vi.fn(async () => {}) })),
+  writeBatch: vi.fn(() => ({ set: vi.fn(), update: vi.fn(), delete: vi.fn(), commit: vi.fn(async () => {}) })),
   query: vi.fn(() => ({})),
   where: vi.fn(() => ({})),
   documentId: vi.fn(() => '__name__'),

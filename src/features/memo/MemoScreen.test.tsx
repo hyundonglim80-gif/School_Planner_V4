@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MemoScreen from './MemoScreen';
-import { addDoc as addDocMock, onSnapshot as onSnapshotMock } from 'firebase/firestore';
+import { addDoc as addDocMock, onSnapshot as onSnapshotMock, writeBatch as writeBatchMock } from 'firebase/firestore';
+import { isUnlabeledMemo } from '../../hooks/useMemos';
 
 vi.mock('../../hooks/useLabels', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../hooks/useLabels')>();
@@ -152,6 +153,57 @@ describe('메모 필터 - 고른 것이 분명히 보인다', () => {
     await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
 
     expect(chip('전체 메모')).toHaveTextContent(/\d+$/);
+  });
+});
+
+// 라벨이 없는 메모는 어느 라벨로 걸러도 보이지 않았다. 한 번에 '메모' 라벨을 붙인다.
+describe('라벨 없는 메모에 메모 라벨 붙이기', () => {
+  const docs = [
+    { id: 'a', data: () => ({ text: '라벨 없음', labels: [], createdAt: 4 }) },
+    { id: 'b', data: () => ({ text: '라벨 밭이 아예 없음', createdAt: 3 }) },
+    { id: 'c', data: () => ({ text: '끝난 것도', labels: [''], completed: true, createdAt: 2 }) },
+    { id: 'd', data: () => ({ text: '라벨 있음', labels: ['업무'], createdAt: 1 }) },
+  ];
+  beforeEach(() => {
+    vi.mocked(onSnapshotMock).mockImplementation(((_ref: unknown, next: (s: unknown) => void) => {
+      next({ forEach: (f: (d: unknown) => void) => docs.forEach(f), exists: () => false, data: () => ({}) });
+      return () => {};
+    }) as any);
+  });
+  afterEach(() => {
+    vi.mocked(onSnapshotMock).mockImplementation((() => () => {}) as any);
+    vi.restoreAllMocks();
+  });
+
+  it('빈 라벨 이름만 있어도 라벨이 없는 것으로 본다', () => {
+    expect(isUnlabeledMemo({ labels: [] })).toBe(true);
+    expect(isUnlabeledMemo({ labels: undefined })).toBe(true);
+    expect(isUnlabeledMemo({ labels: ['', '  '] })).toBe(true);
+    expect(isUnlabeledMemo({ labels: ['업무'] })).toBe(false);
+  });
+
+  it('라벨 없는 메모 개수를 알려 주고, 누르면 그것들에만 메모 라벨을 붙인다', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const update = vi.fn();
+    vi.mocked(writeBatchMock).mockReturnValue({ set: vi.fn(), update, delete: vi.fn(), commit: vi.fn(async () => {}) } as any);
+    render(<MemoScreen />);
+
+    expect(await screen.findByText(/라벨이 없는 메모 3개/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /'메모' 라벨 붙이기/ }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(3));
+    expect(update.mock.calls.every(([, data]) => JSON.stringify(data) === JSON.stringify({ labels: ['메모'] }))).toBe(true);
+  });
+
+  it('확인 창에서 취소하면 아무것도 바꾸지 않는다', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<MemoScreen />);
+
+    await user.click(await screen.findByRole('button', { name: /'메모' 라벨 붙이기/ }));
+
+    expect(writeBatchMock).not.toHaveBeenCalled();
   });
 });
 

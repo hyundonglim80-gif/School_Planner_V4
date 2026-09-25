@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { moveToTrash } from '../utils/trashHelper';
 import { syncReverseLinks } from '../utils/linkUtils';
@@ -44,6 +44,13 @@ const memoSourceMeta = (firestoreId: string, content: string, groupId: string | 
     title: `[메모] ${(content || '').substring(0, 20)}`,
     targetFId: groupId || 'personal',
   }) as any;
+
+/** 라벨이 하나도 없는 메모인가. 빈 이름만 들어 있는 것도 없는 것으로 본다. */
+export const isUnlabeledMemo = (memo: Pick<Memo, 'labels'>) =>
+  !(memo.labels || []).some((l) => typeof l === 'string' && l.trim() !== '');
+
+/** 한 번에 보내는 쓰기 수. Firestore 한도(500)보다 넉넉히 작게 잡는다. */
+const BATCH_SIZE = 400;
 
 export function useMemos(groupId: string | null = null) {
   const [memos, setMemos] = useState<Memo[]>([]);
@@ -223,5 +230,28 @@ export function useMemos(groupId: string | null = null) {
     );
   };
 
-  return { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, toggleFavorite, deleteCompletedMemos };
+  /**
+   * 라벨이 없는 메모(완료된 것 포함)에 한 라벨을 붙인다. 붙인 개수를 돌려준다.
+   * 라벨 밭만 고치므로 본문·링크는 건드리지 않는다. 수백 개일 수 있어
+   * 하나씩 저장하지 않고 묶음으로 보낸다.
+   */
+  const labelUnlabeledMemos = async (label: string): Promise<number> => {
+    const user = auth.currentUser;
+    if (!user) throw new Error('로그인이 필요합니다.');
+
+    const targets = memos.filter(isUnlabeledMemo);
+    for (let i = 0; i < targets.length; i += BATCH_SIZE) {
+      const batch = writeBatch(db);
+      for (const memo of targets.slice(i, i + BATCH_SIZE)) {
+        const docRef = groupId
+          ? doc(db, 'groups', groupId, 'tasks', memo.firestoreId)
+          : doc(db, 'users', user.uid, 'tasks', memo.firestoreId);
+        batch.update(docRef, { labels: [label] });
+      }
+      await batch.commit();
+    }
+    return targets.length;
+  };
+
+  return { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, toggleFavorite, deleteCompletedMemos, labelUnlabeledMemos };
 }

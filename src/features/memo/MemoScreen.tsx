@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useMemos } from '../../hooks/useMemos';
+import { useMemos, isUnlabeledMemo } from '../../hooks/useMemos';
 import type { Memo } from '../../hooks/useMemos';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
 import MemoCard from './MemoCard';
 import MemoMasonry from './MemoMasonry';
 import EntryDrawer, { type EntryDraft } from '../../components/EntryDrawer';
-import { showToast } from '../../utils/toast';
+import { showToast, showErrorToast } from '../../utils/toast';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
 /** 라벨이 아닌 '즐겨찾기' 거르개. 라벨 이름과 겹치지 않게 별표를 붙여 둔다. */
 const FAVORITE_FILTER = '⭐ 즐겨찾기';
+
+/** 라벨 없는 메모에 붙여 주는 라벨 */
+const FALLBACK_LABEL = '메모';
 
 /** 카드 한 장이 이보다 좁아지면 열을 줄인다. 단, 휴대폰에서도 두 열은 지킨다. */
 const MIN_CARD_WIDTH = 170;
@@ -40,7 +43,7 @@ function useColumnCount(ref: React.RefObject<HTMLElement | null>) {
 
 export default function MemoScreen() {
   const { selectedGroupId, openLabelModal } = useAppStore();
-  const { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, toggleFavorite, deleteCompletedMemos } = useMemos(selectedGroupId);
+  const { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, toggleFavorite, deleteCompletedMemos, labelUnlabeledMemos } = useMemos(selectedGroupId);
   const { getLabelColor, memoLabels } = useLabels();
 
   const [currentFilter, setCurrentFilter] = useState('전체');
@@ -117,6 +120,23 @@ export default function MemoScreen() {
       };
       justCreatedRef.current = created;
       setEditingMemo(created);
+    }
+  };
+
+  // 라벨이 없는 메모는 어느 라벨로 걸러도 보이지 않는다. 한 번에 '메모' 라벨을 붙인다.
+  const unlabeledCount = memos.filter(isUnlabeledMemo).length;
+  const [labelingUnlabeled, setLabelingUnlabeled] = useState(false);
+  const handleLabelUnlabeled = async () => {
+    if (unlabeledCount === 0 || labelingUnlabeled) return;
+    if (!window.confirm(`라벨이 없는 메모 ${unlabeledCount}개(완료된 것 포함)에 '${FALLBACK_LABEL}' 라벨을 붙일까요?`)) return;
+    setLabelingUnlabeled(true);
+    try {
+      const n = await labelUnlabeledMemos(FALLBACK_LABEL);
+      showToast(`🏷️ 메모 ${n}개에 '${FALLBACK_LABEL}' 라벨을 붙였습니다.`);
+    } catch (error) {
+      showErrorToast('라벨을 붙이지 못했습니다.', error);
+    } finally {
+      setLabelingUnlabeled(false);
     }
   };
 
@@ -250,6 +270,20 @@ export default function MemoScreen() {
             </div>
           ) : (
             <>
+              {unlabeledCount > 0 && (
+                <div className="flex items-center justify-between gap-2 flex-wrap mb-3 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                  <span className="font-bold">🏷️ 라벨이 없는 메모 {unlabeledCount}개</span>
+                  <button
+                    type="button"
+                    onClick={handleLabelUnlabeled}
+                    disabled={labelingUnlabeled}
+                    className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold cursor-pointer disabled:opacity-50"
+                  >
+                    {labelingUnlabeled ? '붙이는 중...' : `'${FALLBACK_LABEL}' 라벨 붙이기`}
+                  </button>
+                </div>
+              )}
+
               {/* 진행 */}
               <button
                 type="button"
