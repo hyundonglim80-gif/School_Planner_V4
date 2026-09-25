@@ -47,6 +47,7 @@ import {
   type ShortcutId,
 } from '../lib/shortcuts';
 import { showToast, showErrorToast } from '../utils/toast';
+import { requestNewMemo } from '../lib/memoEvents';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user } = useAuth();
@@ -151,6 +152,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  // 머리줄 높이를 --app-header-h로 알려 둔다. 머리줄에 붙어 따라 내려가는
+  // 칸(메모 화면의 라벨 거르개 등)이 그만큼 아래에 멈춘다. 머리줄은 줄바꿈과
+  // D-Day 표시에 따라 높이가 달라지므로 재서 쓴다.
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const root = document.documentElement;
+    const ro = new ResizeObserver(() => {
+      root.style.setProperty('--app-header-h', `${el.offsetHeight}px`);
+    });
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty('--app-header-h');
+    };
+  }, []);
 
   // 환경설정 > 시작 화면. 'last'면 마지막에 보던 화면(scope는 이미 저장돼 있다)을
   // 그대로 두고, 아니면 정해둔 화면으로 한 번만 옮긴다.
@@ -391,7 +410,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-bg-body text-slate-900">
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm px-4 py-3 border-b border-border shadow-xs flex flex-col gap-2.5">
+      <header ref={headerRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm px-4 py-3 border-b border-border shadow-xs flex flex-col gap-2.5">
         <div className="flex items-center gap-2 max-w-7xl mx-auto w-full">
           {/* 상단 메뉴 영역 (스크롤 없이 버튼 크기 축소로 한 줄 유지) */}
           <div className="flex items-center justify-between flex-1 gap-0.5 sm:gap-4 pr-1 sm:pr-2 min-w-0">
@@ -443,6 +462,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* 우측: 검색, 스코프 탭, 그룹 선택 */}
             <div className="flex items-center gap-0.5 sm:gap-2 shrink min-w-0">
+              {/* 새 메모 작성 - 메모 화면에서만. 누르면 메모 화면이 오른쪽 배너를 연다 */}
+            {scope === 'memo' && (
+              <button
+                type="button"
+                onClick={requestNewMemo}
+                className="p-1 sm:px-2.5 sm:py-1.5 bg-primary hover:bg-blue-600 text-white rounded-md sm:rounded-xl text-xs font-bold transition-all flex items-center gap-0 sm:gap-1 shrink-0 cursor-pointer"
+                title="새 메모 작성"
+              >
+                <span className="font-extrabold leading-none px-0.5 sm:px-0">+</span>
+                <span className="hidden sm:inline">새 메모 작성</span>
+              </button>
+            )}
+
               {/* 통합 검색 버튼 */}
             <button
               onClick={() => setIsSearchModalOpen(true)}

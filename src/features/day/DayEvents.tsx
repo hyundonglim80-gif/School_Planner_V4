@@ -402,6 +402,15 @@ export default function DayEvents({
           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
             {events.length}
           </span>
+          <button
+            type="button"
+            onClick={() => openLabelModal('event')}
+            className="w-6 h-6 flex items-center justify-center rounded-md text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+            title="일정 라벨 설정"
+            aria-label="일정 라벨 설정"
+          >
+            ⚙️
+          </button>
         </div>
         
         {!isCollapsed && !isFormOpen && (

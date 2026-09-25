@@ -6,9 +6,9 @@ import { useLabels } from '../../hooks/useLabels';
 import MemoCard from './MemoCard';
 import MemoMasonry from './MemoMasonry';
 import EntryDrawer, { type EntryDraft } from '../../components/EntryDrawer';
-import KeepImportModal from '../../components/KeepImportModal';
 import { showToast } from '../../utils/toast';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { onNewMemoRequest } from '../../lib/memoEvents';
 
 /** 라벨이 아닌 '즐겨찾기' 거르개. 라벨 이름과 겹치지 않게 별표를 붙여 둔다. */
 const FAVORITE_FILTER = '⭐ 즐겨찾기';
@@ -48,7 +48,6 @@ export default function MemoScreen() {
   const [activeOpen, setActiveOpen] = useState(true);
   const [completedOpen, setCompletedOpen] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [keepImportOpen, setKeepImportOpen] = useState(false);
   const [editingMemo, setEditingMemo] = useState<Memo | null>(null);
   // 방금 만든 메모. setEditingMemo는 다음 그림에서야 반영되므로,
   // 연달아 저장이 들어와도 새로 만들지 않도록 여기에도 담아 둔다.
@@ -91,6 +90,9 @@ export default function MemoScreen() {
     justCreatedRef.current = null;
     setIsDrawerOpen(true);
   }, []);
+
+  // 새 메모 단추는 머리줄(검색 왼쪽)에 있다. 누르면 여기로 신호가 온다.
+  useEffect(() => onNewMemoRequest(handleOpenCreate), [handleOpenCreate]);
 
   const handleOpenEdit = (memo: Memo) => {
     setEditingMemo(memo);
@@ -190,42 +192,25 @@ export default function MemoScreen() {
 
   return (
     <div className="animate-fade-in pb-12 flex flex-col gap-3 sm:gap-5">
-      {/* 새 메모는 오른쪽 배너에서 쓴다 */}
-      <div className="flex items-center justify-end gap-1.5 sm:gap-2 flex-wrap">
-        <button
-          type="button"
-          onClick={() => openLabelModal('memo')}
-          className="px-2.5 sm:px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer"
-          title="메모 라벨 설정"
-        >
-          ⚙️<span className="hidden sm:inline"> 라벨 설정</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setKeepImportOpen(true)}
-          className="px-2.5 sm:px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer"
-          title="구글 Keep에서 내보낸 메모 가져오기"
-        >
-          📥<span className="hidden sm:inline"> Keep 가져오기</span>
-        </button>
-        <button
-          type="button"
-          onClick={handleOpenCreate}
-          className="bg-primary hover:bg-blue-600 active:scale-98 text-white px-4 py-2 rounded-xl font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-xs cursor-pointer"
-        >
-          <span className="text-sm leading-none font-extrabold">+</span>
-          <span>새 메모 작성</span>
-        </button>
-      </div>
-
       {/* 왼쪽 라벨 거르개 + 오른쪽 메모 목록. 휴대폰에서도 나란히 둔다. */}
       <div className="flex items-start gap-2 sm:gap-4">
         <nav
           aria-label="메모 라벨 거르개"
-          className="w-29 sm:w-44 shrink-0 flex flex-col gap-2 sm:gap-1.5 bg-white rounded-2xl border border-slate-200/80 shadow-xs p-1.5 sm:p-3"
+          // 목록이 길어도 거르개는 머리줄 바로 아래에 멈춰 서 있고, 라벨이 많으면
+          // 거르개 안에서만 따로 스크롤된다. 휴대폰은 아래 탭바 높이만큼 더 뺀다.
+          className="w-29 sm:w-44 shrink-0 flex flex-col gap-2 sm:gap-1.5 bg-white rounded-2xl border border-slate-200/80 shadow-xs p-1.5 sm:p-3 sticky top-[calc(var(--app-header-h,64px)+12px)] max-h-[calc(100dvh-var(--app-header-h,64px)-96px)] sm:max-h-[calc(100dvh-var(--app-header-h,64px)-32px)] overflow-y-auto overscroll-contain"
         >
-          <div className="text-xs font-extrabold text-blue-800 border-b-2 border-slate-100 pb-1.5 mb-0.5 px-0.5">
-            📁 라벨<span className="hidden sm:inline"> 필터</span>
+          <div className="sticky -top-1.5 sm:-top-3 z-10 -mt-1.5 sm:-mt-3 pt-1.5 sm:pt-3 bg-white flex items-center justify-between gap-1 text-xs font-extrabold text-blue-800 border-b-2 border-slate-100 pb-1.5 mb-0.5 px-0.5">
+            <span>📁 라벨<span className="hidden sm:inline"> 필터</span></span>
+            <button
+              type="button"
+              onClick={() => openLabelModal('memo')}
+              className="w-6 h-6 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer shrink-0"
+              title="메모 라벨 설정"
+              aria-label="메모 라벨 설정"
+            >
+              ⚙️
+            </button>
           </div>
           {filterChip('전체', '전체 메모', undefined, 'bg-slate-800 text-white border-slate-800')}
           {filterChip(
@@ -334,15 +319,6 @@ export default function MemoScreen() {
         defaultLabel={isLabelFilter ? currentFilter : memoLabels[0]}
       />
 
-      {keepImportOpen && (
-        <KeepImportModal
-          isOpen
-          onClose={() => setKeepImportOpen(false)}
-          onAddMemo={addMemo}
-          existingMemos={memos}
-          onUpdateMemo={updateMemo}
-        />
-      )}
     </div>
   );
 }

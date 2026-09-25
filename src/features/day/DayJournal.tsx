@@ -26,7 +26,7 @@ export default function DayJournal({
   onUpdateJournal,
   onReorderJournals,
 }: DayJournalProps) {
-  const { openLinkViewerModal, currentDate, openEvaluationModal, selectedGroupId } = useAppStore();
+  const { openLinkViewerModal, currentDate, openEvaluationModal, selectedGroupId, openLabelModal } = useAppStore();
   // store의 currentDate는 ISO 문자열(2026-09-18T05:12:33.000Z)이다. 문서 이름은
   // 2026-09-18 꼴이라 그대로 넘기면 없는 문서를 보게 된다.
   const dateStr = formatDateStr(new Date(currentDate));
@@ -266,6 +266,15 @@ export default function DayJournal({
               <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
                 {journals.length}
               </span>
+              <button
+                type="button"
+                onClick={() => openLabelModal('journal')}
+                className="w-6 h-6 flex items-center justify-center rounded-md text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+                title="기록 라벨 설정"
+                aria-label="기록 라벨 설정"
+              >
+                ⚙️
+              </button>
               {/* 기록 칸에 붙은 조사표. 만들어 둔 것이 있을 때만 보인다. */}
               <button
                 type="button"
