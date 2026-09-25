@@ -31,10 +31,17 @@ beforeEach(() => {
   });
   // 새로고침을 막는다 (jsdom에서 not implemented 오류가 난다)
   vi.spyOn(window, 'confirm').mockReturnValue(true);
-  Object.defineProperty(window, 'location', {
-    value: { ...window.location, reload: vi.fn() },
-    writable: true,
-  });
+  // vmThreads 풀에서는 window.location을 다시 정의할 수 없다(Cannot redefine
+  // property). 그때는 그냥 둔다. jsdom의 reload는 오류를 던지지 않고
+  // 'not implemented'를 콘솔에 남길 뿐이라 테스트 결과는 같다.
+  try {
+    Object.defineProperty(window, 'location', {
+      value: { ...window.location, reload: vi.fn() },
+      writable: true,
+    });
+  } catch {
+    /* 무시 */
+  }
 });
 
 afterEach(() => {

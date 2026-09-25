@@ -1,6 +1,6 @@
 //src/features/week/WeekGrid.tsx
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
@@ -11,10 +11,14 @@ import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../li
 import { BODY_TEXT } from '../../lib/typeScale';
 import JournalCountBadge from '../../components/JournalCountBadge';
 import EvalCountBadge from '../../components/EvalCountBadge';
-import DetailEditModal from '../../components/DetailEditModal';
+import { lazyWithReload } from '../../lib/lazyWithReload';
 import EventItemActions from '../../components/EventItemActions';
 import { useGroupDelete } from '../../hooks/useGroupDelete';
 import { useState } from 'react';
+
+// Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
+// 편집기가 첫 화면 묶음에 함께 실려 온다. 그래서 여기서도 필요할 때 불러온다.
+const DetailEditModal = lazyWithReload(() => import('../../components/DetailEditModal'));
 
 interface WeekDayItem {
   dateStr: string;
@@ -322,14 +326,16 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
     </div>
 
     {detailModal && (
-      <DetailEditModal
-        isOpen={detailModal.isOpen}
-        onClose={() => setDetailModal(null)}
-        type={detailModal.type}
-        dateStr={detailModal.dateStr}
-        itemId={detailModal.itemId}
-        initialData={detailModal.initialData}
-      />
+      <Suspense fallback={null}>
+        <DetailEditModal
+          isOpen={detailModal.isOpen}
+          onClose={() => setDetailModal(null)}
+          type={detailModal.type}
+          dateStr={detailModal.dateStr}
+          itemId={detailModal.itemId}
+          initialData={detailModal.initialData}
+        />
+      </Suspense>
     )}
 
     {groupDeleteModal}

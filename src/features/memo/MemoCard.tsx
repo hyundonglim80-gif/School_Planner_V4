@@ -103,15 +103,15 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavor
         e.stopPropagation();
         if (onEdit) onEdit(memo);
       }}
-      className={`bg-white rounded-2xl p-4 transition-all duration-200 border flex flex-col group shadow-sm hover:shadow-md hover:border-slate-300 cursor-pointer ${
+      className={`bg-white rounded-2xl p-3 sm:p-4 min-w-0 transition-all duration-200 border flex flex-col group shadow-sm hover:shadow-md hover:border-slate-300 cursor-pointer ${
         isCompleted ? 'bg-slate-50 border-slate-200 opacity-70' : 'border-slate-200/80'
       }`}
       title="클릭하여 수정"
     >
       <div>
         {/* 상단 액션 바 */}
-        <div className="flex items-start justify-between gap-2 mb-3">
-          <div className="flex items-center gap-2">
+        <div className="flex items-start justify-between gap-2 mb-2 sm:mb-3">
+          <div className="flex items-center gap-x-2 gap-y-1 flex-wrap min-w-0">
             {/* 항목 접기/펼치기 삼각형 토글 (기록 카드와 같은 모양) */}
             <button
               type="button"
@@ -170,7 +170,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavor
             )}
           </div>
           {/* 링크 추가는 수정 배너 안에 있으므로 여기서는 수정/삭제만 노출한다 */}
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             {onEdit && (
               <button
                 type="button"
@@ -300,7 +300,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavor
         {/* 본문 텍스트 */}
         {!isCollapsed && (
           <p
-            className={`text-sm whitespace-pre-wrap leading-relaxed ${
+            className={`text-sm whitespace-pre-wrap break-words leading-relaxed ${
               isCompleted ? 'line-through text-slate-400' : 'text-slate-800'
             }`}
           >

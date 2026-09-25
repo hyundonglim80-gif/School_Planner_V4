@@ -1,13 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { showToast, showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import ModalShell, { ModalCloseButton } from './ModalShell';
-import DetailEditModal from './DetailEditModal';
+import { lazyWithReload } from '../lib/lazyWithReload';
 import { moveToTrash } from '../utils/trashHelper';
 import { eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
 import { pastDateStrings } from '../lib/forwarding';
+
+// Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
+// 편집기가 첫 화면 묶음에 함께 실려 온다. 그래서 여기서도 필요할 때 불러온다.
+const DetailEditModal = lazyWithReload(() => import('./DetailEditModal'));
 
 interface ForwardingModalProps {
   isOpen: boolean;
@@ -321,17 +325,19 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
     </ModalShell>
 
     {detailItem && (
-      <DetailEditModal
-        isOpen={true}
-        onClose={() => {
-          setDetailItem(null);
-          scanIncompleteEvents();
-        }}
-        type="event"
-        dateStr={detailItem.dateStr}
-        itemId={detailItem.itemId}
-        initialData={detailItem.initialData}
-      />
+      <Suspense fallback={null}>
+        <DetailEditModal
+          isOpen={true}
+          onClose={() => {
+            setDetailItem(null);
+            scanIncompleteEvents();
+          }}
+          type="event"
+          dateStr={detailItem.dateStr}
+          itemId={detailItem.itemId}
+          initialData={detailItem.initialData}
+        />
+      </Suspense>
     )}
     </>
   );

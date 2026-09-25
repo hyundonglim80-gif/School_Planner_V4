@@ -7,6 +7,10 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
+    // 기본 풀은 테스트 파일마다 jsdom을 새로 만들어 시간의 2/3를 거기에 썼다
+    // (208초). vmThreads는 파일마다 따로 떼어 두면서도 jsdom을 일꾼마다 한 번만
+    // 만든다 (약 45초).
+    pool: 'vmThreads',
     globals: false,
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],

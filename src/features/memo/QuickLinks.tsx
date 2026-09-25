@@ -93,12 +93,11 @@ export default function QuickLinks() {
   };
 
   return (
-    <div className="mb-6 p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
+    <div className="p-3 sm:p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
           <span className="text-base">🔗</span>
-          <span className="text-xs font-extrabold text-slate-800">빠른 업무 링크</span>
-          <span className="text-xs text-slate-400">자주 쓰는 교육 사이트 및 문서 바로가기</span>
+          <span className="text-sm font-extrabold text-blue-800">자주 쓰는 문서/링크</span>
         </div>
         <button
           onClick={() => setIsModalOpen(true)}

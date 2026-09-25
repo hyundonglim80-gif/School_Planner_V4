@@ -1,6 +1,6 @@
 //src/features/year/YearScreen.tsx
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 import { collection, query, where, documentId, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { useAppStore } from '../../store/useAppStore';
@@ -13,10 +13,14 @@ import { eventDocPayload, readEventList } from '../../lib/eventText';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { moveToTrash } from '../../utils/trashHelper';
 import { showToast, showErrorToast } from '../../utils/toast';
-import DetailEditModal from '../../components/DetailEditModal';
+import { lazyWithReload } from '../../lib/lazyWithReload';
 import QuickAddModal from '../../components/QuickAddModal';
 import { useGroupDelete } from '../../hooks/useGroupDelete';
 import YearMonthCard from './YearMonthCard';
+
+// Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
+// 편집기가 첫 화면 묶음에 함께 실려 온다. 그래서 여기서도 필요할 때 불러온다.
+const DetailEditModal = lazyWithReload(() => import('../../components/DetailEditModal'));
 
 /**
  * 한 번에 그릴 달의 수.
@@ -349,14 +353,16 @@ export default function YearScreen() {
       )}
 
       {detailModal && (
-        <DetailEditModal
-          isOpen={detailModal.isOpen}
-          onClose={() => setDetailModal(null)}
-          type={detailModal.type}
-          dateStr={detailModal.dateStr}
-          itemId={detailModal.itemId}
-          initialData={detailModal.initialData}
-        />
+        <Suspense fallback={null}>
+          <DetailEditModal
+            isOpen={detailModal.isOpen}
+            onClose={() => setDetailModal(null)}
+            type={detailModal.type}
+            dateStr={detailModal.dateStr}
+            itemId={detailModal.itemId}
+            initialData={detailModal.initialData}
+          />
+        </Suspense>
       )}
       
       {groupDeleteModal}

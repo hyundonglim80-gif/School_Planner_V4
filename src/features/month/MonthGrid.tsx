@@ -1,6 +1,6 @@
 //src/features/month/MonthGrid.tsx
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import type { CalendarDay } from '../../lib/dateUtils';
 import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
@@ -20,10 +20,14 @@ import { BODY_TEXT } from '../../lib/typeScale';
 import JournalCountBadge from '../../components/JournalCountBadge';
 import EvalCountBadge from '../../components/EvalCountBadge';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
-import DetailEditModal from '../../components/DetailEditModal';
+import { lazyWithReload } from '../../lib/lazyWithReload';
 import EventItemActions from '../../components/EventItemActions';
 import { useGroupDelete } from '../../hooks/useGroupDelete';
 import { useState } from 'react';
+
+// Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
+// 편집기가 첫 화면 묶음에 함께 실려 온다. 그래서 여기서도 필요할 때 불러온다.
+const DetailEditModal = lazyWithReload(() => import('../../components/DetailEditModal'));
 
 interface MonthGridProps {
   days: CalendarDay[];
@@ -445,14 +449,16 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
     </div>
 
     {detailModal && (
-      <DetailEditModal
-        isOpen={detailModal.isOpen}
-        onClose={() => setDetailModal(null)}
-        type={detailModal.type}
-        dateStr={detailModal.dateStr}
-        itemId={detailModal.itemId}
-        initialData={detailModal.initialData}
-      />
+      <Suspense fallback={null}>
+        <DetailEditModal
+          isOpen={detailModal.isOpen}
+          onClose={() => setDetailModal(null)}
+          type={detailModal.type}
+          dateStr={detailModal.dateStr}
+          itemId={detailModal.itemId}
+          initialData={detailModal.initialData}
+        />
+      </Suspense>
     )}
 
     {groupDeleteModal}
