@@ -47,7 +47,6 @@ import {
   type ShortcutId,
 } from '../lib/shortcuts';
 import { showToast, showErrorToast } from '../utils/toast';
-import { requestNewMemo } from '../lib/memoEvents';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user } = useAuth();
@@ -462,19 +461,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* 우측: 검색, 스코프 탭, 그룹 선택 */}
             <div className="flex items-center gap-0.5 sm:gap-2 shrink min-w-0">
-              {/* 새 메모 작성 - 메모 화면에서만. 누르면 메모 화면이 오른쪽 배너를 연다 */}
-            {scope === 'memo' && (
-              <button
-                type="button"
-                onClick={requestNewMemo}
-                className="p-1 sm:px-2.5 sm:py-1.5 bg-primary hover:bg-blue-600 text-white rounded-md sm:rounded-xl text-xs font-bold transition-all flex items-center gap-0 sm:gap-1 shrink-0 cursor-pointer"
-                title="새 메모 작성"
-              >
-                <span className="font-extrabold leading-none px-0.5 sm:px-0">+</span>
-                <span className="hidden sm:inline">새 메모 작성</span>
-              </button>
-            )}
-
               {/* 통합 검색 버튼 */}
             <button
               onClick={() => setIsSearchModalOpen(true)}

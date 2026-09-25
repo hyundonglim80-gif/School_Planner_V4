@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MemoScreen from './MemoScreen';
-import { requestNewMemo } from '../../lib/memoEvents';
 import { addDoc as addDocMock, onSnapshot as onSnapshotMock } from 'firebase/firestore';
 
 vi.mock('../../hooks/useLabels', async (importOriginal) => {
@@ -24,8 +23,7 @@ beforeEach(() => {
 
 async function 새메모작성(user: ReturnType<typeof userEvent.setup>) {
   render(<MemoScreen />);
-  await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
-  act(() => requestNewMemo());
+  await user.click(await screen.findByRole('button', { name: /새 메모/ }));
   const box = await screen.findByRole('textbox');
   await user.click(box);
   await user.type(box, '회의 준비');
@@ -35,10 +33,17 @@ async function 새메모작성(user: ReturnType<typeof userEvent.setup>) {
 /** 저장된 메모 데이터 (addDoc의 두 번째 인자) */
 const 저장된메모 = () => (addDocMock as any).mock.calls[0][1];
 
-// 새 메모는 기록과 같은 오른쪽 배너에서 쓴다. 단추는 머리줄(검색 왼쪽)에 있고
-// 누르면 requestNewMemo 신호가 메모 화면으로 온다.
+// 새 메모는 기록과 같은 오른쪽 배너에서 쓴다. 단추는 왼쪽 라벨 거르개 바로 위에 있다.
 describe('새 메모는 오른쪽 배너에서', () => {
-  it('새 메모 신호가 오면 배너가 열리고, 저장하면 한 개가 생긴다', async () => {
+  it('+ 새 메모 단추는 라벨 거르개 바로 위에 있다', async () => {
+    render(<MemoScreen />);
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    const button = screen.getByRole('button', { name: /새 메모/ });
+
+    expect(button.nextElementSibling).toBe(nav);
+  });
+
+  it('+ 새 메모를 누르면 배너가 열리고, 저장하면 한 개가 생긴다', async () => {
     const user = userEvent.setup();
     await 새메모작성(user);
 
@@ -54,7 +59,7 @@ describe('새 메모는 오른쪽 배너에서', () => {
     const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
     await user.click(within(nav).getByRole('button', { name: /개인/ }));
 
-    act(() => requestNewMemo());
+    await user.click(screen.getByRole('button', { name: /새 메모/ }));
     const box = await screen.findByRole('textbox');
     await user.type(box, '장보기');
     await user.keyboard('{Control>}s{/Control}');
