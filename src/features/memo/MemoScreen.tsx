@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useMemos } from '../../hooks/useMemos';
 import type { Memo } from '../../hooks/useMemos';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
 import MemoCard from './MemoCard';
-import MemoQuickAdd from './MemoQuickAdd';
-import QuickLinks from './QuickLinks';
+import MemoMasonry from './MemoMasonry';
 import EntryDrawer, { type EntryDraft } from '../../components/EntryDrawer';
 import KeepImportModal from '../../components/KeepImportModal';
 import { showToast } from '../../utils/toast';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 /** 라벨이 아닌 '즐겨찾기' 거르개. 라벨 이름과 겹치지 않게 별표를 붙여 둔다. */
 const FAVORITE_FILTER = '⭐ 즐겨찾기';
@@ -50,22 +50,16 @@ export default function MemoScreen() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [keepImportOpen, setKeepImportOpen] = useState(false);
   const [editingMemo, setEditingMemo] = useState<Memo | null>(null);
-  // 입력 칸에서 고른 라벨. 손대기 전(null)에는 보고 있는 라벨을, '전체'를
-  // 보고 있으면 맨 위 라벨을 골라 둔다. 안 고른 채 저장되면 어느 갈래에도
-  // 걸리지 않기 때문이다. (V3와 같다)
-  const [pickedLabels, setPickedLabels] = useState<string[] | null>(null);
+  // 방금 만든 메모. setEditingMemo는 다음 그림에서야 반영되므로,
+  // 연달아 저장이 들어와도 새로 만들지 않도록 여기에도 담아 둔다.
+  const justCreatedRef = useRef<Memo | null>(null);
 
   const listRef = useRef<HTMLElement>(null);
   const columnsCount = useColumnCount(listRef);
+  const isMobile = useIsMobile();
 
   const isLabelFilter = currentFilter !== '전체' && currentFilter !== FAVORITE_FILTER;
-  const defaultLabels = isLabelFilter ? [currentFilter] : memoLabels.slice(0, 1);
-  const newMemoLabels = pickedLabels ?? defaultLabels;
-
-  const chooseFilter = (filter: string) => {
-    setCurrentFilter(filter);
-    setPickedLabels(null);
-  };
+  const chooseFilter = (filter: string) => setCurrentFilter(filter);
 
   const matching =
     currentFilter === '전체'
@@ -92,30 +86,40 @@ export default function MemoScreen() {
       ? allActive.filter(m => m.favorite).length
       : allActive.filter(m => m.labels?.includes(filter)).length;
 
-  const distributeMemos = (items: Memo[]) => {
-    const columns = Array.from({ length: columnsCount }, () => [] as Memo[]);
-    items.forEach((item, index) => {
-      columns[index % columnsCount].push(item);
-    });
-    return columns;
-  };
+  const handleOpenCreate = useCallback(() => {
+    setEditingMemo(null);
+    justCreatedRef.current = null;
+    setIsDrawerOpen(true);
+  }, []);
 
   const handleOpenEdit = (memo: Memo) => {
     setEditingMemo(memo);
+    justCreatedRef.current = null;
     setIsDrawerOpen(true);
   };
 
   const handleSaveMemo = async (draft: EntryDraft) => {
-    if (editingMemo) {
-      await updateMemo(editingMemo.firestoreId, draft);
+    // 저장해도 배너는 열려 있으므로, 방금 만든 메모가 있으면 그것을 고친다.
+    // 안 그러면 한 번 더 저장할 때 같은 내용이 새로 하나 더 생긴다.
+    const target = editingMemo || justCreatedRef.current;
+    if (target) {
+      await updateMemo(target.firestoreId, draft);
       return;
     }
-    await addMemo(draft);
-  };
-
-  const handleQuickAdd = async (draft: { content: string; labels: string[]; attachments: EntryDraft['attachments'] }) => {
-    await addMemo(draft);
-    setPickedLabels(null);
+    const ref = await addMemo(draft);
+    if (ref?.id) {
+      const created: Memo = {
+        firestoreId: ref.id,
+        content: draft.content,
+        createdAt: Date.now(),
+        labels: draft.labels,
+        imageUrl: draft.imageUrl,
+        attachments: draft.attachments,
+        linkedItems: draft.linkedItems,
+      };
+      justCreatedRef.current = created;
+      setEditingMemo(created);
+    }
   };
 
   const handleDeleteCompleted = async () => {
@@ -130,25 +134,21 @@ export default function MemoScreen() {
   };
 
   const renderGrid = (items: Memo[]) => (
-    <div
-      className="grid gap-2 sm:gap-4 items-start"
-      style={{ gridTemplateColumns: `repeat(${columnsCount}, minmax(0, 1fr))` }}
-    >
-      {distributeMemos(items).map((col, colIndex) => (
-        <div key={colIndex} className="flex flex-col gap-2 sm:gap-4 min-w-0">
-          {col.map(memo => (
-            <MemoCard
-              key={memo.firestoreId}
-              memo={memo}
-              onEdit={handleOpenEdit}
-              onToggleComplete={toggleComplete}
-              onToggleFavorite={toggleFavorite}
-              onDelete={deleteMemo}
-            />
-          ))}
-        </div>
-      ))}
-    </div>
+    <MemoMasonry
+      items={items}
+      getKey={(memo) => memo.firestoreId}
+      columns={columnsCount}
+      gap={isMobile ? 8 : 16}
+      renderItem={(memo) => (
+        <MemoCard
+          memo={memo}
+          onEdit={handleOpenEdit}
+          onToggleComplete={toggleComplete}
+          onToggleFavorite={toggleFavorite}
+          onDelete={deleteMemo}
+        />
+      )}
+    />
   );
 
   // 고른 거르개가 어느 것인지 한눈에 들어와야 한다. 고른 것에는 테두리
@@ -190,21 +190,35 @@ export default function MemoScreen() {
 
   return (
     <div className="animate-fade-in pb-12 flex flex-col gap-3 sm:gap-5">
-      {/* 1. 자주 쓰는 문서/링크 (V3 메모 화면의 맨 위) */}
-      <QuickLinks />
+      {/* 새 메모는 오른쪽 배너에서 쓴다 */}
+      <div className="flex items-center justify-end gap-1.5 sm:gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={() => openLabelModal('memo')}
+          className="px-2.5 sm:px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer"
+          title="메모 라벨 설정"
+        >
+          ⚙️<span className="hidden sm:inline"> 라벨 설정</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setKeepImportOpen(true)}
+          className="px-2.5 sm:px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold cursor-pointer"
+          title="구글 Keep에서 내보낸 메모 가져오기"
+        >
+          📥<span className="hidden sm:inline"> Keep 가져오기</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleOpenCreate}
+          className="bg-primary hover:bg-blue-600 active:scale-98 text-white px-4 py-2 rounded-xl font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-xs cursor-pointer"
+        >
+          <span className="text-sm leading-none font-extrabold">+</span>
+          <span>새 메모 작성</span>
+        </button>
+      </div>
 
-      {/* 2. 바로 적어 넣는 칸 */}
-      <MemoQuickAdd
-        labelOptions={memoLabels}
-        labels={newMemoLabels}
-        onLabelsChange={setPickedLabels}
-        getLabelColor={getLabelColor}
-        onAdd={handleQuickAdd}
-        onOpenLabelSettings={() => openLabelModal('memo')}
-        onOpenKeepImport={() => setKeepImportOpen(true)}
-      />
-
-      {/* 3. 왼쪽 라벨 거르개 + 오른쪽 메모 목록. 휴대폰에서도 나란히 둔다. */}
+      {/* 왼쪽 라벨 거르개 + 오른쪽 메모 목록. 휴대폰에서도 나란히 둔다. */}
       <div className="flex items-start gap-2 sm:gap-4">
         <nav
           aria-label="메모 라벨 거르개"
@@ -297,12 +311,13 @@ export default function MemoScreen() {
         </section>
       </div>
 
-      {/* 메모 고치기 - 카드를 누르면 기록과 같은 오른쪽 배너가 열린다 */}
+      {/* 새 메모 / 수정 - 기록과 같은 오른쪽 배너를 쓴다 */}
       <EntryDrawer
         isOpen={isDrawerOpen}
         onClose={() => {
           setIsDrawerOpen(false);
           setEditingMemo(null);
+          justCreatedRef.current = null;
         }}
         kind="memo"
         entry={editingMemo}

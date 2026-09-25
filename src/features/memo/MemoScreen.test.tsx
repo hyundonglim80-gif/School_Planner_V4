@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MemoScreen from './MemoScreen';
 import { addDoc as addDocMock, onSnapshot as onSnapshotMock } from 'firebase/firestore';
@@ -21,58 +21,40 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-async function 입력칸에적기(user: ReturnType<typeof userEvent.setup>, text = '회의 준비') {
+async function 새메모작성(user: ReturnType<typeof userEvent.setup>) {
   render(<MemoScreen />);
-  const box = await screen.findByLabelText('새 메모 내용');
+  await user.click(await screen.findByRole('button', { name: /새 메모 작성/ }));
+  const box = await screen.findByRole('textbox');
   await user.click(box);
-  await user.type(box, text);
+  await user.type(box, '회의 준비');
   return box;
 }
 
 /** 저장된 메모 데이터 (addDoc의 두 번째 인자) */
 const 저장된메모 = () => (addDocMock as any).mock.calls[0][1];
 
-// V3처럼 배너를 열지 않고 화면 위의 칸에 바로 적어 넣는다.
-describe('메모 바로 추가', () => {
-  it('추가를 누르면 적은 내용이 저장되고 칸이 비워진다', async () => {
+// 새 메모는 기록과 같은 오른쪽 배너에서 쓴다.
+describe('새 메모는 오른쪽 배너에서', () => {
+  it('새 메모 작성을 누르면 배너가 열리고, 저장하면 한 개가 생긴다', async () => {
     const user = userEvent.setup();
-    const box = await 입력칸에적기(user);
+    await 새메모작성(user);
 
-    await user.click(screen.getByRole('button', { name: '추가' }));
+    await user.keyboard('{Control>}s{/Control}');
 
     await waitFor(() => expect(addDocMock).toHaveBeenCalledTimes(1));
     expect(저장된메모().content).toBe('회의 준비');
-    expect(box).toHaveValue('');
   });
 
-  it('빈 칸으로는 추가하지 않는다', async () => {
-    const user = userEvent.setup();
-    render(<MemoScreen />);
-
-    await user.click(await screen.findByRole('button', { name: '추가' }));
-
-    expect(addDocMock).not.toHaveBeenCalled();
-  });
-
-  it('전체를 보고 있으면 맨 위 라벨을 붙여 둔다', async () => {
-    const user = userEvent.setup();
-    await 입력칸에적기(user);
-
-    await user.click(screen.getByRole('button', { name: '추가' }));
-
-    await waitFor(() => expect(addDocMock).toHaveBeenCalled());
-    expect(저장된메모().labels).toEqual(['업무']);
-  });
-
-  it('라벨로 걸러 보고 있으면 그 라벨을 붙여 둔다', async () => {
+  it('라벨로 걸러 보고 있으면 그 라벨을 골라 둔 채로 연다', async () => {
     const user = userEvent.setup();
     render(<MemoScreen />);
     const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
     await user.click(within(nav).getByRole('button', { name: /개인/ }));
 
-    const box = screen.getByLabelText('새 메모 내용');
+    await user.click(screen.getByRole('button', { name: /새 메모 작성/ }));
+    const box = await screen.findByRole('textbox');
     await user.type(box, '장보기');
-    await user.click(screen.getByRole('button', { name: '추가' }));
+    await user.keyboard('{Control>}s{/Control}');
 
     await waitFor(() => expect(addDocMock).toHaveBeenCalled());
     expect(저장된메모().labels).toEqual(['개인']);
@@ -82,29 +64,22 @@ describe('메모 바로 추가', () => {
 describe('메모 Ctrl+S 저장', () => {
   it('한 번 누르면 한 개만 저장된다', async () => {
     const user = userEvent.setup();
-    await 입력칸에적기(user);
+    await 새메모작성(user);
 
     await user.keyboard('{Control>}s{/Control}');
 
     await waitFor(() => expect(addDocMock).toHaveBeenCalledTimes(1));
   });
 
-  it('Ctrl+Enter로도 추가한다', async () => {
-    const user = userEvent.setup();
-    await 입력칸에적기(user);
-
-    await user.keyboard('{Control>}{Enter}{/Control}');
-
-    await waitFor(() => expect(addDocMock).toHaveBeenCalledTimes(1));
-  });
-
   it('키가 눌린 채 반복 입력돼도 한 개만 저장된다', async () => {
     const user = userEvent.setup();
-    const box = await 입력칸에적기(user);
+    await 새메모작성(user);
 
     // 키를 누른 채로 두면 브라우저가 keydown을 되풀이해 보낸다 (auto-repeat)
-    fireEvent.keyDown(box, { key: 's', code: 'KeyS', ctrlKey: true });
-    fireEvent.keyDown(box, { key: 's', code: 'KeyS', ctrlKey: true, repeat: true });
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', code: 'KeyS', ctrlKey: true }));
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 's', code: 'KeyS', ctrlKey: true, repeat: true })
+    );
 
     await waitFor(() => expect(addDocMock).toHaveBeenCalled());
     expect(addDocMock).toHaveBeenCalledTimes(1);
@@ -112,10 +87,10 @@ describe('메모 Ctrl+S 저장', () => {
 
   it('빠르게 두 번 눌러도 새 메모가 두 개 생기지 않는다', async () => {
     const user = userEvent.setup();
-    const box = await 입력칸에적기(user);
+    await 새메모작성(user);
 
-    fireEvent.keyDown(box, { key: 's', code: 'KeyS', ctrlKey: true });
-    fireEvent.keyDown(box, { key: 's', code: 'KeyS', ctrlKey: true });
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', code: 'KeyS', ctrlKey: true }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', code: 'KeyS', ctrlKey: true }));
 
     await waitFor(() => expect(addDocMock).toHaveBeenCalled());
     expect(addDocMock).toHaveBeenCalledTimes(1);
