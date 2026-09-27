@@ -13,6 +13,7 @@ import { runAutoForwarding } from './hooks/useDayData';
 import { startPersistenceWatchdog } from './lib/firestoreRecovery';
 import { useEventAlarms } from './hooks/useEventAlarms';
 import { useLabels } from './hooks/useLabels';
+import { usePreferenceSync } from './hooks/usePreferenceSync';
 import EventAlarmPopup from './components/EventAlarmPopup';
 
 function App() {
@@ -22,6 +23,8 @@ function App() {
   // 라벨을 아직 못 읽었으면 이월은 판단을 미루고 건너뛴다. 그러니 라벨이 읽힌
   // 순간 한 번 더 불러 줘야 한다. 그러지 않으면 그날은 영영 이월되지 않는다.
   const { labelsLoaded } = useLabels();
+  // 단축키·화면 보기 같은 환경설정을 계정에 붙여 두어 다른 기기에서도 그대로 쓴다.
+  usePreferenceSync(user?.uid);
 
   // 💡 추가된 부분: 앱 구동 시 전역으로 이월 실행 (주간, 월간, 년간 화면 등 전체 반영)
   useEffect(() => {

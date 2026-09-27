@@ -28,7 +28,7 @@ interface AppState {
   enableScrollNav: boolean;
   // 환경설정에서 조절하는 값들
   startupScope: StartupScope;
-  /** 화면 글자 크기. 이 기기에만 남는다. */
+  /** 화면 글자 크기. 계정에도 저장된다(hooks/usePreferenceSync). */
   fontScale: FontScale;
   forwardLookbackDays: number;
   // 기본값에서 바꾼 단축키만 담는다. 나머지는 lib/shortcuts.ts의 기본값을 쓴다.
@@ -471,6 +471,8 @@ export const useAppStore = create<AppState>()(
       onRehydrateStorage: () => (state) => {
         applyFontScale(state?.fontScale || DEFAULT_FONT_SCALE);
       },
+      // 아래 값 중 설정에 해당하는 것은 계정(Firestore)에도 저장된다.
+      // 무엇을 올리는지는 lib/preferenceSync.ts 의 SYNCED_PREFERENCE_KEYS 에 있다.
       partialize: (state) => ({
         scope: state.scope,
         semesterFilter: state.semesterFilter,

@@ -557,7 +557,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
         {/* 글자 크기만 '저장'을 기다리지 않고 고르는 즉시 바꾼다. 크기는 눈으로
             보고 정하는 것이라, 저장한 뒤에야 보인다면 몇 번을 오가게 된다. */}
-        <Section title="글자 크기" desc="고르는 즉시 화면에 적용됩니다. 이 기기에만 저장됩니다.">
+        <Section title="글자 크기" desc="고르는 즉시 화면에 적용됩니다. 계정에 저장되어 다른 기기에서도 같게 보입니다.">
           <div className="flex flex-wrap gap-1.5">
             {FONT_SCALES.map((opt) => (
               <button
