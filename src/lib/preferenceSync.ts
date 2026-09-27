@@ -3,8 +3,13 @@
 // 환경설정(단축키, 화면 보기, 시작 화면, 글자 크기 ...)을 계정에 붙여 둔다.
 //
 // 예전에는 이 값들이 브라우저 localStorage에만 있어서, 다른 기기에서 로그인하면
-// 전부 기본값으로 시작했다. 이제 users/{uid}/settings/v4_preferences 에 한 벌을
-// 두고, 로그인하면 그 값을 받아 쓰며, 바꾸면 거기에 다시 적는다.
+// 전부 기본값으로 시작했다. 이제 계정에 두고, 로그인하면 그 값을 받아 쓰며,
+// 바꾸면 거기에 다시 적는다.
+//
+// PC와 모바일은 따로 둔다. 화면 크기도 손에 쥐는 방식도 달라, 휴대폰에서 글자를
+// 키우거나 주말을 숨긴 것이 PC까지 따라오면 곤란하다.
+//   users/{uid}/settings/v4_preferences_pc
+//   users/{uid}/settings/v4_preferences_mobile
 //
 // ⚠️ 'preferences' 문서는 V3가 D-Day 목록 등을 적는 자리라 쓰지 않는다.
 //    같은 문서를 나눠 쓰면 한쪽이 통째로 덮어쓸 때 다른 쪽 값이 날아간다.
@@ -16,7 +21,32 @@ import { FONT_SCALES, type FontScale } from './fontScale';
 import { clampLookbackDays } from './forwarding';
 import type { ShortcutOverrides } from './shortcuts';
 
-export const PREFERENCE_DOC_ID = 'v4_preferences';
+export type DeviceKind = 'pc' | 'mobile';
+
+/** 기기별로 나누기 전에 한 벌만 두던 문서. 기기별 문서가 없을 때 한 번 옮겨 온다. */
+export const LEGACY_PREFERENCE_DOC_ID = 'v4_preferences';
+
+export function preferenceDocId(kind: DeviceKind): string {
+  return `v4_preferences_${kind}`;
+}
+
+/**
+ * 이 기기가 PC인가 모바일인가.
+ *
+ * ⚠️ 화면 폭(useIsMobile)으로 가르면 안 된다. PC에서 창을 좁히기만 해도
+ *    모바일 설정으로 넘어가 버린다. 주 입력이 손가락인지, 모바일 브라우저인지로 본다.
+ *    (태블릿은 모바일 쪽에 든다)
+ */
+export function detectDeviceKind(): DeviceKind {
+  if (typeof window === 'undefined') return 'pc';
+  try {
+    if (window.matchMedia?.('(pointer: coarse)').matches) return 'mobile';
+  } catch {
+    /* matchMedia가 없는 환경 */
+  }
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(ua) ? 'mobile' : 'pc';
+}
 
 export interface SyncedPreferences {
   semesterFilter: 'all' | 1 | 2;

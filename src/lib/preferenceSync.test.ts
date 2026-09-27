@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { pickPreferences, preferencesKey, sanitizePreferences, type SyncedPreferences } from './preferenceSync';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { detectDeviceKind, preferenceDocId, pickPreferences, preferencesKey, sanitizePreferences, type SyncedPreferences } from './preferenceSync';
 
 const base: SyncedPreferences = {
   semesterFilter: 'all',
@@ -53,5 +53,41 @@ describe('preferenceSync', () => {
   it('문서가 비었거나 이상하면 아무것도 바꾸지 않는다', () => {
     expect(sanitizePreferences(null)).toEqual({});
     expect(sanitizePreferences('x')).toEqual({});
+  });
+});
+
+describe('PC와 모바일 구분', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  // jsdom에는 matchMedia가 없어 직접 넣어 준다
+  const mockPointer = (coarse: boolean) =>
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: coarse && q.includes('coarse') }));
+
+  it('PC와 모바일은 다른 문서에 저장한다', () => {
+    expect(preferenceDocId('pc')).not.toBe(preferenceDocId('mobile'));
+  });
+
+  it('손가락이 주 입력이면 모바일이다', () => {
+    mockPointer(true);
+    expect(detectDeviceKind()).toBe('mobile');
+  });
+
+  it('마우스를 쓰는 데스크톱 브라우저는 창 폭과 상관없이 PC다', () => {
+    mockPointer(false);
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
+    );
+    expect(detectDeviceKind()).toBe('pc');
+  });
+
+  it('모바일 브라우저면 모바일이다', () => {
+    mockPointer(false);
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (Linux; Android 15; SM-S938N) AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36'
+    );
+    expect(detectDeviceKind()).toBe('mobile');
   });
 });
