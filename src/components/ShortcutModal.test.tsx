@@ -192,3 +192,31 @@ describe('단축키 팝업 - 저장', () => {
     expect(keyBox('통합 검색 열기')).toHaveValue('F');
   });
 });
+
+describe('단축키 팝업 - 화면 전체 단축키와 겹치지 않기', () => {
+  it('입력칸에서 누른 조합은 화면 전체 단축키로 올라가지 않는다', () => {
+    // 예전에는 휴지통에 준 Alt+T를 다른 칸에 넣으려 하면 휴지통이 열렸다
+    const onWindowKey = vi.fn();
+    window.addEventListener('keydown', onWindowKey);
+    try {
+      render(<ShortcutModal isOpen onClose={vi.fn()} />);
+      fireEvent.keyDown(keyBox('환경설정'), { key: 't', code: 'KeyT', altKey: true });
+      expect(keyBox('환경설정')).toHaveValue('T');
+      expect(onWindowKey).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('keydown', onWindowKey);
+    }
+  });
+
+  it('ESC는 그대로 올라가 팝업을 닫을 수 있다', () => {
+    const onWindowKey = vi.fn();
+    window.addEventListener('keydown', onWindowKey);
+    try {
+      render(<ShortcutModal isOpen onClose={vi.fn()} />);
+      fireEvent.keyDown(keyBox('환경설정'), { key: 'Escape', code: 'Escape' });
+      expect(onWindowKey).toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('keydown', onWindowKey);
+    }
+  });
+});

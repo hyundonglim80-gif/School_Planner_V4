@@ -72,7 +72,11 @@ function ShortcutRow({
   // 화살표·Space처럼 글자가 없는 키도 있어서, 글자를 받는 대신 눌린 키를 잡는다.
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Tab') return; // 다음 칸으로 넘어가는 것은 막지 않는다
+    if (e.key === 'Escape') return; // ESC는 지금처럼 팝업을 닫는다
     e.preventDefault();
+    // ⚠️ 여기서 멈추지 않으면 화면 전체 단축키(Layout)까지 올라간다. 그러면
+    //    이미 휴지통에 준 Alt+T를 다른 칸에 넣으려는 순간 휴지통이 열렸다.
+    e.stopPropagation();
     if (isModifierOnly(e as unknown as KeyboardEvent)) return;
 
     if (e.key === 'Backspace' || e.key === 'Delete') {

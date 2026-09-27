@@ -706,7 +706,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                           value={lbl.name}
                           onChange={(e) => {
                             const updated = [...eventLabels];
-                            updated[idx].name = e.target.value;
+                            updated[idx] = { ...updated[idx], name: e.target.value };
                             setEventLabels(updated);
                           }}
                           className="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-800 w-24 focus:outline-none focus:border-blue-500"
@@ -715,7 +715,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                           color={lbl.color}
                           onChange={(newColor) => {
                             const updated = [...eventLabels];
-                            updated[idx].color = newColor;
+                            updated[idx] = { ...updated[idx], color: newColor };
                             setEventLabels(updated);
                           }}
                         />
@@ -729,7 +729,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             checked={lbl.calendar !== false}
                             onChange={(e) => {
                               const updated = [...eventLabels];
-                              updated[idx].calendar = e.target.checked;
+                              updated[idx] = { ...updated[idx], calendar: e.target.checked };
                               setEventLabels(updated);
                             }}
                             className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
@@ -743,7 +743,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             checked={!!lbl.forward}
                             onChange={(e) => {
                               const updated = [...eventLabels];
-                              updated[idx].forward = e.target.checked;
+                              updated[idx] = { ...updated[idx], forward: e.target.checked };
                               setEventLabels(updated);
                             }}
                             className="rounded text-emerald-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
@@ -757,7 +757,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             checked={!!lbl.period}
                             onChange={(e) => {
                               const updated = [...eventLabels];
-                              updated[idx].period = e.target.checked;
+                              updated[idx] = { ...updated[idx], period: e.target.checked };
                               setEventLabels(updated);
                             }}
                             className="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
@@ -771,7 +771,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             checked={!!lbl.recur}
                             onChange={(e) => {
                               const updated = [...eventLabels];
-                              updated[idx].recur = e.target.checked;
+                              updated[idx] = { ...updated[idx], recur: e.target.checked };
                               setEventLabels(updated);
                             }}
                             className="rounded text-purple-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
@@ -785,7 +785,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             checked={!!lbl.skip}
                             onChange={(e) => {
                               const updated = [...eventLabels];
-                              updated[idx].skip = e.target.checked;
+                              updated[idx] = { ...updated[idx], skip: e.target.checked };
                               setEventLabels(updated);
                             }}
                             className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
@@ -922,7 +922,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                           value={lbl.name}
                           onChange={(e) => {
                             const updated = [...journalLabels];
-                            updated[idx].name = e.target.value;
+                            updated[idx] = { ...updated[idx], name: e.target.value };
                             setJournalLabels(updated);
                           }}
                           className="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-800 w-32 focus:outline-none focus:border-amber-500"
@@ -931,7 +931,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                           color={lbl.color}
                           onChange={(newColor) => {
                             const updated = [...journalLabels];
-                            updated[idx].color = newColor;
+                            updated[idx] = { ...updated[idx], color: newColor };
                             setJournalLabels(updated);
                           }}
                         />
@@ -1012,7 +1012,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                           value={lbl.name}
                           onChange={(e) => {
                             const updated = [...memoLabels];
-                            updated[idx].name = e.target.value;
+                            updated[idx] = { ...updated[idx], name: e.target.value };
                             setMemoLabels(updated);
                           }}
                           className="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-800 w-32 focus:outline-none focus:border-emerald-500"
@@ -1021,7 +1021,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                           color={lbl.color}
                           onChange={(newColor) => {
                             const updated = [...memoLabels];
-                            updated[idx].color = newColor;
+                            updated[idx] = { ...updated[idx], color: newColor };
                             setMemoLabels(updated);
                           }}
                         />
