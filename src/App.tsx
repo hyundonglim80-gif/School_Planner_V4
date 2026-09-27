@@ -14,7 +14,6 @@ import { startPersistenceWatchdog } from './lib/firestoreRecovery';
 import { useEventAlarms } from './hooks/useEventAlarms';
 import { useLabels } from './hooks/useLabels';
 import EventAlarmPopup from './components/EventAlarmPopup';
-import AccountMismatchBanner from './components/AccountMismatchBanner';
 
 function App() {
   const { user, loading } = useAuth();
@@ -51,8 +50,6 @@ function App() {
   }
   return (
     <>
-      {/* V3와 다른 계정으로 들어와 있으면, 빈 화면을 보여 주기 전에 먼저 말해 준다 */}
-      <AccountMismatchBanner />
       <Layout>
         {scope === 'day' && <DayScreen />}
         {scope === 'week' && <WeekScreen />}
