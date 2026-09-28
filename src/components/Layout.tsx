@@ -244,9 +244,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // 화면에 무엇을 보여줄지 정하는 토글. 상단 줄과 ⋮ 메뉴가 같은 정의를 쓴다.
   // showEvents는 값과 화면 연결은 되어 있었는데 누르는 자리가 없어서 늘 켜짐이었다.
   // 툴팁의 단축키는 실제 설정값에서 가져온다. 적어두면 환경설정에서 바꿨을 때 거짓말이 된다.
+  // 키를 정하지 않은 기능은 빈 글자를 돌려준다. '(단축키: 없음)'까지 붙이면 군더더기다.
+  const bindings = resolveBindings(shortcutOverrides);
   const shortcutHint = (id: ShortcutId) => {
     const action = SHORTCUT_ACTIONS.find((a) => a.id === id)!;
-    return formatActionBinding(action, resolveBindings(shortcutOverrides)[id]);
+    return bindings[id].key ? formatActionBinding(action, bindings[id]) : '';
+  };
+  /** 툴팁 글. 단축키가 정해져 있을 때만 뒤에 붙인다. */
+  const withShortcut = (text: string, id: ShortcutId) => {
+    const hint = shortcutHint(id);
+    return hint ? `${text} (단축키: ${hint})` : text;
+  };
+  /** ⋮ 메뉴 항목 오른쪽에 붙이는 단축키 표시. 정한 것이 없으면 아무것도 없다. */
+  const menuKey = (id: ShortcutId) => {
+    const hint = shortcutHint(id);
+    return hint ? (
+      <kbd className="ml-auto pl-2 shrink-0 text-2xs font-mono font-bold text-slate-400 whitespace-nowrap">{hint}</kbd>
+    ) : null;
   };
   const viewToggles = [
     { key: 'weekend', label: '주말', on: showWeekend, set: setShowWeekend, hint: shortcutHint('toggleWeekend') },
@@ -403,11 +417,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
 
   const scopes = [
-    { id: 'day', label: '하루' },
-    { id: 'week', label: '주간' },
-    { id: 'month', label: '월간' },
-    { id: 'year', label: '년간' },
-    { id: 'memo', label: '메모' },
+    { id: 'day', label: '하루', key: 'scopeDay' },
+    { id: 'week', label: '주간', key: 'scopeWeek' },
+    { id: 'month', label: '월간', key: 'scopeMonth' },
+    { id: 'year', label: '년간', key: 'scopeYear' },
+    { id: 'memo', label: '메모', key: 'scopeMemo' },
   ] as const;
 
   return (
@@ -425,7 +439,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <button
                 onClick={() => setIsDDayModalOpen(true)}
                 className="p-1 sm:px-2.5 sm:py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-md sm:rounded-xl text-xs sm:text-xs font-bold transition-all flex items-center gap-0 sm:gap-1 shadow-2xs shrink-0"
-                title="학사 D-Day 관리"
+                title={withShortcut('학사 D-Day 관리', 'dday')}
               >
                 <span>⏳</span>
                 {primaryDDay ? (
@@ -446,7 +460,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <button
                 onClick={() => setIsCalendarModalOpen(true)}
                 className="hidden sm:flex px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 rounded-xl text-xs font-bold transition-all items-center gap-1 shadow-2xs shrink-0"
-                title={`구글 캘린더로 보내기 (단축키: ${shortcutHint('calendar')})`}
+                title={withShortcut('구글 캘린더로 보내기', 'calendar')}
               >
                 <span>📅</span>
                 <span>캘린더</span>
@@ -455,7 +469,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <button
                 onClick={() => setTrashModalOpen(true)}
                 className="hidden sm:flex px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all items-center gap-1 shadow-2xs shrink-0"
-                title="휴지통"
+                title={withShortcut('휴지통', 'trash')}
               >
                 <span>🗑️</span>
                 <span>휴지통</span>
@@ -468,7 +482,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <button
               onClick={() => setIsSearchModalOpen(true)}
               className="p-1 sm:px-2.5 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md sm:rounded-xl text-xs sm:text-xs font-bold transition-all flex items-center gap-0 sm:gap-1 shrink-0"
-              title={`통합 검색 (단축키: ${shortcutHint('search')})`}
+              title={withShortcut('통합 검색', 'search')}
             >
               <span>🔍</span>
               <span className="hidden sm:inline">검색</span>
@@ -480,6 +494,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <button
                   key={s.id}
                   onClick={() => setScope(s.id)}
+                  title={withShortcut(`${s.label} 화면`, s.key)}
                   className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
                     scope === s.id
                       ? 'bg-white text-primary shadow-xs'
@@ -526,7 +541,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </button>
 
               {isMoreMenuOpen && (
-                <div className="absolute right-0 top-10 w-56 max-h-[70vh] overflow-y-auto bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-fade-in text-xs">
+                <div className="absolute right-0 top-10 w-64 max-h-[70vh] overflow-y-auto bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-fade-in text-xs">
 
                   {/* 좁은 화면에서 상단에 둘 자리가 없어 내려온 항목들 */}
                   <div className="sm:hidden border-b border-slate-200 pb-1 mb-1">
@@ -535,12 +550,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
                     >
                       <span>📅</span> 구글 캘린더로 보내기
+                      {menuKey('calendar')}
                     </button>
                     <button
                       onClick={() => { setIsMoreMenuOpen(false); setTrashModalOpen(true); }}
                       className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
                     >
                       <span>🗑️</span> 휴지통
+                      {menuKey('trash')}
                     </button>
                     {/* 표시 토글 - 상단 줄과 같은 정의를 쓰고, 켜짐/꺼짐을 같은 모양으로 보여준다 */}
                     <div className="px-4 py-2.5 flex items-center gap-2">
@@ -580,6 +597,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-b border-dashed border-slate-100"
                   >
                     <span>☑️</span> 다중 선택 모드 {isMultiSelectMode ? '종료' : '켜기'}
+                    {menuKey('multiSelect')}
                   </button>
 
                   <button
@@ -590,6 +608,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
                   >
                     <span>🏷️</span> 통합 라벨 관리
+                    {menuKey('labels')}
                   </button>
 
                   {/* 반복 일정 등록 / 미완료 일정 가져오기.
@@ -602,6 +621,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
                   >
                     <span>🔁</span> 반복 일정 등록
+                    {menuKey('recurring')}
                   </button>
 
                   <button
@@ -612,6 +632,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
                   >
                     <span>📥</span> 미완료 일정 가져오기
+                    {menuKey('forwarding')}
                   </button>
 
                   <button
@@ -622,6 +643,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
                   >
                     <span>🧑‍🤝‍🧑</span> 학급 정보(명렬표) 관리
+                    {menuKey('roster')}
                   </button>
 
                   <button
@@ -632,6 +654,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
                   >
                     <span>👥</span> 공유 그룹 관리
+                    {menuKey('group')}
                   </button>
 
                   <button
@@ -642,6 +665,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
                   >
                     <span>⏰</span> 시간표 적용 (주간 템플릿)
+                    {menuKey('timetable')}
                   </button>
 
                   <button
@@ -652,6 +676,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
                   >
                     <span>💾</span> 내보내기 / 가져오기 (백업)
+                    {menuKey('backup')}
                   </button>
 
                   <button
@@ -662,6 +687,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
                   >
                     <span>⚙️</span> 환경설정
+                    {menuKey('settings')}
                   </button>
 
                   <button
@@ -672,6 +698,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
                   >
                     <span>💡</span> 사용 설명서 및 단축키
+                    {menuKey('help')}
                   </button>
 
                   <button
@@ -782,7 +809,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <button
                 onClick={handlePrevDate}
                 className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs sm:text-sm transition-all shadow-2xs cursor-pointer"
-                title="이전 날짜 (단축키: Ctrl + ←)"
+                title={withShortcut('이전 날짜', 'datePrev')}
               >
                 ◀
               </button>
@@ -790,7 +817,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span
                   onClick={handleTodayClick}
                   className="text-sm sm:text-base font-extrabold text-slate-800 hover:text-primary transition-colors cursor-pointer select-none text-center whitespace-nowrap px-1"
-                  title="오늘 날짜로 돌아가기 (단축키: Ctrl + Space)"
+                  title={withShortcut('오늘 날짜로 돌아가기', 'dateToday')}
                 >
                   {getFormattedDateRange()}
                 </span>
@@ -814,7 +841,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <button
                 onClick={handleNextDate}
                 className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs sm:text-sm transition-all shadow-2xs cursor-pointer"
-                title="다음 날짜 (단축키: Ctrl + →)"
+                title={withShortcut('다음 날짜', 'dateNext')}
               >
                 ▶
               </button>

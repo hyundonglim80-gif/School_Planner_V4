@@ -18,7 +18,7 @@ import { FONT_SCALES } from '../lib/fontScale';
 import { isDeveloper } from '../lib/developers';
 import { labelDiagnostics, useLabels, toSharedEventLabel } from '../hooks/useLabels';
 import { MIN_LOOKBACK_DAYS, MAX_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
-import { SHORTCUT_ACTIONS, resolveBindings } from '../lib/shortcuts';
+import { SHORTCUT_ACTIONS, resolveBindings, formatActionBinding, type ShortcutId } from '../lib/shortcuts';
 import ShortcutModal from './ShortcutModal';
 import { loadAdminConfig, saveAdminGovApiKey } from '../lib/adminConfig';
 import { loadSharedHolidays, saveSharedHolidays } from '../lib/holidays';
@@ -118,6 +118,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { eventLabels, journalLabels, memoLabels, labelsLoaded } = useLabels();
   const bindings = resolveBindings(shortcutOverrides);
   const assignedCount = SHORTCUT_ACTIONS.filter((a) => bindings[a.id].key).length;
+  // 안내 문구의 단축키도 지금 설정값에서 가져온다. 글로 적어 두면 바꾼 뒤에 틀린다.
+  const withShortcut = (text: string, id: ShortcutId) => {
+    const action = SHORTCUT_ACTIONS.find((x) => x.id === id)!;
+    return bindings[id].key ? `${text} (${formatActionBinding(action, bindings[id])})` : text;
+  };
 
   // 첨부를 구글 드라이브로 모으는 작업
   const [migrating, setMigrating] = useState(false);
@@ -531,19 +536,19 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         >
           <ToggleRow
             label="주말"
-            hint="토·일 칸을 달력에 보여줍니다 (Shift + ↑/↓)"
+            hint={withShortcut('토·일 칸을 달력에 보여줍니다', 'toggleWeekend')}
             checked={showWeekend}
             onChange={setShowWeekend}
           />
           <ToggleRow
             label="일정"
-            hint="하루·주간·월간·년간에 일정 항목을 보여줍니다"
+            hint={withShortcut('하루·주간·월간·년간에 일정 항목을 보여줍니다', 'toggleEvents')}
             checked={showEvents}
             onChange={setShowEvents}
           />
           <ToggleRow
             label="수업"
-            hint="시간표와 교시 항목을 보여줍니다 (Alt + ↑/↓)"
+            hint={withShortcut('시간표와 교시 항목을 보여줍니다', 'toggleClass')}
             checked={showClass}
             onChange={setShowClass}
           />

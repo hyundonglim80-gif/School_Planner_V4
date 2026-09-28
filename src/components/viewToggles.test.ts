@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SHORTCUT_ACTIONS } from '../lib/shortcuts';
+import { SHORTCUT_ACTIONS, formatActionBinding } from '../lib/shortcuts';
 
 // 상단 '주말' / '일정' / '수업' 버튼이 켜고 끄는 값들.
 // 예전에 showEvents는 store에도 있고 주간/월간/년간도 보고 있었는데, 하루 화면만
@@ -77,5 +77,20 @@ describe('단축키는 한 곳에서만 정한다', () => {
   it('버튼 툴팁도 설정값에서 가져온다', () => {
     expect(layout).toContain('formatActionBinding');
     expect(layout).not.toMatch(/hint: 'Shift \+/);
+  });
+});
+
+// 날짜 ◀▶ 툴팁('Ctrl + ←')과 환경설정 안내('Shift + ↑/↓')가 글로 박혀 있어서,
+// 단축키를 바꾸면 안내만 옛 키를 가리켰다.
+describe('안내 문구도 단축키 설정을 따른다', () => {
+  const defaults = SHORTCUT_ACTIONS.filter((a) => a.def.key).flatMap((a) => {
+    const text = formatActionBinding(a, a.def);
+    // '↑ / ↓' 로 쓴 것과 '↑/↓', '↑' 하나만 쓴 것도 잡는다
+    return text.includes(' / ') ? [text, text.replace(' / ', '/'), text.replace(' / ↓', '')] : [text];
+  });
+
+  it.each(['/Layout.tsx', '/SettingsModal.tsx', '/MobileTabBar.tsx'])('%s 에 기본 단축키가 글로 적혀 있지 않다', (file) => {
+    const src = read(file);
+    expect(defaults.filter((text) => src.includes(text))).toEqual([]);
   });
 });
