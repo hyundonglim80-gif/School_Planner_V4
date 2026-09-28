@@ -31,10 +31,11 @@ export const DOCK_MIN_WIDTH = 768;
 /**
  * 오른쪽 칸의 폭 (Layout이 --entry-panel-w 로 건다).
  * 모니터 절반(약 940px)에서도 왼쪽 화면이 반 넘게 남도록 36vw로 두고, 너무 좁거나 넓지 않게 묶는다.
- * 출석부는 학생마다 종류·사유·교시 단추가 한 줄에 서고 누계 표가 17칸이라 더 넓게 둔다.
+ * 모든 칸이 같은 폭이다. 출석부만 넓게 열었더니 칸마다 폭이 달라 오갈 때 화면이 들썩였다.
+ * 출석부의 누계 표(17칸)는 칸 안에서 가로로 밀어 본다.
  */
-export function entryPanelWidth(kind: EntryPanelTarget['kind'] | undefined): string {
-  return kind === 'attendance' ? 'clamp(360px, 50vw, 760px)' : 'clamp(340px, 36vw, 512px)';
+export function entryPanelWidth(_kind?: EntryPanelTarget['kind']): string {
+  return 'clamp(340px, 36vw, 512px)';
 }
 
 /** 지금 칸에서 '고친 것 있으면 저장'. 다른 항목을 열기 전에 부른다. */

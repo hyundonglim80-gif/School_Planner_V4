@@ -953,7 +953,7 @@ if (ONLY !== 'mobile') {
     await wait(800);
   };
 
-  await check('[알림장·출석부] 오른쪽 칸으로 열리고 본문을 가리지 않음 (출석부는 더 넓게)', async () => {
+  await check('[알림장·출석부] 오른쪽 칸으로 열리고 본문을 가리지 않음 (출석부도 다른 칸과 같은 폭)', async () => {
     await page.keyboard.press('Shift+Digit1');
     await goToday();
     const main = async () => (await page.locator('main').boundingBox());
@@ -969,7 +969,7 @@ if (ONLY !== 'mobile') {
     await closeAll();
     assert(n && a, `알림장 칸 ${!!n}, 출석부 칸 ${!!a}`);
     assert(m1.x + m1.width <= n.x + 1 && m2.x + m2.width <= a.x + 1, '본문이 칸 밑에 깔림');
-    assert(a.width >= n.width, `출석부 칸(${a.width}px)이 알림장 칸(${n.width}px)보다 좁음`);
+    assert(Math.abs(a.width - n.width) <= 1, `출석부 칸(${a.width}px)과 알림장 칸(${n.width}px)의 폭이 다름`);
     return `알림장 ${Math.round(n.width)}px · 출석부 ${Math.round(a.width)}px`;
   });
 
