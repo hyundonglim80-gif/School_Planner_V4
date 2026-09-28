@@ -92,7 +92,10 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
          세 열은 390px에서 120px밖에 안 되어 한글 과목명이 들어가지 않으므로,
          세 열은 지금처럼 sm(640px) 이상에서만 쓴다.
     */}
-    <div className={"grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 " + (days.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-7") + " gap-2 sm:gap-3"}>
+    {/* 한 줄에 요일을 다 늘어놓는 것은 xl(1280px) 이상에서만 한다.
+        모니터 절반(약 940~1050px)에서 한 줄로 서면 카드가 좁고 길어져 아래가
+        텅 빈다. 그 폭에서는 두세 줄로 접는다 (7일: 3칸 → lg 4칸, 5일: 3칸). */}
+    <div className={"grid grid-cols-2 md:grid-cols-3 " + (days.length === 5 ? "xl:grid-cols-5" : "lg:grid-cols-4 xl:grid-cols-7") + " gap-2 sm:gap-3"}>
       {days.map((day) => {
         const summary = dataMap[day.dateStr] || {};
         const rawEvents = summary.eventList || [];

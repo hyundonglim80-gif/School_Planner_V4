@@ -49,12 +49,15 @@ export default function DayScreen() {
       ) : (
         <div className="flex flex-col gap-6">
           {/* 일정과 수업을 둘 다 끄면 윗칸 자체를 걷어낸다(빈 칸이 남아 기록이 밀리지 않게) */}
+          {/* 수업·일정을 나란히 두는 기준은 md(768px). 모니터 절반(약 940px)에 띄워도
+              둘이 옆으로 선다. lg(1024px)로 두었더니 100%에서는 세로로 쌓이고
+              90%로 줄여야 옆으로 섰다. */}
           {(showEvents || showClass) && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
             {/* 상단 왼쪽: 수업 및 시간표 - showClass에 따른 조건부 렌더링.
                 주간·월간·년간이 모두 수업을 먼저 보여 주므로 하루도 수업을 앞에 둔다. */}
             {showClass && (
-              <div className={`${showEvents ? 'lg:col-span-7' : 'lg:col-span-12'} transition-all duration-300`}>
+              <div className={`${showEvents ? 'md:col-span-7' : 'md:col-span-12'} transition-all duration-300`}>
                 <DaySchedule 
                   schedules={schedules} 
                   onSavePeriod={savePeriod} 
@@ -67,7 +70,7 @@ export default function DayScreen() {
             {/* 상단 오른쪽: 오늘 할 일(일정) - showEvents에 따른 조건부 렌더링.
                 둘 다 켜져 있으면 5:7로 나누고, 한쪽만 켜져 있으면 남은 쪽이 12열을 다 쓴다. */}
             {showEvents && (
-            <div className={`${showClass ? 'lg:col-span-5' : 'lg:col-span-12'} flex flex-col gap-6 transition-all duration-300`}>
+            <div className={`${showClass ? 'md:col-span-5' : 'md:col-span-12'} flex flex-col gap-6 transition-all duration-300`}>
               <DayEvents
                 events={eventList}
                 onAddEvent={addEventItem}
