@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { JournalEntry, Attachment } from '../../hooks/useDayData';
 import { useAppStore } from '../../store/useAppStore';
 import { focusKey } from '../../lib/searchFocus';
@@ -7,24 +7,21 @@ import { useLabels } from '../../hooks/useLabels';
 import { attachmentImageSrc } from '../../lib/driveApi';
 import { isImageAttachment as isImageAtt } from '../../lib/attachments';
 import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
-import EntryDrawer, { type EntryDraft } from '../../components/EntryDrawer';
+import { openEntryPanel } from '../../components/EntryPanelHost';
+import { useMainWidth } from '../../hooks/useMainWidth';
 import { showToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
 import { useDayEvalCounts } from '../../hooks/useDayEvalCounts';
 
 interface DayJournalProps {
   journals: JournalEntry[];
-  onAddJournal: (content: string, label: string, labelIds?: string[], imageUrl?: string, options?: Partial<JournalEntry>) => Promise<string | void>;
   onDeleteJournal: (id: string) => Promise<void>;
-  onUpdateJournal?: (id: string, updates: Partial<JournalEntry>) => Promise<void>;
   onReorderJournals?: (sourceIndex: number, targetIndex: number) => Promise<void>;
 }
 
 export default function DayJournal({
   journals,
-  onAddJournal,
   onDeleteJournal,
-  onUpdateJournal,
   onReorderJournals,
 }: DayJournalProps) {
   const { openLinkViewerModal, currentDate, openEvaluationModal, selectedGroupId, openLabelModal } = useAppStore();
@@ -40,11 +37,8 @@ export default function DayJournal({
   // 기록 라벨이 통째로 사라진다.
   const { journalLabels } = useLabels();
 
-  // 추가와 수정 모두 메모와 같은 오른쪽 배너에서 처리한다.
-  // 수정 대상은 열 때의 값을 그대로 들고 있는다. 구독이 갱신되며 props의 항목
-  // 객체가 새로 만들어지면, 배너가 입력 중인 내용을 되돌려 버린다.
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<JournalEntry | null>(null);
+  // 추가와 수정은 오른쪽 칸(Layout의 EntryPanelHost)에서 한다. 칸은 이 화면보다
+  // 오래 살아서, 다른 날짜·다른 화면으로 옮겨도 쓰던 것이 남는다.
 
   // 항목별 접기/펼치기 상태.
   // 여기에는 '사용자가 직접 누른 것'만 담는다. 손대지 않은 항목은 길이를 보고
@@ -141,102 +135,20 @@ export default function DayJournal({
     setViewerImages(images);
   };
 
-  // 방금 만든 기록. setEditingEntry는 다음 그림에서야 반영되므로,
-  // 연달아 저장이 들어와도 새로 만들지 않도록 여기에도 담아 둔다. (메모도 같은 방식)
-  const justCreatedRef = useRef<JournalEntry | null>(null);
+  const openCreate = () =>
+    openEntryPanel({
+      kind: 'journal',
+      groupId: selectedGroupId,
+      dateStr,
+      defaultLabel: currentFilter !== '전체' ? currentFilter : journalLabels[0]?.name,
+    });
 
-  const openCreate = () => {
-    setEditingEntry(null);
-    justCreatedRef.current = null;
-    setDrawerOpen(true);
-  };
+  const openEdit = (entry: JournalEntry) =>
+    openEntryPanel({ kind: 'journal', groupId: selectedGroupId, dateStr, entryId: entry.id, initial: entry });
 
-  const openEdit = (entry: JournalEntry) => {
-    setEditingEntry(entry);
-    justCreatedRef.current = null;
-    setDrawerOpen(true);
-  };
-
-  // 배너의 라벨 칩은 이름으로 비교한다. ID로 저장된 라벨을 그대로 넘기면 선택 표시가
-  // 안 되고, 그 상태로 저장하면 라벨이 지워진다. 이름으로 바꿔서 넘긴다.
-  const drawerEntry = editingEntry
-    ? (() => {
-        const names = resolveLabelNames(editingEntry);
-        return { ...editingEntry, labels: names, labelIds: names, label: names[0] || '' };
-      })()
-    : null;
-
-  const handleSaveEntry = async (draft: EntryDraft) => {
-    // 라벨을 고르지 않았으면 빈 값으로 둔다. 예전에는 '일반'을 넣었는데, 등록된
-    // 라벨 어디에도 없는 이름이라 칩도 안 뜨고 어떤 필터에도 걸리지 않았다.
-    const mainLabel = draft.labels.length > 0 ? draft.labels[0] : '';
-    // 💡 labelIds는 "ID"로 저장한다. V3는 기록의 labelIds를 ID로만 찾아서(이름으로는
-    // 안 찾는다) 이름을 넣으면 V3에서 라벨 칩이 하나도 안 보인다.
-    // label(이름)은 그대로 두어 V3의 폴백과 V4의 해석이 모두 통하게 한다.
-    const labelIds = draft.labels
-      .map((name) => journalLabels.find((l) => l.name === name)?.id)
-      .filter((id): id is string => !!id);
-    // ⚠️ 없는 값은 키째로 뺀다. undefined를 담으면 Firestore가 저장을 통째로
-    //    거부하는데(배열 안의 undefined), 어느 밭인지도 알려 주지 않는다.
-    //    크기가 안 적힌 옛 첨부가 붙은 항목이 그래서 저장되지 않았다.
-    const attachments: Attachment[] = draft.attachments.map((att) => ({
-      name: att.name,
-      url: att.url,
-      type: att.type || 'file',
-      ...(att.id !== undefined ? { id: att.id } : {}),
-      ...(att.size !== undefined ? { size: att.size } : {}),
-      ...(att.driveId !== undefined ? { driveId: att.driveId } : {}),
-    }));
-
-    // 저장해도 배너는 열려 있으므로, 방금 만든 기록이 있으면 그것을 고친다.
-    // 안 그러면 한 번 더 저장할 때 같은 내용이 새로 하나 더 생긴다.
-    const target = editingEntry || justCreatedRef.current;
-    if (target && onUpdateJournal) {
-      await onUpdateJournal(target.id, {
-        content: draft.content,
-        label: mainLabel,
-        labelIds,
-        // 배너가 구버전 imageUrl을 첨부 목록으로 옮겨 담으므로, 여기서 비워야
-        // 같은 이미지가 본문과 첨부에 두 번 그려지지 않는다.
-        imageUrl: '',
-        attachments,
-        linkedItems: draft.linkedItems,
-      });
-    } else {
-      const newId = await onAddJournal(draft.content, mainLabel, labelIds, undefined, {
-        attachments,
-        linkedItems: draft.linkedItems,
-      });
-      if (typeof newId === 'string') {
-        const created: JournalEntry = {
-          id: newId,
-          content: draft.content,
-          createdAt: Date.now(),
-          label: mainLabel,
-          labelIds,
-          imageUrl: '',
-          attachments,
-          linkedItems: draft.linkedItems,
-        };
-        justCreatedRef.current = created;
-        setEditingEntry(created);
-      }
-    }
-  };
-
-  const [columnsCount, setColumnsCount] = useState(4);
-
-  useEffect(() => {
-    const updateCols = () => {
-      if (window.innerWidth >= 1024) setColumnsCount(4);
-      else if (window.innerWidth >= 768) setColumnsCount(3);
-      else if (window.innerWidth >= 640) setColumnsCount(2);
-      else setColumnsCount(1);
-    };
-    updateCols();
-    window.addEventListener('resize', updateCols);
-    return () => window.removeEventListener('resize', updateCols);
-  }, []);
+  // 칸 수는 창 폭이 아니라 본문 폭으로 정한다. 오른쪽 칸이 열려 본문이 좁아지면 줄인다.
+  const mainWidth = useMainWidth();
+  const columnsCount = mainWidth >= 980 ? 4 : mainWidth >= 720 ? 3 : mainWidth >= 600 ? 2 : 1;
 
   // 필터 적용된 리스트
   const filteredJournals = currentFilter === '전체'
@@ -347,7 +259,7 @@ export default function DayJournal({
       {/* 기록 카드 리스트 (메모 페이지와 동일한 가로 우선 다단 레이아웃) */}
       {!isCollapsed && (
         filteredJournals.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-start">
+          <div className="grid gap-4 items-start" style={{ gridTemplateColumns: `repeat(${columnsCount}, minmax(0, 1fr))` }}>
             {journalColumns.map((col, colIndex) => (
               <div key={colIndex} className="flex flex-col gap-4">
                 {col.map(({ entry }) => {
@@ -527,29 +439,6 @@ export default function DayJournal({
           </div>
         )
       )}
-
-      {/* 새 기록 / 수정 - 메모와 같은 오른쪽 배너 */}
-      <EntryDrawer
-        isOpen={drawerOpen}
-        onClose={() => {
-          setDrawerOpen(false);
-          setEditingEntry(null);
-          justCreatedRef.current = null;
-        }}
-        kind="journal"
-        entry={drawerEntry}
-        labelOptions={journalLabels.map((lbl) => lbl.name)}
-        onSave={handleSaveEntry}
-        onDelete={
-          editingEntry
-            ? async () => {
-                await onDeleteJournal(editingEntry.id);
-                showToast('🗑️ 기록을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
-              }
-            : undefined
-        }
-        defaultLabel={currentFilter !== '전체' ? currentFilter : journalLabels[0]?.name}
-      />
 
       <ImageViewerModal
         isOpen={!!viewerImages}

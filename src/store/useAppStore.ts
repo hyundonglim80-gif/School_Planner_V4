@@ -15,6 +15,22 @@ type Scope = 'day' | 'week' | 'month' | 'year' | 'memo';
 /** 앱을 열었을 때 어느 화면부터 보여줄지. 'last'는 마지막에 보던 화면. */
 export type StartupScope = 'last' | Scope;
 
+/** 오른쪽 칸이 무엇을 쓰고 있는가 */
+export interface EntryPanelTarget {
+  kind: 'memo' | 'journal';
+  /** 어느 공간의 것인가 (null = 개인). 열 때의 공간을 붙들어, 공간을 바꿔도 제자리에 저장한다. */
+  groupId: string | null;
+  /** 기록의 날짜 (메모에는 없다) */
+  dateStr?: string;
+  /** 고치는 항목의 id. 없으면 새로 쓴다. */
+  entryId?: string;
+  /** 고칠 때 넘기는 그 순간의 항목 (구독이 도착하기 전 빈 칸이 보이지 않게) */
+  initial?: any;
+  /** 새로 쓸 때 미리 골라 둘 라벨 */
+  defaultLabel?: string;
+  openedAt?: number;
+}
+
 interface AppState {
   scope: Scope;
   semesterFilter: 'all' | 1 | 2;
@@ -156,6 +172,16 @@ interface AppState {
   labelModalTab: 'event' | 'journal' | 'memo';
   openLabelModal: (tab?: 'event' | 'journal' | 'memo') => void;
   closeLabelModal: () => void;
+
+  /**
+   * 메모·기록을 쓰는 오른쪽 칸. 화면(페이지)이 아니라 Layout이 그린다.
+   * 그래서 다른 날짜·다른 화면으로 옮겨 다녀도 쓰던 것이 그대로 남는다.
+   */
+  entryPanel: EntryPanelTarget | null;
+  openEntryPanel: (target: EntryPanelTarget) => void;
+  /** 새로 만든 항목의 id를 알려 준다 (이어서 저장하면 그 항목을 고친다) */
+  setEntryPanelId: (id: string, initial?: any) => void;
+  closeEntryPanel: () => void;
 
   clearAuthData: () => void;
 }
@@ -467,6 +493,15 @@ export const useAppStore = create<AppState>()(
       labelModalTab: 'event',
       openLabelModal: (tab = 'event') => set({ isLabelModalOpen: true, labelModalTab: tab }),
       closeLabelModal: () => set({ isLabelModalOpen: false }),
+
+      entryPanel: null,
+      // 여는 쪽이 '열 때마다 새 것'으로 넘기므로, 같은 대상을 다시 눌러도 칸이 새로 시작한다
+      openEntryPanel: (target) => set({ entryPanel: { ...target, openedAt: Date.now() } }),
+      setEntryPanelId: (id, initial) =>
+        set((st) =>
+          st.entryPanel ? { entryPanel: { ...st.entryPanel, entryId: id, ...(initial ? { initial } : {}) } } : {}
+        ),
+      closeEntryPanel: () => set({ entryPanel: null }),
 
     }),
     {

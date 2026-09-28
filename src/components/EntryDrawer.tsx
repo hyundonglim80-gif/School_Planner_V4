@@ -67,6 +67,19 @@ interface EntryDrawerProps {
   onDelete?: () => Promise<void>;
   /** 새로 작성할 때 미리 골라둘 라벨 */
   defaultLabel?: string;
+  /**
+   * 화면 옆에 붙는 칸으로 그린다 (어두운 배경 없이, 화면을 가리지 않고).
+   * 이때는 팝업이 아니므로 화면의 다른 곳을 눌러도, 다른 화면으로 옮겨도 닫히지 않는다.
+   */
+  docked?: boolean;
+  /** 제목 아래에 적는 한 줄 (예: '9/28(월) 기록 · 개인') */
+  subtitle?: string;
+  /**
+   * '고친 것이 있으면 저장하기'를 밖에서 부를 수 있게 넘겨준다.
+   * 옆에 붙은 칸에서 다른 항목을 열 때, 쓰던 것을 먼저 저장하려고 쓴다.
+   * 저장했거나 저장할 것이 없으면 true.
+   */
+  flushRef?: React.MutableRefObject<(() => Promise<boolean>) | null>;
 }
 
 const KIND_TEXT: Record<EntryKind, { noun: string; contentLabel: string; placeholder: string }> = {
@@ -132,14 +145,19 @@ export default function EntryDrawer({
   onSave,
   onDelete,
   defaultLabel,
+  docked = false,
+  subtitle,
+  flushRef,
 }: EntryDrawerProps) {
   const { openLabelModal, openLinkerModal, currentDate } = useAppStore();
   const formattedDate = formatDateStr(new Date(currentDate));
   const text = KIND_TEXT[kind];
 
-  useBodyScrollLock(isOpen);
+  // 옆에 붙은 칸은 팝업이 아니다: 뒤 화면을 잠그지 않고, 팝업 층(ESC로 모두 닫기)에도 들지 않는다
+  useBodyScrollLock(isOpen && !docked);
   const vv = useVisualViewport(isOpen);
-  const zIndex = useModalLayer(isOpen, onClose);
+  const zIndex = useModalLayer(isOpen && !docked, onClose);
+  const panelRef = useRef<HTMLElement>(null);
   // 배경을 눌러 닫을 때는 고친 것을 저장하고 닫는다 (아래 closeByBackdrop).
   // 훅은 상태보다 먼저 불러야 해서, 그때그때의 함수를 ref로 넘긴다.
   const backdropCloseRef = useRef<() => void>(closeAllModals);
@@ -214,6 +232,9 @@ export default function EntryDrawer({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
+      // 옆에 붙은 칸은 왼쪽 화면과 함께 쓴다. 왼쪽에서 누른 Ctrl+S(일정 저장 등)까지
+      // 여기서 가로채면 두 곳이 함께 저장된다. 이 칸 안에 있을 때만 받는다.
+      if (docked && !panelRef.current?.contains(document.activeElement)) return;
       if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
         e.preventDefault();
         // 키를 누른 채로 두면 브라우저가 keydown을 되풀이해 보낸다.
@@ -224,7 +245,7 @@ export default function EntryDrawer({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen]);
+  }, [isOpen, docked]);
 
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -385,33 +406,33 @@ export default function EntryDrawer({
   // 배경을 누르면: 고친 것이 없으면 그냥 닫고, 있으면 저장한 뒤 닫는다.
   // 저장이 실패했거나 파일이 올라가는 중이면 닫지 않는다 (적던 것이 사라지면 안 된다).
   // 닫기 단추·✕·ESC는 지금처럼 '저장 없이 닫기'다.
-  backdropCloseRef.current = async () => {
-    if (uploadingFiles || pasting) return;
+  const saveIfChanged = async (): Promise<boolean> => {
+    if (uploadingFiles || pasting) return false;
     const changed = formSnapshot(content, selectedLabels, attachments, linkedItems) !== snapshotRef.current;
-    if (changed) {
-      const ok = await handleSubmit();
-      if (!ok) return;
-    }
+    return changed ? handleSubmit() : true;
+  };
+  if (flushRef) flushRef.current = saveIfChanged;
+
+  backdropCloseRef.current = async () => {
+    if (!(await saveIfChanged())) return;
     closeAllModals();
   };
 
-  return (
-    <div
-      className="fixed inset-0 flex justify-end"
-      style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
-    >
+  const panel = (
       <div
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300"
-        {...backdrop}
-      />
-
-      <div className="relative w-full max-w-lg bg-white h-full shadow-2xl z-10 flex flex-col transform transition-transform duration-300 ease-in-out">
+        className={`relative bg-white h-full flex flex-col ${
+          docked ? 'w-full' : 'w-full max-w-lg shadow-2xl z-10 transform transition-transform duration-300 ease-in-out'
+        }`}
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <div>
+          <div className="min-w-0">
             <h3 className="text-lg font-bold text-slate-800">
               {isEditing ? `${text.noun} 수정` : `새 ${text.noun}`}
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">빠른 저장 단축키: Ctrl + S</p>
+            {subtitle && <p className="text-xs font-bold text-primary mt-0.5 truncate">{subtitle}</p>}
+            <p className="text-xs text-slate-400 mt-0.5">
+              빠른 저장 단축키: Ctrl + S{docked ? ' · 다른 화면으로 옮겨도 이 칸은 남습니다' : ''}
+            </p>
           </div>
           <button
             title="닫기"
@@ -684,13 +705,50 @@ export default function EntryDrawer({
           </div>
         </div>
       </div>
+  );
 
-      <ImageViewerModal
-        isOpen={viewerOpen}
-        onClose={() => setViewerOpen(false)}
-        images={viewerImages}
-        startIndex={viewerIndex}
+  const viewer = (
+    <ImageViewerModal
+      isOpen={viewerOpen}
+      onClose={() => setViewerOpen(false)}
+      images={viewerImages}
+      startIndex={viewerIndex}
+    />
+  );
+
+  if (docked) {
+    // 화면 옆에 붙는 칸. Layout이 이 폭(--entry-panel-w)만큼 화면을 왼쪽으로 줄여 둔다.
+    return (
+      <aside
+        ref={panelRef}
+        aria-label={`${text.noun} 쓰기`}
+        className="fixed top-0 right-0 bottom-0 z-[45] border-l border-slate-200 shadow-xl bg-white"
+        style={{ width: 'var(--entry-panel-w)' }}
+        onKeyDown={(e) => {
+          // 이 칸 안에서 누른 ESC는 이 칸만 닫는다 (저장하지 않는다)
+          if (e.key === 'Escape') {
+            e.stopPropagation();
+            onClose();
+          }
+        }}
+      >
+        {panel}
+        {viewer}
+      </aside>
+    );
+  }
+
+  return (
+    <div
+      className="fixed inset-0 flex justify-end"
+      style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
+    >
+      <div
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300"
+        {...backdrop}
       />
+      {panel}
+      {viewer}
     </div>
   );
 }

@@ -40,6 +40,9 @@ const StudentRecordModal = lazyWithReload(() => import('./StudentRecordModal'));
 import MultiEventActionBar from './MultiEventActionBar';
 import MiniCalendarPicker from './MiniCalendarPicker';
 import MobileTabBar from './MobileTabBar';
+import EntryPanelHost, { DOCK_MIN_WIDTH } from './EntryPanelHost';
+import { MainWidthContext } from '../hooks/useMainWidth';
+import { useMinWidth } from '../hooks/useMinWidth';
 import { useGlobalGestures } from '../hooks/useGlobalGestures';
 import {
   SHORTCUT_ACTIONS,
@@ -164,6 +167,28 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // 머리줄 높이를 --app-header-h로 알려 둔다. 머리줄에 붙어 따라 내려가는
   // 칸(메모 화면의 라벨 거르개 등)이 그만큼 아래에 멈춘다. 머리줄은 줄바꿈과
   // D-Day 표시에 따라 높이가 달라지므로 재서 쓴다.
+  // 메모·기록 칸이 화면 옆에 붙어 있으면 그 폭만큼 화면을 왼쪽으로 줄인다
+  const entryPanelOpen = useAppStore((s) => !!s.entryPanel);
+  const canDock = useMinWidth(DOCK_MIN_WIDTH);
+  const panelDocked = entryPanelOpen && canDock;
+
+  // 본문의 실제 폭. 칸이 열려 좁아지면 화면들이 그에 맞춰 칸 수를 줄인다 (hooks/useMainWidth)
+  const mainRef = useRef<HTMLElement>(null);
+  const [mainWidth, setMainWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280));
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    // 안쪽 여백을 뺀 폭 (CSS의 @container 가 재는 폭과 같게)
+    const measure = () => {
+      const cs = getComputedStyle(el);
+      setMainWidth(el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, []);
+
   const headerRef = useRef<HTMLElement>(null);
   useEffect(() => {
     const el = headerRef.current;
@@ -437,11 +462,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   ] as const;
 
   return (
-    <div className="min-h-screen bg-bg-body text-slate-900">
+    <div
+      className="min-h-screen bg-bg-body text-slate-900 transition-[padding] duration-200"
+      style={{
+        // 칸의 폭. 모니터 절반(약 940px)에서도 왼쪽 화면이 반 넘게 남도록 36vw로 두고,
+        // 너무 좁거나 넓지 않게 묶는다. EntryDrawer가 같은 값을 쓴다.
+        ['--entry-panel-w' as any]: 'clamp(340px, 36vw, 512px)',
+        paddingRight: panelDocked ? 'var(--entry-panel-w)' : undefined,
+      }}
+    >
       <header ref={headerRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm px-4 py-3 border-b border-border shadow-xs flex flex-col gap-2.5">
         <div className="flex items-center gap-2 max-w-7xl mx-auto w-full">
           {/* 상단 메뉴 영역 (스크롤 없이 버튼 크기 축소로 한 줄 유지) */}
-          <div className="flex items-center justify-between flex-1 gap-0.5 sm:gap-4 pr-1 sm:pr-2 min-w-0">
+          {/* 오른쪽 메모·기록 칸이 열려 있을 때만 줄바꿈을 허락한다. 머리줄이 좁아지면 겹치는 대신
+              검색·화면 탭 묶음이 아랫줄로 내려간다. */}
+          <div className={`flex ${panelDocked ? "flex-wrap" : ""} items-center justify-between flex-1 gap-x-0.5 sm:gap-x-4 gap-y-1.5 pr-1 sm:pr-2 min-w-0`}>
             
             {/* 좌측: 로고 및 기능 버튼들 */}
             <div className="flex items-center gap-0.5 sm:gap-2 shrink">
@@ -897,11 +932,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* 하단 탭바에 내용이 가리지 않도록 아래 여백을 둔다 */}
-      <main className="px-3 py-3 sm:p-5 max-w-7xl mx-auto pb-24 sm:pb-5">
-        {children}
+      <main ref={mainRef} className="@container px-3 py-3 sm:p-5 max-w-7xl mx-auto pb-24 sm:pb-5">
+        <MainWidthContext.Provider value={mainWidth}>{children}</MainWidthContext.Provider>
       </main>
 
       <MobileTabBar />
+
+      {/* 메모·기록 쓰는 칸. 화면과 따로 살아서, 다른 화면으로 옮겨도 남는다. */}
+      <EntryPanelHost />
 
       {/* 모달 모음 - 열려 있을 때만 그려서 필요한 시점에 내려받는다 */}
       <Suspense fallback={null}>

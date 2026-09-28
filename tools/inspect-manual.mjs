@@ -985,39 +985,67 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
     assert((await page.getByText('바깥저장 준비물').count()) > 0, '저장되지 않음');
   });
 
-  await check('[자동 저장] 기록 배너: 적고 배경을 누르면 저장하고 닫힘', async () => {
-    const J2 = `바깥저장 기록 ${Date.now() % 10000}`;
+  // 넓은 화면(768px 이상)에서 기록·메모 칸은 화면 옆에 붙는다. 팝업이 아니라서
+  // 바깥을 눌러도, 다른 화면으로 옮겨도 닫히지 않는다 (적던 것이 남는다).
+  const entryPanel = () => page.locator('aside[aria-label$="쓰기"]');
+  await check('[옆 칸] 기록 추가: 화면 옆에 붙고, 왼쪽 화면을 눌러도 닫히지 않음', async () => {
+    const J2 = `옆칸 기록 ${Date.now() % 10000}`;
     await page.getByRole('button', { name: '+ 추가' }).click();
     await wait(600);
+    assert((await entryPanel().count()) === 1, '옆에 붙은 칸이 아님');
+    const panelBox = await entryPanel().boundingBox();
+    const mainBox = await page.locator('main').boundingBox();
+    assert(mainBox.x + mainBox.width <= panelBox.x + 1, '본문이 칸 밑에 깔림');
     await page.getByPlaceholder(/오늘 있었던 일을 기록해보세요/).fill(J2);
-    await clickBackdrop();
-    assert((await page.getByRole('heading', { name: /새 기록|기록 수정/ }).count()) === 0, '배너가 닫히지 않음');
-    assert((await page.getByText(J2).count()) > 0, '기록이 저장되지 않음');
+    await page.getByRole('heading', { name: '수업', exact: true }).click();
+    await wait(500);
+    assert((await entryPanel().count()) === 1, '왼쪽을 눌렀더니 닫힘');
+    await page.getByPlaceholder(/오늘 있었던 일을 기록해보세요/).press('Control+s');
+    await wait(2000);
+    assert((await page.locator('[data-focus-key^="journal"]', { hasText: J2 }).count()) === 1, '저장되지 않음');
   });
 
-  await check('[자동 저장] 기록 배너: 아무것도 안 고치고 배경을 누르면 그냥 닫힘', async () => {
-    const before = await page.locator('[data-focus-key^="journal"]').count();
-    await page.getByRole('button', { name: '+ 추가' }).click();
+  await check('[옆 칸] 다른 화면으로 옮겨도 칸과 글이 남고, 돌아와 저장하면 원래 날짜에 들어감', async () => {
+    const ta = page.getByPlaceholder(/오늘 있었던 일을 기록해보세요/);
+    const J3 = (await ta.inputValue()) + ' 이어씀';
+    await ta.fill(J3);
+    // (글을 쓰는 중에는 Shift+2 가 글자로 들어가므로 탭을 눌러 옮긴다)
+    await page.locator('header').getByRole('button', { name: '주간', exact: true }).click();
+    await wait(1500);
+    await page.locator('header').getByRole('button', { name: '▶', exact: true }).click();
+    await wait(1200);
+    assert((await ta.inputValue()) === J3, '화면을 옮기자 글이 사라짐');
+    await ta.press('Control+s');
+    await wait(2000);
+    await page.locator('header').getByRole('button', { name: '하루', exact: true }).click();
+    await page.getByTitle(/오늘 날짜로 돌아가기/).click();
+    await wait(1500);
+    assert((await page.locator('[data-focus-key^="journal"]', { hasText: J3 }).count()) === 1, '원래 날짜에 저장되지 않음');
+    await page.locator('aside').getByRole('button', { name: '닫기' }).click();
     await wait(600);
-    await clickBackdrop();
-    assert((await page.getByRole('heading', { name: /새 기록/ }).count()) === 0, '배너가 닫히지 않음');
-    assert((await page.locator('[data-focus-key^="journal"]').count()) === before, '빈 기록이 생김');
+    assert((await entryPanel().count()) === 0, '닫기로 닫히지 않음');
   });
 
-  await check('[자동 저장] 메모 배너: 고치고 배경을 누르면 저장', async () => {
+  await check('[옆 칸] 메모를 고치다 다른 메모를 누르면 고친 것을 저장하고 넘어감', async () => {
     await page.keyboard.press('Shift+Digit5');
     await wait(2000);
-    const card = page.locator('[data-focus-key]').first();
-    await card.click();
+    await page.getByRole('button', { name: /전체 메모/ }).click();
     await wait(600);
+    const cards = page.locator('section [data-focus-key^="memo"]');
+    await cards.nth(0).click();
+    await wait(800);
     const ta = page.getByPlaceholder(/자유롭게 생각을 기록해보세요/);
-    const base = await ta.inputValue();
-    await ta.fill(base + ' 바깥저장');
-    await clickBackdrop();
-    const ok = (await page.getByText(/바깥저장/).count()) > 0;
+    const M = `옆칸 메모 ${Date.now() % 10000}`;
+    await ta.fill(M);
+    await cards.nth(1).click();
+    await wait(2000);
+    const now = await ta.inputValue();
+    assert(now !== M, '다른 메모로 넘어가지 않음');
+    assert((await page.locator('section [data-focus-key^="memo"]', { hasText: M }).count()) === 1, '앞 메모가 저장되지 않음');
+    await page.locator('aside').getByRole('button', { name: '닫기' }).click();
+    await wait(500);
     await page.keyboard.press('Shift+Digit1');
     await wait(1200);
-    assert(ok, '메모 수정이 저장되지 않음');
   });
 
   await check('[자동 저장] 주간 일정 수정 팝업: 고치고 배경을 누르면 저장', async () => {

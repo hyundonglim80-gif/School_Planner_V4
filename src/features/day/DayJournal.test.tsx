@@ -1,23 +1,55 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DayJournal from './DayJournal';
+import EntryPanelHost from '../../components/EntryPanelHost';
 import type { JournalEntry } from '../../hooks/useDayData';
 import { useAppStore } from '../../store/useAppStore';
+
+// 기록 배너(오른쪽 칸)는 이제 화면이 아니라 Layout의 EntryPanelHost가 그리고,
+// 저장도 그쪽이 useDayData로 한다. 그 훅을 가짜로 바꿔 저장 호출을 지켜본다.
+let hook: {
+  journals: JournalEntry[];
+  addJournalEntry: ReturnType<typeof vi.fn>;
+  updateJournalEntry: ReturnType<typeof vi.fn>;
+  deleteJournalEntry: ReturnType<typeof vi.fn>;
+};
+vi.mock('../../hooks/useDayData', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../hooks/useDayData')>();
+  return { ...actual, useDayData: () => hook };
+});
+
+beforeEach(() => {
+  useAppStore.setState({ entryPanel: null });
+});
 
 const entries: JournalEntry[] = [
   { id: 'jr_1', content: '첫 번째 기록', createdAt: 1, labelIds: [], linkedItems: [], attachments: [] },
   { id: 'jr_2', content: '두 번째 기록', createdAt: 2, labelIds: [], linkedItems: [], attachments: [] },
 ];
 
-function renderJournal(journals: JournalEntry[] = entries) {
+function renderJournal(journals: JournalEntry[] = entries, onAdd = vi.fn(async () => {}) as any) {
   const props = {
     journals,
-    onAddJournal: vi.fn(async () => {}),
+    onAddJournal: onAdd,
     onDeleteJournal: vi.fn(async () => {}),
-    onUpdateJournal: vi.fn(async () => {}),
+    onUpdateJournal: vi.fn(async (_id: string, _updates: Partial<JournalEntry>) => {}),
   };
-  return { ...render(<DayJournal {...props} />), props };
+  hook = {
+    journals,
+    addJournalEntry: props.onAddJournal,
+    updateJournalEntry: props.onUpdateJournal,
+    deleteJournalEntry: props.onDeleteJournal,
+  };
+  return {
+    ...render(
+      <>
+        <DayJournal journals={journals} onDeleteJournal={props.onDeleteJournal} />
+        <EntryPanelHost />
+      </>
+    ),
+    props,
+  };
 }
 
 // 기록 배너는 메모와 같은 컴포넌트(EntryDrawer)이므로, 여기서 검증하는 동작이
@@ -100,7 +132,7 @@ describe('DayJournal - 카드 아이콘', () => {
     expect(screen.queryAllByTitle('링크 연결').length).toBe(0);
 
     // 카드 목록은 그대로 남아 있다
-    const grid = container.querySelector('.grid.grid-cols-1')!;
+    const grid = container.querySelector('.grid.items-start')!;
     expect(within(grid as HTMLElement).getByText('두 번째 기록')).toBeInTheDocument();
   });
 
@@ -112,7 +144,7 @@ describe('DayJournal - 카드 아이콘', () => {
     await screen.findByDisplayValue('첫 번째 기록');
 
     // 배너가 따로 뜨므로 목록에서 항목을 빼지 않는다
-    const grid = container.querySelector('.grid.grid-cols-1')!;
+    const grid = container.querySelector('.grid.items-start')!;
     expect(within(grid as HTMLElement).getByText('첫 번째 기록')).toBeInTheDocument();
   });
 });
@@ -247,15 +279,8 @@ describe('DayJournal - 배너 버튼과 닫기', () => {
   it('새 기록을 두 번 저장하면 두 번째는 수정으로 간다', async () => {
     const user = userEvent.setup();
     const onAddJournal = vi.fn(async () => 'jr_new');
-    const onUpdateJournal = vi.fn(async (_id: string, _updates: Partial<JournalEntry>) => {});
-    render(
-      <DayJournal
-        journals={[]}
-        onAddJournal={onAddJournal}
-        onDeleteJournal={vi.fn(async () => {})}
-        onUpdateJournal={onUpdateJournal}
-      />
-    );
+    const { props } = renderJournal([], onAddJournal);
+    const onUpdateJournal = props.onUpdateJournal;
 
     await user.click(screen.getByRole('button', { name: /추가/ }));
     await user.type(await screen.findByPlaceholderText(/기록/), '두 번 저장');

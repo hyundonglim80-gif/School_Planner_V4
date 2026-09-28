@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MemoScreen from './MemoScreen';
+// 새 메모 배너(오른쪽 칸)는 Layout의 EntryPanelHost가 그린다. 화면과 함께 띄운다.
+import EntryPanelHost from '../../components/EntryPanelHost';
 import { addDoc as addDocMock, onSnapshot as onSnapshotMock, writeBatch as writeBatchMock } from 'firebase/firestore';
 import { isUnlabeledMemo } from '../../hooks/useMemos';
 import { useAppStore } from '../../store/useAppStore';
@@ -23,11 +25,11 @@ vi.mock('../../hooks/useLabels', async (importOriginal) => {
 beforeEach(() => {
   vi.clearAllMocks();
   // 아래 시험 대부분은 '전체'를 보며 진행한다. 처음 열 때의 거르개는 따로 본다.
-  useAppStore.setState({ memoFilter: '전체' });
+  useAppStore.setState({ memoFilter: '전체', entryPanel: null });
 });
 
 async function 새메모작성(user: ReturnType<typeof userEvent.setup>) {
-  render(<MemoScreen />);
+  render(<><MemoScreen /><EntryPanelHost /></>);
   await user.click(await screen.findByRole('button', { name: /새 메모/ }));
   const box = await screen.findByRole('textbox');
   await user.click(box);
@@ -41,7 +43,7 @@ const 저장된메모 = () => (addDocMock as any).mock.calls[0][1];
 // 새 메모는 기록과 같은 오른쪽 배너에서 쓴다. 단추는 왼쪽 라벨 거르개 바로 위에 있다.
 describe('새 메모는 오른쪽 배너에서', () => {
   it('+ 새 메모 단추는 라벨 거르개 바로 위에 있다', async () => {
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
     const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
     const button = screen.getByRole('button', { name: /새 메모/ });
 
@@ -60,7 +62,7 @@ describe('새 메모는 오른쪽 배너에서', () => {
 
   it('라벨로 걸러 보고 있으면 그 라벨을 골라 둔 채로 연다', async () => {
     const user = userEvent.setup();
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
     const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
     await user.click(within(nav).getByRole('button', { name: /개인/ }));
 
@@ -118,7 +120,7 @@ describe('메모 필터 - 고른 것이 분명히 보인다', () => {
 
   it('거르개는 왼쪽 세로 목록이고, 기억한 것이 없으면 즐겨찾기로 연다', async () => {
     useAppStore.setState({ memoFilter: null });
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
 
     await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
     expect(chip('⭐ 즐겨찾기')).toHaveAttribute('aria-pressed', 'true');
@@ -126,7 +128,7 @@ describe('메모 필터 - 고른 것이 분명히 보인다', () => {
   });
 
   it('차례는 즐겨찾기 → 라벨(라벨 관리의 차례) → 전체 메모', async () => {
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
     const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
     const names = within(nav)
       .getAllByRole('button', { pressed: undefined as any })
@@ -137,26 +139,26 @@ describe('메모 필터 - 고른 것이 분명히 보인다', () => {
 
   it('고른 거르개를 기억했다가 다시 열 때 그대로 연다', async () => {
     const user = userEvent.setup();
-    const first = render(<MemoScreen />);
+    const first = render(<><MemoScreen /><EntryPanelHost /></>);
     await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
     await user.click(chip('개인'));
     first.unmount();
 
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
     await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
     expect(chip('개인')).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('기억한 라벨이 지워졌으면 즐겨찾기로 연다', async () => {
     useAppStore.setState({ memoFilter: '없어진라벨' });
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
     await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
     expect(chip('⭐ 즐겨찾기')).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('라벨을 누르면 그 라벨만 골라진 것으로 보인다', async () => {
     const user = userEvent.setup();
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
     await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
 
     await user.click(chip('업무'));
@@ -167,7 +169,7 @@ describe('메모 필터 - 고른 것이 분명히 보인다', () => {
 
   it('고른 것에는 ✓와 테두리 고리가 붙고, 안 고른 것은 흐리다', async () => {
     const user = userEvent.setup();
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
     await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
 
     await user.click(chip('업무'));
@@ -183,7 +185,7 @@ describe('메모 필터 - 고른 것이 분명히 보인다', () => {
   });
 
   it('거르개마다 진행 중인 메모 개수가 붙는다', async () => {
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
     await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
 
     expect(chip('전체 메모')).toHaveTextContent(/\d+$/);
@@ -221,7 +223,7 @@ describe('라벨 없는 메모에 메모 라벨 붙이기', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const update = vi.fn();
     vi.mocked(writeBatchMock).mockReturnValue({ set: vi.fn(), update, delete: vi.fn(), commit: vi.fn(async () => {}) } as any);
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
 
     expect(await screen.findByText(/라벨이 없는 메모 3개/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /'메모' 라벨 붙이기/ }));
@@ -233,7 +235,7 @@ describe('라벨 없는 메모에 메모 라벨 붙이기', () => {
   it('확인 창에서 취소하면 아무것도 바꾸지 않는다', async () => {
     const user = userEvent.setup();
     vi.spyOn(window, 'confirm').mockReturnValue(false);
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
 
     await user.click(await screen.findByRole('button', { name: /'메모' 라벨 붙이기/ }));
 
@@ -261,7 +263,7 @@ describe('메모 진행/완료 구역', () => {
 
   it('진행과 완료를 따로 보여 주고 접을 수 있다', async () => {
     const user = userEvent.setup();
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
 
     const active = await screen.findByRole('button', { name: /진행 \(2\)/ });
     expect(active).toHaveAttribute('aria-expanded', 'true');
@@ -276,7 +278,7 @@ describe('메모 진행/완료 구역', () => {
   });
 
   it('거르개 개수는 진행 중인 메모만 센다', async () => {
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
     const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
     await screen.findByText('진행 하나');
 
@@ -285,7 +287,7 @@ describe('메모 진행/완료 구역', () => {
   });
 
   it('좁은 화면에서도 메모를 두 열 이상으로 놓는다', async () => {
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
     await screen.findByText('진행 하나');
 
     const grid = screen.getByText('진행 하나').closest('.grid') as HTMLElement;
@@ -299,7 +301,7 @@ describe('메모 즐겨찾기', () => {
   it('거르개 머리의 톱니바퀴를 누르면 메모 라벨 설정이 열린다', async () => {
     const user = userEvent.setup();
     const { useAppStore } = await import('../../store/useAppStore');
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
     const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
 
     await user.click(within(nav).getByRole('button', { name: '메모 라벨 설정' }));
@@ -310,7 +312,7 @@ describe('메모 즐겨찾기', () => {
   });
 
   it('즐겨찾기 거르개가 라벨 옆에 있다', async () => {
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
 
     const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
     expect(within(nav).getByRole('button', { name: /즐겨찾기/ })).toHaveAttribute('aria-pressed', 'false');
@@ -318,7 +320,7 @@ describe('메모 즐겨찾기', () => {
 
   it('즐겨찾기 거르개를 누르면 그것만 골라진 것으로 보인다', async () => {
     const user = userEvent.setup();
-    render(<MemoScreen />);
+    render(<><MemoScreen /><EntryPanelHost /></>);
     const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
 
     await user.click(within(nav).getByRole('button', { name: /⭐ 즐겨찾기/ }));

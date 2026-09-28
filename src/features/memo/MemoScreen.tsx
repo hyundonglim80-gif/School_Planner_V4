@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useMemos, isUnlabeledMemo } from '../../hooks/useMemos';
 import type { Memo } from '../../hooks/useMemos';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
 import MemoCard from './MemoCard';
 import MemoMasonry from './MemoMasonry';
-import EntryDrawer, { type EntryDraft } from '../../components/EntryDrawer';
+import { openEntryPanel } from '../../components/EntryPanelHost';
 import { showToast, showErrorToast } from '../../utils/toast';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
@@ -43,7 +43,7 @@ function useColumnCount(ref: React.RefObject<HTMLElement | null>) {
 
 export default function MemoScreen() {
   const { selectedGroupId, openLabelModal } = useAppStore();
-  const { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, toggleFavorite, deleteCompletedMemos, labelUnlabeledMemos, swapMemoOrder } = useMemos(selectedGroupId);
+  const { memos, loading, deleteMemo, toggleComplete, toggleFavorite, deleteCompletedMemos, labelUnlabeledMemos, swapMemoOrder } = useMemos(selectedGroupId);
   const { getLabelColor, memoLabels, labelsLoaded } = useLabels();
 
   // 고른 거르개는 기억해 두었다가 다른 화면에서 돌아와도 그대로 연다.
@@ -54,11 +54,6 @@ export default function MemoScreen() {
   const [showAllForFocus, setShowAllForFocus] = useState(false);
   const [activeOpen, setActiveOpen] = useState(true);
   const [completedOpen, setCompletedOpen] = useState(true);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [editingMemo, setEditingMemo] = useState<Memo | null>(null);
-  // 방금 만든 메모. setEditingMemo는 다음 그림에서야 반영되므로,
-  // 연달아 저장이 들어와도 새로 만들지 않도록 여기에도 담아 둔다.
-  const justCreatedRef = useRef<Memo | null>(null);
 
   const listRef = useRef<HTMLElement>(null);
   const columnsCount = useColumnCount(listRef);
@@ -115,41 +110,17 @@ export default function MemoScreen() {
       ? allActive.filter(m => m.favorite).length
       : allActive.filter(m => m.labels?.includes(filter)).length;
 
-  const handleOpenCreate = useCallback(() => {
-    setEditingMemo(null);
-    justCreatedRef.current = null;
-    setIsDrawerOpen(true);
-  }, []);
+  // 새로 쓰기·고치기는 오른쪽 칸(Layout의 EntryPanelHost)에서 한다. 칸은 이 화면보다
+  // 오래 살아서, 다른 화면으로 옮겨도 쓰던 것이 남는다.
+  const handleOpenCreate = () =>
+    openEntryPanel({
+      kind: 'memo',
+      groupId: selectedGroupId,
+      defaultLabel: isLabelFilter ? currentFilter : memoLabels[0],
+    });
 
-  const handleOpenEdit = (memo: Memo) => {
-    setEditingMemo(memo);
-    justCreatedRef.current = null;
-    setIsDrawerOpen(true);
-  };
-
-  const handleSaveMemo = async (draft: EntryDraft) => {
-    // 저장해도 배너는 열려 있으므로, 방금 만든 메모가 있으면 그것을 고친다.
-    // 안 그러면 한 번 더 저장할 때 같은 내용이 새로 하나 더 생긴다.
-    const target = editingMemo || justCreatedRef.current;
-    if (target) {
-      await updateMemo(target.firestoreId, draft);
-      return;
-    }
-    const ref = await addMemo(draft);
-    if (ref?.id) {
-      const created: Memo = {
-        firestoreId: ref.id,
-        content: draft.content,
-        createdAt: Date.now(),
-        labels: draft.labels,
-        imageUrl: draft.imageUrl,
-        attachments: draft.attachments,
-        linkedItems: draft.linkedItems,
-      };
-      justCreatedRef.current = created;
-      setEditingMemo(created);
-    }
-  };
+  const handleOpenEdit = (memo: Memo) =>
+    openEntryPanel({ kind: 'memo', groupId: selectedGroupId, entryId: memo.firestoreId, initial: memo });
 
   // 라벨이 없는 메모는 어느 라벨로 걸러도 보이지 않는다. 한 번에 '메모' 라벨을 붙인다.
   const unlabeledCount = memos.filter(isUnlabeledMemo).length;
@@ -376,29 +347,6 @@ export default function MemoScreen() {
           )}
         </section>
       </div>
-
-      {/* 새 메모 / 수정 - 기록과 같은 오른쪽 배너를 쓴다 */}
-      <EntryDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => {
-          setIsDrawerOpen(false);
-          setEditingMemo(null);
-          justCreatedRef.current = null;
-        }}
-        kind="memo"
-        entry={editingMemo}
-        labelOptions={memoLabels}
-        onSave={handleSaveMemo}
-        onDelete={
-          editingMemo
-            ? async () => {
-                await deleteMemo(editingMemo.firestoreId);
-                showToast('🗑️ 메모를 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
-              }
-            : undefined
-        }
-        defaultLabel={isLabelFilter ? currentFilter : memoLabels[0]}
-      />
 
     </div>
   );
