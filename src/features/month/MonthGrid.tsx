@@ -15,7 +15,7 @@ import {
   WEEKDAY_HEADER_COLOR,
 } from '../../lib/holiday';
 import { fitToWidthFontSize, verticalFitFontSize } from '../../lib/typeScale';
-import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
+import { resolveEventLabel, eventDisplayContent, isForwardLabel, isCalendarVisible } from '../../lib/eventLabels';
 import { BODY_TEXT } from '../../lib/typeScale';
 import JournalCountBadge from '../../components/JournalCountBadge';
 import EvalCountBadge from '../../components/EvalCountBadge';
@@ -146,7 +146,9 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
           const hasClasses = periodArray.some(p => schedules[p]?.subject?.trim() && schedules[p]?.subject?.toUpperCase() !== 'X');
           
           // 공휴일 일정은 목록에서 빼고 날짜 옆 빨간 이름으로만 보여준다
-          const { events, holidayName: holidayFromEvent } = splitHolidayEvents(rawEvents);
+          const { events: dayEvents, holidayName: holidayFromEvent } = splitHolidayEvents(rawEvents);
+          // '달력' 속성을 켠 일정만 달력에 올린다 (V3 월간과 같은 규칙)
+          const events = dayEvents.filter((ev: any) => isCalendarVisible(ev, eventLabels));
           const holidayName = dayObj.holidayName || holidays[dayObj.dateStr] || holidayFromEvent;
           // 토요일 파랑 / 일요일·공휴일 빨강 (lib/holiday의 공통 규칙)
           const tone = dayToneOf({ isSunday: dayObj.isSunday, isSaturday: dayObj.isSaturday, holidayName });

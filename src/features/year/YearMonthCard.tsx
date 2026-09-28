@@ -13,7 +13,7 @@
 //    그러려면 넘기는 값이 판마다 새로 만들어지지 않아야 한다(그러면 memo가
 //    아무 일도 못 한다). 부모가 useCallback/useMemo로 붙들어 넘긴다.
 import React from 'react';
-import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
+import { resolveEventLabel, eventDisplayContent, isForwardLabel, isCalendarVisible } from '../../lib/eventLabels';
 import { dayToneOf, DAY_CELL_BG, DAY_NUMBER_COLOR } from '../../lib/holiday';
 import { BODY_TEXT, SECTION_TITLE, fitToWidthFontSize } from '../../lib/typeScale';
 import EventItemActions from '../../components/EventItemActions';
@@ -100,11 +100,17 @@ function YearMonthCard({
     return { day: d, dateStr, dateObj: new Date(mInfo.year, mInfo.month - 1, d) };
   });
 
+  /** 공휴일 표시용 일정인가. 날짜 옆 빨간 이름으로 쓰이므로 '달력' 속성과 상관없이 둔다. */
+  const isHolidayEvent = (e: any) => e.label === '휴일' || e.labelIds?.includes('휴일');
+  /** 그날 달력에 올릴 일정. '달력' 속성이 꺼진 일정은 뺀다 (공휴일 표시용은 남긴다). */
+  const calendarEventsOf = (dateStr: string) =>
+    (eventsMap[dateStr] || []).filter((e: any) => isHolidayEvent(e) || isCalendarVisible(e, eventLabels));
+
   const activeDays = days.filter((dObj) => {
     const dayOfWeekNum = dObj.dateObj.getDay();
     if (!showWeekend && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return false;
 
-    const evs = eventsMap[dObj.dateStr] || [];
+    const evs = calendarEventsOf(dObj.dateStr);
     const sch = schedulesMap[dObj.dateStr] || {};
     const hasClasses = periodArray.some((p) => sch[p]?.subject?.trim() && sch[p]?.subject?.toUpperCase() !== 'X');
 
@@ -157,10 +163,10 @@ function YearMonthCard({
               const dayOfWeek = DAY_NAMES[dayOfWeekNum];
               const isTodayEvent = dObj.dateStr === realTodayStr;
 
-              const evs = eventsMap[dObj.dateStr] || [];
+              const evs = calendarEventsOf(dObj.dateStr);
               const sch = schedulesMap[dObj.dateStr] || {};
 
-              const holidayEvent = evs.find((e: any) => e.label === '휴일' || e.labelIds?.includes('휴일'));
+              const holidayEvent = evs.find(isHolidayEvent);
               const holidayName = holidays[dObj.dateStr] || holidayEvent?.content;
               // 토요일 파랑 / 일요일·공휴일 빨강 (lib/holiday의 공통 규칙)
               const tone = dayToneOf({
@@ -169,7 +175,7 @@ function YearMonthCard({
                 holidayName,
               });
 
-              const visibleEvents = evs.filter((e: any) => e.label !== '휴일' && !e.labelIds?.includes('휴일'));
+              const visibleEvents = evs.filter((e: any) => !isHolidayEvent(e));
               const hasClasses = periodArray.some((p) => sch[p]?.subject?.trim() && sch[p]?.subject?.toUpperCase() !== 'X');
 
               return (

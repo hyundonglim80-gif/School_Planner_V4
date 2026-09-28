@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveEventLabelNames, resolveEventLabel, eventDisplayContent, isForwardLabel } from './eventLabels';
+import { resolveEventLabelNames, resolveEventLabel, eventDisplayContent, isForwardLabel, isCalendarVisible } from './eventLabels';
 import type { EventLabel } from '../hooks/useLabels';
 
 const labels: EventLabel[] = [
@@ -124,5 +124,33 @@ describe('라벨 목록을 못 읽었을 때 (keepUnknown)', () => {
     const def = resolveEventLabel({ label: 'ToDo' }, onlyDefaults, { keepUnknown: true });
     expect(def?.name).toBe('ToDo');
     expect(def?.color).toBe('gray');
+  });
+});
+
+describe('isCalendarVisible - 월간·년간에 올릴지 (달력 속성)', () => {
+  const defs: EventLabel[] = [
+    { id: 'ev_1', name: '달력', color: 'red', calendar: true, skip: false, forward: false, period: false, recur: false },
+    { id: 'ev_3', name: '이월', color: 'green', calendar: false, skip: false, forward: true, period: false, recur: false },
+  ];
+
+  it('일정에 저장된 체크가 먼저다', () => {
+    expect(isCalendarVisible({ label: '이월', calendar: true }, defs)).toBe(true);
+    expect(isCalendarVisible({ label: '달력', calendar: false }, defs)).toBe(false);
+  });
+
+  it('체크 값이 없으면(V3가 만든 일정) 라벨의 달력 속성을 따른다', () => {
+    expect(isCalendarVisible({ labelIds: ['ev_1'] }, defs)).toBe(true);
+    expect(isCalendarVisible({ labelIds: ['ev_3'] }, defs)).toBe(false);
+    expect(isCalendarVisible({ label: '이월,달력' }, defs)).toBe(true);
+  });
+
+  it('V3의 showInCalendar: false 도 달력에서 뺀다', () => {
+    const v3 = [{ id: 'lbl_ev_9', name: '개인', color: 'gray', showInCalendar: false } as any];
+    expect(isCalendarVisible({ labelIds: ['lbl_ev_9'] }, v3)).toBe(false);
+  });
+
+  it('라벨이 없거나 모르는 라벨이면 보인다 (일정이 사라져 보이면 안 된다)', () => {
+    expect(isCalendarVisible({ content: '회의' }, defs)).toBe(true);
+    expect(isCalendarVisible({ label: '지운라벨' }, defs)).toBe(true);
   });
 });

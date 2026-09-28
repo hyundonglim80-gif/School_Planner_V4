@@ -85,3 +85,28 @@ export function resolveEventLabel(
 export function isForwardLabel(def: EventLabel | null): boolean {
   return !!(def && (def.forward || (def as any).isForward));
 }
+
+/**
+ * 월간·년간 달력에 이 일정을 보여 줄 것인가 ('달력' 속성).
+ *
+ * 수정 칸이 '달력' 체크를 정하는 순서와 같게 판단한다(DayEvents.startEditing).
+ * 화면과 수정 칸이 다르게 풀면, 체크가 켜져 보이는데 달력에는 안 나오는 일정이 생긴다.
+ *   1) 일정에 저장된 calendar 값이 있으면 그것 (일정마다 따로 켜고 끈 것)
+ *   2) 없으면 붙은 라벨 중 하나라도 달력 속성이면 보인다 (V3가 만든 일정은 여기로 온다)
+ *   3) 라벨이 없으면 보인다
+ *
+ * ⚠️ 모르는 라벨은 '보인다'로 친다. V3와 같은 규칙이다. 라벨 목록을 못 읽었거나
+ *    지운 라벨이 붙어 있다고 일정이 달력에서 통째로 사라지면 사용자에게는 자료가
+ *    없어진 것으로 보인다.
+ */
+export function isCalendarVisible(item: any, eventLabels: EventLabel[]): boolean {
+  if (typeof item?.calendar === 'boolean') return item.calendar;
+
+  const names = resolveEventLabelNames(item, eventLabels, { keepUnknown: true });
+  if (names.length === 0) return true;
+  return names.some((name) => {
+    const def: any = eventLabels.find((l) => l.name === name);
+    if (!def) return true;
+    return def.calendar !== false && def.showInCalendar !== false;
+  });
+}

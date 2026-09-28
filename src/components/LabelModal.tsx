@@ -667,7 +667,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
               <div className="bg-blue-50 border-l-4 border-blue-500 p-3 rounded-r-xl text-xs text-blue-900 leading-relaxed">
                 <strong>💡 일정 라벨 속성 안내</strong>
                 <ul className="list-disc list-inside mt-1 space-y-0.5 text-blue-800">
-                  <li><strong>달력표시</strong>: 체크 시 월간/년간 캘린더 화면에 해당 일정이 강조 표시됩니다.</li>
+                  <li><strong>달력표시</strong>: 체크한 라벨의 일정만 월간/년간 달력에 나옵니다. 끄면 하루·주간 화면에만 보입니다.</li>
                   <li><strong>이월</strong>: 완료 체크되지 않으면 다음 날로 자동 이월됩니다.</li>
                   <li><strong>기간</strong>: 연속 기간 일정 등록 시 팝업이 지원됩니다.</li>
                   <li><strong>반복</strong>: 매주/매월 반복 일정 등록이 지원됩니다.</li>
