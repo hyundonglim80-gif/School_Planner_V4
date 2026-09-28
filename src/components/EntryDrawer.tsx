@@ -139,7 +139,10 @@ export default function EntryDrawer({
   useBodyScrollLock(isOpen);
   const vv = useVisualViewport(isOpen);
   const zIndex = useModalLayer(isOpen, onClose);
-  const backdrop = useBackdropClose();
+  // 배경을 눌러 닫을 때는 고친 것을 저장하고 닫는다 (아래 closeByBackdrop).
+  // 훅은 상태보다 먼저 불러야 해서, 그때그때의 함수를 ref로 넘긴다.
+  const backdropCloseRef = useRef<() => void>(closeAllModals);
+  const backdrop = useBackdropClose(() => backdropCloseRef.current());
 
   const [content, setContent] = useState('');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
@@ -156,6 +159,14 @@ export default function EntryDrawer({
 
   const handleSubmitRef = useRef<() => void>(() => {});
 
+  /**
+   * 배너를 열었을 때(또는 마지막으로 저장했을 때)의 모습.
+   * 배경을 눌러 닫을 때 이것과 달라졌으면 저장한다. 첨부·링크·라벨까지 본다.
+   */
+  const snapshotRef = useRef('');
+  const formSnapshot = (c: string, l: string[], a: EntryAttachment[], k: any[]) =>
+    JSON.stringify([c.trim(), l, a.map((x) => x.url), k.map((x) => x?.id ?? x?.targetId ?? JSON.stringify(x))]);
+
   // ⚠️ 이 효과는 '수정 대상이 바뀔 때'만 돌아야 한다. entry 객체 자체를 의존성으로
   // 잡으면 안 된다. 기록 화면은 라벨을 이름으로 풀어 넘기느라 그릴 때마다 새 객체를
   // 만드는데, 그러면 화면이 한 번 다시 그려질 때마다 이 효과가 돌아 폼이 통째로
@@ -168,19 +179,26 @@ export default function EntryDrawer({
   useEffect(() => {
     const source = entryRef.current;
     if (source) {
-      setContent(source.content || source.text || '');
-      setSelectedLabels(sourceLabels(source));
-      setLinkedItems(source.linkedItems || []);
-      setAttachments(normalizeAttachments(source.attachments, source.imageUrl));
+      const c = source.content || source.text || '';
+      const l = sourceLabels(source);
+      const k = source.linkedItems || [];
+      const a = normalizeAttachments(source.attachments, source.imageUrl);
+      setContent(c);
+      setSelectedLabels(l);
+      setLinkedItems(k);
+      setAttachments(a);
+      snapshotRef.current = formSnapshot(c, l, a, k);
     } else {
       setContent('');
       // 미리 골라 둘 라벨은 '열 때'의 값으로 정한다. 라벨은 구독으로 들어와서
       // 열고 나서 바뀔 수 있는데, 그 변화를 좇아 여기가 다시 돌면 적고 있던
       // 내용까지 함께 지워진다. 그래서 ref로 읽고 deps에서는 뺀다.
       const preset = defaultLabelRef.current;
-      setSelectedLabels(preset && preset !== '전체' ? [preset] : []);
+      const l = preset && preset !== '전체' ? [preset] : [];
+      setSelectedLabels(l);
       setAttachments([]);
       setLinkedItems([]);
+      snapshotRef.current = formSnapshot('', l, [], []);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entryKey, isOpen]);
@@ -328,12 +346,13 @@ export default function EntryDrawer({
     setLinkedItems((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e?: React.FormEvent) => {
+  /** 저장한다. 저장했거나 저장할 것이 없으면 true, 실패했으면 false */
+  const handleSubmit = async (e?: React.FormEvent): Promise<boolean> => {
     if (e) e.preventDefault();
-    if (!content.trim() && attachments.length === 0) return;
+    if (!content.trim() && attachments.length === 0) return true;
     // 앞선 저장이 아직 끝나지 않았다면 그냥 흘려보낸다.
     // 안 그러면 새 항목을 만드는 중에 또 만들어 같은 내용이 두 개가 된다.
-    if (savingRef.current) return;
+    if (savingRef.current) return false;
     savingRef.current = true;
 
     try {
@@ -347,8 +366,11 @@ export default function EntryDrawer({
       });
       // 저장해도 배너는 닫지 않는다. 닫기 버튼이나 배경 클릭으로만 닫힌다.
       showToast(`✅ ${text.noun}을(를) 저장했습니다.`);
+      snapshotRef.current = formSnapshot(content, selectedLabels, attachments, linkedItems);
+      return true;
     } catch (error) {
       showErrorToast(`${text.noun} 저장에 실패했습니다.`, error);
+      return false;
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -356,6 +378,19 @@ export default function EntryDrawer({
   };
 
   const isEditing = !!entry;
+
+  // 배경을 누르면: 고친 것이 없으면 그냥 닫고, 있으면 저장한 뒤 닫는다.
+  // 저장이 실패했거나 파일이 올라가는 중이면 닫지 않는다 (적던 것이 사라지면 안 된다).
+  // 닫기 단추·✕·ESC는 지금처럼 '저장 없이 닫기'다.
+  backdropCloseRef.current = async () => {
+    if (uploadingFiles || pasting) return;
+    const changed = formSnapshot(content, selectedLabels, attachments, linkedItems) !== snapshotRef.current;
+    if (changed) {
+      const ok = await handleSubmit();
+      if (!ok) return;
+    }
+    closeAllModals();
+  };
 
   return (
     <div

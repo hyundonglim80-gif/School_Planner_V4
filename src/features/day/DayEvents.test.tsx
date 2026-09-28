@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DayEvents from './DayEvents';
 import type { EventItem } from '../../hooks/useDayData';
@@ -374,7 +374,8 @@ describe('DayEvents - 바깥 클릭으로 수정 섹션 닫기', () => {
     expect(screen.getByDisplayValue('교직원 회의')).toBeInTheDocument();
   });
 
-  it('저장하지 않고 닫히므로 수정 내용은 반영되지 않는다', async () => {
+  // 적던 것이 바깥 클릭 한 번에 사라지면 안 된다. 고친 것이 있으면 저장하고 닫는다.
+  it('고친 것이 있으면 저장하고 닫는다', async () => {
     const user = userEvent.setup();
     const { props } = renderEvents();
 
@@ -384,7 +385,32 @@ describe('DayEvents - 바깥 클릭으로 수정 섹션 닫기', () => {
 
     await user.click(document.body);
 
-    expect(screen.queryByDisplayValue(/교직원 회의 추가/)).toBeNull();
+    await waitFor(() => expect(props.onUpdateEvent).toHaveBeenCalledTimes(1));
+    expect((props.onUpdateEvent as any).mock.calls[0][1].content).toBe('교직원 회의 추가');
+  });
+
+  it('고친 것이 없으면 저장하지 않고 닫는다', async () => {
+    const user = userEvent.setup();
+    const { props } = renderEvents();
+
+    await user.click(screen.getByText('교직원 회의'));
+    await screen.findByDisplayValue('교직원 회의');
+    await user.click(document.body);
+
+    expect(screen.queryByDisplayValue('교직원 회의')).toBeNull();
+    expect(props.onUpdateEvent).not.toHaveBeenCalled();
+  });
+
+  it('내용을 다 지운 채 바깥을 눌러도 일정을 지우지 않는다', async () => {
+    const user = userEvent.setup();
+    const { props } = renderEvents();
+
+    await user.click(screen.getByText('교직원 회의'));
+    const box = await screen.findByDisplayValue('교직원 회의');
+    await user.clear(box);
+    await user.click(document.body);
+
+    expect(props.onDeleteEvent).not.toHaveBeenCalled();
     expect(props.onUpdateEvent).not.toHaveBeenCalled();
   });
 });

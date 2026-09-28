@@ -65,8 +65,27 @@ export default function DayEvents({
   const [editRecur, setEditRecur] = useState(false);
   const [editSkip, setEditSkip] = useState(false);
 
-  // 페이지의 다른 곳을 누르면 '닫기'와 같게 수정 섹션을 닫는다
-  const editRef = useClickOutside<HTMLDivElement>(editingId !== null, () => setEditingId(null));
+  /** 수정 칸을 열었을 때의 모습. 바깥을 눌러 닫을 때 이것과 달라졌으면 저장한다. */
+  const editSnapshotRef = useRef('');
+  const editSnapshot = (v: { text: string; label?: string; cal: boolean; fwd: boolean; per: boolean; rec: boolean; skip: boolean }) =>
+    JSON.stringify([v.text.trim(), v.label || '', v.cal, v.fwd, v.per, v.rec, v.skip]);
+
+  // 페이지의 다른 곳을 누르면 수정 칸을 닫는다. 고친 것이 있으면 저장하고 닫는다.
+  // ('닫기' 단추와 ESC는 저장 없이 닫는다 — 일부러 그만두는 길은 남겨 둔다.)
+  const editRef = useClickOutside<HTMLDivElement>(editingId !== null, () => {
+    const id = editingId;
+    if (!id) return;
+    const now = editSnapshot({
+      text: editText, label: editLabel, cal: editCalendar, fwd: editForward,
+      per: editPeriod, rec: editRecur, skip: editSkip,
+    });
+    // 내용을 다 지운 채 바깥을 누른 것은 '지우기'로 보지 않는다. 지우기는 단추로만 한다.
+    if ((now !== editSnapshotRef.current || editAlarmDirty) && editText.trim()) {
+      saveEditing(id);
+      return;
+    }
+    setEditingId(null);
+  });
 
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -246,6 +265,20 @@ export default function DayEvents({
     setEditPeriod(event.period !== undefined ? !!event.period : labelPropOf(info.names, (d) => !!d.period));
     setEditRecur(event.recur !== undefined ? !!event.recur : labelPropOf(info.names, (d) => !!d.recur));
     setEditSkip(event.skip !== undefined ? !!event.skip : labelPropOf(info.names, (d) => !!d.skip));
+    editSnapshotRef.current = editSnapshot({
+      text: info.cleanContent,
+      label: info.names.length > 0 ? info.names.join(',') : undefined,
+      cal:
+        event.calendar !== undefined
+          ? !!event.calendar
+          : info.names.length > 0
+          ? labelPropOf(info.names, (d) => d.calendar !== false)
+          : true,
+      fwd: forwardStateOf(event, info.names),
+      per: event.period !== undefined ? !!event.period : labelPropOf(info.names, (d) => !!d.period),
+      rec: event.recur !== undefined ? !!event.recur : labelPropOf(info.names, (d) => !!d.recur),
+      skip: event.skip !== undefined ? !!event.skip : labelPropOf(info.names, (d) => !!d.skip),
+    });
   };
 
   const saveEditing = async (id: string) => {

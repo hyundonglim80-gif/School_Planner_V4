@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
 import { useDayData, type EventItem } from '../hooks/useDayData';
 import { useAppStore } from '../store/useAppStore';
@@ -55,7 +55,10 @@ export default function DetailEditModal({
   const zIndex = useModalLayer(isOpen, onClose);
 
 
-  const backdrop = useBackdropClose();
+  // 배경을 눌러 닫을 때는 고친 것을 저장하고 닫는다 (아래 closeByBackdrop).
+  // 훅은 상태보다 먼저 불러야 해서, 그때그때의 함수를 ref로 넘긴다.
+  const backdropCloseRef = useRef<() => void>(closeAllModals);
+  const backdrop = useBackdropClose(() => backdropCloseRef.current());
   const { selectedGroupId, openLinkerModal, openLinkViewerModal, openEvaluationModal, openLabelModal } = useAppStore();
   // fId를 받으면 그 공간의 것을 고친다 ('personal'은 개인 공간 = groupId 없음).
   const targetGroupId = fId ? (fId === 'personal' ? null : fId) : selectedGroupId;
@@ -63,6 +66,12 @@ export default function DetailEditModal({
   const { eventLabels } = useLabels();
 
   const [saving, setSaving] = useState(false);
+  /**
+   * 사용자가 무언가 고쳤는가. 배경을 눌러 닫을 때 저장할지 가른다.
+   * 글자·체크 칸은 onInputCapture로, 라벨 단추는 toggleLabel에서 켠다.
+   * (알림은 고르는 즉시 저장되므로 여기서 세지 않는다)
+   */
+  const touchedRef = useRef(false);
   const [alarmModalOpen, setAlarmModalOpen] = useState(false);
   /** '기간'을 켜서 날짜를 고르는 중인가 */
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
@@ -192,6 +201,7 @@ export default function DetailEditModal({
   };
 
   const toggleLabel = (labelName: string) => {
+    touchedRef.current = true;
     // 기간 라벨을 새로 붙이는 것도 '기간을 켠 것'이다.
     const picked = eventLabels.find(l => l.name === labelName);
     if (!labels.includes(labelName) && picked?.period && type === 'event') setPeriodModalOpen(true);
@@ -224,7 +234,8 @@ export default function DetailEditModal({
     });
   };
 
-  const handleSave = async () => {
+  /** 저장한다. 성공하면 true (배경 클릭 저장이 닫아도 되는지 이것으로 안다) */
+  const handleSave = async (): Promise<boolean> => {
     try {
       setSaving(true);
       if (type === 'schedule') {
@@ -249,9 +260,25 @@ export default function DetailEditModal({
         });
       }
       showToast('✅ 저장되었습니다.');
+      touchedRef.current = false;
+      return true;
+    } catch (err) {
+      showErrorToast('저장하지 못했습니다. 창을 닫지 않았으니 다시 저장해 주세요.', err);
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  // 배경을 누르면: 고친 것이 없으면 그냥 닫고, 있으면 저장한 뒤 닫는다.
+  // 저장이 실패하면 닫지 않는다 (적던 것이 사라지면 안 된다).
+  // 닫기 단추와 ESC는 지금처럼 '저장 없이 닫기'다.
+  backdropCloseRef.current = async () => {
+    if (touchedRef.current && !saving) {
+      const ok = await handleSave();
+      if (!ok) return;
+    }
+    closeAllModals();
   };
 
   // 확인창 대신 바로 지우고, 되돌릴 수 있다는 안내를 토스트로 알린다.
@@ -289,7 +316,11 @@ export default function DetailEditModal({
 
   return (
     <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} {...backdrop}>
-      <div className="bg-white rounded-2xl w-full max-w-md max-h-full shadow-2xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="bg-white rounded-2xl w-full max-w-md max-h-full shadow-2xl flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+        onInputCapture={() => { touchedRef.current = true; }}
+      >
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <h2 className="text-lg font-black text-slate-800">{title}</h2>

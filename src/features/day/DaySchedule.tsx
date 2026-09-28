@@ -77,8 +77,18 @@ export default function DaySchedule({
     setEditSupplies('');
   };
 
-  // 페이지의 다른 곳을 누르면 '닫기'와 같게 수정 섹션을 닫는다
-  const editRef = useClickOutside<HTMLDivElement>(editingPeriod !== null, handleCancel);
+  // 페이지의 다른 곳을 누르면 수정 칸을 닫는다. 고친 것이 있으면 저장하고 닫는다.
+  // ('닫기' 단추와 ESC는 저장 없이 닫는다 — 일부러 그만두는 길은 남겨 둔다.)
+  const editRef = useClickOutside<HTMLDivElement>(editingPeriod !== null, () => {
+    if (editingPeriod === null || saving) return;
+    const cur = schedules[editingPeriod] || { subject: '', content: '' };
+    const changed =
+      editSubject.trim() !== (cur.subject || '').trim() ||
+      editMemo.trim() !== (cur.memo || cur.content || '').trim() ||
+      editSupplies.trim() !== (cur.supplies || '').trim();
+    if (changed) handleSave(editingPeriod);
+    else handleCancel();
+  });
 
   const [isCollapsed, setIsCollapsed] = useState(false);
 

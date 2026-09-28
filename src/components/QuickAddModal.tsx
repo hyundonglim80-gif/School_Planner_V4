@@ -7,6 +7,7 @@ import { useLabels } from '../hooks/useLabels';
 import { addReverseLink } from '../utils/linkUtils';
 import { eventDocPayload, readEventList } from '../lib/eventText';
 import ModalShell, { ModalCloseButton } from './ModalShell';
+import { closeAllModals } from '../hooks/useModalLayer';
 
 interface QuickAddModalProps {
   isOpen: boolean;
@@ -53,13 +54,17 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
     setLinkedItems(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const handleSave = async () => {
-    if (!text.trim()) return showToast('일정 내용을 입력하세요.');
-    
+  /** 저장한다. 성공하면 true */
+  const handleSave = async (): Promise<boolean> => {
+    if (!text.trim()) {
+      showToast('일정 내용을 입력하세요.');
+      return false;
+    }
+
     setSaving(true);
     try {
       const uid = auth.currentUser?.uid;
-      if (!uid) return;
+      if (!uid) return false;
 
       const colPath = selectedGroupId && selectedGroupId !== 'personal'
         ? `groups/${selectedGroupId}/events`
@@ -107,12 +112,24 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
       setSelectedLabels(defaultLabels());
       setLinkedItems([]);
       showToast('✅ 일정이 추가되었습니다.');
+      return true;
     } catch (e: any) {
       console.error(e);
       showErrorToast('저장 중 오류: ' + e.message);
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  // 배경을 누르면: 적던 내용이 있으면 저장하고 닫는다. 저장이 실패하면 닫지 않는다.
+  // 닫기 단추와 ESC는 저장 없이 닫는다.
+  const closeByBackdrop = async () => {
+    if (text.trim() && !saving) {
+      const ok = await handleSave();
+      if (!ok) return;
+    }
+    closeAllModals();
   };
 
   return (
@@ -122,10 +139,11 @@ export default function QuickAddModal({ isOpen, onClose, dateStr }: QuickAddModa
       width="sm"
       title="새 일정 추가"
       headerExtra={<span className="text-xs text-slate-400">{dateStr}</span>}
+      onBackdropClose={closeByBackdrop}
       footer={
         <>
           <ModalCloseButton onClose={onClose} />
-          <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-primary hover:bg-blue-600 text-white rounded-xl text-xs font-bold shadow-xs transition-all">
+          <button onClick={() => handleSave()} disabled={saving} className="px-5 py-2 bg-primary hover:bg-blue-600 text-white rounded-xl text-xs font-bold shadow-xs transition-all">
             {saving ? '저장 중...' : '저장'}
           </button>
         </>

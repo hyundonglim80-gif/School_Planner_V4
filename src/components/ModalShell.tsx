@@ -39,6 +39,11 @@ interface ModalShellProps {
   footer?: React.ReactNode;
   /** 본문에 기본 여백을 두지 않는다 (직접 구역을 나누는 팝업용) */
   bare?: boolean;
+  /**
+   * 배경을 눌렀을 때 할 일. 주지 않으면 열린 팝업을 모두 닫는다.
+   * 적던 것을 저장하고 닫아야 하는 팝업이 쓴다 (빠른 추가 등).
+   */
+  onBackdropClose?: () => void;
   children: React.ReactNode;
 }
 
@@ -50,12 +55,13 @@ export default function ModalShell({
   headerExtra,
   footer,
   bare = false,
+  onBackdropClose,
   children,
 }: ModalShellProps) {
   useBodyScrollLock(isOpen);
   const vv = useVisualViewport(isOpen);
   const zIndex = useModalLayer(isOpen, onClose);
-  const backdrop = useBackdropClose();
+  const backdrop = useBackdropClose(onBackdropClose);
 
   if (!isOpen) return null;
 
