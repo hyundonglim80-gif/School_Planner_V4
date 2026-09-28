@@ -43,10 +43,15 @@ function useColumnCount(ref: React.RefObject<HTMLElement | null>) {
 
 export default function MemoScreen() {
   const { selectedGroupId, openLabelModal } = useAppStore();
-  const { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, toggleFavorite, deleteCompletedMemos, labelUnlabeledMemos } = useMemos(selectedGroupId);
-  const { getLabelColor, memoLabels } = useLabels();
+  const { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, toggleFavorite, deleteCompletedMemos, labelUnlabeledMemos, swapMemoOrder } = useMemos(selectedGroupId);
+  const { getLabelColor, memoLabels, labelsLoaded } = useLabels();
 
-  const [currentFilter, setCurrentFilter] = useState('전체');
+  // 고른 거르개는 기억해 두었다가 다른 화면에서 돌아와도 그대로 연다.
+  // 처음(기억한 것이 없을 때)은 즐겨찾기. 기억한 라벨이 그새 지워졌으면 즐겨찾기로 돌아간다.
+  const rememberedFilter = useAppStore((s) => s.memoFilter);
+  const setMemoFilter = useAppStore((s) => s.setMemoFilter);
+  /** 검색에서 '이동'해 왔을 때만 잠깐 전체를 보인다 (기억한 거르개는 바꾸지 않는다) */
+  const [showAllForFocus, setShowAllForFocus] = useState(false);
   const [activeOpen, setActiveOpen] = useState(true);
   const [completedOpen, setCompletedOpen] = useState(true);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -64,14 +69,26 @@ export default function MemoScreen() {
   const focusSection = useAppStore((s) => s.focusTarget?.section);
   useEffect(() => {
     if (focusSection === 'memo') {
-      setCurrentFilter('전체');
+      setShowAllForFocus(true);
       setActiveOpen(true);
       setCompletedOpen(true);
     }
   }, [focusSection]);
 
+  const currentFilter = (() => {
+    if (showAllForFocus) return '전체';
+    const f = rememberedFilter || FAVORITE_FILTER;
+    if (f === '전체' || f === FAVORITE_FILTER) return f;
+    // 라벨 목록을 아직 못 읽었으면 판단을 미룬다 (기본값만 보고 '없는 라벨'로 단정하지 않는다)
+    if (!labelsLoaded || memoLabels.includes(f)) return f;
+    return FAVORITE_FILTER;
+  })();
+
   const isLabelFilter = currentFilter !== '전체' && currentFilter !== FAVORITE_FILTER;
-  const chooseFilter = (filter: string) => setCurrentFilter(filter);
+  const chooseFilter = (filter: string) => {
+    setShowAllForFocus(false);
+    setMemoFilter(filter);
+  };
 
   const matching =
     currentFilter === '전체'
@@ -168,15 +185,25 @@ export default function MemoScreen() {
       getKey={(memo) => memo.firestoreId}
       columns={columnsCount}
       gap={isMobile ? 8 : 16}
-      renderItem={(memo) => (
-        <MemoCard
-          memo={memo}
-          onEdit={handleOpenEdit}
-          onToggleComplete={toggleComplete}
-          onToggleFavorite={toggleFavorite}
-          onDelete={deleteMemo}
-        />
-      )}
+      renderItem={(memo) => {
+        // 차례는 지금 보이는 목록(거르개·진행/완료)에서의 앞뒤다. 즐겨찾기는 늘 위에
+        // 모이므로, 즐겨찾기와 아닌 것 사이는 바꾸지 않는다 (바꿔도 제자리로 돌아온다).
+        const i = items.findIndex((m) => m.firestoreId === memo.firestoreId);
+        const prev = items[i - 1];
+        const next = items[i + 1];
+        const sameGroup = (other?: Memo) => !!other && !!other.favorite === !!memo.favorite;
+        return (
+          <MemoCard
+            memo={memo}
+            onEdit={handleOpenEdit}
+            onToggleComplete={toggleComplete}
+            onToggleFavorite={toggleFavorite}
+            onDelete={deleteMemo}
+            onMoveUp={sameGroup(prev) ? () => swapMemoOrder(memo, prev!) : undefined}
+            onMoveDown={sameGroup(next) ? () => swapMemoOrder(memo, next!) : undefined}
+          />
+        );
+      }}
     />
   );
 
@@ -250,7 +277,7 @@ export default function MemoScreen() {
                 ⚙️
               </button>
             </div>
-            {filterChip('전체', '전체 메모', undefined, 'bg-slate-800 text-white border-slate-800')}
+            {/* 차례: 즐겨찾기 → 라벨(통합 라벨 관리의 차례) → 전체 메모 */}
             {filterChip(
               FAVORITE_FILTER,
               '⭐ 즐겨찾기',
@@ -267,6 +294,7 @@ export default function MemoScreen() {
                 ''
               );
             })}
+            {filterChip('전체', '전체 메모', undefined, 'bg-slate-800 text-white border-slate-800')}
           </nav>
         </div>
 

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import MemoScreen from './MemoScreen';
 import { addDoc as addDocMock, onSnapshot as onSnapshotMock, writeBatch as writeBatchMock } from 'firebase/firestore';
 import { isUnlabeledMemo } from '../../hooks/useMemos';
+import { useAppStore } from '../../store/useAppStore';
 
 vi.mock('../../hooks/useLabels', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../hooks/useLabels')>();
@@ -13,6 +14,7 @@ vi.mock('../../hooks/useLabels', async (importOriginal) => {
       eventLabels: [],
       journalLabels: [],
       memoLabels: ['업무', '개인'],
+      labelsLoaded: true,
       getLabelColor: () => ({ bg: '#dbeafe', text: '#1e40af', border: '#93c5fd' }),
     }),
   };
@@ -20,6 +22,8 @@ vi.mock('../../hooks/useLabels', async (importOriginal) => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // 아래 시험 대부분은 '전체'를 보며 진행한다. 처음 열 때의 거르개는 따로 본다.
+  useAppStore.setState({ memoFilter: '전체' });
 });
 
 async function 새메모작성(user: ReturnType<typeof userEvent.setup>) {
@@ -112,12 +116,42 @@ describe('메모 필터 - 고른 것이 분명히 보인다', () => {
   const nav = () => screen.getByRole('navigation', { name: '메모 라벨 거르개' });
   const chip = (name: string) => within(nav()).getByRole('button', { name: new RegExp(name) });
 
-  it('거르개는 왼쪽 세로 목록이고, 처음에는 전체 메모가 골라져 있다', async () => {
+  it('거르개는 왼쪽 세로 목록이고, 기억한 것이 없으면 즐겨찾기로 연다', async () => {
+    useAppStore.setState({ memoFilter: null });
     render(<MemoScreen />);
 
     await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
-    expect(chip('전체 메모')).toHaveAttribute('aria-pressed', 'true');
-    expect(chip('업무')).toHaveAttribute('aria-pressed', 'false');
+    expect(chip('⭐ 즐겨찾기')).toHaveAttribute('aria-pressed', 'true');
+    expect(chip('전체 메모')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('차례는 즐겨찾기 → 라벨(라벨 관리의 차례) → 전체 메모', async () => {
+    render(<MemoScreen />);
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    const names = within(nav)
+      .getAllByRole('button', { pressed: undefined as any })
+      .filter((b) => b.hasAttribute('aria-pressed'))
+      .map((b) => b.textContent!.replace(/✓|\d+/g, '').trim());
+    expect(names).toEqual(['⭐ 즐겨찾기', '업무', '개인', '전체 메모']);
+  });
+
+  it('고른 거르개를 기억했다가 다시 열 때 그대로 연다', async () => {
+    const user = userEvent.setup();
+    const first = render(<MemoScreen />);
+    await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    await user.click(chip('개인'));
+    first.unmount();
+
+    render(<MemoScreen />);
+    await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    expect(chip('개인')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('기억한 라벨이 지워졌으면 즐겨찾기로 연다', async () => {
+    useAppStore.setState({ memoFilter: '없어진라벨' });
+    render(<MemoScreen />);
+    await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    expect(chip('⭐ 즐겨찾기')).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('라벨을 누르면 그 라벨만 골라진 것으로 보인다', async () => {

@@ -80,6 +80,9 @@ export function useMemos(groupId: string | null = null) {
           content: data.text || data.content || '',
           text: data.text || data.content || '',
           createdAt: created,
+          // 차례. V3와 같게 order가 작을수록 앞이다. 새 메모는 order: -만든 시각이라
+          // 나중에 만든 것이 앞에 선다. 값이 없는 옛 메모도 같은 규칙으로 채운다.
+          order: typeof data.order === 'number' ? data.order : -created,
           completed: !!data.completed,
           labels: data.labels || [],
           attachments: data.attachments || [],
@@ -87,7 +90,8 @@ export function useMemos(groupId: string | null = null) {
         } as Memo);
       });
       
-      newMemos.sort((a, b) => b.createdAt - a.createdAt);
+      // V3(viewMemo)와 같은 차례: order가 작은 것이 앞. ▲▼로 바꾼 차례가 두 앱에 같게 보인다.
+      newMemos.sort((a, b) => (a.order as number) - (b.order as number) || b.createdAt - a.createdAt);
       setMemos(newMemos);
       setLoading(false);
     }, (error) => {
@@ -253,5 +257,27 @@ export function useMemos(groupId: string | null = null) {
     return targets.length;
   };
 
-  return { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, toggleFavorite, deleteCompletedMemos, labelUnlabeledMemos };
+  /**
+   * 두 메모의 차례를 맞바꾼다 (▲▼).
+   * order만 서로 바꾸므로, 거르개에 가려 안 보이는 메모의 차례는 흔들리지 않는다.
+   */
+  const swapMemoOrder = async (a: Memo, b: Memo) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error('로그인이 필요합니다.');
+    const ref = (id: string) => (groupId ? doc(db, 'groups', groupId, 'tasks', id) : doc(db, 'users', user.uid, 'tasks', id));
+    const oa = a.order ?? -a.createdAt;
+    let ob = b.order ?? -b.createdAt;
+    // 같은 값이면 바꿔도 그대로다. 한 칸 벌려 둔다.
+    if (oa === ob) ob = oa + (a.createdAt >= b.createdAt ? 1 : -1);
+    const batch = writeBatch(db);
+    batch.update(ref(a.firestoreId), { order: ob });
+    batch.update(ref(b.firestoreId), { order: oa });
+    try {
+      await batch.commit();
+    } catch (err) {
+      showErrorToast('메모 차례를 바꾸지 못했습니다.', err);
+    }
+  };
+
+  return { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, toggleFavorite, deleteCompletedMemos, labelUnlabeledMemos, swapMemoOrder };
 }

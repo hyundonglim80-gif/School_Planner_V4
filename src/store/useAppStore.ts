@@ -18,6 +18,9 @@ export type StartupScope = 'last' | Scope;
 interface AppState {
   scope: Scope;
   semesterFilter: 'all' | 1 | 2;
+  /** 메모 화면에서 마지막에 고른 라벨 거르개. 없으면 즐겨찾기로 연다. */
+  memoFilter: string | null;
+  setMemoFilter: (filter: string | null) => void;
   showWeekend: boolean;
   showClass: boolean;
   showEvents: boolean;
@@ -162,6 +165,7 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       scope: 'day',
       semesterFilter: 'all',
+      memoFilter: null,
       showWeekend: true,
       showClass: true,
       showEvents: true,
@@ -185,6 +189,7 @@ export const useAppStore = create<AppState>()(
 
       setScope: (scope) => set({ scope }),
       setSemesterFilter: (filter) => set({ semesterFilter: filter }),
+      setMemoFilter: (memoFilter) => set({ memoFilter }),
       setShowWeekend: (showWeekend) => set({ showWeekend }),
       setShowClass: (showClass) => set({ showClass }),
       setShowEvents: (showEvents) => set({ showEvents }),
@@ -476,6 +481,7 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         scope: state.scope,
         semesterFilter: state.semesterFilter,
+        memoFilter: state.memoFilter,
         showWeekend: state.showWeekend,
         showClass: state.showClass,
         showEvents: state.showEvents,

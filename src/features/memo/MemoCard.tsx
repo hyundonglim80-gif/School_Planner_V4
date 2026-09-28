@@ -18,6 +18,9 @@ interface MemoCardProps {
   onToggleComplete?: (memo: Memo) => void;
   onToggleFavorite?: (memo: Memo) => void;
   onDelete?: (firestoreId: string) => void;
+  /** 앞(▲)·뒤(▼)의 메모와 차례를 바꾼다. 바꿀 상대가 없으면 주지 않는다. */
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }
 
 interface NormalizedAttachment {
@@ -52,7 +55,7 @@ const normalizeAttachment = (att: any): NormalizedAttachment | null => {
 //    일이 생겼다. 규칙은 lib/attachments 한 곳에만 둔다.
 const isImageFile = isImageAttachment;
 
-export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavorite, onDelete }: MemoCardProps) {
+export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavorite, onDelete, onMoveUp, onMoveDown }: MemoCardProps) {
   const { openLinkViewerModal } = useAppStore();
   const { memoLabels } = useLabels();
 
@@ -123,6 +126,29 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavor
             >
               {isCollapsed ? '▶' : '▼'}
             </button>
+            {/* 차례 바꾸기 (기록·일정·수업과 같은 모양) */}
+            <div className="flex flex-col items-center gap-0.5 shrink-0 px-0.5">
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onMoveUp?.(); }}
+                disabled={!onMoveUp}
+                title="앞으로"
+                aria-label="앞으로"
+                className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-xs cursor-pointer"
+              >
+                ▲
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onMoveDown?.(); }}
+                disabled={!onMoveDown}
+                title="뒤로"
+                aria-label="뒤로"
+                className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-xs cursor-pointer"
+              >
+                ▼
+              </button>
+            </div>
             <input
               type="checkbox"
               checked={isCompleted}
