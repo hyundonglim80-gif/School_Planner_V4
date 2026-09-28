@@ -1,9 +1,7 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import type { PeriodSchedule } from '../../hooks/useDayData';
-import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { useAppStore } from '../../store/useAppStore';
 import { focusKey } from '../../lib/searchFocus';
-import { parseDateStr } from '../../lib/dateUtils';
 import AutoTextarea from '../../components/AutoTextarea';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import { useDayEvalCounts } from '../../hooks/useDayEvalCounts';
@@ -42,7 +40,6 @@ export default function DaySchedule({
   const [saving, setSaving] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
 
-  const { getDayTemplate } = useTimetableTemplate();
   const { openLinkerModal, openLinkViewerModal, openEvaluationModal, selectedGroupId } = useAppStore();
   // 어느 교시에 조사표를 만들어 두었는지 교시 옆에 숫자로 보여 준다
   const evalCounts = useDayEvalCounts(dateStr || '', selectedGroupId);
@@ -82,43 +79,6 @@ export default function DaySchedule({
 
   // 페이지의 다른 곳을 누르면 '닫기'와 같게 수정 섹션을 닫는다
   const editRef = useClickOutside<HTMLDivElement>(editingPeriod !== null, handleCancel);
-
-  const handleApplyTemplate = async () => {
-    if (!dateStr) return;
-    const dateObj = parseDateStr(dateStr);
-    const dayOfWeek = dateObj.getDay();
-
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      showToast('주말에는 적용할 기본 시간표가 없습니다.');
-      return;
-    }
-
-    const templateForToday = getDayTemplate(dayOfWeek);
-    const hasAnySubject = Object.values(templateForToday).some(Boolean);
-
-    if (!hasAnySubject) {
-      if (window.confirm('등록된 기본 시간표가 없습니다. 지금 기본 시간표를 설정하시겠습니까?')) {
-        setIsTemplateModalOpen(true);
-      }
-      return;
-    }
-
-    if (window.confirm('오늘 요일의 기본 시간표 과목을 불러와 적용하시겠습니까?\n(기존 수업 내용이나 준비물은 유지됩니다)')) {
-      for (let p = 1; p <= maxPeriods; p++) {
-        const sub = templateForToday[p];
-        if (sub) {
-          const current = schedules[p] || {};
-          await onSavePeriod(p, {
-            subject: sub,
-            content: current.content || '',
-            memo: current.memo || current.content || '',
-            supplies: current.supplies || '',
-            linkedItems: current.linkedItems,
-          });
-        }
-      }
-    }
-  };
 
   const [isCollapsed, setIsCollapsed] = useState(false);
 

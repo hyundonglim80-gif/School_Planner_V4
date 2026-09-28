@@ -209,20 +209,6 @@ export function useTimetableTemplate() {
     return { appliedCount, skippedCount };
   }, [semesterConfig]);
 
-  // 특정 요일의 템플릿 반환 (DaySchedule에서 빠른 채우기용)
-  const getDayTemplate = useCallback((dayIdx: number): Record<number, string> => {
-    const map: Record<number, WeekDayKey> = {
-      1: 'mon',
-      2: 'tue',
-      3: 'wed',
-      4: 'thu',
-      5: 'fri',
-    };
-    const key = map[dayIdx];
-    const cur = templates[currentTemplateName] || Object.values(templates)[0];
-    return key && cur ? (cur.data[key] || {}) : {};
-  }, [templates, currentTemplateName]);
-
   return {
     templates,
     currentTemplateName,
@@ -232,7 +218,6 @@ export function useTimetableTemplate() {
     loading,
     syncToCloud,
     applyTimetableToCalendar,
-    getDayTemplate,
   };
 }
 
