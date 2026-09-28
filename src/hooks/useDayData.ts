@@ -15,6 +15,7 @@ import { readLegacyEventLabels } from '../lib/legacyLabels';
 import { useAppStore } from '../store/useAppStore';
 import { noteCacheLied, markFirestoreAlive, noteFirestoreError } from '../lib/firestoreRecovery';
 import { getDocTrustingServer } from '../lib/firestoreSubscribe';
+import { syncAutoSourceAndTell } from '../lib/autoJournalSync';
 
 // 기존 import 경로 호환을 위해 재수출한다 (직렬화 구현은 lib/eventText.ts로 이동).
 export { parseV3EventText, formatV3EventText };
@@ -1131,7 +1132,11 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       }, { merge: true });
     } catch (err) {
       showErrorToast('기록 삭제에 실패했습니다.', err);
+      return;
     }
+
+    // 알림장·출결 자동 항목이면 원본(알림장·출석부)도 비운다
+    if (itemToDelete) await syncAutoSourceAndTell({ entry: itemToDelete, groupId, dateStr, content: null });
   }, [dateStr, groupId, journals]);
 
   const updateJournalEntry = useCallback(async (id: string, updates: { content?: string; label?: string; labelIds?: string[]; imageUrl?: string; attachments?: Attachment[]; linkedItems?: any[] }) => {
@@ -1180,6 +1185,11 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     } catch (err) {
       showErrorToast('기록 수정에 실패했습니다.', err);
       return;
+    }
+
+    // 알림장·출결 자동 항목의 글을 고쳤으면 원본(알림장·출석부)도 고친다
+    if (target && newContent !== (target.content || '').trim()) {
+      await syncAutoSourceAndTell({ entry: target, groupId, dateStr, content: newContent });
     }
 
     // 기록을 '고쳐' 저장하는 길에는 역링크 처리가 없었다. 그래서 링크 추가 팝업에서

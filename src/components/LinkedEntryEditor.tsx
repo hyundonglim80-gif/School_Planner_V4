@@ -17,6 +17,7 @@ import { useLabels } from '../hooks/useLabels';
 import { showErrorToast, showToast } from '../utils/toast';
 import { syncReverseLinks } from '../utils/linkUtils';
 import EntryDrawer, { type EntryDraft, type EntrySource } from './EntryDrawer';
+import { syncAutoSourceAndTell } from '../lib/autoJournalSync';
 
 export interface LinkedEntryTarget {
   kind: 'journal' | 'memo';
@@ -99,6 +100,7 @@ export default function LinkedEntryEditor({
         showErrorToast('고치려던 기록이 사라졌습니다.');
         return;
       }
+      const before = list[idx];
       const mainLabel = draft.labels[0] || '';
       // labelIds는 ID로 저장한다. V3는 기록의 라벨을 ID로만 찾는다.
       const labelIds = draft.labels
@@ -115,6 +117,15 @@ export default function LinkedEntryEditor({
         updatedAt: Date.now(),
       };
       await setDoc(ref, { entries: list, updatedAt: Date.now() }, { merge: true });
+      // 알림장·출결 자동 항목의 글을 고쳤으면 원본(알림장·출석부)도 고친다
+      if (String(before?.content || '').trim() !== draft.content.trim()) {
+        await syncAutoSourceAndTell({
+          entry: before,
+          groupId: !fId || fId === 'personal' ? null : fId,
+          dateStr,
+          content: draft.content,
+        });
+      }
       await syncReverseLinks(
         previousLinks,
         draft.linkedItems,

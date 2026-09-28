@@ -5,6 +5,7 @@ import { db, auth } from '../lib/firebase';
 import { completeRestoreFromTrash, deleteFromTrash, type TrashItem } from '../utils/trashHelper';
 import { collectUploadUrls, deleteUnreferencedUploads } from '../utils/storageCleanup';
 import { formatV3EventText } from '../hooks/useDayData';
+import { syncAutoSourceAndTell } from '../lib/autoJournalSync';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer } from '../hooks/useModalLayer';
@@ -103,6 +104,14 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
         const entries = currentData.entries || [];
         entries.push(data);
         await setDoc(targetRef, { entries, updatedAt: Date.now() }, { merge: true });
+        // 알림장·출결 자동 항목이면 지울 때 비웠던 알림장·출석부도 되살린다
+        await syncAutoSourceAndTell({
+          entry: data,
+          groupId: isGroup ? fId : null,
+          dateStr: originalDateStr,
+          content: String(data?.content || ''),
+          restored: true,
+        });
       }
     } else if (type === 'eval') {
       if (!originalDateStr) throw new Error('원래 날짜 정보가 없어 복원할 수 없습니다.');

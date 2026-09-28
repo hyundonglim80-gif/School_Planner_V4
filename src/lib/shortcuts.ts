@@ -103,7 +103,7 @@ export const SHORTCUT_ACTIONS: ShortcutAction[] = [
   { id: 'group', label: '공유 그룹 관리', group: '메뉴 열기', def: b('') },
   { id: 'timetable', label: '시간표 적용 (주간 템플릿)', group: '메뉴 열기', def: b('') },
   { id: 'backup', label: '내보내기 / 가져오기 (백업)', group: '메뉴 열기', def: b('') },
-  { id: 'help', label: '사용 설명서 및 단축키', group: '메뉴 열기', def: b('') },
+  { id: 'help', label: '사용 설명서', group: '메뉴 열기', def: b('') },
   { id: 'settings', label: '환경설정', group: '메뉴 열기', def: b('') },
 ];
 

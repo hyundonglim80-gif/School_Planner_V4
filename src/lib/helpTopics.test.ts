@@ -22,7 +22,10 @@ const textsOf = (blocks: HelpBlock[]): string[] =>
     }
   });
 
-const allTexts = ALL_HELP_TOPICS.flatMap((t) => [t.title, t.summary, ...textsOf(t.blocks)]);
+/** 사용 예의 글 */
+const exampleTexts = (t: (typeof ALL_HELP_TOPICS)[number]) => t.examples.flatMap((ex) => [ex.title, ...ex.steps]);
+
+const allTexts = ALL_HELP_TOPICS.flatMap((t) => [t.title, t.summary, ...textsOf(t.blocks), ...exampleTexts(t)]);
 const topicIds = new Set(ALL_HELP_TOPICS.map((t) => t.id));
 
 describe('설명서 내용', () => {
@@ -30,10 +33,22 @@ describe('설명서 내용', () => {
     expect(topicIds.size).toBe(ALL_HELP_TOPICS.length);
   });
 
-  it('갈래마다 항목이 있다', () => {
+  it('분류마다 세부 기능과 한 줄 설명이 있다', () => {
     for (const category of HELP_CATEGORIES) {
       expect(category.topics.length, category.title).toBeGreaterThan(0);
+      expect(category.summary.trim(), category.title).not.toBe('');
     }
+  });
+
+  it('모든 세부 기능에 세부 설명과 사용 예가 있다', () => {
+    const lacking = ALL_HELP_TOPICS.filter(
+      (t) => t.blocks.length === 0 || t.examples.length === 0 || t.examples.some((ex) => !ex.title.trim() || ex.steps.length === 0)
+    ).map((t) => t.id);
+    expect(lacking).toEqual([]);
+  });
+
+  it('분류 id가 겹치지 않는다', () => {
+    expect(new Set(HELP_CATEGORIES.map((c) => c.id)).size).toBe(HELP_CATEGORIES.length);
   });
 
   it('다른 항목으로 가는 연결은 모두 있는 항목을 가리킨다', () => {
@@ -42,7 +57,7 @@ describe('설명서 내용', () => {
       for (const id of topic.related || []) {
         if (!topicIds.has(id)) broken.push(`${topic.id} → related:${id}`);
       }
-      for (const text of textsOf(topic.blocks)) {
+      for (const text of [...textsOf(topic.blocks), ...exampleTexts(topic)]) {
         for (const m of text.matchAll(/\[\[([a-z0-9-]+)\|/g)) {
           if (!topicIds.has(m[1])) broken.push(`${topic.id} → [[${m[1]}]]`);
         }

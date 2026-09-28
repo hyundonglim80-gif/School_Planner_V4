@@ -1,6 +1,6 @@
 // tools/shot-help.mjs
 //
-// 사용 설명서가 목록 → 자세히 → 연결 → 찾기로 제대로 넘어가는지 눈으로 본다.
+// 사용 설명서가 기능별 분류 → 세부 기능 → 설명·사용 예 → 찾기로 제대로 넘어가는지 눈으로 본다.
 // PC와 휴대폰 폭 둘 다 찍는다.
 //
 //   VITE_USE_EMULATOR=1 npm run build && npx vite preview --port 4173
@@ -24,27 +24,28 @@ for (const [tag, viewport] of [['pc', { width: 1280, height: 900 }], ['mobile', 
   await page.waitForTimeout(1500);
 
   await page.getByTitle('더보기 메뉴').click();
-  await page.getByRole('button', { name: /사용 설명서 및 단축키/ }).click();
+  await page.getByRole('button', { name: /사용 설명서/ }).click();
   await page.waitForTimeout(2500);
   await page.getByRole('button', { name: /단축키 한눈에 보기/ }).waitFor();
-  await page.screenshot({ path: `${OUT}/help-${tag}-1-list.png` });
+  await page.screenshot({ path: `${OUT}/help-${tag}-1-home.png` });
 
-  await page.getByRole('button', { name: /캡처 이미지 붙여넣기/ }).click();
+  // 기능별 분류 → 세부 기능 목록
+  await page.locator('[data-help-category="attachments"]').click();
   await page.waitForTimeout(300);
-  await page.screenshot({ path: `${OUT}/help-${tag}-2-detail.png` });
+  await page.screenshot({ path: `${OUT}/help-${tag}-2-category.png` });
 
-  // 설명 안의 연결을 따라간다
-  await page.getByRole('button', { name: '← 목록' }).click();
-  await page.getByRole('button', { name: /일정 속성 5가지/ }).click();
+  // 세부 기능 → 세부 설명과 사용 예
+  await page.locator('[data-help-topic="paste-image"]').click();
   await page.waitForTimeout(300);
-  await page.screenshot({ path: `${OUT}/help-${tag}-3-attrs.png` });
+  await page.screenshot({ path: `${OUT}/help-${tag}-3-detail.png`, fullPage: false });
 
-  await page.getByRole('button', { name: '← 목록' }).click();
+  // 위치 표시의 '사용 설명서'로 첫 화면에 돌아가 단축키 표를 본다
+  await page.getByRole('navigation', { name: '설명서 위치' }).getByRole('button', { name: '사용 설명서' }).click();
   await page.getByRole('button', { name: /단축키 한눈에 보기/ }).click();
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${OUT}/help-${tag}-4-keys.png`, fullPage: false });
 
-  await page.getByRole('button', { name: '← 목록' }).click();
+  await page.getByRole('navigation', { name: '설명서 위치' }).getByRole('button', { name: '사용 설명서' }).click();
   await page.getByLabel('설명서에서 찾기').fill('링크');
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${OUT}/help-${tag}-5-search.png` });

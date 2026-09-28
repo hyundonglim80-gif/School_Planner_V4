@@ -6,9 +6,8 @@ import AutoTextarea from '../../components/AutoTextarea';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import { useDayEvalCounts } from '../../hooks/useDayEvalCounts';
 import { showToast } from '../../utils/toast';
+import { openEntryPanel } from '../../components/EntryPanelHost';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
-const NoticeModal = lazy(() => import('../../components/NoticeModal'));
-const AttendanceModal = lazy(() => import('../../components/AttendanceModal'));
 
 interface DayScheduleProps {
   schedules: Record<number, PeriodSchedule>;
@@ -41,11 +40,10 @@ export default function DaySchedule({
   const [editSupplies, setEditSupplies] = useState('');
   const [saving, setSaving] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
-  // 수업 옆 알림장·출석부. 그날 날짜로 연다.
-  const [isNoticeOpen, setIsNoticeOpen] = useState(false);
-  const [isAttendanceOpen, setIsAttendanceOpen] = useState(false);
-
   const { openLinkerModal, openLinkViewerModal, openEvaluationModal, selectedGroupId } = useAppStore();
+  // 수업 옆 알림장·출석부. 그날 날짜로 오른쪽 칸에 연다 (출석부는 개인 공간에만 있다).
+  const openNotice = () => dateStr && void openEntryPanel({ kind: 'notice', groupId: selectedGroupId, dateStr });
+  const openAttendance = () => dateStr && void openEntryPanel({ kind: 'attendance', groupId: null, dateStr });
   // 어느 교시에 조사표를 만들어 두었는지 교시 옆에 숫자로 보여 준다
   const evalCounts = useDayEvalCounts(dateStr || '', selectedGroupId);
 
@@ -124,7 +122,7 @@ export default function DaySchedule({
           {/* 알림장·출석부는 수업과 함께 매일 쓰는 것이라 수업 제목 바로 옆에 둔다 */}
           <button
             type="button"
-            onClick={() => setIsNoticeOpen(true)}
+            onClick={openNotice}
             className="ml-1 px-2 py-1 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 border border-yellow-200 rounded-lg text-xs font-bold transition-colors"
             title="이 날 알림장 쓰기 / 날짜별로 모아 보기"
           >
@@ -132,7 +130,7 @@ export default function DaySchedule({
           </button>
           <button
             type="button"
-            onClick={() => setIsAttendanceOpen(true)}
+            onClick={openAttendance}
             className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-colors"
             title="이 날 출석 체크 / 누계 보기"
           >
@@ -364,17 +362,6 @@ export default function DaySchedule({
           );
         })}
       </div>
-      )}
-
-      {isNoticeOpen && dateStr && (
-        <Suspense fallback={null}>
-          <NoticeModal isOpen dateStr={dateStr} onClose={() => setIsNoticeOpen(false)} />
-        </Suspense>
-      )}
-      {isAttendanceOpen && dateStr && (
-        <Suspense fallback={null}>
-          <AttendanceModal isOpen dateStr={dateStr} onClose={() => setIsAttendanceOpen(false)} />
-        </Suspense>
       )}
 
       {isTemplateModalOpen && (

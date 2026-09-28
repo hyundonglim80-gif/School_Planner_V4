@@ -15,6 +15,7 @@ import {
   findHelpTopic,
   topicText,
   type HelpBlock,
+  type HelpCategory,
   type HelpTopic,
   type HelpValues,
 } from '../lib/helpTopics';
@@ -24,10 +25,15 @@ interface HelpModalProps {
   onClose: () => void;
 }
 
+/** 지금 보고 있는 층: 첫 화면(기능별 분류) → 한 분류의 세부 기능 → 한 기능의 설명과 사용 예 */
+type HelpView = { kind: 'home' } | { kind: 'category'; id: string } | { kind: 'topic'; id: string };
+
 /**
  * 사용 설명서.
  *
- * 기능 목록을 먼저 보여 주고, 하나를 누르면 그 기능의 자세한 설명으로 들어간다.
+ * 첫 화면은 기능별 분류만 카드로 보여 준다. 분류를 누르면 그 안의 세부 기능 목록,
+ * 기능을 누르면 세부 설명과 사용 예가 나온다. 예전에는 첫 화면에 기능 60개가
+ * 한꺼번에 늘어서 있어 원하는 것을 찾으려면 길게 내려야 했다.
  * 내용은 lib/helpTopics.ts에 있고 여기서는 그리기만 한다.
  */
 export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
@@ -49,16 +55,20 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
   }, [shortcutOverrides, forwardLookbackDays]);
 
   const [query, setQuery] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [view, setView] = useState<HelpView>({ kind: 'home' });
   const topRef = useRef<HTMLDivElement>(null);
 
-  const selected = selectedId ? findHelpTopic(selectedId) : undefined;
+  const selected = view.kind === 'topic' ? findHelpTopic(view.id) : undefined;
+  const openedCategory = view.kind === 'category' ? HELP_CATEGORIES.find((c) => c.id === view.id) : undefined;
 
-  const openTopic = (id: string | null) => {
-    setSelectedId(id);
+  const go = (next: HelpView) => {
+    setView(next);
     // 긴 목록 아래쪽에서 눌러도 새 내용의 처음부터 보이게 한다
     requestAnimationFrame(() => topRef.current?.scrollIntoView({ block: 'start' }));
   };
+  const openTopic = (id: string) => go({ kind: 'topic', id });
+  const openCategory = (id: string) => go({ kind: 'category', id });
+  const goHome = () => go({ kind: 'home' });
 
   // 찾기. 띄어 쓴 낱말이 모두 들어 있는 항목만 남긴다.
   const searchIndex = useMemo(
@@ -252,6 +262,7 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
     <button
       key={topic.id}
       type="button"
+      data-help-topic={topic.id}
       onClick={() => openTopic(topic.id)}
       className="w-full text-left px-3 py-2.5 bg-white hover:bg-blue-50/60 border border-slate-200/80 hover:border-primary/40 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer group"
     >
@@ -269,25 +280,16 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
 
   // ── 자세히 ─────────────────────────────────────────────────────────
   const renderDetail = (topic: NonNullable<typeof selected>) => {
-    const index = ALL_HELP_TOPICS.findIndex((t) => t.id === topic.id);
-    const prev = ALL_HELP_TOPICS[index - 1];
-    const next = ALL_HELP_TOPICS[index + 1];
+    // 이전·다음은 같은 분류 안에서만 오간다 (분류 끝에서 다른 분류로 넘어가면 어디 있는지 헷갈린다)
+    const siblings = topic.category.topics;
+    const index = siblings.findIndex((t) => t.id === topic.id);
+    const prev = siblings[index - 1];
+    const next = siblings[index + 1];
     const related = (topic.related || []).map(findHelpTopic).filter((t): t is NonNullable<typeof t> => !!t);
 
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => openTopic(null)}
-            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold transition-colors cursor-pointer"
-          >
-            ← 목록
-          </button>
-          <span className="text-slate-400 truncate">
-            {topic.category.icon} {topic.category.title}
-          </span>
-        </div>
+        {breadcrumb(topic.category, topic)}
 
         <div>
           <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
@@ -297,7 +299,36 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
           <p className="text-slate-400 mt-0.5">{topic.summary}</p>
         </div>
 
-        <div className="space-y-3">{topic.blocks.map(renderBlock)}</div>
+        <section aria-labelledby="help-detail-heading" className="space-y-3">
+          <h4 id="help-detail-heading" className="text-sm font-extrabold text-slate-800">
+            📖 세부 설명
+          </h4>
+          {topic.blocks.map(renderBlock)}
+        </section>
+
+        <section aria-labelledby="help-example-heading" className="space-y-2.5">
+          <h4 id="help-example-heading" className="text-sm font-extrabold text-slate-800">
+            🧪 사용 예
+          </h4>
+          {topic.examples.map((ex, i) => (
+            <div key={i} className="p-3 bg-emerald-50/60 border border-emerald-100 rounded-xl">
+              <div className="font-bold text-emerald-900 mb-2">
+                {topic.examples.length > 1 ? `예 ${i + 1}. ` : ''}
+                {renderInline(ex.title)}
+              </div>
+              <ol className="space-y-1.5 text-slate-600">
+                {ex.steps.map((step, j) => (
+                  <li key={j} className="flex gap-2">
+                    <span className="w-5 h-5 shrink-0 rounded-full bg-emerald-100 text-emerald-700 font-black flex items-center justify-center text-2xs mt-px">
+                      {j + 1}
+                    </span>
+                    <span className="min-w-0">{renderInline(step)}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ))}
+        </section>
 
         {related.length > 0 && (
           <div className="pt-3 border-t border-slate-100">
@@ -347,8 +378,46 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
     );
   };
 
-  // ── 목록 ───────────────────────────────────────────────────────────
-  const renderList = () => (
+  // ── 위치 표시 (사용 설명서 › 분류 › 기능) ─────────────────────────────
+  function breadcrumb(category: HelpCategory, topic?: HelpTopic) {
+    return (
+      <nav aria-label="설명서 위치" className="flex items-center gap-1.5 flex-wrap text-slate-400">
+        <button
+          type="button"
+          onClick={topic ? () => openCategory(category.id) : goHome}
+          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold transition-colors cursor-pointer"
+        >
+          ← {topic ? category.title : '기능별 분류'}
+        </button>
+        <button type="button" onClick={goHome} className="hover:text-primary hover:underline cursor-pointer">
+          사용 설명서
+        </button>
+        <span>›</span>
+        {topic ? (
+          <button
+            type="button"
+            onClick={() => openCategory(category.id)}
+            className="hover:text-primary hover:underline cursor-pointer"
+          >
+            {category.icon} {category.title}
+          </button>
+        ) : (
+          <span className="text-slate-600 font-bold">
+            {category.icon} {category.title}
+          </span>
+        )}
+        {topic && (
+          <>
+            <span>›</span>
+            <span className="text-slate-600 font-bold truncate">{topic.title}</span>
+          </>
+        )}
+      </nav>
+    );
+  }
+
+  // ── 첫 화면: 찾기 + 기능별 분류 ─────────────────────────────────────
+  const renderHome = () => (
     <div className="space-y-4">
       <div className="sticky -top-4 z-10 -mx-5 -mt-4 px-5 pt-4 pb-2 bg-white">
         <input
@@ -380,19 +449,51 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
             <span>⌨️ 단축키 한눈에 보기</span>
             <span className="text-white/60 font-normal">지금 설정된 값 ›</span>
           </button>
-          {HELP_CATEGORIES.map((category) => (
-            <section key={category.id}>
-              <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5 mb-2">
-                <span>{category.icon}</span> {category.title}
-                <span className="text-xs font-bold text-slate-400">{category.topics.length}</span>
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                {category.topics.map((topic) => topicButton(topic))}
-              </div>
-            </section>
-          ))}
+          <section aria-labelledby="help-categories-heading">
+            <h4 id="help-categories-heading" className="font-extrabold text-sm text-slate-800 mb-2">
+              기능별 분류
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {HELP_CATEGORIES.map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  data-help-category={category.id}
+                  onClick={() => openCategory(category.id)}
+                  className="w-full text-left px-3 py-3 bg-white hover:bg-blue-50/60 border border-slate-200/80 hover:border-primary/40 rounded-xl flex items-start gap-3 transition-colors cursor-pointer group"
+                >
+                  <span className="text-xl shrink-0 leading-none mt-0.5">{category.icon}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5">
+                      <span className="font-extrabold text-sm text-slate-800 group-hover:text-primary">
+                        {category.title}
+                      </span>
+                      <span className="text-2xs font-bold text-slate-400">{category.topics.length}개 기능</span>
+                    </span>
+                    <span className="block text-slate-500 mt-0.5">{category.summary}</span>
+                  </span>
+                  <span className="text-slate-300 group-hover:text-primary shrink-0 self-center">›</span>
+                </button>
+              ))}
+            </div>
+          </section>
         </>
       )}
+    </div>
+  );
+
+  // ── 한 분류의 세부 기능 목록 ─────────────────────────────────────────
+  const renderCategory = (category: HelpCategory) => (
+    <div className="space-y-4">
+      {breadcrumb(category)}
+      <div>
+        <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
+          <span>{category.icon}</span>
+          <span>{category.title}</span>
+        </h3>
+        <p className="text-slate-400 mt-0.5">{category.summary}</p>
+      </div>
+      <div className="space-y-1.5">{category.topics.map((topic) => topicButton(topic))}</div>
     </div>
   );
 
@@ -405,7 +506,7 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
       footer={<ModalCloseButton onClose={onClose} />}
     >
       <div ref={topRef} className="scroll-mt-4 text-xs text-slate-700 leading-relaxed">
-        {selected ? renderDetail(selected) : renderList()}
+        {selected ? renderDetail(selected) : openedCategory ? renderCategory(openedCategory) : renderHome()}
       </div>
     </ModalShell>
   );

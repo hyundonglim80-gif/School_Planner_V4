@@ -1,11 +1,14 @@
-// src/components/AttendanceModal.tsx
+// src/components/AttendanceDrawer.tsx
 //
-// 출석부. '출석 체크' 탭은 하루치를 적고, '누계' 탭은 학생별 합계와 날짜별 내역을 본다.
+// 출석부. 메모·기록·일정처럼 오른쪽 칸에서 쓴다 (예전에는 화면을 덮는 팝업이었다).
+// 누계 표가 넓어서 칸을 다른 칸보다 넓게 연다 (EntryPanelHost.entryPanelWidth).
+//
+// '출석 체크' 탭은 하루치를 적고, '누계' 탭은 학생별 합계와 날짜별 내역을 본다.
 // 분류는 나이스와 같다 (결석·지각·조퇴·결과 × 질병·미인정·기타·출석인정).
-// 저장하면 그날 기록 칸에도 '[출결]' 항목이 생긴다. 모두 출석이면 생기지 않는다.
+// 저장하면 그날 기록 칸에도 '출결' 항목이 생긴다. 모두 출석이면 생기지 않는다.
+// 거꾸로 기록에서 그 항목을 고치거나 지우면 출석부도 따라간다 (lib/autoJournalSync).
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import ModalShell from './ModalShell';
-import { closeAllModals } from '../hooks/useModalLayer';
+import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
 import { useRoster, type ClassRoster } from '../hooks/useRoster';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
 import { getSemesterRanges } from '../lib/semester';
@@ -25,6 +28,7 @@ import {
   type AttendanceRecord,
 } from '../lib/attendance';
 import { loadAttendanceDay, loadAttendanceForClass, saveAttendanceDay, type ClassInfo } from '../lib/attendanceStore';
+import { SOURCE_CHANGED_EVENT, type SourceChangedDetail } from '../lib/autoJournalSync';
 import { shortDateLabel } from '../lib/notices';
 import { showToast, showErrorToast } from '../utils/toast';
 
@@ -33,19 +37,28 @@ type SummaryRange = 'year' | 'sem1' | 'sem2' | 'month';
 
 const CLASS_MEMORY_KEY = 'sp4-attendance-class';
 
-interface AttendanceModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+interface AttendanceDrawerProps {
   dateStr: string;
   initialTab?: Tab;
+  docked: boolean;
+  onClose: () => void;
+  /** 다른 항목을 열기 전에 '고친 것 있으면 저장'을 부를 수 있게 넘겨준다 */
+  flushRef?: React.MutableRefObject<(() => Promise<boolean>) | null>;
 }
 
 const classLabel = (c: ClassRoster) => `${c.year}학년도 ${c.grade}학년 ${c.classNum}반`;
 
-export default function AttendanceModal({ isOpen, onClose, dateStr: initialDate, initialTab = 'check' }: AttendanceModalProps) {
+export default function AttendanceDrawer({
+  dateStr: initialDate,
+  initialTab = 'check',
+  docked,
+  onClose,
+  flushRef,
+}: AttendanceDrawerProps) {
   const { rosterList, loading: rosterLoading } = useRoster();
   const { templates, currentTemplateName, semesterConfig } = useTimetableTemplate();
   const maxPeriods = templates[currentTemplateName]?.names.length || 6;
+  const panelRef = useRef<HTMLElement>(null);
 
   const [tab, setTab] = useState<Tab>(initialTab);
   const [date, setDate] = useState(initialDate);
@@ -76,27 +89,19 @@ export default function AttendanceModal({ isOpen, onClose, dateStr: initialDate,
     ? { classKey: classKeyOf(cls), year: Number(cls.year), grade: String(cls.grade), classNum: String(cls.classNum) }
     : null;
 
-  const chooseClass = async (key: string) => {
-    if (dirty && !(await handleSave())) return;
-    setClassKey(key);
-    try {
-      localStorage.setItem(CLASS_MEMORY_KEY, key);
-    } catch {
-      /* 무시 */
-    }
-  };
-
   // ── 출석 체크 ──
   const [records, setRecords] = useState<Record<string, AttendanceRecord>>({});
   const beforeRef = useRef<Record<string, AttendanceRecord>>({});
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [openNote, setOpenNote] = useState<string | null>(null);
+  /** 다시 읽기 신호 (기록 쪽에서 이 출결을 고쳤을 때) */
+  const [reloadTick, setReloadTick] = useState(0);
 
   const dirty = loaded && JSON.stringify(records) !== JSON.stringify(beforeRef.current);
 
   useEffect(() => {
-    if (!isOpen || !info) return;
+    if (!info) return;
     let alive = true;
     setLoaded(false);
     loadAttendanceDay(info, date)
@@ -112,7 +117,22 @@ export default function AttendanceModal({ isOpen, onClose, dateStr: initialDate,
     };
     // info는 classKey에서 나온다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, classKey, date]);
+  }, [classKey, date, reloadTick]);
+
+  // 기록 칸에서 이 날 출결 항목을 고치거나 지우면 다시 읽는다 (적던 것이 있으면 덮지 않는다)
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  useEffect(() => {
+    const onChanged = (e: Event) => {
+      const d = (e as CustomEvent<SourceChangedDetail>).detail;
+      if (d.kind !== 'attendance' || d.dateStr !== date || d.classKey !== classKey) return;
+      if (dirtyRef.current) return;
+      setReloadTick((t) => t + 1);
+      setSummaryDays(null);
+    };
+    window.addEventListener(SOURCE_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(SOURCE_CHANGED_EVENT, onChanged);
+  }, [date, classKey]);
 
   const handleSave = useCallback(async (): Promise<boolean> => {
     if (!info || !loaded || saving) return false;
@@ -133,25 +153,39 @@ export default function AttendanceModal({ isOpen, onClose, dateStr: initialDate,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classKey, loaded, saving, date, records]);
 
+  // 다른 항목을 열기 전·바깥을 눌러 닫기 전에: 적던 것이 있으면 저장한다
+  const saveIfChanged = async () => (dirty ? handleSave() : true);
+  if (flushRef) flushRef.current = saveIfChanged;
+
+  const chooseClass = async (key: string) => {
+    if (dirty && !(await handleSave())) return;
+    setClassKey(key);
+    try {
+      localStorage.setItem(CLASS_MEMORY_KEY, key);
+    } catch {
+      /* 무시 */
+    }
+  };
+
   const moveDate = async (next: string) => {
     if (dirty && !(await handleSave())) return;
     setDate(next);
   };
 
-  // Ctrl+S (창 어디에서나)
+  // Ctrl+S. 옆에 붙은 칸은 왼쪽 화면과 함께 쓰므로, 이 칸 안에 있을 때만 받는다.
   const saveRef = useRef(handleSave);
   saveRef.current = handleSave;
   useEffect(() => {
-    if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
+      if (docked && !panelRef.current?.contains(document.activeElement)) return;
       if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
         e.preventDefault();
-        if (!e.repeat) saveRef.current();
+        if (!e.repeat) void saveRef.current();
       }
     };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [isOpen]);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [docked]);
 
   const setKind = (num: number, name: string, kind: AttendanceKind | null) => {
     setRecords((prev) => {
@@ -195,7 +229,7 @@ export default function AttendanceModal({ isOpen, onClose, dateStr: initialDate,
   const [openStudent, setOpenStudent] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!isOpen || tab !== 'summary' || !classKey || summaryDays) return;
+    if (tab !== 'summary' || !classKey || summaryDays) return;
     let alive = true;
     loadAttendanceForClass(classKey)
       .then((d) => alive && setSummaryDays(d))
@@ -207,7 +241,7 @@ export default function AttendanceModal({ isOpen, onClose, dateStr: initialDate,
     return () => {
       alive = false;
     };
-  }, [isOpen, tab, classKey, summaryDays]);
+  }, [tab, classKey, summaryDays]);
 
   useEffect(() => setSummaryDays(null), [classKey]);
 
@@ -231,45 +265,37 @@ export default function AttendanceModal({ isOpen, onClose, dateStr: initialDate,
   }, [summaryDays, summaryRange, date, classKey]);
   const tally = useMemo(() => tallyByStudent(inRange), [inRange]);
 
+  // 좁은 화면에서 배경을 누르면 적던 것을 저장하고 닫는다
   const closeByBackdrop = async () => {
-    if (dirty && !(await handleSave())) return;
-    closeAllModals();
+    if (!(await saveIfChanged())) return;
+    onClose();
   };
 
   const chip = (on: boolean, tone: string) =>
     `px-2 py-1 rounded-lg border font-bold transition-colors ${on ? tone : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'}`;
 
-  return (
-    <ModalShell
-      isOpen={isOpen}
-      onClose={onClose}
-      width="4xl"
-      title="📋 출석부"
-      onBackdropClose={closeByBackdrop}
-      footer={
-        <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
-          >
-            닫기
-          </button>
-          {tab === 'check' && (
-            <button
-              type="button"
-              onClick={() => handleSave()}
-              disabled={!loaded || saving || !info}
-              title="Ctrl + S 로도 저장합니다"
-              className="px-5 py-2 bg-primary hover:bg-blue-600 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
-            >
-              {saving ? '저장 중...' : '저장'}
-            </button>
-          )}
-        </>
-      }
-    >
-      <div className="space-y-4 text-xs text-slate-700">
+  const panel = (
+    <div className={sidePanelClass(docked)}>
+      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="min-w-0">
+          <h3 className="text-lg font-bold text-slate-800">📋 출석부</h3>
+          <p className="text-xs font-bold text-primary mt-0.5 truncate">
+            {shortDateLabel(date)} 출결{cls ? ` · ${cls.grade}학년 ${cls.classNum}반` : ''} · 🔒 개인
+          </p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            빠른 저장 단축키: Ctrl + S{docked ? ' · 다른 화면으로 옮겨도 이 칸은 남습니다' : ''}
+          </p>
+        </div>
+        <button
+          title="닫기"
+          onClick={onClose}
+          className="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-4 text-xs text-slate-700" data-scroll-lock>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="inline-flex bg-slate-100 p-1 rounded-xl gap-1">
             {([['check', '✔️ 출석 체크'], ['summary', '📊 누계']] as const).map(([id, label]) => (
@@ -291,7 +317,7 @@ export default function AttendanceModal({ isOpen, onClose, dateStr: initialDate,
               value={classKey || ''}
               onChange={(e) => chooseClass(e.target.value)}
               aria-label="학급"
-              className="px-2 py-1.5 border border-slate-200 rounded-lg font-bold"
+              className="px-2 py-1.5 border border-slate-200 rounded-lg font-bold max-w-full"
             >
               {rosterList.map((c) => (
                 <option key={classKeyOf(c)} value={classKeyOf(c)}>
@@ -320,7 +346,6 @@ export default function AttendanceModal({ isOpen, onClose, dateStr: initialDate,
                   aria-label="출석 날짜"
                   className="px-2 py-1 border border-slate-200 rounded-lg font-bold"
                 />
-                <span className="font-bold text-slate-500">{shortDateLabel(date)}</span>
                 <button type="button" onClick={() => moveDate(addDays(date, 1))} className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 font-black" title="다음 날">
                   ▶
                 </button>
@@ -433,6 +458,7 @@ export default function AttendanceModal({ isOpen, onClose, dateStr: initialDate,
             )}
             <p className="text-slate-400">
               적지 않은 학생은 출석입니다. 저장하면 그날 기록 칸에 '출결' 항목으로 남고, 학생 누가기록에도 모입니다.
+              기록에서 그 항목을 고치거나 지우면 출석부도 따라 바뀝니다.
             </p>
           </div>
         ) : (
@@ -528,6 +554,39 @@ export default function AttendanceModal({ isOpen, onClose, dateStr: initialDate,
           </div>
         )}
       </div>
-    </ModalShell>
+
+      <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2 bg-slate-50/50">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+        >
+          닫기
+        </button>
+        {tab === 'check' && (
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={!loaded || saving || !info}
+            title="Ctrl + S 로도 저장합니다"
+            className="px-5 py-2 text-sm font-bold text-white bg-primary hover:bg-blue-600 rounded-xl shadow-md disabled:opacity-50 cursor-pointer"
+          >
+            {saving ? '저장 중...' : '저장'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <SidePanelFrame
+      docked={docked}
+      onClose={onClose}
+      onBackdropClose={() => void closeByBackdrop()}
+      ariaLabel="출석부 쓰기"
+      panelRef={panelRef}
+    >
+      {panel}
+    </SidePanelFrame>
   );
 }

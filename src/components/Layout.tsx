@@ -33,14 +33,12 @@ const LinkerModal = lazyWithReload(() => import('./LinkerModal'));
 const LinkViewerModal = lazyWithReload(() => import('./LinkViewerModal'));
 const TrashModal = lazyWithReload(() => import('./TrashModal'));
 const CalendarSyncModal = lazyWithReload(() => import('./CalendarSyncModal'));
-const NoticeModal = lazyWithReload(() => import('./NoticeModal'));
-const AttendanceModal = lazyWithReload(() => import('./AttendanceModal'));
 const StudentRecordModal = lazyWithReload(() => import('./StudentRecordModal'));
 
 import MultiEventActionBar from './MultiEventActionBar';
 import MiniCalendarPicker from './MiniCalendarPicker';
 import MobileTabBar from './MobileTabBar';
-import EntryPanelHost, { DOCK_MIN_WIDTH } from './EntryPanelHost';
+import EntryPanelHost, { DOCK_MIN_WIDTH, openEntryPanel, entryPanelWidth } from './EntryPanelHost';
 import { MainWidthContext } from '../hooks/useMainWidth';
 import { useMinWidth } from '../hooks/useMinWidth';
 import { useGlobalGestures } from '../hooks/useGlobalGestures';
@@ -155,8 +153,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isForwardingModalOpen, setIsForwardingModalOpen] = useState(false);
   const [isTimetableModalOpen, setIsTimetableModalOpen] = useState(false);
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
-  const [isNoticeListOpen, setIsNoticeListOpen] = useState(false);
-  const [isAttendanceOpen, setIsAttendanceOpen] = useState(false);
+  /**
+   * 알림장·출석부는 팝업이 아니라 메모·기록·일정과 같은 오른쪽 칸에서 연다.
+   * 알림장은 지금 보는 공간에, 출석부는 개인 공간에만 있다(학생 개인정보).
+   */
+  const openClassroomPanel = (kind: 'notice' | 'attendance', tab?: 'write' | 'list' | 'check' | 'summary') => {
+    const s = useAppStore.getState();
+    void openEntryPanel({
+      kind,
+      groupId: kind === 'notice' ? s.selectedGroupId : null,
+      dateStr: formatDateStr(new Date(s.currentDate)),
+      tab,
+    });
+  };
   const [isStudentRecordOpen, setIsStudentRecordOpen] = useState(false);
 
   // 더보기 드롭다운 상태
@@ -169,6 +178,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // D-Day 표시에 따라 높이가 달라지므로 재서 쓴다.
   // 메모·기록 칸이 화면 옆에 붙어 있으면 그 폭만큼 화면을 왼쪽으로 줄인다
   const entryPanelOpen = useAppStore((s) => !!s.entryPanel);
+  const entryPanelKind = useAppStore((s) => s.entryPanel?.kind);
   const canDock = useMinWidth(DOCK_MIN_WIDTH);
   const panelDocked = entryPanelOpen && canDock;
 
@@ -336,8 +346,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       case 'recurring': setIsRecurringModalOpen(true); return;
       case 'forwarding': setIsForwardingModalOpen(true); return;
       case 'roster': setIsRosterModalOpen(true); return;
-      case 'notices': setIsNoticeListOpen(true); return;
-      case 'attendance': setIsAttendanceOpen(true); return;
+      case 'notices': openClassroomPanel('notice', 'list'); return;
+      case 'attendance': openClassroomPanel('attendance'); return;
       case 'studentRecord': setIsStudentRecordOpen(true); return;
       case 'group': setIsGroupModalOpen(true); return;
       case 'timetable': setIsTimetableModalOpen(true); return;
@@ -378,8 +388,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         setIsRecurringModalOpen(false);
         setIsTimetableModalOpen(false);
         setIsCalendarModalOpen(false);
-        setIsNoticeListOpen(false);
-        setIsAttendanceOpen(false);
         setIsStudentRecordOpen(false);
         setIsMoreMenuOpen(false);
         if (isForwardingModalOpen) {
@@ -465,18 +473,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div
       className="min-h-screen bg-bg-body text-slate-900 transition-[padding] duration-200"
       style={{
-        // 칸의 폭. 모니터 절반(약 940px)에서도 왼쪽 화면이 반 넘게 남도록 36vw로 두고,
-        // 너무 좁거나 넓지 않게 묶는다. EntryDrawer가 같은 값을 쓴다.
-        ['--entry-panel-w' as any]: 'clamp(340px, 36vw, 512px)',
+        // 오른쪽 칸의 폭. 칸(SidePanelFrame)이 같은 값을 쓴다. 폭 규칙은 EntryPanelHost.entryPanelWidth
+        ['--entry-panel-w' as any]: entryPanelWidth(entryPanelKind),
         paddingRight: panelDocked ? 'var(--entry-panel-w)' : undefined,
       }}
     >
       <header ref={headerRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm px-4 py-3 border-b border-border shadow-xs flex flex-col gap-2.5">
         <div className="flex items-center gap-2 max-w-7xl mx-auto w-full">
           {/* 상단 메뉴 영역 (스크롤 없이 버튼 크기 축소로 한 줄 유지) */}
-          {/* 오른쪽 메모·기록 칸이 열려 있을 때만 줄바꿈을 허락한다. 머리줄이 좁아지면 겹치는 대신
-              검색·화면 탭 묶음이 아랫줄로 내려간다. */}
-          <div className={`flex ${panelDocked ? "flex-wrap" : ""} items-center justify-between flex-1 gap-x-0.5 sm:gap-x-4 gap-y-1.5 pr-1 sm:pr-2 min-w-0`}>
+          {/* 자리가 모자라면 겹치는 대신 검색·화면 탭 묶음이 아랫줄로 내려간다.
+              예전에는 오른쪽 칸이 열렸을 때만 줄바꿈을 허락해서, 칸이 닫힌 태블릿 폭(800px 안팎)에
+              공유 그룹 선택까지 생기면 휴지통·검색·⋮ 메뉴가 서로 포개져 눌리지 않았다. */}
+          <div className="flex flex-wrap items-center justify-between flex-1 gap-x-0.5 sm:gap-x-4 gap-y-1.5 pr-1 sm:pr-2 min-w-0">
             
             {/* 좌측: 로고 및 기능 버튼들 */}
             <div className="flex items-center gap-0.5 sm:gap-2 shrink">
@@ -523,8 +531,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </button>
             </div>
 
-            {/* 우측: 검색, 스코프 탭, 그룹 선택 */}
-            <div className="flex items-center gap-0.5 sm:gap-2 shrink min-w-0">
+            {/* 우측: 검색, 스코프 탭, 그룹 선택. 이 묶음도 좁으면 줄을 바꾼다
+                (오른쪽 칸이 열린 태블릿 폭에서 한 줄로 두면 ⋮ 메뉴·프로필 밑으로 파고든다). */}
+            <div className="flex flex-wrap items-center gap-0.5 sm:gap-2 gap-y-1.5 shrink min-w-0">
               {/* 통합 검색 버튼 */}
             <button
               onClick={() => setIsSearchModalOpen(true)}
@@ -697,7 +706,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <button
                     onClick={() => {
                       setIsMoreMenuOpen(false);
-                      setIsAttendanceOpen(true);
+                      openClassroomPanel('attendance');
                     }}
                     className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
                   >
@@ -708,7 +717,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <button
                     onClick={() => {
                       setIsMoreMenuOpen(false);
-                      setIsNoticeListOpen(true);
+                      openClassroomPanel('notice', 'list');
                     }}
                     className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
                   >
@@ -778,7 +787,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     }}
                     className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
                   >
-                    <span>💡</span> 사용 설명서 및 단축키
+                    <span>💡</span> 사용 설명서
                     {menuKey('help')}
                   </button>
 
@@ -1038,23 +1047,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         <LinkedEntryEditorHost />
         <JournalPeekHost />
-
-        {isNoticeListOpen && (
-          <NoticeModal
-            isOpen
-            initialTab="list"
-            dateStr={formatDateStr(new Date(currentDate))}
-            onClose={() => setIsNoticeListOpen(false)}
-          />
-        )}
-
-        {isAttendanceOpen && (
-          <AttendanceModal
-            isOpen
-            dateStr={formatDateStr(new Date(currentDate))}
-            onClose={() => setIsAttendanceOpen(false)}
-          />
-        )}
 
         {isStudentRecordOpen && (
           <StudentRecordModal isOpen onClose={() => setIsStudentRecordOpen(false)} />

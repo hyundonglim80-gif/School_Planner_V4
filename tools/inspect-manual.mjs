@@ -8,9 +8,15 @@
 //   npm run emu / npm run seed (먼저)
 //   SITE=http://localhost:4173/ OUT=<폴더> node tools/inspect-manual.mjs
 //
+// 여러 환경에서 돌려 보려면 (모두 생략 가능):
+//   BROWSER=chrome|chromium|firefox|webkit   브라우저 (기본 chrome, webkit = 사파리 엔진)
+//   PC_W=1400 PC_H=950                       PC 창 크기 (모니터 절반이면 PC_W=960)
+//   ONLY=pc|mobile                           한쪽만 돌린다
+//   에뮬레이터는 돌릴 때마다 새로 띄우고 seed 하는 것이 좋다 (점검이 자료를 고친다).
+//
 // 구글 드라이브·캘린더·시트를 부르는 기능(파일 첨부 업로드, 캘린더 보내기 등)은
 // 에뮬레이터에 구글이 없어 끝까지 갈 수 없다. 그런 것은 '창이 뜨고 버튼이 있는지'까지만 본다.
-import { chromium } from 'playwright';
+import { chromium, firefox, webkit } from 'playwright';
 import fs from 'node:fs';
 
 const SITE = process.env.SITE || 'http://localhost:4173/';
@@ -49,6 +55,8 @@ async function closeAll() {
   }
   // 옆에 붙은 일정·기록·메모 칸은 팝업이 아니라서 ESC(칸 밖)로는 닫히지 않는다
   await page.locator('aside[aria-label$="쓰기"]').getByTitle('닫기').click({ timeout: 500 }).catch(() => {});
+  // 마우스를 빈 곳으로 옮긴다. 날짜 옆 📅 위에 남아 있으면 작은 달력이 열린 채 목록을 가린다.
+  await page.mouse.move(2, 300).catch(() => {});
   await wait(200);
 }
 async function openMenu(label) {
@@ -73,14 +81,28 @@ async function goToday() {
   await wait(1200);
 }
 
-const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const BROWSER = process.env.BROWSER || 'chrome';
+const PC_W = Number(process.env.PC_W || 1400);
+const PC_H = Number(process.env.PC_H || 950);
+const ONLY = process.env.ONLY || '';
+const browser =
+  BROWSER === 'firefox'
+    ? await firefox.launch({ headless: true })
+    : BROWSER === 'webkit'
+    ? await webkit.launch({ headless: true })
+    : await chromium.launch({ ...(BROWSER === 'chrome' ? { channel: 'chrome' } : {}), headless: true });
+console.log(`환경: ${BROWSER} · PC ${PC_W}x${PC_H}${ONLY ? ` · ${ONLY}만` : ''}`);
 
 // ───────────────────────────── PC ─────────────────────────────
-{
-  const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 } });
+if (ONLY !== 'mobile') {
+  const ctx = await browser.newContext({ viewport: { width: PC_W, height: PC_H } });
   page = await ctx.newPage();
   const pageErrors = [];
-  page.on('pageerror', (e) => pageErrors.push(e.message));
+  page.on('pageerror', (e) => {
+    // 웹킷은 새로 고칠 때 끊긴 Firestore 통신 요청을 페이지 오류로 올린다. 앱의 오류가 아니다.
+    if (/Firestore\/(Write|Listen)\/channel/.test(e.message)) return;
+    pageErrors.push(e.message);
+  });
   page.on('dialog', (d) => d.accept().catch(() => {}));
 
   await page.goto(SITE, { waitUntil: 'domcontentloaded' });
@@ -283,8 +305,16 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
     const ta = eventPanel().locator('textarea').first();
     await ta.fill(TXT + ' 수정');
     await ta.press('Control+s');
-    await wait(1500);
-    assert((await page.getByText(TXT + ' 수정', { exact: true }).count()) === 1, '수정한 내용이 안 보임');
+    // 서버를 거쳐 목록에 들어올 때까지 기다린다 (1.5초로는 모자랄 때가 있었다)
+    await page
+      .locator('[data-focus-key^="event"]', { hasText: TXT + ' 수정' })
+      .first()
+      .waitFor({ timeout: 8000 })
+      .catch(() => {});
+    // 목록의 줄만 센다 (오른쪽 칸의 입력칸 글자까지 세면 2건이 된다)
+    const seen = await page.locator('[data-focus-key^="event"]', { hasText: TXT + ' 수정' }).count();
+    const rows = await page.locator('[data-focus-key^="event"]').allInnerTexts();
+    assert(seen === 1, `수정한 내용 ${seen}건 보임 · 목록: ${rows.map((r) => r.replace(/\s+/g, ' ').slice(0, 30)).join(' | ')}`);
     await ta.press('Escape');
     await wait(300);
   });
@@ -380,14 +410,24 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
     await wait(600);
     const ta = page.getByPlaceholder(/오늘 있었던 일을 기록해보세요/);
     await ta.focus();
-    await page.evaluate(async () => {
+    const delivered = await page.evaluate(async () => {
       const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));
       const file = new File([png], 'image.png', { type: 'image/png' });
       const dt = new DataTransfer();
       dt.items.add(file);
       const el = document.activeElement;
+      // 파이어폭스는 스크립트로 만든 붙여넣기 이벤트에 그림을 실어 보내지 않는다 (진짜 붙여넣기는 된다).
+      // 그런 브라우저에서는 '확인할 수 없음'으로 적고 넘어간다.
+      let items = -1;
+      const peek = (e) => { items = e.clipboardData ? e.clipboardData.items.length : 0; };
+      el.addEventListener('paste', peek, { capture: true, once: true });
       el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+      return items;
     });
+    if (delivered === 0) {
+      await page.getByTitle('닫기').first().click();
+      return '이 브라우저는 스크립트로 만든 붙여넣기에 그림을 싣지 않아 확인할 수 없음 (건너뜀)';
+    }
     await wait(2500);
     const uploading = await page.getByText(/붙여넣은 이미지 업로드 중|업로드에 실패|드라이브|권한|로그인/).count();
     await page.getByTitle('닫기').first().click();
@@ -899,6 +939,128 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
     return tag;
   });
 
+  // ── 알림장·출석부: 오른쪽 칸, 기록과 함께 바뀜 ──
+  const noticePanel = () => page.locator('aside[aria-label="알림장 쓰기"]');
+  const attendPanel = () => page.locator('aside[aria-label="출석부 쓰기"]');
+  const journalPanelBox = () => page.locator('aside[aria-label="기록 쓰기"]').getByPlaceholder(/오늘 있었던 일을 기록해보세요/);
+  /** 기록 칸의 그 카드를 눌러 오른쪽 기록 칸을 연다 */
+  const openJournalCard = async (head) => {
+    await page.keyboard.press('Shift+Digit1');
+    await goToday();
+    const card = page.locator('[data-focus-key^="journal"]', { hasText: head }).first();
+    await card.waitFor({ timeout: 8000 });
+    await card.click({ position: { x: 60, y: 40 } });
+    await wait(800);
+  };
+
+  await check('[알림장·출석부] 오른쪽 칸으로 열리고 본문을 가리지 않음 (출석부는 더 넓게)', async () => {
+    await page.keyboard.press('Shift+Digit1');
+    await goToday();
+    const main = async () => (await page.locator('main').boundingBox());
+    await page.getByRole('button', { name: '📢 알림장' }).click();
+    await wait(1200);
+    const n = await noticePanel().boundingBox();
+    const m1 = await main();
+    await closeAll();
+    await page.getByRole('button', { name: '📋 출석부' }).click();
+    await wait(1500);
+    const a = await attendPanel().boundingBox();
+    const m2 = await main();
+    await closeAll();
+    assert(n && a, `알림장 칸 ${!!n}, 출석부 칸 ${!!a}`);
+    assert(m1.x + m1.width <= n.x + 1 && m2.x + m2.width <= a.x + 1, '본문이 칸 밑에 깔림');
+    assert(a.width >= n.width, `출석부 칸(${a.width}px)이 알림장 칸(${n.width}px)보다 좁음`);
+    return `알림장 ${Math.round(n.width)}px · 출석부 ${Math.round(a.width)}px`;
+  });
+
+  await check('[알림장] 기록 칸에서 알림장 항목을 고치면 알림장도 바뀜', async () => {
+    await openJournalCard('1. 점검 알림장 첫 줄');
+    const box = journalPanelBox();
+    const v = await box.inputValue();
+    await box.fill(v.replace('둘째 줄 추가', '둘째 줄 기록에서 고침'));
+    await box.press('Control+s');
+    await wait(3000);
+    await closeAll();
+    await page.getByRole('button', { name: '📢 알림장' }).click();
+    await wait(1800);
+    const notice = await noticePanel().getByLabel('알림장 내용').inputValue();
+    await closeAll();
+    assert(/둘째 줄 기록에서 고침/.test(notice), `알림장 글: ${notice.replace(/\n/g, ' / ')}`);
+  });
+
+  await check('[알림장] 기록 칸에서 알림장 항목을 지우면 알림장도 비워지고, 휴지통에서 되살리면 돌아옴', async () => {
+    await page.keyboard.press('Shift+Digit1');
+    await goToday();
+    const card = page.locator('[data-focus-key^="journal"]', { hasText: '점검 알림장 첫 줄' }).first();
+    await card.hover();
+    await card.getByTitle('기록 삭제').click();
+    await wait(3000);
+    await page.getByRole('button', { name: '📢 알림장' }).click();
+    await wait(1800);
+    const emptied = await noticePanel().getByLabel('알림장 내용').inputValue();
+    await closeAll();
+    await page.getByRole('button', { name: /휴지통/ }).first().click();
+    await wait(1500);
+    const item = page.locator('div', { hasText: '점검 알림장 첫 줄' }).filter({ has: page.getByRole('button', { name: '복원', exact: true }) }).last();
+    await item.getByRole('button', { name: '복원', exact: true }).click();
+    await wait(3000);
+    await closeAll();
+    await page.getByRole('button', { name: '📢 알림장' }).click();
+    await wait(1800);
+    const back = await noticePanel().getByLabel('알림장 내용').inputValue();
+    await closeAll();
+    assert(emptied.trim() === '', `지운 뒤에도 알림장 글이 남음: ${emptied.replace(/\n/g, ' / ')}`);
+    assert(/점검 알림장 첫 줄/.test(back), '되살린 뒤 알림장이 돌아오지 않음');
+  });
+
+  await check('[출석부] 기록 칸에서 출결 항목을 고치면 출석부도 바뀜', async () => {
+    await openJournalCard('[출결]');
+    const box = journalPanelBox();
+    const v = await box.inputValue();
+    assert(/결석\(질병\) - 감기/.test(v), `출결 항목 글: ${v.replace(/\n/g, ' / ')}`);
+    await box.fill(v.replace('결석(질병) - 감기', '결석(기타) - 가족 여행'));
+    await box.press('Control+s');
+    await wait(3500);
+    await closeAll();
+    await page.getByRole('button', { name: '📋 출석부' }).click();
+    await wait(2000);
+    const row = attendPanel().locator('[data-attendance-num]', { hasText: attendName }).first();
+    const other = await row.getByRole('button', { name: '기타', exact: true }).getAttribute('aria-pressed');
+    const note = await row.getByRole('button', { name: /가족 여행/ }).count();
+    await closeAll();
+    assert(other === 'true' && note > 0, `사유 '기타' ${other}, 설명 ${note}`);
+  });
+
+  await check('[출석부] 출결 모양이 아닌 줄을 넣으면 출석부는 그대로 두고 안내', async () => {
+    await openJournalCard('[출결]');
+    const box = journalPanelBox();
+    const v = await box.inputValue();
+    await box.fill(v + '\n오늘 학부모 통화함');
+    await box.press('Control+s');
+    await wait(3000);
+    const warned = await page.getByText(/출결 줄을 읽지 못해 출석부는 그대로/).count();
+    // 되돌린다
+    await box.fill(v);
+    await box.press('Control+s');
+    await wait(2500);
+    await closeAll();
+    assert(warned > 0, '안내가 뜨지 않음');
+  });
+
+  await check('[출석부] 기록 칸에서 출결 항목을 지우면 그날 모두 출석', async () => {
+    await page.keyboard.press('Shift+Digit1');
+    await goToday();
+    const card = page.locator('[data-focus-key^="journal"]', { hasText: '[출결]' }).first();
+    await card.hover();
+    await card.getByTitle('기록 삭제').click();
+    await wait(3500);
+    await page.getByRole('button', { name: '📋 출석부' }).click();
+    await wait(2000);
+    const marked = await attendPanel().locator('[data-attendance-num] button[aria-pressed="true"]').count();
+    await closeAll();
+    assert(marked === 0, `아직 표시된 출결 ${marked}개`);
+  });
+
   // ── 메모 차례·거르개 ──
   await check('[메모] ▲▼ 로 차례를 바꾸고, 다시 열어도 그 차례', async () => {
     await page.keyboard.press('Shift+Digit5');
@@ -1079,21 +1241,267 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
     assert(ok, `열 때의 날짜(${sub})에 저장되지 않음`);
   });
 
-  await check('[설명서] 모든 항목을 열어 봄 (빈 항목·오류 없음)', async () => {
+  // ── 화면 보기 ──
+  await check('[주간] 넓은 화면이면 다음 주 한 줄, 좁으면 이번 주만', async () => {
+    await page.keyboard.press('Shift+Digit2');
+    await wait(2500);
+    const next = await page.locator('section[aria-label="다음 주"]').count();
+    const main = await page.locator('main').boundingBox();
+    const wide = main.width - 40 >= 1200;
+    await page.keyboard.press('Shift+Digit1');
+    await wait(1200);
+    assert(next === (wide ? 1 : 0), `본문 ${Math.round(main.width)}px 인데 다음 주 ${next}줄`);
+    return wide ? '다음 주까지 보임' : '이번 주만 보임';
+  });
+
+  /** 달력 화면의 일정을 눌러 오른쪽 칸이 열리는지 (라벨 칩을 피해 오른쪽 끝을 누른다) */
+  const openCalendarEvent = async (scopeKey) => {
+    await page.keyboard.press(`Shift+Digit${scopeKey}`);
+    await wait(3000);
+    const ev = page.locator('[title="클릭하여 상세 보기"]').first();
+    assert((await ev.count()) > 0, '누를 일정이 없음');
+    const box = await ev.boundingBox();
+    await ev.click({ position: { x: box.width - 3, y: box.height / 2 } });
+    await wait(1200);
+    const ok = await eventPanel().getByRole('heading', { name: '일정 수정' }).isVisible().catch(() => false);
+    await closeAll();
+    assert(ok, '오른쪽 일정 수정 칸이 안 뜸');
+  };
+  await check('[월간] 일정을 누르면 오른쪽 일정 수정 칸', async () => openCalendarEvent(3));
+  await check('[년간] 일정을 누르면 오른쪽 일정 수정 칸', async () => openCalendarEvent(4));
+
+  // ── 일정: 기간 · 반복 · 묶인 일정 지우기 ──
+  /** 오늘 하루 화면의 일정 줄 */
+  const eventRow = (text) => page.locator('[data-focus-key^="event"]', { hasText: text }).first();
+  /** 묶인 일정을 '연결된 일정 전체 삭제'로 지운다 */
+  const deleteWholeGroup = async (text) => {
+    const row = eventRow(text);
+    await row.hover();
+    await row.getByTitle('일정 삭제').click();
+    await wait(800);
+    assert(await heading(/연결된 일정 삭제/).isVisible(), '지울 범위를 묻지 않음');
+    await page.getByRole('button', { name: /연결된 일정 전체 삭제/ }).click();
+    await wait(2500);
+  };
+
+  await check('[기간 일정] 3일 등록 → 날마다 (1/3) → 🗑 는 범위를 묻고 전체 삭제', async () => {
+    await page.keyboard.press('Shift+Digit1');
+    await goToday();
+    const P = `점검기간 ${Date.now() % 10000}`;
+    await page.getByRole('button', { name: '+ 새 일정' }).click();
+    await wait(500);
+    await eventPanel().getByPlaceholder(EVENT_PH).fill(P);
+    await eventPanel().locator('label', { hasText: /^기간$/ }).locator('input').check();
+    await wait(800);
+    assert(await heading(/연속 기간 등록/).isVisible(), '기간 창이 안 뜸');
+    const weekdayOnly = page.getByRole('checkbox', { name: /주말\(토\/일\)과 공휴일 제외/ });
+    if ((await weekdayOnly.count()) && (await weekdayOnly.isChecked())) await weekdayOnly.uncheck();
+    const start = await page.getByLabel('시작일').inputValue();
+    const end = new Date(new Date(start + 'T00:00:00').getTime() + 2 * 864e5);
+    const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+    await page.getByLabel('종료일').fill(endStr);
+    await wait(300);
+    await page.getByRole('button', { name: /등록 \(3일\)/ }).click();
+    await wait(3000);
+    await closeAll();
+    await wait(1200);
+    const has = await eventRow(`${P} (1/3)`).count();
+    assert(has === 1, `오늘에 '${P} (1/3)' 이 없음`);
+    await deleteWholeGroup(`${P} (1/3)`);
+    assert((await eventRow(P).count()) === 0, '전체 삭제 뒤에도 남음');
+  });
+
+  await check('[반복 일정] 매주 → 📅 미리보기 → 반복 일정 생성 → 오늘에 생기고, 묶음으로 지워짐', async () => {
+    const R = `점검반복 ${Date.now() % 10000}`;
+    await openMenu('반복 일정 등록');
+    await page.getByPlaceholder(/학년 협의회/).fill(R);
+    await page.getByRole('button', { name: '매주', exact: true }).click();
+    const today = ['일', '월', '화', '수', '목', '금', '토'][new Date().getDay()];
+    const dayBtn = page.locator('[data-scroll-lock] button.rounded-full', { hasText: new RegExp(`^${today}$`) });
+    if (!(await dayBtn.getAttribute('class')).includes('bg-primary')) await dayBtn.click();
+    const dates = page.locator('[data-scroll-lock] input[type=date]');
+    const end = new Date(Date.now() + 21 * 864e5);
+    const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+    await dates.nth(1).fill(endStr);
+    await page.getByRole('button', { name: /미리보기/ }).click();
+    await wait(400);
+    const preview = await page.getByRole('button', { name: /미리보기/ }).innerText();
+    const n = Number((preview.match(/(\d+)개 날짜/) || [])[1] || 0);
+    assert(n >= 3, `미리보기 '${preview}'`);
+    await page.getByRole('button', { name: /반복 일정 생성 \(\d+개\)/ }).click();
+    await wait(3500);
+    await closeAll();
+    await wait(1500);
+    assert((await eventRow(R).count()) === 1, '오늘 일정에 반복 일정이 없음');
+    await deleteWholeGroup(R);
+    return `${n}개 날짜`;
+  });
+
+  // ── 찾기 · 정리 ──
+  await check('[라벨 이름 바꾸기] 통합 라벨 관리에서 바꾸면 이미 붙은 일정 칩도 바뀜', async () => {
+    const L = `점검라벨일정 ${Date.now() % 10000}`;
+    await page.getByRole('button', { name: '+ 새 일정' }).click();
+    await wait(500);
+    const preset = (await eventPanel().locator('button[aria-pressed="true"]').allInnerTexts())[0];
+    const box = eventPanel().getByPlaceholder(EVENT_PH);
+    await box.fill(L);
+    await box.press('Control+s');
+    await wait(1500);
+    await box.press('Escape');
+    await openMenu('통합 라벨 관리');
+    const nameBox = page.locator('[data-scroll-lock] input[type=text]:not([placeholder])').first();
+    const before = await nameBox.inputValue();
+    assert(before === preset, `맨 위 라벨 '${before}' ≠ 미리 골라진 '${preset}'`);
+    const renamed = `${before}바뀜`;
+    await nameBox.fill(renamed);
+    await page.getByRole('button', { name: /클라우드 저장/ }).click();
+    await wait(4000);
+    await closeAll();
+    await wait(1500);
+    const chip = await eventRow(L).innerText();
+    // 되돌린다
+    await openMenu('통합 라벨 관리');
+    await page.locator('[data-scroll-lock] input[type=text]:not([placeholder])').first().fill(before);
+    await page.getByRole('button', { name: /클라우드 저장/ }).click();
+    await wait(4000);
+    await closeAll();
+    assert(chip.includes(renamed), `일정 줄 '${chip.replace(/\s+/g, ' ')}' 에 '${renamed}' 가 없음`);
+    return `${before} → ${renamed} → ${before}`;
+  });
+
+  await check('[휴지통] 전체 선택 · 일괄 복원 · 일괄 삭제', async () => {
+    await page.getByRole('button', { name: /휴지통/ }).first().click();
+    await wait(1500);
+    for (const t of [/전체 선택/, /일괄 복원/, /일괄 삭제/]) assert((await page.getByText(t).count()) > 0, `${t} 없음`);
+    await closeAll();
+  });
+
+  // ── 공유 · 연동 · 백업 ──
+  await check('[백업] JSON 을 고르고 내보내기 → 백업 파일이 내려받아짐', async () => {
+    await openMenu('내보내기 / 가져오기');
+    await page.getByTitle('JSON').first().click();
+    await wait(400);
+    const [dl] = await Promise.all([
+      page.waitForEvent('download', { timeout: 30000 }),
+      page.getByTitle('내보내기', { exact: true }).click(),
+    ]);
+    const name = dl.suggestedFilename();
+    await closeAll();
+    assert(/\.json$/i.test(name), `받은 파일 '${name}'`);
+    return name;
+  });
+
+  // ── 설정 · 단축키 ──
+  await check('[환경설정] 시작 화면을 주간으로 저장하면 새로 열 때 주간부터', async () => {
+    await openMenu('환경설정');
+    await page.locator('[data-scroll-lock]').getByRole('button', { name: '주간', exact: true }).click();
+    await page.getByRole('button', { name: '저장', exact: true }).last().click();
+    await wait(1500);
+    await closeAll();
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await heading('일정').waitFor({ timeout: 40000 }).catch(() => {});
+    await wait(3000);
+    const t = await scopeTitle();
+    // 되돌린다
+    await openMenu('환경설정');
+    await page.locator('[data-scroll-lock]').getByRole('button', { name: '마지막에 보던 화면', exact: true }).click();
+    await page.getByRole('button', { name: '저장', exact: true }).last().click();
+    await wait(1200);
+    await closeAll();
+    await page.keyboard.press('Shift+Digit1');
+    await wait(1200);
+    assert(/주$/.test(t), `새로 연 뒤 제목 '${t}'`);
+    return t;
+  });
+
+  // 단축키 창은 환경설정 창 위에 뜬다. 두 창 모두 '저장'이 있으니 단축키 창의 것을 누른다.
+  const shortcutDialogSave = () =>
+    page
+      .locator('div.rounded-2xl', { has: page.getByRole('heading', { name: /단축키$/ }) })
+      .last()
+      .getByRole('button', { name: '저장', exact: true })
+      .last()
+      .click();
+  await check('[단축키 바꾸기] 출석부에 Alt+A → 눌러서 열림 → ⋮ 메뉴와 설명서에도 Alt + A → 기본값으로', async () => {
+    await openMenu('환경설정');
+    await page.getByRole('button', { name: /단축키 설정/ }).click();
+    await wait(800);
+    const keyBox = page.getByLabel('출석부 키');
+    await keyBox.click();
+    await keyBox.press('Alt+KeyA');
+    await wait(200);
+    await shortcutDialogSave();
+    await wait(1000);
+    await closeAll();
+    await page.keyboard.press('Alt+KeyA');
+    await wait(1500);
+    const opened = await heading(/출석부/).isVisible().catch(() => false);
+    await closeAll();
+    await page.getByTitle('더보기 메뉴').click();
+    await wait(300);
+    const menuText = await page.getByRole('button', { name: /출석부/ }).first().innerText();
+    await page.getByRole('button', { name: /사용 설명서/ }).first().click();
+    await wait(1500);
+    await page.locator('[data-help-category="classroom"]').click();
+    await page.locator('[data-help-topic="attendance"]').click();
+    await wait(300);
+    const helpHasKey = (await page.locator('[data-scroll-lock] kbd', { hasText: 'Alt + A' }).count()) > 0;
+    await closeAll();
+    // 되돌린다
+    await openMenu('환경설정');
+    await page.getByRole('button', { name: /단축키 설정/ }).click();
+    await wait(800);
+    await page.getByRole('button', { name: '기본값으로' }).click();
+    await shortcutDialogSave();
+    await wait(1000);
+    await closeAll();
+    assert(opened, 'Alt+A 로 출석부가 열리지 않음');
+    assert(/Alt \+ A/.test(menuText), `⋮ 메뉴 항목 '${menuText.replace(/\s+/g, ' ')}'`);
+    assert(helpHasKey, '설명서의 출석부 항목에 Alt + A 가 없음');
+  });
+
+  // ── 사용 설명서 ──
+  await check('[설명서] ⋮ 메뉴 이름이 "사용 설명서", 첫 화면은 기능별 분류 카드만', async () => {
+    await page.getByTitle('더보기 메뉴').click();
+    await wait(300);
+    const item = page.getByRole('button', { name: /사용 설명서/ }).first();
+    const label = (await item.innerText()).replace(/\s+/g, ' ').trim();
+    assert(!/단축키/.test(label), `메뉴 이름 '${label}'`);
+    await item.click();
+    await wait(1500);
+    const cards = await page.locator('[data-help-category]').count();
+    const topics = await page.locator('[data-help-topic]').count();
+    await closeAll();
+    assert(cards >= 10 && topics === 0, `분류 카드 ${cards}개, 첫 화면의 세부 기능 ${topics}개`);
+    return `메뉴 '${label}', 분류 ${cards}개`;
+  });
+
+  await check('[설명서] 모든 분류 → 모든 세부 기능을 열어 세부 설명과 사용 예 확인', async () => {
     await openMenu('사용 설명서');
-    const titles = await page.locator('[data-scroll-lock] section button').allInnerTexts();
+    const catIds = await page.locator('[data-help-category]').evaluateAll((els) => els.map((e) => e.dataset.helpCategory));
     let opened = 0;
-    for (let i = 0; i < titles.length; i++) {
-      await page.locator('[data-scroll-lock] section button').nth(i).click();
+    const lacking = [];
+    for (const cid of catIds) {
+      await page.locator(`[data-help-category="${cid}"]`).click();
       await wait(80);
-      const blocks = await page.locator('[data-scroll-lock] h3').count();
-      assert(blocks > 0, `${titles[i].split('\n')[0]} 이 안 열림`);
-      opened++;
-      await page.getByRole('button', { name: '← 목록' }).click();
+      const topicIds = await page.locator('[data-help-topic]').evaluateAll((els) => els.map((e) => e.dataset.helpTopic));
+      assert(topicIds.length > 0, `${cid} 분류가 비었음`);
+      for (const tid of topicIds) {
+        await page.locator(`[data-help-topic="${tid}"]`).click();
+        await wait(60);
+        const detail = await page.locator('section[aria-labelledby="help-detail-heading"] > :not(h4)').count();
+        const steps = await page.locator('section[aria-labelledby="help-example-heading"] li').count();
+        if (!detail || !steps) lacking.push(tid);
+        opened++;
+        await page.getByRole('navigation', { name: '설명서 위치' }).getByRole('button').first().click();
+        await wait(60);
+      }
+      await page.getByRole('button', { name: '← 기능별 분류' }).click();
       await wait(60);
     }
     await closeAll();
-    return `${opened}개`;
+    assert(lacking.length === 0, `세부 설명이나 사용 예가 빈 기능: ${lacking.join(', ')}`);
+    return `분류 ${catIds.length}개 · 기능 ${opened}개`;
   });
 
   await check('[오류] 점검 동안 페이지 오류 없음', async () => {
@@ -1103,8 +1511,13 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
 }
 
 // ───────────────────────────── 휴대폰 ─────────────────────────────
-{
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+if (ONLY !== 'pc') {
+  // 파이어폭스는 isMobile 을 받지 않는다 (폭과 터치만 흉내 낸다)
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    ...(BROWSER === 'firefox' ? {} : { isMobile: true }),
+  });
   page = await ctx.newPage();
   page.on('dialog', (d) => d.accept().catch(() => {}));
   await page.goto(SITE, { waitUntil: 'domcontentloaded' });
@@ -1127,6 +1540,38 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
     await page.keyboard.press('Escape');
   });
 
+  await check('[휴대폰] 새 일정 칸은 화면을 덮고, 저장 → 닫기로 목록에 생김', async () => {
+    const Q = `폰일정 ${Date.now() % 10000}`;
+    await page.getByRole('button', { name: '+ 새 일정' }).click();
+    await wait(800);
+    assert((await eventPanel().count()) === 0, '좁은 화면인데 옆에 붙는 칸으로 열림');
+    const box = page.getByPlaceholder(EVENT_PH);
+    const b = await box.boundingBox();
+    assert(b && b.width > 250, '입력칸이 안 보임');
+    await box.fill(Q);
+    await page.getByRole('button', { name: '저장', exact: true }).last().click();
+    await wait(1800);
+    await page.getByRole('button', { name: '닫기', exact: true }).last().click();
+    await wait(800);
+    assert((await page.getByText(Q, { exact: true }).count()) === 1, '목록에 새 일정이 없음');
+  });
+
+  await check('[휴대폰] 사용 설명서: 분류 → 기능 → 세부 설명·사용 예', async () => {
+    await page.getByTitle('더보기 메뉴').click();
+    await wait(400);
+    await page.getByRole('button', { name: /사용 설명서/ }).first().click();
+    await wait(1500);
+    await page.locator('[data-help-category="events"]').click();
+    await page.locator('[data-help-topic="event-add"]').click();
+    await wait(300);
+    const ex = await page.locator('section[aria-labelledby="help-example-heading"] li').count();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+    await page.goBack();
+    await wait(800);
+    assert(ex > 0, '사용 예가 없음');
+    assert(!overflow, '가로로 넘침');
+  });
+
   await check('[휴대폰] 뒤로가기는 앱을 나가지 않고 팝업만 닫음', async () => {
     await page.locator('header').getByTitle(/통합 검색/).click();
     await wait(1000);
@@ -1142,5 +1587,5 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
 await browser.close();
 const fails = results.filter((r) => !r.ok);
 console.log(`\n결과: ${results.length - fails.length}/${results.length} 통과`);
-fs.writeFileSync(`${OUT}/result.json`, JSON.stringify(results, null, 2));
+fs.writeFileSync(`${OUT}/result.json`, JSON.stringify({ env: { BROWSER, PC_W, PC_H, ONLY }, results }, null, 2));
 process.exit(0);

@@ -1,6 +1,6 @@
 // src/components/EntryPanelHost.tsx
 //
-// 메모·기록·일정을 쓰는 오른쪽 칸. 화면(하루·메모·주간·월간·년간)이 아니라 Layout이 그린다.
+// 메모·기록·일정·알림장·출석부를 쓰는 오른쪽 칸. 화면(하루·메모·주간·월간·년간)이 아니라 Layout이 그린다.
 //
 // 예전에는 각 화면이 배너를 들고 있어서, 배너가 뜨면 뒤 화면이 어두워져 볼 수 없었고
 // 다른 날짜·다른 화면으로 옮기면 배너가 같이 사라졌다. 이제 배너는 화면 옆에
@@ -8,9 +8,10 @@
 //
 // 저장 로직도 여기로 옮겼다. 배너가 화면보다 오래 살기 때문에, 저장하는 쪽도
 // 화면이 아니라 배너 곁에 있어야 한다.
-import React, { useEffect, useRef } from 'react';
+import React, { Suspense, useEffect, useRef } from 'react';
 import EntryDrawer, { type EntryDraft } from './EntryDrawer';
 import EventDrawer from './EventDrawer';
+import { lazyWithReload } from '../lib/lazyWithReload';
 import { useAppStore, type EntryPanelTarget } from '../store/useAppStore';
 import { useDayData, type Attachment, type JournalEntry } from '../hooks/useDayData';
 import { useMemos, type Memo } from '../hooks/useMemos';
@@ -20,8 +21,21 @@ import { useGroups } from '../hooks/useGroups';
 import { shortDateLabel } from '../lib/notices';
 import { showToast } from '../utils/toast';
 
+// 알림장·출석부는 열 때만 내려받는다 (학급 운영을 안 쓰는 날에는 필요 없다)
+const NoticeDrawer = lazyWithReload(() => import('./NoticeDrawer'));
+const AttendanceDrawer = lazyWithReload(() => import('./AttendanceDrawer'));
+
 /** 이 폭 이상이면 화면 옆에 붙인다. 그보다 좁으면(휴대폰) 예전처럼 화면을 덮는 배너. */
 export const DOCK_MIN_WIDTH = 768;
+
+/**
+ * 오른쪽 칸의 폭 (Layout이 --entry-panel-w 로 건다).
+ * 모니터 절반(약 940px)에서도 왼쪽 화면이 반 넘게 남도록 36vw로 두고, 너무 좁거나 넓지 않게 묶는다.
+ * 출석부는 학생마다 종류·사유·교시 단추가 한 줄에 서고 누계 표가 17칸이라 더 넓게 둔다.
+ */
+export function entryPanelWidth(kind: EntryPanelTarget['kind'] | undefined): string {
+  return kind === 'attendance' ? 'clamp(360px, 50vw, 760px)' : 'clamp(340px, 36vw, 512px)';
+}
 
 /** 지금 칸에서 '고친 것 있으면 저장'. 다른 항목을 열기 전에 부른다. */
 let flushCurrent: (() => Promise<boolean>) | null = null;
@@ -41,6 +55,13 @@ export default function EntryPanelHost() {
   if (!target) return null;
   // 열 때마다 새로 그린다(openedAt). 다른 항목을 열었는데 앞의 글이 남아 있으면 안 된다.
   if (target.kind === 'event') return <EventPanel key={target.openedAt} target={target} />;
+  if (target.kind === 'notice' || target.kind === 'attendance') {
+    return (
+      <Suspense fallback={null}>
+        <ClassroomPanel key={target.openedAt} target={target} />
+      </Suspense>
+    );
+  }
   return target.kind === 'journal' ? (
     <JournalPanel key={target.openedAt} target={target} />
   ) : (
@@ -242,6 +263,38 @@ function EventPanel({ target }: { target: EntryPanelTarget }) {
       flushRef={flushRef}
       onClose={closeEntryPanel}
       subtitle={`${shortDateLabel(dateStr)} 일정 · ${spaceName}`}
+    />
+  );
+}
+
+/** 알림장·출석부. 날짜는 칸 안에서 ◀ ▶ 로 옮긴다 (칸마다 자기 날짜를 들고 있다). */
+function ClassroomPanel({ target }: { target: EntryPanelTarget }) {
+  const { closeEntryPanel } = useAppStore();
+  const docked = useMinWidth(DOCK_MIN_WIDTH);
+  const flushRef = useFlushRegistration();
+  const spaceName = useSpaceName(target.groupId);
+  const dateStr = target.dateStr || '';
+
+  if (target.kind === 'notice') {
+    return (
+      <NoticeDrawer
+        dateStr={dateStr}
+        groupId={target.groupId}
+        spaceName={spaceName}
+        initialTab={target.tab === 'list' ? 'list' : 'write'}
+        docked={docked}
+        flushRef={flushRef}
+        onClose={closeEntryPanel}
+      />
+    );
+  }
+  return (
+    <AttendanceDrawer
+      dateStr={dateStr}
+      initialTab={target.tab === 'summary' ? 'summary' : 'check'}
+      docked={docked}
+      flushRef={flushRef}
+      onClose={closeEntryPanel}
     />
   );
 }

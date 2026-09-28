@@ -17,7 +17,7 @@ export type StartupScope = 'last' | Scope;
 
 /** 오른쪽 칸이 무엇을 쓰고 있는가 */
 export interface EntryPanelTarget {
-  kind: 'memo' | 'journal' | 'event';
+  kind: 'memo' | 'journal' | 'event' | 'notice' | 'attendance';
   /** 어느 공간의 것인가 (null = 개인). 열 때의 공간을 붙들어, 공간을 바꿔도 제자리에 저장한다. */
   groupId: string | null;
   /** 기록·일정의 날짜 (메모에는 없다) */
@@ -28,6 +28,8 @@ export interface EntryPanelTarget {
   initial?: any;
   /** 새로 쓸 때 미리 골라 둘 라벨 */
   defaultLabel?: string;
+  /** 알림장('write'|'list')·출석부('check'|'summary')를 열 때 처음 보일 탭 */
+  tab?: 'write' | 'list' | 'check' | 'summary';
   openedAt?: number;
 }
 
