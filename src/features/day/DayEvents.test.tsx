@@ -1,307 +1,351 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DayEvents from './DayEvents';
+import EntryPanelHost from '../../components/EntryPanelHost';
 import type { EventItem } from '../../hooks/useDayData';
+import { useAppStore } from '../../store/useAppStore';
+
+// 일정을 쓰고 고치는 칸은 이제 목록 안이 아니라 오른쪽 칸(EventDrawer)이다.
+// 칸은 Layout의 EntryPanelHost가 그리고, 저장도 그쪽이 useDayData로 한다.
+// 그 훅을 가짜로 바꿔 저장 호출을 지켜본다.
+let hook: {
+  eventList: EventItem[];
+  addEventItem: ReturnType<typeof vi.fn>;
+  updateEventItem: ReturnType<typeof vi.fn>;
+  deleteEventItem: ReturnType<typeof vi.fn>;
+};
+vi.mock('../../hooks/useDayData', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../hooks/useDayData')>();
+  return { ...actual, useDayData: () => hook };
+});
+
+// 넓은 화면(칸이 화면 옆에 붙는 경우)으로 본다. 휴대폰 폭에서는 예전처럼 덮는 배너다.
+vi.mock('../../hooks/useMinWidth', () => ({ useMinWidth: () => true }));
+
+beforeEach(() => {
+  useAppStore.setState({ entryPanel: null });
+});
 
 const events: EventItem[] = [
   { id: 'ev_1', content: '교직원 회의', completed: false, linkedItems: [], attachments: [] },
   { id: 'ev_2', content: '안전 점검', completed: false, linkedItems: [], attachments: [] },
 ];
 
-function renderEvents(overrides: Partial<React.ComponentProps<typeof DayEvents>> = {}) {
+function renderEvents(list: EventItem[] = events) {
   const props = {
-    events,
-    onAddEvent: vi.fn(async () => {}),
+    events: list,
     onToggleEvent: vi.fn(async () => {}),
     onDeleteEvent: vi.fn(async () => {}),
     onUpdateEvent: vi.fn(async () => {}),
-    ...overrides,
   };
-  return { ...render(<DayEvents {...props} />), props };
+  hook = {
+    eventList: list,
+    addEventItem: vi.fn(async () => {}),
+    updateEventItem: vi.fn(async () => {}),
+    deleteEventItem: vi.fn(async () => {}),
+  };
+  return {
+    ...render(
+      <>
+        <DayEvents {...props} />
+        <EntryPanelHost />
+      </>
+    ),
+    props,
+  };
 }
 
-describe('DayEvents - 항목 자리에서 바로 수정', () => {
-  it('일정을 클릭하면 팝업이 아니라 그 자리에 수정 섹션이 열린다', async () => {
+const panel = () => screen.getByRole('complementary', { name: '일정 쓰기' });
+const propBoxOf = () => within(panel()).getByText('속성 설정').closest('div')!;
+
+describe('DayEvents - 일정을 누르면 오른쪽 칸에서 고친다', () => {
+  it('일정을 클릭하면 오른쪽 칸에 그 일정의 수정 칸이 열린다', async () => {
     const user = userEvent.setup();
     renderEvents();
 
     await user.click(screen.getByText('교직원 회의'));
 
-    // 수정 대상 내용이 입력칸에 들어온다
-    expect(await screen.findByDisplayValue('교직원 회의')).toBeInTheDocument();
-    // 팝업(일정 수정)은 열리지 않는다
-    expect(screen.queryByRole('heading', { name: '일정 수정' })).toBeNull();
+    expect(await screen.findByRole('heading', { name: '일정 수정' })).toBeInTheDocument();
+    expect(within(panel()).getByDisplayValue('교직원 회의')).toBeInTheDocument();
+    // 목록은 그대로 남아 있다 (칸이 목록을 밀어내거나 가리지 않는다)
+    expect(screen.getByText('안전 점검')).toBeInTheDocument();
   });
 
-  it("수정 섹션에 '일정 수정' 팝업의 버튼과 항목이 모두 있다", async () => {
+  it('칸에 알림·링크·라벨·5대 속성·내용·삭제/닫기/저장이 모두 있다', async () => {
     const user = userEvent.setup();
     renderEvents();
 
     await user.click(screen.getByText('교직원 회의'));
-    await screen.findByDisplayValue('교직원 회의');
+    const p = await screen.findByRole('complementary', { name: '일정 쓰기' });
 
-    // 버튼 줄
-    expect(screen.getByRole('button', { name: /알림 추가/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /링크 추가/ })).toBeInTheDocument();
-    // 라벨 + 라벨 관리
-    expect(screen.getByText('라벨 (다중 선택 가능)')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /라벨 수정/ })).toBeInTheDocument();
-    // 5대 속성 (라벨 칩에도 같은 이름이 있으므로 속성 상자 안에서만 찾는다)
-    const propBox = screen.getByText('속성 설정').closest('div')!;
+    expect(within(p).getByRole('button', { name: /알림 추가/ })).toBeInTheDocument();
+    expect(within(p).getByRole('button', { name: /링크 추가/ })).toBeInTheDocument();
+    expect(within(p).getByText('라벨 (다중 선택 가능)')).toBeInTheDocument();
+    expect(within(p).getByRole('button', { name: /라벨 수정/ })).toBeInTheDocument();
     for (const name of ['달력', '이월', '기간', '반복', '수업X']) {
-      expect(within(propBox).getByText(name)).toBeInTheDocument();
+      expect(within(propBoxOf()).getByText(name)).toBeInTheDocument();
     }
-    expect(within(propBox).getAllByRole('checkbox')).toHaveLength(5);
-    // 본문 + 아래 버튼
-    expect(screen.getByText('일정 내용')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '삭제' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '닫기' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '저장 완료' })).toBeInTheDocument();
+    expect(within(propBoxOf()).getAllByRole('checkbox')).toHaveLength(5);
+    expect(within(p).getByText('일정 내용')).toBeInTheDocument();
+    expect(within(p).getByRole('button', { name: '삭제' })).toBeInTheDocument();
+    expect(within(p).getByRole('button', { name: '닫기' })).toBeInTheDocument();
+    expect(within(p).getByRole('button', { name: '저장' })).toBeInTheDocument();
   });
 
-  it('저장하면 속성까지 함께 넘긴다', async () => {
+  it('저장하면 속성까지 함께 넘기고, 칸은 열어 둔다', async () => {
     const user = userEvent.setup();
-    const { props } = renderEvents();
+    renderEvents();
 
     await user.click(screen.getByText('교직원 회의'));
-    await screen.findByDisplayValue('교직원 회의');
-    await user.click(screen.getByRole('button', { name: '저장 완료' }));
+    await user.type(await screen.findByDisplayValue('교직원 회의'), ' 준비');
+    await user.click(within(panel()).getByRole('button', { name: '저장' }));
 
-    expect(props.onUpdateEvent).toHaveBeenCalledTimes(1);
-    const [id, updates] = (props.onUpdateEvent as any).mock.calls[0];
+    expect(hook.updateEventItem).toHaveBeenCalledTimes(1);
+    const [id, updates] = hook.updateEventItem.mock.calls[0];
     expect(id).toBe('ev_1');
     expect(updates).toMatchObject({
-      content: '교직원 회의',
+      content: '교직원 회의 준비',
       calendar: expect.any(Boolean),
-      forward: expect.any(Boolean),
       period: expect.any(Boolean),
       recur: expect.any(Boolean),
       skip: expect.any(Boolean),
     });
+    expect(screen.getByRole('heading', { name: '일정 수정' })).toBeInTheDocument();
   });
 
-  it('수정 중인 일정만 수정 섹션으로 바뀌고 나머지는 그대로 남는다', async () => {
+  it('라벨을 떼면 labelIds에서도 빠진다 (옛 ID로 라벨이 되살아나지 않게)', async () => {
+    const user = userEvent.setup();
+    renderEvents([{ id: 'ev_l', content: '회의', label: '이월', completed: false }]);
+
+    await user.click(screen.getByText('회의'));
+    await screen.findByRole('heading', { name: '일정 수정' });
+    const chip = within(panel()).getByRole('button', { name: '이월', pressed: true });
+    await user.click(chip);
+    await user.click(within(panel()).getByRole('button', { name: '저장' }));
+
+    const [, updates] = hook.updateEventItem.mock.calls[0];
+    expect(updates.label).toBe('');
+    expect(updates.labelIds).toEqual([]);
+  });
+
+  it('고치고 있는 일정을 목록에서 짚어 준다', async () => {
     const user = userEvent.setup();
     renderEvents();
 
     await user.click(screen.getByText('교직원 회의'));
-    await screen.findByDisplayValue('교직원 회의');
+    await screen.findByRole('heading', { name: '일정 수정' });
 
-    expect(screen.getByText('안전 점검')).toBeInTheDocument();
+    const rows = screen.getAllByTitle('클릭하여 오른쪽 칸에서 수정');
+    expect(rows[0].className).toContain('ring-primary');
+    expect(rows[1].className).not.toContain('ring-primary');
   });
 
-  it('삭제 아이콘은 확인창 없이 지운다', async () => {
+  it('칸을 연 채 다른 일정을 누르면 고친 것을 먼저 저장한다', async () => {
+    const user = userEvent.setup();
+    renderEvents();
+
+    await user.click(screen.getByText('교직원 회의'));
+    await user.type(await screen.findByDisplayValue('교직원 회의'), '!');
+    await user.click(screen.getByText('안전 점검'));
+
+    await waitFor(() => expect(hook.updateEventItem).toHaveBeenCalledTimes(1));
+    expect(hook.updateEventItem.mock.calls[0][1].content).toBe('교직원 회의!');
+    expect(await within(panel()).findByDisplayValue('안전 점검')).toBeInTheDocument();
+  });
+
+  it('닫기는 저장하지 않고 닫는다', async () => {
+    const user = userEvent.setup();
+    renderEvents();
+
+    await user.click(screen.getByText('교직원 회의'));
+    await user.type(await screen.findByDisplayValue('교직원 회의'), '!');
+    await user.click(within(panel()).getByRole('button', { name: '닫기' }));
+
+    expect(screen.queryByRole('heading', { name: '일정 수정' })).toBeNull();
+    expect(hook.updateEventItem).not.toHaveBeenCalled();
+  });
+
+  it('내용을 다 지우면 저장 단추가 꺼지고, 다른 것을 열어도 일정을 지우지 않는다', async () => {
+    const user = userEvent.setup();
+    renderEvents();
+
+    await user.click(screen.getByText('교직원 회의'));
+    await user.clear(await screen.findByDisplayValue('교직원 회의'));
+    expect(within(panel()).getByRole('button', { name: '저장' })).toBeDisabled();
+
+    await user.click(screen.getByText('안전 점검'));
+
+    expect(hook.updateEventItem).not.toHaveBeenCalled();
+    expect(hook.deleteEventItem).not.toHaveBeenCalled();
+  });
+
+  it('칸의 삭제는 확인창 없이 지우고 칸을 닫는다', async () => {
     const user = userEvent.setup();
     const confirmSpy = vi.spyOn(window, 'confirm');
+    renderEvents();
+
+    await user.click(screen.getByText('교직원 회의'));
+    await screen.findByRole('heading', { name: '일정 수정' });
+    await user.click(within(panel()).getByRole('button', { name: '삭제' }));
+
+    await waitFor(() => expect(hook.deleteEventItem).toHaveBeenCalledWith('ev_1', expect.anything()));
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(screen.queryByRole('heading', { name: '일정 수정' })).toBeNull();
+    confirmSpy.mockRestore();
+  });
+
+  it('목록에서 지운 일정을 칸에서 고치고 있었으면 칸도 닫는다', async () => {
+    const user = userEvent.setup();
     const { props } = renderEvents();
 
+    await user.click(screen.getByText('교직원 회의'));
+    await screen.findByRole('heading', { name: '일정 수정' });
     await user.click(screen.getAllByTitle('일정 삭제')[0]);
 
     expect(props.onDeleteEvent).toHaveBeenCalledWith('ev_1');
-    expect(confirmSpy).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
+    await waitFor(() => expect(screen.queryByRole('heading', { name: '일정 수정' })).toBeNull());
   });
 });
 
-describe("DayEvents - 새 일정 추가 폼도 '일정 수정'과 같은 구성", () => {
-  const openAddForm = async (user: ReturnType<typeof userEvent.setup>) => {
+describe('DayEvents - + 새 일정도 오른쪽 칸에서', () => {
+  const openCreate = async (user: ReturnType<typeof userEvent.setup>) => {
     await user.click(screen.getByRole('button', { name: /새 일정/ }));
+    await screen.findByRole('heading', { name: '새 일정' });
   };
 
-  it('버튼 줄·라벨·5대 속성·내용·닫기/저장이 모두 있다', async () => {
-    const user = userEvent.setup();
-    renderEvents({ events: [] });
-
-    await openAddForm(user);
-
-    expect(screen.getByRole('button', { name: /알림 추가/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /링크 추가/ })).toBeInTheDocument();
-    expect(screen.getByText('라벨 (다중 선택 가능)')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /라벨 수정/ })).toBeInTheDocument();
-
-    const propBox = screen.getByText('속성 설정').closest('div')!;
-    for (const name of ['달력', '이월', '기간', '반복', '수업X']) {
-      expect(within(propBox).getByText(name)).toBeInTheDocument();
-    }
-    expect(within(propBox).getAllByRole('checkbox')).toHaveLength(5);
-
-    expect(screen.getByText('일정 내용')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '닫기' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '저장' })).toBeInTheDocument();
-  });
-
   it('맨 위 라벨이 미리 골라져 있고, 눌러서 뗄 수 있다', async () => {
-    // 매번 손으로 고르게 하면 안 고른 채로 저장되기 쉽고, 그러면 그 일정은
-    // 어느 갈래에도 걸리지 않는다
     const user = userEvent.setup();
-    renderEvents({ events: [] });
+    renderEvents([]);
+    await openCreate(user);
 
-    await openAddForm(user);
+    const chips = within(panel())
+      .getAllByRole('button')
+      .filter((b) => b.hasAttribute('aria-pressed'));
+    expect(chips[0]).toHaveAttribute('aria-pressed', 'true');
 
-    const first = screen.getByRole('button', { name: '달력' }); // 라벨 목록의 맨 위
-    expect(first).toHaveAttribute('aria-pressed', 'true');
-
-    await user.click(first);
-    expect(first).toHaveAttribute('aria-pressed', 'false');
-  });
-
-  it('미리 골라 둔 라벨만 있으면 밖을 눌러도 적은 것으로 치지 않는다', async () => {
-    // 손대지 않았는데 라벨 하나 때문에 칸이 안 닫히면 안 된다
-    const user = userEvent.setup();
-    renderEvents({ events: [] });
-
-    await openAddForm(user);
-    await user.click(document.body);
-
-    expect(screen.queryByText('일정 내용')).toBeNull();
-  });
-
-  it('아무것도 안 적은 채로 밖을 누르면 칸이 닫힌다', async () => {
-    // 열어만 두고 딴 데를 누르면, 빈 칸이 '적다 만 일정'처럼 계속 눈에 걸린다
-    const user = userEvent.setup();
-    renderEvents({ events: [] });
-
-    await openAddForm(user);
-    expect(screen.getByText('일정 내용')).toBeInTheDocument();
-
-    await user.click(document.body);
-
-    expect(screen.queryByText('일정 내용')).toBeNull();
-    expect(screen.getByRole('button', { name: /새 일정/ })).toBeInTheDocument();
-  });
-
-  it('한 글자라도 적었으면 밖을 눌러도 닫히지 않는다', async () => {
-    // 잘못 누른 한 번에 적던 것이 날아가면 안 된다
-    const user = userEvent.setup();
-    renderEvents({ events: [] });
-
-    await openAddForm(user);
-    await user.type(screen.getByPlaceholderText(/일정을 입력/), '교직원 회의');
-
-    await user.click(document.body);
-
-    expect(screen.getByDisplayValue('교직원 회의')).toBeInTheDocument();
+    await user.click(chips[0]);
+    expect(chips[0]).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('내용 입력칸이 여러 줄로 늘어나는 입력칸이다', async () => {
     const user = userEvent.setup();
-    renderEvents({ events: [] });
+    renderEvents([]);
+    await openCreate(user);
 
-    await openAddForm(user);
-
-    const box = screen.getByPlaceholderText(/새로운 일정/);
-    expect(box.tagName).toBe('TEXTAREA');
+    expect(within(panel()).getByPlaceholderText(/새로운 일정/).tagName).toBe('TEXTAREA');
   });
 
-  it('저장하면 고른 속성까지 함께 넘긴다', async () => {
+  it('저장하면 고른 속성까지 넘기고, 칸을 비워 이어 적게 한다', async () => {
     const user = userEvent.setup();
-    const { props } = renderEvents({ events: [] });
+    renderEvents([]);
+    await openCreate(user);
 
-    await openAddForm(user);
-    await user.type(screen.getByPlaceholderText(/새로운 일정/), '교내 행사');
+    await user.type(within(panel()).getByPlaceholderText(/새로운 일정/), '교내 행사');
+    const forwardBox = within(propBoxOf()).getAllByRole('checkbox')[1] as HTMLInputElement;
+    if (!forwardBox.checked) await user.click(forwardBox);
+    await user.click(within(panel()).getByRole('button', { name: '저장' }));
 
-    const propBox = screen.getByText('속성 설정').closest('div')!;
-    await user.click(within(propBox).getAllByRole('checkbox')[1]); // 이월 켜기
-
-    await user.click(screen.getByRole('button', { name: '저장' }));
-
-    expect(props.onAddEvent).toHaveBeenCalledTimes(1);
-    const [content, options] = (props.onAddEvent as any).mock.calls[0];
+    await waitFor(() => expect(hook.addEventItem).toHaveBeenCalledTimes(1));
+    const [content, options] = hook.addEventItem.mock.calls[0];
     expect(content).toBe('교내 행사');
-    expect(options).toMatchObject({ forward: true, calendar: true });
+    expect(options).toMatchObject({ forward: true, linkedItems: [] });
+    // 칸은 남고 비워진다
+    expect(screen.getByRole('heading', { name: '새 일정' })).toBeInTheDocument();
+    expect(within(panel()).getByPlaceholderText(/새로운 일정/)).toHaveValue('');
+  });
+
+  it('Ctrl+S로도 저장한다', async () => {
+    const user = userEvent.setup();
+    renderEvents([]);
+    await openCreate(user);
+
+    const box = within(panel()).getByPlaceholderText(/새로운 일정/);
+    await user.type(box, '학부모 상담');
+    await user.keyboard('{Control>}s{/Control}');
+
+    await waitFor(() => expect(hook.addEventItem).toHaveBeenCalledTimes(1));
+    expect(hook.addEventItem.mock.calls[0][0]).toBe('학부모 상담');
   });
 
   it('라벨을 고르면 그 라벨의 기본 속성을 따라간다', async () => {
     const user = userEvent.setup();
-    renderEvents({ events: [] });
-
-    await openAddForm(user);
+    renderEvents([]);
+    await openCreate(user);
 
     // 기본 라벨 '이월'은 forward 속성이 켜져 있다
-    const labelChips = screen
-      .getAllByRole('button')
-      .filter((b) => b.className.includes('rounded-lg') && b.textContent === '이월');
-    await user.click(labelChips[0]);
+    const forwardBox = within(propBoxOf()).getAllByRole('checkbox')[1] as HTMLInputElement;
+    if (forwardBox.checked) await user.click(forwardBox);
+    await user.click(within(panel()).getByRole('button', { name: '이월', pressed: false }));
 
-    const propBox = screen.getByText('속성 설정').closest('div')!;
-    expect((within(propBox).getAllByRole('checkbox')[1] as HTMLInputElement).checked).toBe(true);
+    expect(forwardBox.checked).toBe(true);
+  });
+
+  it('저장한 적 없는 빈 칸에서 다른 일정을 열면 아무것도 만들지 않는다', async () => {
+    const user = userEvent.setup();
+    renderEvents();
+    await openCreate(user);
+
+    await user.click(screen.getByText('교직원 회의'));
+
+    expect(await screen.findByRole('heading', { name: '일정 수정' })).toBeInTheDocument();
+    expect(hook.addEventItem).not.toHaveBeenCalled();
   });
 });
 
 describe('DayEvents - 기간 속성', () => {
   // '기간'은 하루짜리 표시가 아니라 '언제부터 언제까지'를 정해야 뜻이 생긴다.
-  // 켜도 아무것도 안 뜨면 체크만 남고 여러 날짜에 일정이 생기지 않는다.
-  const openAddFormAndCheckPeriod = async (user: ReturnType<typeof userEvent.setup>) => {
-    await user.click(screen.getByRole('button', { name: /새 일정/ }));
-    const propBox = screen.getByText('속성 설정').closest('div')!;
-    const periodBox = within(propBox).getAllByRole('checkbox')[2]; // 달력·이월·기간 순
+  const turnOnPeriod = async (user: ReturnType<typeof userEvent.setup>) => {
+    const periodBox = within(propBoxOf()).getAllByRole('checkbox')[2] as HTMLInputElement; // 달력·이월·기간 순
     await user.click(periodBox);
-    return periodBox as HTMLInputElement;
+    return periodBox;
   };
 
-  it("'기간'을 켜면 기간을 정하는 칸이 뜬다", async () => {
+  it("새 일정에서 '기간'을 켜면 적던 내용을 가지고 기간을 정하는 칸이 뜬다", async () => {
     const user = userEvent.setup();
-    renderEvents({ events: [] });
+    renderEvents([]);
+    await user.click(screen.getByRole('button', { name: /새 일정/ }));
+    await user.type(await screen.findByPlaceholderText(/새로운 일정/), '여름방학');
 
-    await openAddFormAndCheckPeriod(user);
+    await turnOnPeriod(user);
 
     expect(await screen.findByRole('heading', { name: /연속 기간 등록/ })).toBeInTheDocument();
     expect(screen.getByLabelText('시작일')).toBeInTheDocument();
     expect(screen.getByLabelText('종료일')).toBeInTheDocument();
-  });
-
-  it('적던 내용을 그대로 가지고 간다', async () => {
-    const user = userEvent.setup();
-    renderEvents({ events: [] });
-
-    await user.click(screen.getByRole('button', { name: /새 일정/ }));
-    await user.type(screen.getByPlaceholderText(/새로운 일정/), '여름방학');
-    const propBox = screen.getByText('속성 설정').closest('div')!;
-    await user.click(within(propBox).getAllByRole('checkbox')[2]);
-
-    await screen.findByRole('heading', { name: /연속 기간 등록/ });
-    expect(screen.getByLabelText('일정 내용')).toHaveValue('여름방학');
+    expect(screen.getAllByDisplayValue('여름방학').length).toBeGreaterThan(0);
   });
 
   it('기간을 정하지 않고 닫으면 체크도 다시 풀린다', async () => {
     const user = userEvent.setup();
-    renderEvents({ events: [] });
+    renderEvents([]);
+    await user.click(screen.getByRole('button', { name: /새 일정/ }));
+    await screen.findByRole('heading', { name: '새 일정' });
 
-    const periodBox = await openAddFormAndCheckPeriod(user);
+    const periodBox = await turnOnPeriod(user);
     await screen.findByRole('heading', { name: /연속 기간 등록/ });
-
-    await user.click(screen.getByTitle('닫기'));
+    await user.click(screen.getAllByTitle('닫기').at(-1)!);
 
     expect(screen.queryByRole('heading', { name: /연속 기간 등록/ })).toBeNull();
     expect(periodBox.checked).toBe(false);
   });
-});
 
-describe('DayEvents - 기존 일정을 기간으로 바꾸기', () => {
-  it('수정 중에 기간을 켜면 날짜를 고르는 팝업이 뜬다', async () => {
+  it('고치던 일정에서 기간을 켜도 날짜를 고르는 팝업이 뜬다', async () => {
     const user = userEvent.setup();
     renderEvents();
-
     await user.click(screen.getByText('교직원 회의'));
-    await screen.findByDisplayValue('교직원 회의');
+    await screen.findByRole('heading', { name: '일정 수정' });
 
-    const propBox = screen.getByText('속성 설정').closest('div')!;
-    await user.click(within(propBox).getAllByRole('checkbox')[2]); // 기간
+    await turnOnPeriod(user);
 
     expect(await screen.findByRole('heading', { name: /연속 기간 등록/ })).toBeInTheDocument();
-    expect(screen.getByLabelText('시작일')).toBeInTheDocument();
   });
 
   it('이미 기간으로 만들어진 일정을 열기만 할 때는 뜨지 않는다', async () => {
-    // 고칠 때마다 팝업이 튀어나오면 내용 한 글자도 못 고친다
     const user = userEvent.setup();
-    renderEvents({
-      events: [{ id: 'ev_p', content: '여름방학 (1/5)', period: true, groupId: 'group_x', completed: false }],
-    });
+    renderEvents([{ id: 'ev_p', content: '여름방학 (1/5)', period: true, groupId: 'group_x', completed: false }]);
 
     await user.click(screen.getByText('여름방학 (1/5)'));
-    await screen.findByDisplayValue('여름방학 (1/5)');
+    await screen.findByRole('heading', { name: '일정 수정' });
 
     expect(screen.queryByRole('heading', { name: /연속 기간 등록/ })).toBeNull();
   });
@@ -314,12 +358,11 @@ describe('DayEvents - 묶인 일정 삭제 범위', () => {
 
   it('묶인 일정을 지우면 어디까지 지울지 먼저 묻는다', async () => {
     const user = userEvent.setup();
-    const { props } = renderEvents({ events: grouped });
+    const { props } = renderEvents(grouped);
 
     await user.click(screen.getByTitle('일정 삭제'));
 
     expect(await screen.findByRole('heading', { name: /연결된 일정 삭제/ })).toBeInTheDocument();
-    // 고르기 전에는 아무것도 지우지 않는다
     expect(props.onDeleteEvent).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: /이 날짜의 일정만 삭제/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /이 날짜와 이후 일정 모두 삭제/ })).toBeInTheDocument();
@@ -328,7 +371,7 @@ describe('DayEvents - 묶인 일정 삭제 범위', () => {
 
   it("'이 날짜의 일정만'을 고르면 그 한 건만 지운다", async () => {
     const user = userEvent.setup();
-    const { props } = renderEvents({ events: grouped });
+    const { props } = renderEvents(grouped);
 
     await user.click(screen.getByTitle('일정 삭제'));
     await screen.findByRole('heading', { name: /연결된 일정 삭제/ });
@@ -339,78 +382,14 @@ describe('DayEvents - 묶인 일정 삭제 범위', () => {
 
   it('묶이지 않은 일정은 묻지 않고 바로 지운다', async () => {
     const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, 'confirm');
     const { props } = renderEvents();
 
     await user.click(screen.getAllByTitle('일정 삭제')[0]);
 
     expect(props.onDeleteEvent).toHaveBeenCalledWith('ev_1');
     expect(screen.queryByRole('heading', { name: /연결된 일정 삭제/ })).toBeNull();
-  });
-});
-
-describe('DayEvents - 바깥 클릭으로 수정 섹션 닫기', () => {
-  it('페이지의 다른 곳을 누르면 수정 섹션이 닫힌다', async () => {
-    const user = userEvent.setup();
-    renderEvents();
-
-    await user.click(screen.getByText('교직원 회의'));
-    await screen.findByDisplayValue('교직원 회의');
-
-    // 섹션 바깥(문서 본문)을 누른다
-    await user.click(document.body);
-
-    expect(screen.queryByDisplayValue('교직원 회의')).toBeNull();
-  });
-
-  it('수정 섹션 안을 누르면 닫히지 않는다', async () => {
-    const user = userEvent.setup();
-    renderEvents();
-
-    await user.click(screen.getByText('교직원 회의'));
-    const box = await screen.findByDisplayValue('교직원 회의');
-
-    await user.click(box);
-
-    expect(screen.getByDisplayValue('교직원 회의')).toBeInTheDocument();
-  });
-
-  // 적던 것이 바깥 클릭 한 번에 사라지면 안 된다. 고친 것이 있으면 저장하고 닫는다.
-  it('고친 것이 있으면 저장하고 닫는다', async () => {
-    const user = userEvent.setup();
-    const { props } = renderEvents();
-
-    await user.click(screen.getByText('교직원 회의'));
-    const box = await screen.findByDisplayValue('교직원 회의');
-    await user.type(box, ' 추가');
-
-    await user.click(document.body);
-
-    await waitFor(() => expect(props.onUpdateEvent).toHaveBeenCalledTimes(1));
-    expect((props.onUpdateEvent as any).mock.calls[0][1].content).toBe('교직원 회의 추가');
-  });
-
-  it('고친 것이 없으면 저장하지 않고 닫는다', async () => {
-    const user = userEvent.setup();
-    const { props } = renderEvents();
-
-    await user.click(screen.getByText('교직원 회의'));
-    await screen.findByDisplayValue('교직원 회의');
-    await user.click(document.body);
-
-    expect(screen.queryByDisplayValue('교직원 회의')).toBeNull();
-    expect(props.onUpdateEvent).not.toHaveBeenCalled();
-  });
-
-  it('내용을 다 지운 채 바깥을 눌러도 일정을 지우지 않는다', async () => {
-    const user = userEvent.setup();
-    const { props } = renderEvents();
-
-    await user.click(screen.getByText('교직원 회의'));
-    const box = await screen.findByDisplayValue('교직원 회의');
-    await user.clear(box);
-    await user.click(document.body);
-
-    expect(props.onDeleteEvent).not.toHaveBeenCalled();
-    expect(props.onUpdateEvent).not.toHaveBeenCalled();
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
   });
 });

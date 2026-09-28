@@ -3,13 +3,13 @@ import { useAppStore } from '../../store/useAppStore';
 import { getMonthCalendarDays, parseDateStr } from '../../lib/dateUtils';
 import { useCalendarData } from '../../hooks/useCalendarData';
 import MonthGrid from './MonthGrid';
-import QuickAddModal from '../../components/QuickAddModal';
+import { openEntryPanel } from '../../components/EntryPanelHost';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { useState } from 'react';
 
 export default function MonthScreen() {
   const { currentDate, setCurrentDate, setScope, selectedGroupId, showWeekend } = useAppStore();
-  const [quickAddDate, setQuickAddDate] = useState<string | null>(null);
+  // 날짜 칸의 + 는 그날의 새 일정을 오른쪽 칸에 연다
+  const openQuickAdd = (dateStr: string) => void openEntryPanel({ kind: 'event', groupId: selectedGroupId, dateStr });
   const isMobile = useIsMobile();
 
   const curDateObj = useMemo(() => new Date(currentDate), [currentDate]);
@@ -62,7 +62,7 @@ export default function MonthScreen() {
         */
         <MonthGrid
           compact={isMobile}
-          onQuickAdd={(date) => setQuickAddDate(date)}
+          onQuickAdd={openQuickAdd}
           days={calendarDays}
           dataMap={dataMap}
           onSelectDate={handleSelectDate}
@@ -72,7 +72,6 @@ export default function MonthScreen() {
         />
       )}
       
-      {quickAddDate && <QuickAddModal isOpen={true} onClose={() => setQuickAddDate(null)} dateStr={quickAddDate} />}
     </div>
   );
 }

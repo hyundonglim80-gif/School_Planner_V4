@@ -17,10 +17,10 @@ export type StartupScope = 'last' | Scope;
 
 /** 오른쪽 칸이 무엇을 쓰고 있는가 */
 export interface EntryPanelTarget {
-  kind: 'memo' | 'journal';
+  kind: 'memo' | 'journal' | 'event';
   /** 어느 공간의 것인가 (null = 개인). 열 때의 공간을 붙들어, 공간을 바꿔도 제자리에 저장한다. */
   groupId: string | null;
-  /** 기록의 날짜 (메모에는 없다) */
+  /** 기록·일정의 날짜 (메모에는 없다) */
   dateStr?: string;
   /** 고치는 항목의 id. 없으면 새로 쓴다. */
   entryId?: string;
@@ -174,7 +174,7 @@ interface AppState {
   closeLabelModal: () => void;
 
   /**
-   * 메모·기록을 쓰는 오른쪽 칸. 화면(페이지)이 아니라 Layout이 그린다.
+   * 메모·기록·일정을 쓰는 오른쪽 칸. 화면(페이지)이 아니라 Layout이 그린다.
    * 그래서 다른 날짜·다른 화면으로 옮겨 다녀도 쓰던 것이 그대로 남는다.
    */
   entryPanel: EntryPanelTarget | null;

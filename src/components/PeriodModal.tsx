@@ -44,6 +44,11 @@ export interface PeriodModalProps {
   replace?: { dateStr: string; id: string };
   /** 등록에 성공했을 때. 만든 날짜 수를 넘긴다. */
   onRegistered?: (count: number) => void;
+  /**
+   * 어느 공간에 만들지 (null = 개인). 주지 않으면 지금 보고 있는 공간.
+   * 오른쪽 일정 칸은 열 때의 공간을 붙들고 있어서, 그 사이 공간을 바꿔도 제자리에 만든다.
+   */
+  groupId?: string | null;
 }
 
 export default function PeriodModal({
@@ -55,8 +60,10 @@ export default function PeriodModal({
   attrs,
   replace,
   onRegistered,
+  groupId,
 }: PeriodModalProps) {
-  const { selectedGroupId } = useAppStore();
+  const { selectedGroupId: viewingGroupId } = useAppStore();
+  const selectedGroupId = groupId !== undefined ? groupId : viewingGroupId;
   const { getLabelColor } = useLabels();
 
   const [content, setContent] = useState(defaultContent);

@@ -1,6 +1,6 @@
 // src/components/EntryPanelHost.tsx
 //
-// 메모·기록을 쓰는 오른쪽 칸. 화면(하루·메모)이 아니라 Layout이 그린다.
+// 메모·기록·일정을 쓰는 오른쪽 칸. 화면(하루·메모·주간·월간·년간)이 아니라 Layout이 그린다.
 //
 // 예전에는 각 화면이 배너를 들고 있어서, 배너가 뜨면 뒤 화면이 어두워져 볼 수 없었고
 // 다른 날짜·다른 화면으로 옮기면 배너가 같이 사라졌다. 이제 배너는 화면 옆에
@@ -10,6 +10,7 @@
 // 화면이 아니라 배너 곁에 있어야 한다.
 import React, { useEffect, useRef } from 'react';
 import EntryDrawer, { type EntryDraft } from './EntryDrawer';
+import EventDrawer from './EventDrawer';
 import { useAppStore, type EntryPanelTarget } from '../store/useAppStore';
 import { useDayData, type Attachment, type JournalEntry } from '../hooks/useDayData';
 import { useMemos, type Memo } from '../hooks/useMemos';
@@ -39,6 +40,7 @@ export default function EntryPanelHost() {
   const target = useAppStore((s) => s.entryPanel);
   if (!target) return null;
   // 열 때마다 새로 그린다(openedAt). 다른 항목을 열었는데 앞의 글이 남아 있으면 안 된다.
+  if (target.kind === 'event') return <EventPanel key={target.openedAt} target={target} />;
   return target.kind === 'journal' ? (
     <JournalPanel key={target.openedAt} target={target} />
   ) : (
@@ -219,6 +221,27 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
       }
       defaultLabel={target.defaultLabel}
       subtitle={`메모 · ${spaceName}`}
+    />
+  );
+}
+
+function EventPanel({ target }: { target: EntryPanelTarget }) {
+  const { closeEntryPanel } = useAppStore();
+  const docked = useMinWidth(DOCK_MIN_WIDTH);
+  const flushRef = useFlushRegistration();
+  const spaceName = useSpaceName(target.groupId);
+  const dateStr = target.dateStr || '';
+
+  return (
+    <EventDrawer
+      dateStr={dateStr}
+      groupId={target.groupId}
+      entryId={target.entryId}
+      initial={target.initial}
+      docked={docked}
+      flushRef={flushRef}
+      onClose={closeEntryPanel}
+      subtitle={`${shortDateLabel(dateStr)} 일정 · ${spaceName}`}
     />
   );
 }

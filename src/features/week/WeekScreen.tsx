@@ -4,12 +4,12 @@ import { getWeekDays, parseDateStr, addDays, formatDateStr } from '../../lib/dat
 import { useCalendarData } from '../../hooks/useCalendarData';
 import { useMainWidth } from '../../hooks/useMainWidth';
 import WeekGrid from './WeekGrid';
-import QuickAddModal from '../../components/QuickAddModal';
-import { useState } from 'react';
+import { openEntryPanel } from '../../components/EntryPanelHost';
 
 export default function WeekScreen() {
   const { currentDate, setCurrentDate, setScope, selectedGroupId, showWeekend } = useAppStore();
-  const [quickAddDate, setQuickAddDate] = useState<string | null>(null);
+  // 날짜 칸의 + 는 그날의 새 일정을 오른쪽 칸에 연다
+  const openQuickAdd = (dateStr: string) => void openEntryPanel({ kind: 'event', groupId: selectedGroupId, dateStr });
 
   const curDateObj = useMemo(() => new Date(currentDate), [currentDate]);
   const weekDays = useMemo(() => {
@@ -92,7 +92,7 @@ export default function WeekScreen() {
       ) : (
         <div className="flex flex-col gap-4">
           <WeekGrid
-            onQuickAdd={(date) => setQuickAddDate(date)}
+            onQuickAdd={openQuickAdd}
             days={displayWeekDays}
             dataMap={dataMap}
             onSelectDate={handleSelectDate}
@@ -107,7 +107,7 @@ export default function WeekScreen() {
                 <div className="flex-1 border-t border-dashed border-slate-200" />
               </div>
               <WeekGrid
-                onQuickAdd={(date) => setQuickAddDate(date)}
+                onQuickAdd={openQuickAdd}
                 days={displayNextWeekDays}
                 dataMap={dataMap}
                 onSelectDate={handleSelectDate}
@@ -119,7 +119,6 @@ export default function WeekScreen() {
         </div>
       )}
       
-      {quickAddDate && <QuickAddModal isOpen={true} onClose={() => setQuickAddDate(null)} dateStr={quickAddDate} />}
     </div>
   );
 }

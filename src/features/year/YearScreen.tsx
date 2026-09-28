@@ -14,7 +14,7 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 import { moveToTrash } from '../../utils/trashHelper';
 import { showToast, showErrorToast } from '../../utils/toast';
 import { lazyWithReload } from '../../lib/lazyWithReload';
-import QuickAddModal from '../../components/QuickAddModal';
+import { openEntryPanel } from '../../components/EntryPanelHost';
 import { useGroupDelete } from '../../hooks/useGroupDelete';
 import YearMonthCard from './YearMonthCard';
 
@@ -41,7 +41,6 @@ export default function YearScreen() {
   // 조사표도 마찬가지로 개수만 쓴다
   const [evalCountMap, setEvalCountMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
-  const [quickAddDate, setQuickAddDate] = useState<string | null>(null);
   const isMobile = useIsMobile();
   // 휴대폰에서 월 카드 접기/펼치기. 기본값은 "이번 달만 펼침"이라 값이 없으면
   // 이번 달인지로 판단하고, 사용자가 누른 달만 여기에 기록한다.
@@ -214,13 +213,22 @@ export default function YearScreen() {
     setScope('day');
   }, [setCurrentDate, setScope]);
 
-  const handleQuickAdd = useCallback((dateStr: string) => setQuickAddDate(dateStr), []);
+  // 날짜 칸의 + 는 그날의 새 일정을 오른쪽 칸에 연다
+  const handleQuickAdd = useCallback(
+    (dateStr: string) => void openEntryPanel({ kind: 'event', groupId: selectedGroupId, dateStr }),
+    [selectedGroupId]
+  );
 
   const handleOpenDetail = useCallback(
     (type: 'schedule' | 'event', dateStr: string, itemId: string | number, initialData: any) => {
+      // 일정은 오른쪽 칸에서 고친다. 수업(교시)은 지금처럼 팝업.
+      if (type === 'event') {
+        void openEntryPanel({ kind: 'event', groupId: selectedGroupId, dateStr, entryId: String(itemId), initial: initialData });
+        return;
+      }
       setDetailModal({ isOpen: true, type, dateStr, itemId, initialData });
     },
-    []
+    [selectedGroupId]
   );
 
   const handleToggleEvent = useCallback(async (dateStr: string, eventId: string) => {
@@ -367,7 +375,6 @@ export default function YearScreen() {
       
       {groupDeleteModal}
 
-      {quickAddDate && <QuickAddModal isOpen={true} onClose={() => setQuickAddDate(null)} dateStr={quickAddDate} />}
     </div>
   );
 }

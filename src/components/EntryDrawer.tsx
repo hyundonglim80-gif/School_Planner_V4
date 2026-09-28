@@ -7,10 +7,7 @@ import { auth } from '../lib/firebase';
 import { uploadToDrive, attachmentImageSrc, driveUrlToStore } from '../lib/driveApi';
 import { useAppStore } from '../store/useAppStore';
 import { formatDateStr } from '../lib/dateUtils';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
-import { useBackdropClose } from '../hooks/useBackdropClose';
+import { closeAllModals } from '../hooks/useModalLayer';
 import { usePasteImageUpload } from '../hooks/usePasteImageUpload';
 import ImageViewerModal, { type ViewerImage } from './ImageViewerModal';
 // ⚠️ 그림인지 가리는 규칙은 lib/attachments 한 곳에만 둔다. 예전에는 여기서
@@ -19,6 +16,7 @@ import ImageViewerModal, { type ViewerImage } from './ImageViewerModal';
 import { isImageAttachment } from '../lib/attachments';
 import AutoTextarea from './AutoTextarea';
 import StudentTagPicker from './StudentTagPicker';
+import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
 
 export type EntryKind = 'memo' | 'journal';
 
@@ -153,15 +151,10 @@ export default function EntryDrawer({
   const formattedDate = formatDateStr(new Date(currentDate));
   const text = KIND_TEXT[kind];
 
-  // 옆에 붙은 칸은 팝업이 아니다: 뒤 화면을 잠그지 않고, 팝업 층(ESC로 모두 닫기)에도 들지 않는다
-  useBodyScrollLock(isOpen && !docked);
-  const vv = useVisualViewport(isOpen);
-  const zIndex = useModalLayer(isOpen && !docked, onClose);
+  // 옆에 붙는 방식·ESC·배경 누르기는 SidePanelFrame이 맡는다
   const panelRef = useRef<HTMLElement>(null);
-  // 배경을 눌러 닫을 때는 고친 것을 저장하고 닫는다 (아래 closeByBackdrop).
-  // 훅은 상태보다 먼저 불러야 해서, 그때그때의 함수를 ref로 넘긴다.
+  // 배경을 눌러 닫을 때는 고친 것을 저장하고 닫는다 (아래 backdropCloseRef).
   const backdropCloseRef = useRef<() => void>(closeAllModals);
-  const backdrop = useBackdropClose(() => backdropCloseRef.current());
 
   const [content, setContent] = useState('');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
@@ -419,11 +412,7 @@ export default function EntryDrawer({
   };
 
   const panel = (
-      <div
-        className={`relative bg-white h-full flex flex-col ${
-          docked ? 'w-full' : 'w-full max-w-lg shadow-2xl z-10 transform transition-transform duration-300 ease-in-out'
-        }`}
-      >
+      <div className={sidePanelClass(docked)}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="min-w-0">
             <h3 className="text-lg font-bold text-slate-800">
@@ -716,39 +705,16 @@ export default function EntryDrawer({
     />
   );
 
-  if (docked) {
-    // 화면 옆에 붙는 칸. Layout이 이 폭(--entry-panel-w)만큼 화면을 왼쪽으로 줄여 둔다.
-    return (
-      <aside
-        ref={panelRef}
-        aria-label={`${text.noun} 쓰기`}
-        className="fixed top-0 right-0 bottom-0 z-[45] border-l border-slate-200 shadow-xl bg-white"
-        style={{ width: 'var(--entry-panel-w)' }}
-        onKeyDown={(e) => {
-          // 이 칸 안에서 누른 ESC는 이 칸만 닫는다 (저장하지 않는다)
-          if (e.key === 'Escape') {
-            e.stopPropagation();
-            onClose();
-          }
-        }}
-      >
-        {panel}
-        {viewer}
-      </aside>
-    );
-  }
-
   return (
-    <div
-      className="fixed inset-0 flex justify-end"
-      style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
+    <SidePanelFrame
+      docked={docked}
+      onClose={onClose}
+      onBackdropClose={() => backdropCloseRef.current()}
+      ariaLabel={`${text.noun} 쓰기`}
+      panelRef={panelRef}
     >
-      <div
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300"
-        {...backdrop}
-      />
       {panel}
       {viewer}
-    </div>
+    </SidePanelFrame>
   );
 }

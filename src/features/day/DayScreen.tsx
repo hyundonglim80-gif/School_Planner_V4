@@ -21,7 +21,6 @@ export default function DayScreen() {
     schedules,
     journals,
     loading,
-    addEventItem,
     toggleEventItem,
     deleteEventItem,
     updateEventItem,
@@ -73,7 +72,6 @@ export default function DayScreen() {
             <div className={`${showClass ? '@min-[720px]:col-span-5' : '@min-[720px]:col-span-12'} flex flex-col gap-6 transition-all duration-300`}>
               <DayEvents
                 events={eventList}
-                onAddEvent={addEventItem}
                 onToggleEvent={toggleEventItem}
                 onDeleteEvent={deleteEventItem}
                 onUpdateEvent={updateEventItem}

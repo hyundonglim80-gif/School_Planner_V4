@@ -23,6 +23,7 @@ import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { lazyWithReload } from '../../lib/lazyWithReload';
 import EventItemActions from '../../components/EventItemActions';
 import { useGroupDelete } from '../../hooks/useGroupDelete';
+import { openEntryPanel } from '../../components/EntryPanelHost';
 import { useState } from 'react';
 
 // Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
@@ -352,12 +353,13 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                           if (isMultiSelectMode) {
                             toggleEventSelection(ev.id, dayObj.dateStr);
                           } else {
-                            setDetailModal({
-                              isOpen: true,
-                              type: 'event',
+                            // 일정은 오른쪽 칸에서 고친다 (달력을 보면서)
+                            openEntryPanel({
+                              kind: 'event',
+                              groupId: selectedGroupId,
                               dateStr: dayObj.dateStr,
-                              itemId: ev.id,
-                              initialData: ev
+                              entryId: String(ev.id),
+                              initial: ev,
                             });
                           }
                         }}

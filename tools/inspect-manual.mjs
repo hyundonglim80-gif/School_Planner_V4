@@ -47,8 +47,8 @@ async function closeAll() {
     await page.keyboard.press('Escape').catch(() => {});
     await wait(150);
   }
-  // 하루 화면의 그 자리 수정 칸은 바깥을 누르면 닫힌다
-  await page.locator('header h1').first().click().catch(() => {});
+  // 옆에 붙은 일정·기록·메모 칸은 팝업이 아니라서 ESC(칸 밖)로는 닫히지 않는다
+  await page.locator('aside[aria-label$="쓰기"]').getByTitle('닫기').click({ timeout: 500 }).catch(() => {});
   await wait(200);
 }
 async function openMenu(label) {
@@ -58,6 +58,9 @@ async function openMenu(label) {
   await wait(900);
 }
 const heading = (name) => page.getByRole('heading', { name }).first();
+/** 일정을 쓰는 오른쪽 칸 (넓은 화면에서는 화면 옆에 붙는다) */
+const eventPanel = () => page.locator('aside[aria-label="일정 쓰기"]');
+const EVENT_PH = '새로운 일정을 입력하세요...';
 const scopeTitle = () => page.locator('header span.font-extrabold').first().innerText();
 const dialogOpen = () => page.locator('[data-scroll-lock]').count();
 
@@ -185,16 +188,17 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
 
   // ── 일정 ──
   const TXT = `점검용 일정 ${Date.now() % 100000}`;
-  await check('[일정 추가] + 새 일정 → 맨 위 라벨이 미리 골라짐', async () => {
+  await check('[일정 추가] + 새 일정 → 오른쪽 칸, 맨 위 라벨이 미리 골라짐', async () => {
     await page.getByRole('button', { name: '+ 새 일정' }).click();
     await wait(500);
-    const preset = await page.locator('form button[aria-pressed="true"]').allInnerTexts();
+    assert((await eventPanel().count()) === 1, '오른쪽에 붙은 일정 칸이 아님');
+    const preset = await eventPanel().locator('button[aria-pressed="true"]').allInnerTexts();
     assert(preset.length === 1, `미리 골라진 라벨 ${JSON.stringify(preset)}`);
     return `미리 고른 라벨: ${preset[0]}`;
   });
 
   await check('[일정 추가] Ctrl+S 저장 뒤 칸이 열린 채 비워지고, 목록에 생김', async () => {
-    const box = page.getByPlaceholder('새로운 일정을 입력하세요...');
+    const box = eventPanel().getByPlaceholder(EVENT_PH);
     await box.fill(TXT);
     await box.press('Control+s');
     await wait(1500);
@@ -203,37 +207,38 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
     assert((await page.getByText(TXT, { exact: true }).count()) === 1, '목록에 새 일정이 없음');
   });
 
-  await check('[일정 추가] ESC 로 칸 닫기', async () => {
-    await page.getByPlaceholder('새로운 일정을 입력하세요...').press('Escape');
-    await wait(400);
-    assert((await page.getByPlaceholder('새로운 일정을 입력하세요...').count()) === 0, 'ESC 뒤에도 열려 있음');
-  });
-
-  await check('[일정 추가] 아무것도 안 적고 바깥을 누르면 닫힘', async () => {
-    await page.getByRole('button', { name: '+ 새 일정' }).click();
-    await wait(400);
+  await check('[일정 추가] 칸이 본문을 가리지 않고, 왼쪽을 눌러도 닫히지 않음', async () => {
+    const panelBox = await eventPanel().boundingBox();
+    const mainBox = await page.locator('main').boundingBox();
+    assert(mainBox.x + mainBox.width <= panelBox.x + 1, '본문이 칸 밑에 깔림');
     await page.getByRole('heading', { name: '기록', exact: true }).click();
     await wait(400);
-    assert((await page.getByPlaceholder('새로운 일정을 입력하세요...').count()) === 0, '바깥 클릭 뒤에도 열려 있음');
+    assert((await eventPanel().count()) === 1, '왼쪽을 눌렀더니 칸이 닫힘');
+  });
+
+  await check('[일정 추가] 칸 안에서 ESC 로 칸 닫기', async () => {
+    await eventPanel().getByPlaceholder(EVENT_PH).press('Escape');
+    await wait(400);
+    assert((await eventPanel().count()) === 0, 'ESC 뒤에도 열려 있음');
   });
 
   await check('[일정 속성] 라벨을 고르면 그 라벨의 속성이 따라 켜짐 (이월 라벨 → 이월 체크)', async () => {
     await page.getByRole('button', { name: '+ 새 일정' }).click();
     await wait(400);
-    const form = page.locator('form').first();
+    const form = eventPanel();
     // 미리 골라진 라벨을 떼고 '이월'만 고른다
     for (const b of await form.locator('button[aria-pressed="true"]').all()) await b.click();
     await form.getByRole('button', { name: '이월', exact: true }).click();
     await wait(200);
     const fwd = await form.locator('label', { hasText: /^이월$/ }).locator('input').isChecked();
-    await page.getByPlaceholder('새로운 일정을 입력하세요...').press('Escape');
+    await form.getByPlaceholder(EVENT_PH).press('Escape');
     assert(fwd, '이월 라벨을 골랐는데 이월 속성이 꺼져 있음');
   });
 
   await check('[기간 일정] 기간을 켜면 연속 기간 등록 창, 닫으면 기간이 다시 꺼짐', async () => {
     await page.getByRole('button', { name: '+ 새 일정' }).click();
     await wait(400);
-    const form = page.locator('form').first();
+    const form = eventPanel();
     await form.locator('label', { hasText: /^기간$/ }).locator('input').check();
     await wait(700);
     assert(await heading(/연속 기간 등록/).isVisible(), '기간 창이 뜨지 않음');
@@ -241,20 +246,20 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
     await page.getByRole('button', { name: '닫기' }).last().click();
     await wait(500);
     const still = await form.locator('label', { hasText: /^기간$/ }).locator('input').isChecked();
-    await page.getByPlaceholder('새로운 일정을 입력하세요...').press('Escape');
+    await form.getByPlaceholder(EVENT_PH).press('Escape');
     assert(!still, '창을 닫았는데 기간이 켜진 채');
   });
 
   await check('[일정 알림] ⏰ 알림 추가 → 1430 입력 → 표시', async () => {
     await page.getByRole('button', { name: '+ 새 일정' }).click();
     await wait(400);
-    await page.getByRole('button', { name: /알림 추가/ }).click();
+    await eventPanel().getByRole('button', { name: /알림 추가/ }).click();
     await wait(500);
     await page.getByPlaceholder(/1430/).fill('1430');
     await page.getByRole('button', { name: '저장', exact: true }).last().click();
     await wait(500);
-    const txt = await page.locator('form').first().getByRole('button', { name: /⏰/ }).innerText();
-    await page.getByPlaceholder('새로운 일정을 입력하세요...').press('Escape');
+    const txt = await eventPanel().getByRole('button', { name: /⏰/ }).innerText();
+    await eventPanel().getByPlaceholder(EVENT_PH).press('Escape');
     assert(/14:30/.test(txt), `알림 단추가 '${txt}'`);
     return txt.trim();
   });
@@ -271,14 +276,17 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
     assert(done === 1 && undone === 0, `완료 ${done} / 되돌림 ${undone}`);
   });
 
-  await check('[일정 수정] 누르면 그 자리에서 수정, Ctrl+S 저장', async () => {
+  await check('[일정 수정] 누르면 오른쪽 칸에서 수정, Ctrl+S 저장', async () => {
     await page.getByText(TXT, { exact: true }).click();
     await wait(500);
-    const ta = page.locator('[data-focus-key] textarea').first();
+    assert(await eventPanel().getByRole('heading', { name: '일정 수정' }).isVisible(), '일정 수정 칸이 안 뜸');
+    const ta = eventPanel().locator('textarea').first();
     await ta.fill(TXT + ' 수정');
     await ta.press('Control+s');
     await wait(1500);
     assert((await page.getByText(TXT + ' 수정', { exact: true }).count()) === 1, '수정한 내용이 안 보임');
+    await ta.press('Escape');
+    await wait(300);
   });
 
   await check('[일정 순서] ▼ 로 아래와 자리를 바꿈', async () => {
@@ -296,13 +304,12 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
     assert(after.findIndex((t) => t.includes(TXT)) !== idx, '자리가 그대로');
   });
 
-  await check('[일정 삭제] 내용을 비우고 저장하면 지워지고 휴지통 안내', async () => {
+  await check('[일정 삭제] 칸의 삭제 → 지워지고 칸이 닫히고 휴지통 안내', async () => {
     await page.getByText(TXT + ' 수정', { exact: true }).click();
     await wait(500);
-    const ta = page.locator('[data-focus-key] textarea').first();
-    await ta.fill('');
-    await ta.press('Control+s');
+    await eventPanel().getByRole('button', { name: '삭제', exact: true }).click();
     await wait(1200);
+    assert((await eventPanel().count()) === 0, '지운 뒤에도 칸이 열려 있음');
     assert((await page.getByText(TXT + ' 수정', { exact: true }).count()) === 0, '지워지지 않음');
     assert((await page.getByText(/휴지통에서 복원할 수 있습니다/).count()) > 0, '휴지통 안내가 없음');
   });
@@ -401,7 +408,7 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
   await check('[링크] 일정 수정 → 🔗 링크 추가 → 기록 탭에서 골라 연결 저장 → 🔗 숫자 → 뷰어 → 해제', async () => {
     await page.getByText(TXT + ' 수정', { exact: true }).click();
     await wait(500);
-    await page.locator('[data-focus-key]').getByRole('button', { name: /링크 추가/ }).click();
+    await eventPanel().getByRole('button', { name: /링크 추가/ }).click();
     await wait(1200);
     assert(await heading(/새 데이터 연결하기/).isVisible(), '연결 창이 안 뜸');
     await page.getByRole('button', { name: /📔 기록/ }).click();
@@ -471,24 +478,25 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
     await closeAll();
   });
 
-  await check('[주간] 일정을 누르면 일정 수정 팝업, 라벨 칩은 완료', async () => {
+  await check('[주간] 일정을 누르면 오른쪽 일정 수정 칸', async () => {
     await page.locator('[title="클릭하여 상세 보기"]').first().click();
     await wait(1200);
-    assert(await heading('일정 수정').isVisible(), '일정 수정 팝업이 안 뜸');
+    assert(await eventPanel().getByRole('heading', { name: '일정 수정' }).isVisible(), '일정 수정 칸이 안 뜸');
     await closeAll();
   });
 
-  await check('[빠른 추가] + → 내용 → Enter', async () => {
-    const Q = `빠른추가 ${Date.now() % 10000}`;
+  await check('[주간 +] + → 오른쪽 새 일정 칸 → Ctrl+S (칸은 비워진 채 남음)', async () => {
+    const Q = `주간추가 ${Date.now() % 10000}`;
     await page.getByTitle('일정 빠른 추가').first().click();
     await wait(800);
-    await page.getByPlaceholder('일정을 입력하세요').fill(Q);
-    await page.getByPlaceholder('일정을 입력하세요').press('Enter');
+    const box = eventPanel().getByPlaceholder(EVENT_PH);
+    await box.fill(Q);
+    await box.press('Control+s');
     await wait(1800);
-    const stillOpen = await page.getByPlaceholder('일정을 입력하세요').isVisible();
+    const stillOpen = (await box.isVisible()) && (await box.inputValue()) === '';
     await closeAll();
     assert((await page.getByText(Q).count()) > 0, '주간 칸에 안 보임');
-    return stillOpen ? '저장 뒤 창은 비워진 채 열려 있음 (연달아 넣기)' : '저장 뒤 창이 닫힘';
+    assert(stillOpen, '저장 뒤 칸이 비워진 채 남아 있지 않음');
   });
 
   await check('[기록 표식] 📝 숫자를 누르면 기록만 펼쳐 보는 창', async () => {
@@ -935,39 +943,37 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
     await wait(1200);
     return names.join(' → ');
   });
-
-  // ── 바깥을 누르면 저장하고 닫기 ──
-  const clickBackdrop = async () => {
-    await page.mouse.click(8, 600);
-    await wait(2000);
-  };
-  await check('[자동 저장] 일정 수정 칸: 고치고 바깥을 누르면 저장', async () => {
+  // ── 바깥을 누르거나 다른 항목을 열면 저장 ──
+  await check('[자동 저장] 일정 칸: 고친 채 다른 일정을 누르면 먼저 저장', async () => {
     await page.keyboard.press('Shift+Digit1');
     await goToday();
-    const row = page.locator('[data-focus-key^="event"]').last();
+    const rows = page.locator('[data-focus-key^="event"]');
+    assert((await rows.count()) >= 2, '일정이 두 개 이상 있어야 함');
+    const row = rows.last();
     const orig = (await row.innerText()).trim();
     await row.click();
     await wait(400);
-    const ta = page.locator('[data-focus-key] textarea').first();
+    const ta = eventPanel().locator('textarea').first();
     const base = await ta.inputValue();
-    await ta.fill(base + ' 바깥저장');
-    await page.getByRole('heading', { name: '기록', exact: true }).click();
+    await ta.fill(base + ' 넘어가며저장');
+    await rows.first().click();
     await wait(1800);
-    const ok = (await page.getByText(base + ' 바깥저장', { exact: true }).count()) === 1;
+    const ok = (await page.getByText(base + ' 넘어가며저장', { exact: true }).count()) === 1;
     // 되돌려 둔다
-    await page.getByText(base + ' 바깥저장', { exact: true }).click().catch(() => {});
+    await page.getByText(base + ' 넘어가며저장', { exact: true }).click().catch(() => {});
     await wait(300);
-    await page.locator('[data-focus-key] textarea').first().fill(base).catch(() => {});
-    await page.locator('[data-focus-key] textarea').first().press('Control+s').catch(() => {});
+    await eventPanel().locator('textarea').first().fill(base).catch(() => {});
+    await eventPanel().locator('textarea').first().press('Control+s').catch(() => {});
     await wait(1200);
+    await closeAll();
     assert(ok, `'${orig}' 수정이 저장되지 않음`);
   });
 
-  await check('[자동 저장] 일정 수정 칸: ESC 는 저장하지 않음', async () => {
+  await check('[자동 저장] 일정 칸: ESC 는 저장하지 않음', async () => {
     const row = page.locator('[data-focus-key^="event"]').last();
     await row.click();
     await wait(400);
-    const ta = page.locator('[data-focus-key] textarea').first();
+    const ta = eventPanel().locator('textarea').first();
     const base = await ta.inputValue();
     await ta.fill(base + ' 버림');
     await ta.press('Escape');
@@ -1048,33 +1054,32 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
     await wait(1200);
   });
 
-  await check('[자동 저장] 주간 일정 수정 팝업: 고치고 배경을 누르면 저장', async () => {
+  await check('[옆 칸] 주간 일정 칸: 연 채 다른 주로 옮겨도 칸이 남고, 연 날짜에 저장', async () => {
     await page.keyboard.press('Shift+Digit2');
     await wait(2500);
     await page.locator('[title="클릭하여 상세 보기"]').first().click();
     await wait(1200);
-    const ta = page.locator('[data-scroll-lock] textarea').first();
+    const sub = await eventPanel().locator('p.text-primary').innerText();
+    const ta = eventPanel().locator('textarea').first();
     const base = await ta.inputValue();
-    await ta.fill(base + ' 팝업저장');
-    await clickBackdrop();
-    const ok = (await page.getByText(base + ' 팝업저장').count()) > 0;
-    assert((await dialogOpen()) === 0, '팝업이 닫히지 않음');
-    assert(ok, '저장되지 않음');
-  });
-
-  await check('[자동 저장] 빠른 추가: 적고 배경을 누르면 저장하고 닫힘', async () => {
-    const Q2 = `바깥 빠른추가 ${Date.now() % 10000}`;
-    await page.getByTitle('일정 빠른 추가').first().click();
-    await wait(800);
-    await page.getByPlaceholder('일정을 입력하세요').fill(Q2);
-    await clickBackdrop();
-    assert((await dialogOpen()) === 0, '창이 닫히지 않음');
-    assert((await page.getByText(Q2).count()) > 0, '저장되지 않음');
+    await ta.fill(base + ' 옆칸저장');
+    // 입력칸 밖에서 눌러야 날짜 이동 단축키가 먹는다
+    await page.evaluate(() => document.activeElement?.blur());
+    await page.keyboard.press('Control+ArrowRight');
+    await wait(1500);
+    assert((await eventPanel().count()) === 1, '다른 주로 옮겼더니 칸이 닫힘');
+    await ta.press('Control+s');
+    await wait(1500);
+    await page.keyboard.press('Control+ArrowLeft');
+    await wait(1500);
+    const ok = (await page.getByText(base + ' 옆칸저장').count()) > 0;
+    await closeAll();
     await page.keyboard.press('Shift+Digit1');
     await wait(1200);
+    assert(ok, `열 때의 날짜(${sub})에 저장되지 않음`);
   });
 
-  await check('[설명서] 51개 항목을 모두 열어 봄 (빈 항목·오류 없음)', async () => {
+  await check('[설명서] 모든 항목을 열어 봄 (빈 항목·오류 없음)', async () => {
     await openMenu('사용 설명서');
     const titles = await page.locator('[data-scroll-lock] section button').allInnerTexts();
     let opened = 0;
