@@ -73,6 +73,13 @@ console.log(`  아래 링크 추가는 그대로다: ${ok(await linkerOpen())}`)
 await page.goBack();
 await page.waitForTimeout(800);
 console.log(`  뒤로가기 또 한 번 - 링크 추가도 닫혔다: ${ok(!(await linkerOpen()))}`);
+// 새 일정은 이제 오른쪽 칸(배너)에서 쓴다. 그 칸이 맨 아래 한 겹이다.
+const eventPanelOpen = () =>
+  page.getByRole('heading', { name: /^새 일정$/ }).isVisible().catch(() => false);
+console.log(`  아래 일정 칸은 그대로다: ${ok(await eventPanelOpen())}`);
+await page.goBack();
+await page.waitForTimeout(800);
+console.log(`  뒤로가기 세 번째 - 일정 칸도 닫혔다: ${ok(!(await eventPanelOpen()))}`);
 console.log(`  앱에 그대로 있다: ${ok(await onApp())}`);
 
 console.log('\n[3] 닫기 단추로 닫으면 기록이 쌓이지 않는다]');

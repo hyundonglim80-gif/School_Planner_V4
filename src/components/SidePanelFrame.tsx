@@ -5,12 +5,13 @@
 //
 //   docked  : 화면 옆에 붙는 칸. 팝업이 아니다 - 뒤 화면을 잠그지 않고, 팝업 층
 //             (ESC로 모두 닫기)에도 들지 않는다. 칸 안에서 누른 ESC만 칸을 닫는다.
+//             뒤로가기는 받는다 (useBackLayer).
 //             Layout이 이 폭(--entry-panel-w)만큼 화면을 왼쪽으로 줄여 둔다.
 //   아니면  : 휴대폰처럼 좁은 화면. 예전처럼 어두운 배경 위로 오른쪽에서 뜬다.
 import React from 'react';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer } from '../hooks/useModalLayer';
+import { useModalLayer, useBackLayer } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
 
 interface SidePanelFrameProps {
@@ -37,6 +38,8 @@ export default function SidePanelFrame({
   useBodyScrollLock(!docked);
   const vv = useVisualViewport(true);
   const zIndex = useModalLayer(!docked, onClose);
+  // 옆에 붙은 칸은 팝업이 아니지만 휴대폰 뒤로가기는 칸을 닫아야 한다 (안 그러면 크롬이 닫힌다)
+  useBackLayer(docked, onClose);
   const backdrop = useBackdropClose(onBackdropClose);
 
   if (docked) {

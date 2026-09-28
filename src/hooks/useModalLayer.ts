@@ -7,10 +7,16 @@ import { useEffect, useRef, useState } from 'react';
 // - 닫기 버튼(✕/취소)은 그 팝업 하나만 닫고 이전 팝업은 그대로 남는다(단계적 닫기).
 // - ESC 또는 배경 클릭은 closeAllModals()로 열려 있는 팝업을 전부 닫는다.
 // - 휴대폰 뒤로가기는 맨 위 팝업 하나만 닫는다 (아래 '뒤로가기' 참고).
+// - 화면 옆에 붙은 오른쪽 칸(useBackLayer)은 팝업이 아니지만 뒤로가기는 받는다.
 
 interface ModalEntry {
   id: number;
   close: () => void;
+  /**
+   * 뒤로가기만 받는 층 (화면 옆에 붙은 오른쪽 칸).
+   * 팝업이 아니므로 ESC·배경 누르기(closeAllModals)로 닫히지 않고, 쌓임 순서(z-index)에도 끼지 않는다.
+   */
+  backOnly?: boolean;
 }
 
 const BASE_Z = 1000;
@@ -43,6 +49,9 @@ let awaitingSelfPop = false;
 let selfPopTimer: ReturnType<typeof setTimeout> | null = null;
 /** 기록이 이미 물러난 팝업 id (뒤로가기로 닫혔거나 한꺼번에 정리됐다) */
 const historyHandled = new Set<number>();
+
+/** 뒤로가기만 받는 층을 뺀 진짜 팝업들 */
+const modalEntries = () => stack.filter((entry) => !entry.backOnly);
 
 const canUseHistory = () => typeof window !== 'undefined' && !!window.history;
 
@@ -121,7 +130,7 @@ function bindPopState() {
 
 // 같은 함수 참조를 등록하므로 중복 호출되어도 리스너는 하나만 유지된다.
 function syncEscapeListener() {
-  if (stack.length > 0) {
+  if (modalEntries().length > 0) {
     document.addEventListener('keydown', handleEscape);
   } else {
     document.removeEventListener('keydown', handleEscape);
@@ -134,12 +143,13 @@ function syncEscapeListener() {
  * 라벨/조사표)은 DOM상 섹션 밖에 그려지므로 그 클릭까지 바깥으로 세면 안 된다.
  */
 export function isAnyModalOpen(): boolean {
-  return stack.length > 0;
+  return modalEntries().length > 0;
 }
 
 export function closeAllModals() {
-  const snapshot = [...stack].reverse();
-  stack = [];
+  const snapshot = modalEntries().reverse();
+  // 옆에 붙은 칸은 팝업이 아니다. 팝업 배경을 눌렀다고 같이 닫히면 안 된다.
+  stack = stack.filter((entry) => entry.backOnly);
   openCount = 0;
   syncEscapeListener();
   // 한꺼번에 닫으므로 아래 각 팝업의 정리에서 또 물러나지 않도록 미리 표시한다.
@@ -151,10 +161,27 @@ export function closeAllModals() {
       console.error('팝업 닫기 실패:', err);
     }
   });
-  if (snapshot.length > 0) removeSign();
+  // 옆에 붙은 칸이 남아 있으면 그 칸이 표지판을 계속 쓴다.
+  if (snapshot.length > 0 && stack.length === 0) removeSign();
 }
 
 export function useModalLayer(isOpen: boolean, onClose: () => void): number {
+  return useLayer(isOpen, onClose, false);
+}
+
+/**
+ * 뒤로가기만 받는 층. 화면 옆에 붙은 오른쪽 칸(메모·기록·일정·알림장·출석부)이 쓴다.
+ *
+ * 옆에 붙은 칸은 팝업이 아니라서 useModalLayer를 거치지 않았고, 그래서 기록에 자리를
+ * 만들지 않았다. 태블릿·가로 화면·'데스크톱 사이트'처럼 폭이 768px 이상인 휴대 기기에서
+ * 칸을 열고 뒤로가기를 누르면 칸이 아니라 크롬이 닫혔다.
+ * 팝업과 같은 표지판을 함께 쓰므로, 칸 위에 팝업을 띄워도 뒤로가기는 맨 위부터 한 겹씩 닫는다.
+ */
+export function useBackLayer(isOpen: boolean, onClose: () => void): void {
+  useLayer(isOpen, onClose, true);
+}
+
+function useLayer(isOpen: boolean, onClose: () => void, backOnly: boolean): number {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   const [zIndex, setZIndex] = useState(BASE_Z);
@@ -163,16 +190,18 @@ export function useModalLayer(isOpen: boolean, onClose: () => void): number {
     if (!isOpen) return;
 
     const id = nextId++;
-    openCount += 1;
-    setZIndex(BASE_Z + openCount * STEP_Z);
-    stack.push({ id, close: () => closeRef.current() });
+    if (!backOnly) {
+      openCount += 1;
+      setZIndex(BASE_Z + openCount * STEP_Z);
+    }
+    stack.push({ id, close: () => closeRef.current(), backOnly });
     bindPopState();
     postSign();
     syncEscapeListener();
 
     return () => {
       stack = stack.filter((entry) => entry.id !== id);
-      if (stack.length === 0) openCount = 0;
+      if (modalEntries().length === 0) openCount = 0;
       syncEscapeListener();
 
       // 뒤로가기로 닫혔거나 한꺼번에 정리된 것이면 기록은 이미 물러나 있다.
@@ -180,11 +209,18 @@ export function useModalLayer(isOpen: boolean, onClose: () => void): number {
         historyHandled.delete(id);
         return;
       }
-      // 닫기 단추처럼 스스로 닫힌 경우. 마지막 팝업이었으면 표지판을 치운다.
-      // (아래에 팝업이 남아 있으면 그것이 계속 쓰므로 그대로 둔다)
-      if (stack.length === 0) removeSign();
+      // 닫기 단추처럼 스스로 닫힌 경우. 마지막 층이었으면 표지판을 치운다.
+      // (아래에 층이 남아 있으면 그것이 계속 쓰므로 그대로 둔다)
+      //
+      // ⚠️ 한 박자 늦게 본다. 오른쪽 칸에서 다른 항목을 열거나(칸을 새로 그린다) 화면을
+      //    돌려 칸이 옆에 붙었다 떴다 하면, 같은 순간에 앞 층이 닫히고 새 층이 열린다.
+      //    여기서 곧바로 back()을 부르면 새 층이 세운 표지판 뒤에 그 back()이 도착해
+      //    방금 연 칸을 닫아 버린다.
+      queueMicrotask(() => {
+        if (stack.length === 0) removeSign();
+      });
     };
-  }, [isOpen]);
+  }, [isOpen, backOnly]);
 
   return zIndex;
 }

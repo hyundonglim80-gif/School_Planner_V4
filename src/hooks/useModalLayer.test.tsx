@@ -3,6 +3,7 @@ import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import ModalShell from '../components/ModalShell';
+import { useBackLayer, closeAllModals, isAnyModalOpen } from './useModalLayer';
 
 // 휴대폰에서 팝업을 열어 두고 뒤로가기를 누르면 앱이 통째로 닫혔다.
 // 이 앱은 주소가 하나뿐이라, 팝업을 열어도 브라우저가 기억하는 자리는 그대로다.
@@ -94,5 +95,59 @@ describe('뒤로가기로 팝업 닫기', () => {
 
     expect(await screen.findByText('닫힘')).toBeInTheDocument();
     expect(backSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+// 화면 옆에 붙은 오른쪽 칸(메모·기록·일정 쓰기)은 팝업이 아니라서 기록에 자리를 만들지
+// 않았다. 폭이 768px 이상인 휴대 기기(태블릿·가로 화면·데스크톱 사이트)에서 칸을 열고
+// 뒤로가기를 누르면 크롬이 닫혔다.
+function DockedPanel({ onClose, id = 'a' }: { onClose: () => void; id?: string }) {
+  useBackLayer(true, onClose);
+  return <p>칸 {id}</p>;
+}
+
+describe('뒤로가기로 옆에 붙은 칸 닫기', () => {
+  it('칸을 열면 기록에 자리를 만들고, 뒤로가기는 칸을 닫는다', () => {
+    const onClose = vi.fn();
+    render(<DockedPanel onClose={onClose} />);
+
+    expect((history.state as any)?.sp4Modal).toBe(true);
+    back();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('칸 위에 띄운 팝업이 먼저 닫히고, 칸은 그다음 뒤로가기에 닫힌다', () => {
+    const closePanel = vi.fn();
+    const closePopup = vi.fn();
+    render(
+      <>
+        <DockedPanel onClose={closePanel} />
+        <Popup title="첫 팝업" onClose={closePopup} />
+      </>
+    );
+
+    back();
+    expect(closePopup).toHaveBeenCalledTimes(1);
+    expect(closePanel).not.toHaveBeenCalled();
+  });
+
+  it('팝업을 모두 닫아도(ESC·배경) 칸은 남고, 칸은 팝업으로 세지 않는다', () => {
+    const closePanel = vi.fn();
+    render(<DockedPanel onClose={closePanel} />);
+
+    expect(isAnyModalOpen()).toBe(false);
+    act(() => closeAllModals());
+    expect(closePanel).not.toHaveBeenCalled();
+  });
+
+  it('칸에서 다른 항목을 열어 칸이 새로 그려져도 표지판을 치우지 않는다', async () => {
+    // 치우면 뒤늦게 온 back()이 방금 연 칸을 닫는다
+    const backSpy = vi.spyOn(history, 'back');
+    const { rerender } = render(<DockedPanel key="a" id="a" onClose={vi.fn()} />);
+    rerender(<DockedPanel key="b" id="b" onClose={vi.fn()} />);
+    await act(async () => { await Promise.resolve(); });
+
+    expect(screen.getByText('칸 b')).toBeInTheDocument();
+    expect(backSpy).not.toHaveBeenCalled();
   });
 });
