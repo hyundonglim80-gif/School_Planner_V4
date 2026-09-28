@@ -7,6 +7,8 @@ import { useClickOutside } from '../../hooks/useClickOutside';
 import { useDayEvalCounts } from '../../hooks/useDayEvalCounts';
 import { showToast } from '../../utils/toast';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
+const NoticeModal = lazy(() => import('../../components/NoticeModal'));
+const AttendanceModal = lazy(() => import('../../components/AttendanceModal'));
 
 interface DayScheduleProps {
   schedules: Record<number, PeriodSchedule>;
@@ -39,6 +41,9 @@ export default function DaySchedule({
   const [editSupplies, setEditSupplies] = useState('');
   const [saving, setSaving] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  // 수업 옆 알림장·출석부. 그날 날짜로 연다.
+  const [isNoticeOpen, setIsNoticeOpen] = useState(false);
+  const [isAttendanceOpen, setIsAttendanceOpen] = useState(false);
 
   const { openLinkerModal, openLinkViewerModal, openEvaluationModal, selectedGroupId } = useAppStore();
   // 어느 교시에 조사표를 만들어 두었는지 교시 옆에 숫자로 보여 준다
@@ -116,6 +121,23 @@ export default function DaySchedule({
           </button>
           <span className="text-xl">⏰</span>
           <h3 className="text-base font-extrabold text-slate-800">수업</h3>
+          {/* 알림장·출석부는 수업과 함께 매일 쓰는 것이라 수업 제목 바로 옆에 둔다 */}
+          <button
+            type="button"
+            onClick={() => setIsNoticeOpen(true)}
+            className="ml-1 px-2 py-1 bg-yellow-50 hover:bg-yellow-100 text-yellow-800 border border-yellow-200 rounded-lg text-xs font-bold transition-colors"
+            title="이 날 알림장 쓰기 / 날짜별로 모아 보기"
+          >
+            📢 알림장
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAttendanceOpen(true)}
+            className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-colors"
+            title="이 날 출석 체크 / 누계 보기"
+          >
+            📋 출석부
+          </button>
         </div>
 
         {!isCollapsed && (
@@ -342,6 +364,17 @@ export default function DaySchedule({
           );
         })}
       </div>
+      )}
+
+      {isNoticeOpen && dateStr && (
+        <Suspense fallback={null}>
+          <NoticeModal isOpen dateStr={dateStr} onClose={() => setIsNoticeOpen(false)} />
+        </Suspense>
+      )}
+      {isAttendanceOpen && dateStr && (
+        <Suspense fallback={null}>
+          <AttendanceModal isOpen dateStr={dateStr} onClose={() => setIsAttendanceOpen(false)} />
+        </Suspense>
       )}
 
       {isTemplateModalOpen && (

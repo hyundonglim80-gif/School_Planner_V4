@@ -18,6 +18,7 @@ import ImageViewerModal, { type ViewerImage } from './ImageViewerModal';
 //    type이 비어 있는 옛 자료는 그림인 줄 못 알아봤다.
 import { isImageAttachment } from '../lib/attachments';
 import AutoTextarea from './AutoTextarea';
+import StudentTagPicker from './StudentTagPicker';
 
 export type EntryKind = 'memo' | 'journal';
 
@@ -154,6 +155,8 @@ export default function EntryDrawer({
 
   const [saving, setSaving] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  /** 학생 태그 고르는 칸 (기록에만) */
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
   // saving 상태는 다음 그림에서야 반영되므로, 연달아 들어온 저장을 막는 데는 쓸 수 없다.
   const savingRef = useRef(false);
 
@@ -432,6 +435,31 @@ export default function EntryDrawer({
               placeholder={text.placeholder}
               className="w-full min-h-[84px] p-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-slate-800 leading-relaxed placeholder-slate-400 text-sm"
             />
+            {/* 학생 태그 (#26040305). 붙여 두면 '학생 누가기록'에 모인다. */}
+            {kind === 'journal' && (
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => setTagPickerOpen((v) => !v)}
+                  className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  title="학생을 골라 #학년도학년반번호 태그를 붙입니다. 학생 누가기록에 모입니다."
+                >
+                  🧑‍🎓 학생 태그 {tagPickerOpen ? '닫기' : '넣기'}
+                </button>
+                {tagPickerOpen && (
+                  <StudentTagPicker
+                    picked={content}
+                    onPick={(tag) =>
+                      setContent((prev) => {
+                        if (prev.includes(tag)) return prev;
+                        const base = prev.replace(/\s+$/, '');
+                        return base ? `${base} ${tag}` : tag;
+                      })
+                    }
+                  />
+                )}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">

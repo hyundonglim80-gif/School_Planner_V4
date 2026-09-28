@@ -126,7 +126,7 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
     await page.keyboard.press('Control+Space');
     await wait(900);
     assert((await scopeTitle()) === today, 'Ctrl+Space 뒤 오늘이 아님');
-    await page.getByRole('button', { name: '▶', exact: true }).click();
+    await page.locator('header').getByRole('button', { name: '▶', exact: true }).click();
     await wait(700);
     await page.getByTitle(/오늘 날짜로 돌아가기/).click();
     await wait(900);
@@ -539,6 +539,9 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
   await check('[메모] + 새 메모 → Ctrl+S → 즐겨찾기 → 완료', async () => {
     await page.keyboard.press('Shift+Digit5');
     await wait(2000);
+    // 처음에는 즐겨찾기로 열린다. 새 메모가 보이도록 전체로 바꾼다.
+    await page.getByRole('button', { name: /전체 메모/ }).click();
+    await wait(500);
     const M = `점검 메모 ${Date.now() % 10000}`;
     await page.getByRole('button', { name: /새 메모/ }).click();
     await wait(600);
@@ -746,6 +749,191 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
     await page.keyboard.press('Escape');
     await wait(500);
     assert((await dialogOpen()) === 0, 'ESC 뒤에도 팝업이 남음');
+  });
+
+  // ── 학급 운영: 알림장 · 출석부 · 누가기록 ──
+  /** 기록 칸에서 그 글로 시작하는 카드를 찾아(접혀 있으면 펼쳐) 글을 읽는다 */
+  const journalText = async (head) => {
+    const cards = page.locator('[data-focus-key^="journal"]', { hasText: head });
+    // 저장은 서버 트랜잭션 두 번을 거친다. 카드가 나타날 때까지 기다린다.
+    await cards.first().waitFor({ timeout: 8000 }).catch(() => {});
+    const count = await cards.count();
+    if (!count) return { count, text: '' };
+    const toggle = cards.first().getByTitle('펼치기');
+    if (await toggle.count()) {
+      await toggle.first().click();
+      await wait(300);
+    }
+    return { count, text: await cards.first().innerText() };
+  };
+  await check('[알림장] 수업 옆 📢 → 다음 수업일 불러오기 → 저장 → 그날 기록에 알림장 항목', async () => {
+    await page.keyboard.press('Shift+Digit1');
+    await goToday();
+    await page.getByRole('button', { name: '📢 알림장' }).click();
+    await wait(1500);
+    const box = page.getByLabel('알림장 내용');
+    await box.fill('점검 알림장 첫 줄');
+    await page.getByRole('button', { name: /다음 수업일 불러오기/ }).click();
+    await wait(2500);
+    const lines = (await box.inputValue()).split('\n').filter(Boolean).length;
+    await box.press('Control+s');
+    await wait(2500);
+    await closeAll();
+    await wait(1500);
+    const entry = await journalText('1. 점검 알림장 첫 줄');
+    assert(entry.count === 1 && entry.text.includes('점검 알림장 첫 줄'), `기록 칸의 알림장 항목 ${entry.count}개`);
+    return `알림장 ${lines}줄 (불러온 줄 포함)`;
+  });
+
+  await check('[알림장] 다시 고쳐 저장해도 기록 항목은 하나만 (고쳐 씀)', async () => {
+    await page.getByRole('button', { name: '📢 알림장' }).click();
+    await wait(1500);
+    const box = page.getByLabel('알림장 내용');
+    await box.fill((await box.inputValue()) + '\n둘째 줄 추가');
+    await box.press('Control+s');
+    await wait(2500);
+    await closeAll();
+    await wait(1500);
+    const e = await journalText('1. 점검 알림장 첫 줄');
+    assert(e.count === 1 && e.text.includes('둘째 줄 추가'), `항목 ${e.count}개, 둘째 줄 ${e.text.includes('둘째 줄 추가')}`);
+  });
+
+  await check('[알림장] ⋮ 알림장 모아 보기에 날짜별로 나옴', async () => {
+    await openMenu('알림장 모아 보기');
+    await wait(1500);
+    assert((await page.getByText('점검 알림장 첫 줄').count()) > 0, '모아 보기에 없음');
+    await closeAll();
+  });
+
+  let attendName = '';
+  await check('[출석부] 수업 옆 📋 → 결석(질병)+사유, 지각(미인정) 2교시 → 저장 → 기록에 출결 항목', async () => {
+    await page.getByRole('button', { name: '📋 출석부' }).click();
+    await wait(2000);
+    // 지난 점검에서 남은 출결을 먼저 비운다
+    const clearAll = page.getByRole('button', { name: '모두 출석' });
+    if (await clearAll.isEnabled()) await clearAll.click();
+    const rows = page.locator('[data-attendance-num]');
+    assert((await rows.count()) >= 2, `학생 줄 ${await rows.count()}개 (명렬표 필요)`);
+    const r0 = rows.nth(0);
+    attendName = (await r0.locator('span.font-bold').first().innerText()).replace(/^\d+/, '').trim();
+    await r0.getByRole('button', { name: '결석', exact: true }).click();
+    await r0.getByRole('button', { name: /사유 적기/ }).click();
+    await page.getByLabel(/번 사유$/).fill('감기');
+    const r1 = rows.nth(1);
+    await r1.getByRole('button', { name: '지각', exact: true }).click();
+    await r1.getByRole('button', { name: '미인정', exact: true }).click();
+    await r1.getByRole('button', { name: '2', exact: true }).click();
+    await page.keyboard.press('Control+s');
+    await wait(3000);
+    await closeAll();
+    await wait(1500);
+    const e = await journalText('[출결]');
+    assert(e.count === 1, '기록 칸에 출결 항목이 없음');
+    const t = e.text;
+    assert(/결석\(질병\) - 감기/.test(t) && /지각\(미인정\) 2교시/.test(t), `항목 글: ${t.replace(/\s+/g, ' ').slice(0, 120)}`);
+    return `${attendName} 결석(질병) - 감기`;
+  });
+
+  await check('[출석부] 누계 탭: 결석 질병 1, 누르면 날짜별 내역', async () => {
+    await page.getByRole('button', { name: '📋 출석부' }).click();
+    await wait(1500);
+    await page.getByRole('button', { name: /누계/ }).click();
+    await wait(2500);
+    const row = page.locator('tbody tr', { hasText: attendName }).first();
+    const cells = await row.locator('td').allInnerTexts();
+    assert(cells[1] === '1', `결석 질병 칸 '${cells[1]}'`);
+    await row.click();
+    await wait(400);
+    assert((await page.getByText(/결석\(질병\) - 감기/).count()) > 0, '날짜별 내역이 안 펼쳐짐');
+    await closeAll();
+    return `결석-질병 ${cells[1]}`;
+  });
+
+  await check('[출석부] 출석으로 되돌려 저장하면 기록 칸의 출결 항목도 바뀜', async () => {
+    await page.getByRole('button', { name: '📋 출석부' }).click();
+    await wait(2000);
+    await page.locator('[data-attendance-num]').nth(1).getByRole('button', { name: '출석', exact: true }).click();
+    await page.keyboard.press('Control+s');
+    await wait(3000);
+    await closeAll();
+    await wait(1500);
+    const { text: t } = await journalText('[출결]');
+    assert(!/지각/.test(t), '지각이 남아 있음');
+  });
+
+  await check('[누가기록] 기록에 학생 태그 넣기 → ⋮ 학생 누가기록에 기록과 출결이 모임 → 누르면 그 날로', async () => {
+    await page.getByRole('button', { name: '+ 추가' }).click();
+    await wait(600);
+    const ta = page.getByPlaceholder(/오늘 있었던 일을 기록해보세요/);
+    await ta.fill('발표를 적극적으로 함');
+    await page.getByRole('button', { name: /학생 태그 넣기/ }).click();
+    await wait(1500);
+    await page.locator('button[title^="#"]', { hasText: attendName }).first().click();
+    const v = await ta.inputValue();
+    const tag = (v.match(/#\d{8}/) || [])[0];
+    assert(tag, `태그가 안 붙음: '${v}'`);
+    await ta.press('Control+s');
+    await wait(1500);
+    await page.getByTitle('닫기').first().click();
+    await wait(1000);
+    await openMenu('학생 누가기록');
+    await wait(1500);
+    await page.getByLabel('학생 번호로 찾기').fill(tag);
+    await page.getByRole('button', { name: '찾기', exact: true }).click();
+    await wait(3000);
+    const body = await page.locator('[data-scroll-lock]').innerText();
+    assert(body.includes('발표를 적극적으로 함'), '태그 붙은 기록이 없음');
+    assert(/결석\(질병\) - 감기/.test(body), '출결이 없음');
+    assert(/결석 1/.test(body), '합계 줄이 없음');
+    await page.locator('[data-scroll-lock] button', { hasText: '발표를 적극적으로 함' }).first().click();
+    await wait(2000);
+    assert((await dialogOpen()) === 0, '누가기록 창이 닫히지 않음');
+    return tag;
+  });
+
+  // ── 메모 차례·거르개 ──
+  await check('[메모] ▲▼ 로 차례를 바꾸고, 다시 열어도 그 차례', async () => {
+    await page.keyboard.press('Shift+Digit5');
+    await wait(2000);
+    await page.getByRole('button', { name: /전체 메모/ }).click();
+    await wait(800);
+    const keys = async () => page.$$eval('section [data-focus-key^="memo"]', (els) => els.map((e) => e.getAttribute('data-focus-key')));
+    const cards = await page.locator('section [data-focus-key^="memo"]').all();
+    let idx = -1;
+    for (let i = 0; i < cards.length - 1; i++) {
+      if (await cards[i].getByRole('button', { name: '뒤로' }).isEnabled()) { idx = i; break; }
+    }
+    assert(idx >= 0, '▼ 를 누를 수 있는 메모가 없음');
+    const before = await keys();
+    await cards[idx].getByRole('button', { name: '뒤로' }).click();
+    await wait(1800);
+    const after = await keys();
+    assert(after[idx] === before[idx + 1] && after[idx + 1] === before[idx], '자리가 바뀌지 않음');
+    await page.keyboard.press('Shift+Digit1');
+    await wait(1200);
+    await page.keyboard.press('Shift+Digit5');
+    await wait(2000);
+    await page.getByRole('button', { name: /전체 메모/ }).click();
+    await wait(800);
+    const again = await keys();
+    assert(again[idx] === before[idx + 1], '다시 열었더니 원래 차례');
+  });
+
+  await check('[메모] 거르개 차례: 즐겨찾기 → 라벨 → 전체 메모, 고른 거르개를 기억', async () => {
+    const nav = page.getByRole('navigation', { name: '메모 라벨 거르개' });
+    const names = (await nav.locator('button[aria-pressed]').allInnerTexts()).map((t) => t.replace(/✓|\d+/g, '').trim());
+    assert(names[0].includes('즐겨찾기') && names[names.length - 1].includes('전체 메모'), `차례 ${names.join(', ')}`);
+    await nav.locator('button[aria-pressed]').nth(1).click();
+    await wait(500);
+    await page.keyboard.press('Shift+Digit1');
+    await wait(1200);
+    await page.keyboard.press('Shift+Digit5');
+    await wait(1800);
+    const pressed = await nav.locator('button[aria-pressed="true"]').innerText();
+    assert(pressed.includes(names[1]), `다시 열었을 때 '${pressed}'`);
+    await page.keyboard.press('Shift+Digit1');
+    await wait(1200);
+    return names.join(' → ');
   });
 
   // ── 바깥을 누르면 저장하고 닫기 ──

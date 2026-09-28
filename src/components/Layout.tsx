@@ -33,6 +33,9 @@ const LinkerModal = lazyWithReload(() => import('./LinkerModal'));
 const LinkViewerModal = lazyWithReload(() => import('./LinkViewerModal'));
 const TrashModal = lazyWithReload(() => import('./TrashModal'));
 const CalendarSyncModal = lazyWithReload(() => import('./CalendarSyncModal'));
+const NoticeModal = lazyWithReload(() => import('./NoticeModal'));
+const AttendanceModal = lazyWithReload(() => import('./AttendanceModal'));
+const StudentRecordModal = lazyWithReload(() => import('./StudentRecordModal'));
 
 import MultiEventActionBar from './MultiEventActionBar';
 import MiniCalendarPicker from './MiniCalendarPicker';
@@ -149,6 +152,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isForwardingModalOpen, setIsForwardingModalOpen] = useState(false);
   const [isTimetableModalOpen, setIsTimetableModalOpen] = useState(false);
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
+  const [isNoticeListOpen, setIsNoticeListOpen] = useState(false);
+  const [isAttendanceOpen, setIsAttendanceOpen] = useState(false);
+  const [isStudentRecordOpen, setIsStudentRecordOpen] = useState(false);
 
   // 더보기 드롭다운 상태
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -305,6 +311,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       case 'recurring': setIsRecurringModalOpen(true); return;
       case 'forwarding': setIsForwardingModalOpen(true); return;
       case 'roster': setIsRosterModalOpen(true); return;
+      case 'notices': setIsNoticeListOpen(true); return;
+      case 'attendance': setIsAttendanceOpen(true); return;
+      case 'studentRecord': setIsStudentRecordOpen(true); return;
       case 'group': setIsGroupModalOpen(true); return;
       case 'timetable': setIsTimetableModalOpen(true); return;
       case 'backup': setIsBackupModalOpen(true); return;
@@ -344,6 +353,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         setIsRecurringModalOpen(false);
         setIsTimetableModalOpen(false);
         setIsCalendarModalOpen(false);
+        setIsNoticeListOpen(false);
+        setIsAttendanceOpen(false);
+        setIsStudentRecordOpen(false);
         setIsMoreMenuOpen(false);
         if (isForwardingModalOpen) {
           setIsForwardingModalOpen(false);
@@ -644,6 +656,40 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   >
                     <span>🧑‍🤝‍🧑</span> 학급 정보(명렬표) 관리
                     {menuKey('roster')}
+                  </button>
+
+                  {/* 학급 운영: 출석부·알림장·학생 누가기록. 수업 칸 옆 단추로도 연다. */}
+                  <button
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      setIsAttendanceOpen(true);
+                    }}
+                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
+                  >
+                    <span>📋</span> 출석부
+                    {menuKey('attendance')}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      setIsNoticeListOpen(true);
+                    }}
+                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
+                  >
+                    <span>📢</span> 알림장 모아 보기
+                    {menuKey('notices')}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      setIsStudentRecordOpen(true);
+                    }}
+                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
+                  >
+                    <span>🧑‍🎓</span> 학생 누가기록
+                    {menuKey('studentRecord')}
                   </button>
 
                   <button
@@ -954,6 +1000,27 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         <LinkedEntryEditorHost />
         <JournalPeekHost />
+
+        {isNoticeListOpen && (
+          <NoticeModal
+            isOpen
+            initialTab="list"
+            dateStr={formatDateStr(new Date(currentDate))}
+            onClose={() => setIsNoticeListOpen(false)}
+          />
+        )}
+
+        {isAttendanceOpen && (
+          <AttendanceModal
+            isOpen
+            dateStr={formatDateStr(new Date(currentDate))}
+            onClose={() => setIsAttendanceOpen(false)}
+          />
+        )}
+
+        {isStudentRecordOpen && (
+          <StudentRecordModal isOpen onClose={() => setIsStudentRecordOpen(false)} />
+        )}
 
         {isTrashModalOpen && (
           <TrashModal isOpen onClose={() => setTrashModalOpen(false)} />

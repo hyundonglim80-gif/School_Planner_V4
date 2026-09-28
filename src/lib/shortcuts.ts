@@ -38,6 +38,9 @@ export type ShortcutId =
   | 'recurring'
   | 'forwarding'
   | 'roster'
+  | 'notices'
+  | 'attendance'
+  | 'studentRecord'
   | 'group'
   | 'timetable'
   | 'backup'
@@ -94,6 +97,9 @@ export const SHORTCUT_ACTIONS: ShortcutAction[] = [
   { id: 'recurring', label: '반복 일정 등록', group: '메뉴 열기', def: b('') },
   { id: 'forwarding', label: '미완료 일정 가져오기', group: '메뉴 열기', def: b('') },
   { id: 'roster', label: '학급 정보(명렬표) 관리', group: '메뉴 열기', def: b('') },
+  { id: 'notices', label: '알림장 모아 보기', group: '메뉴 열기', def: b('') },
+  { id: 'attendance', label: '출석부', group: '메뉴 열기', def: b('') },
+  { id: 'studentRecord', label: '학생 누가기록', group: '메뉴 열기', def: b('') },
   { id: 'group', label: '공유 그룹 관리', group: '메뉴 열기', def: b('') },
   { id: 'timetable', label: '시간표 적용 (주간 템플릿)', group: '메뉴 열기', def: b('') },
   { id: 'backup', label: '내보내기 / 가져오기 (백업)', group: '메뉴 열기', def: b('') },
