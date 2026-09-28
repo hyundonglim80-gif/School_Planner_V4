@@ -163,12 +163,24 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   // 저장 시점에 삭제된 학급/학생을 찾아내기 위한, 모달을 연 시점의 원본 스냅샷
   const originalClassesRef = React.useRef<ClassRoster[]>([]);
 
+  // 지금 고른 학급. 목록이 새로 들어와도 같은 학급을 계속 가리키게 하려고 적어 둔다.
+  const currentKeyRef = React.useRef<string | null>(null);
+  // 학급 식별 키 (id가 없어 year+grade+classNum 조합으로 식별)
+  const classKey = (c: ClassRoster) => `${c.year}_${c.grade}_${c.classNum}`;
+
   useEffect(() => {
     if (!isOpen) return;
 
+    // ⚠️ 이 효과는 창을 열 때뿐 아니라 명렬표가 저장되어 목록이 다시 들어올 때도 돈다.
+    //    예전에는 그때마다 첫 학급으로 되돌려서, '+ 새 학급 추가'로 만든 학급에
+    //    학생을 넣고 저장하면 1반으로 튀어 방금 넣은 학생이 사라진 것처럼 보였다.
+    //    고르던 학급이 목록에 있으면 그 자리를 지킨다.
+    const keepKey = currentKeyRef.current;
     if (rosterList && rosterList.length > 0) {
       setCurrentClasses(JSON.parse(JSON.stringify(rosterList)));
       originalClassesRef.current = JSON.parse(JSON.stringify(rosterList));
+      const kept = keepKey ? rosterList.findIndex((c) => classKey(c) === keepKey) : -1;
+      setCurrentIndex(kept >= 0 ? kept : 0);
     } else {
       setCurrentClasses([
         {
@@ -179,8 +191,8 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
         },
       ]);
       originalClassesRef.current = [];
+      setCurrentIndex(0);
     }
-    setCurrentIndex(0);
 
     // 구글 시트 ID 가져오기
     const loadBackupConfig = async () => {
@@ -204,6 +216,9 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     classNum: '',
     students: [],
   };
+
+  // 목록이 새로 들어올 때 이 학급을 다시 찾을 수 있게 적어 둔다 (위 효과 참고)
+  currentKeyRef.current = currentClasses[currentIndex] ? classKey(currentClasses[currentIndex]) : null;
 
   const students = currentClass.students || [];
   const activeCount = students.filter((s) => s.isActive !== false).length;
@@ -821,9 +836,6 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       setCurrentClasses(updated);
     }
   };
-
-  // 학급 식별 키 (id가 없어 year+grade+classNum 조합으로 식별)
-  const classKey = (c: ClassRoster) => `${c.year}_${c.grade}_${c.classNum}`;
 
   // 저장 직전, 모달을 처음 열었을 때와 비교해 삭제된 학급/학생을 찾아 휴지통으로 보낸다.
   const trashRemovedRosterEntries = async () => {
