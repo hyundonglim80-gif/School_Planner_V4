@@ -3,6 +3,7 @@
 import React, { Suspense } from 'react';
 import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
+import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { useAppStore } from '../../store/useAppStore';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
 import HolidayName from '../../components/HolidayName';
@@ -40,6 +41,30 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
   const { getLabelColor, eventLabels, labelsLoaded } = useLabels();
   const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal, selectedGroupId } = useAppStore();
   const { holidays } = useGovHolidays();
+  // 교시 줄 수는 시간표 설정에서 온다 (하루·월간과 같다).
+  const { templates, currentTemplateName } = useTimetableTemplate();
+  const maxPeriods = templates[currentTemplateName]?.names.length || 6;
+
+  /** 내용이 있는 교시인가 */
+  const hasPeriodText = (item: any) =>
+    !!(item && (item.subject?.trim() || item.content?.trim() || item.memo?.trim()));
+
+  /**
+   * 모든 요일에 같은 수의 교시 줄을 그린다.
+   *
+   * 예전에는 내용이 있는 교시만 그려서, 수업이 적은 날은 칸이 짧아지고 그 아래
+   * '일정'이 위로 당겨졌다. 요일마다 일정이 시작하는 높이가 달라 들쑥날쑥했다.
+   * 빈 교시도 자리를 두면 같은 교시가 옆 요일과 나란히 선다.
+   * 시간표보다 뒤 교시에 적어 둔 것이 있으면(7교시 보충 등) 그만큼 늘린다.
+   */
+  const weekPeriodCount = Math.max(
+    maxPeriods,
+    ...days.flatMap((day) => {
+      const sch = dataMap[day.dateStr]?.schedules || {};
+      return Object.keys(sch).map(Number).filter((p) => hasPeriodText(sch[p]));
+    })
+  );
+  const weekPeriods = Array.from({ length: weekPeriodCount }, (_, i) => i + 1);
 
   const [detailModal, setDetailModal] = useState<{
     isOpen: boolean;
@@ -73,13 +98,6 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
         const rawEvents = summary.eventList || [];
         const schedules = summary.schedules || {};
 
-        const periodKeys = Object.keys(schedules)
-          .map(Number)
-          .filter((p) => {
-            const item = schedules[p];
-            return item && !!(item.subject?.trim() || item.content?.trim() || item.memo?.trim());
-          })
-          .sort((a, b) => a - b);
 
         const [, month, dateNum] = day.dateStr.split('-');
         
@@ -110,8 +128,10 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
               {/* 자리가 모자라면 표식이 아랫줄로 내려간다. 글자를 줄이거나
                   가리는 대신 줄을 바꾼다. 날짜와 공휴일 이름은 그대로 다 보여야
                   하는 것들이다. */}
+              {/* 날짜 줄 높이를 두 줄 자리(min-h-9)로 잡아 둔다. 공휴일 이름이 붙는 날만
+                  한 줄 늘어나면 그 요일의 수업·일정이 옆 요일보다 아래로 밀린다. */}
               <div className="flex flex-wrap items-center justify-between gap-x-1 gap-y-1 pb-2.5 border-b border-slate-100 mb-3">
-                <div className="flex items-center gap-1 min-w-0">
+                <div className="flex items-center gap-1 min-w-0 min-h-9">
                   {/*
                     ⚠️ bg-white/70 을 함께 두면 안 된다. 같은 성질(배경색)의
                        두 클래스는 적는 차례가 아니라 스타일시트에 실린 차례로
@@ -151,58 +171,63 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                 <div className="text-xs font-extrabold text-slate-400 mb-2 flex items-center gap-1">
                   <span>수업</span>
                 </div>
-                {periodKeys.length > 0 ? (
-                  <div className="space-y-1">
-                    {periodKeys.map((p) => {
-                      const item = schedules[p];
-                      const periodText = item.subject?.trim() || item.content?.trim() || item.memo?.trim();
-                      return (
-                        <div
-                          key={p}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDetailModal({
-                              isOpen: true,
-                              type: 'schedule',
-                              dateStr: day.dateStr,
-                              itemId: p,
-                              initialData: item
-                            });
-                          }}
-                          className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-50 border border-slate-100 text-xs hover:bg-slate-100 cursor-pointer transition-colors"
-                        >
-                          <span className="font-bold text-xs text-primary shrink-0">{p}교시</span>
-                          <span className="font-semibold text-slate-800 truncate text-xs flex-1">
-                            {periodText}
-                          </span>
-                          {(item.linkedItems || []).length > 0 && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openLinkViewerModal('schedule', day.dateStr, String(p), p);
-                              }}
-                              className="bg-yellow-100 text-yellow-800 text-2xs px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
-                              title={`링크된 항목 ${(item.linkedItems || []).length}개`}
-                            >
-                              🔗 {(item.linkedItems || []).length}
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-xs text-slate-300 py-1 pl-1">
-                    일정이 없습니다.
-                  </div>
-                )}
+                {/* 빈 교시도 같은 높이의 자리로 둔다. 줄 높이를 h-7로 못 박아
+                    🔗 표식이 붙은 줄만 두꺼워지지 않게 한다. */}
+                <div className="space-y-1">
+                  {weekPeriods.map((p) => {
+                    const item = schedules[p];
+                    const filled = hasPeriodText(item);
+                    const periodText = filled
+                      ? item.subject?.trim() || item.content?.trim() || item.memo?.trim()
+                      : '';
+                    const linkCount = (item?.linkedItems || []).length;
+                    return (
+                      <div
+                        key={p}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDetailModal({
+                            isOpen: true,
+                            type: 'schedule',
+                            dateStr: day.dateStr,
+                            itemId: p,
+                            initialData: item || { subject: '', content: '' },
+                          });
+                        }}
+                        title={filled ? `${p}교시 ${periodText}` : `${p}교시 (비어 있음) - 눌러서 수업 적기`}
+                        className={`h-7 flex items-center gap-1.5 px-2 rounded-lg border text-xs cursor-pointer transition-colors ${
+                          filled
+                            ? 'bg-slate-50 border-slate-100 hover:bg-slate-100'
+                            : 'bg-white/40 border-dashed border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className={`font-bold text-xs shrink-0 ${filled ? 'text-primary' : 'text-slate-300'}`}>{p}교시</span>
+                        <span className={`truncate text-xs flex-1 ${filled ? 'font-semibold text-slate-800' : 'text-slate-300'}`}>
+                          {filled ? periodText : '-'}
+                        </span>
+                        {linkCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openLinkViewerModal('schedule', day.dateStr, String(p), p);
+                            }}
+                            className="bg-yellow-100 text-yellow-800 text-2xs leading-none px-1 py-0.5 rounded font-bold border border-yellow-300 shrink-0 hover:bg-yellow-200 cursor-pointer"
+                            title={`링크된 항목 ${linkCount}개`}
+                          >
+                            🔗 {linkCount}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
               )}
 
               {showEvents && (
               <div>
-                <div className="text-xs font-extrabold text-slate-400 mb-2 flex items-center justify-between">
+                <div className="h-5 text-xs font-extrabold text-slate-400 mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     <span>일정</span>
                   </div>
