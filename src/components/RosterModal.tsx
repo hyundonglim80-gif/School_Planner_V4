@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { formatDateStr } from '../lib/dateUtils';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { showToast, showErrorToast } from '../utils/toast';
@@ -631,7 +632,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
       return showErrorToast('내보낼 명단이 없습니다.');
     }
 
-    downloadCsv(rows, `School_Planner_명렬표_전체_${new Date().toISOString().slice(0, 10)}.csv`);
+    downloadCsv(rows, `School_Planner_명렬표_전체_${formatDateStr(new Date())}.csv`);
     showToast(`✅ 학급 ${classList.length}개, 학생 ${rows.length - 1}명을 CSV로 내보냈습니다.`);
   };
 

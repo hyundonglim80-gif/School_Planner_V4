@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { formatV3EventText } from '../hooks/useDayData';
 import { moveToTrash } from '../utils/trashHelper';
+import { formatDateStr } from '../lib/dateUtils';
 import { showErrorToast } from '../utils/toast';
 import { FORWARD_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
 import type { ShortcutOverrides } from '../lib/shortcuts';
@@ -121,7 +122,7 @@ interface AppState {
   toggleEventSelection: (eventId: string, dateStr?: string) => void;
   clearEventSelection: () => void;
   selectAllEvents: (eventIds: string[], dateMap?: Record<string, string>) => void;
-  bulkUpdateSelectedEvents: (updates: { completed?: boolean; label?: string }) => Promise<void>;
+  bulkUpdateSelectedEvents: (updates: { completed?: boolean; label?: string; labelIds?: string[] }) => Promise<void>;
   bulkDeleteSelectedEvents: () => Promise<void>;
 
   // Google API Token (For Tasks etc)
@@ -371,7 +372,7 @@ export const useAppStore = create<AppState>()(
         const user = auth.currentUser;
         if (!user) return;
 
-        const defaultDate = new Date(currentDate).toISOString().split('T')[0];
+        const defaultDate = formatDateStr(new Date(currentDate)); // toISOString은 UTC라 한국 새벽·자정이면 하루 앞날이 된다
         const groupedByDate: Record<string, string[]> = {};
         for (const id of selectedEventIds) {
           const d = selectedEventDateMap[id] || defaultDate;
@@ -394,7 +395,12 @@ export const useAppStore = create<AppState>()(
               return {
                 ...item,
                 ...(updates.completed !== undefined ? { completed: updates.completed } : {}),
-                ...(updates.label !== undefined ? { label: updates.label } : {}),
+                // 라벨을 바꿀 때는 labelIds도 새로 쓴다. label만 바꾸면 옛 라벨이 labelIds로
+                // 남아 칩이 둘 붙고(V3는 id로 찾으니 옛 라벨만 보인다), 이월 여부도 옛 라벨을 따른다.
+                // 이월을 일부러 켜고 끈 표시도 지워, 새 라벨의 기본을 따르게 한다.
+                ...(updates.label !== undefined
+                  ? { label: updates.label, labelIds: updates.labelIds ?? [], forward: false, forwardOptOut: false }
+                  : {}),
               };
             }
             return item;
@@ -422,7 +428,7 @@ export const useAppStore = create<AppState>()(
         const user = auth.currentUser;
         if (!user) return;
 
-        const defaultDate = new Date(currentDate).toISOString().split('T')[0];
+        const defaultDate = formatDateStr(new Date(currentDate)); // toISOString은 UTC라 한국 새벽·자정이면 하루 앞날이 된다
         const groupedByDate: Record<string, string[]> = {};
         for (const id of selectedEventIds) {
           const d = selectedEventDateMap[id] || defaultDate;

@@ -54,7 +54,8 @@ export default function MultiEventActionBar() {
     if (selectedEventIds.length === 0 || isProcessing) return;
     try {
       setIsProcessing(true);
-      await bulkUpdateSelectedEvents({ label: labelName });
+      const id = eventLabels.find((l) => l.name === labelName)?.id;
+      await bulkUpdateSelectedEvents({ label: labelName, labelIds: id ? [id] : [] });
       setIsLabelOpen(false);
     } catch (e: any) {
       console.error(e);

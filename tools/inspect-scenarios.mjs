@@ -45,7 +45,21 @@ const D = {
   twoTabs: '2026-11-16', // 두 탭 동시 저장
   space: '2026-11-17', // 공간을 바꾼 뒤 저장
   bracket: '2026-11-13', // 본문이 '[무엇]'으로 시작하는 일정
+  jrTabs: '2026-11-20', // 두 탭에서 기록 동시 추가
+  jrCold: '2026-11-23', // 기록 칸을 열자마자 저장
+  bulk: '2026-11-24', // 다중 선택 라벨 바꾸기
+  trash: '2026-11-25', // 지우고 되살리기
 };
+const pad2 = (n) => String(n).padStart(2, '0');
+const localDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+/** 이월 점검: 어제(이 컴퓨터 날짜)와 오늘 */
+const TODAY = localDate(new Date());
+const YESTERDAY = localDate(new Date(Date.now() - 864e5));
+const jrRef = (date, groupId = null) => (groupId ? doc(db, 'groups', groupId, 'journals', date) : doc(db, 'users', uid, 'journals', date));
+async function storedJournals(date, groupId = null) {
+  const snap = await getDoc(jrRef(date, groupId));
+  return snap.exists() && Array.isArray(snap.data().entries) ? snap.data().entries : [];
+}
 async function plantFixtures() {
   await setDoc(evRef(D.v3), {
     eventText: '[이월] V3 옛 일정 하나\n[v] V3 끝난 일정\nV3 라벨 없는 일정',
@@ -67,6 +81,43 @@ async function plantFixtures() {
     updatedAt: Date.now(),
   });
   for (const d of [D.long, D.weekend, D.twoTabs, D.space]) await deleteDoc(evRef(d)).catch(() => {});
+  // 기록: 두 탭 / 열자마자 저장
+  await deleteDoc(jrRef(D.jrTabs)).catch(() => {});
+  await setDoc(jrRef(D.jrCold), {
+    entries: [
+      { id: 'fx_jr_1', content: '먼저 있던 기록 하나', createdAt: 1, label: '학급활동', labelIds: ['j_1'], linkedItems: [], attachments: [] },
+      { id: 'fx_jr_2', content: '먼저 있던 기록 둘', createdAt: 2, label: '학생상담', labelIds: ['j_2'], linkedItems: [], attachments: [] },
+    ],
+    updatedAt: Date.now(),
+  });
+  // 다중 선택 라벨: 라벨을 id로만 든 일정
+  await setDoc(evRef(D.bulk), {
+    eventList: [
+      { id: 'fx_bulk_1', content: '다중 라벨 하나', label: '', labelIds: ['ev_3'], completed: false, linkedItems: [], attachments: [] },
+      { id: 'fx_bulk_2', content: '다중 라벨 둘', label: '이월', labelIds: ['ev_3'], completed: false, linkedItems: [], attachments: [] },
+    ],
+    updatedAt: Date.now(),
+  });
+  // 지우고 되살리기: 기간 묶음 한 건과 보통 일정
+  await setDoc(evRef(D.trash), {
+    eventList: [
+      { id: 'fx_tr_group', content: '되살릴 기간 (1/3)', label: '기간', labelIds: ['ev_4'], groupId: 'group_fx_trash', period: true, completed: false, linkedItems: [], attachments: [] },
+      { id: 'fx_tr_keep', content: '남아 있을 일정', label: '달력', labelIds: ['ev_1'], completed: false, linkedItems: [], attachments: [] },
+    ],
+    updatedAt: Date.now(),
+  });
+  // 이월: 어제 날짜에 미완료 이월 / 완료한 이월 / 이월을 끈 것
+  const y = (await getDoc(evRef(YESTERDAY))).data();
+  const keepY = (y?.eventList || []).filter((e) => !String(e.id).startsWith('fx_fw_'));
+  await setDoc(evRef(YESTERDAY), {
+    eventList: [
+      ...keepY,
+      { id: 'fx_fw_open', content: '어제 못 끝낸 이월', label: '이월', labelIds: ['ev_3'], completed: false, linkedItems: [], attachments: [] },
+      { id: 'fx_fw_done', content: '어제 끝낸 이월', label: '이월', labelIds: ['ev_3'], completed: true, linkedItems: [], attachments: [] },
+      { id: 'fx_fw_optout', content: '이월 끈 일정', label: '이월', labelIds: ['ev_3'], forwardOptOut: true, completed: false, linkedItems: [], attachments: [] },
+    ],
+    updatedAt: Date.now(),
+  }, { merge: true });
 }
 await plantFixtures();
 
@@ -665,6 +716,161 @@ if (ONLY !== 'mobile') {
     await closeAll();
     assert(ok, '학생 줄도, 빈 학급 안내도 없음');
     return empty ? '빈 학급 안내 확인' : '빈 학급이 없어 학생 줄만 확인';
+  });
+
+  // ═══ 2차: 자료가 사라지지 않는가 ═══
+  await check('두 탭(두 기기)에서 같은 날 동시에 기록을 넣어도 둘 다 남는다', async () => {
+    const other = await openApp({ width: 1400, height: 950 });
+    const pages = [page, other.p];
+    for (const [i, pg] of pages.entries()) {
+      page = pg;
+      await goDay(D.jrTabs);
+      await addJournalBtn().click();
+      await wait(600);
+      await pg.locator('[aria-label="기록 쓰기"]').last().getByPlaceholder(/오늘 있었던 일을 기록해보세요/).fill(`동시 기록 ${i + 1}번 탭`);
+    }
+    await Promise.all(pages.map((pg) => pg.locator('[aria-label="기록 쓰기"]').last().getByRole('button', { name: '저장', exact: true }).click()));
+    page = pages[0];
+    await wait(3000);
+    await other.ctx.close();
+    await closeAll();
+    const stored = (await storedJournals(D.jrTabs)).map((e) => e.content);
+    assert(stored.includes('동시 기록 1번 탭') && stored.includes('동시 기록 2번 탭'), `저장된 기록: ${stored.join(' / ') || '(없음)'}`);
+  });
+
+  await check('달력에서 기록 칸을 열자마자 저장해도(그날 자료가 오기 전) 그날의 다른 기록이 남는다', async () => {
+    await goScope(3);
+    await goDate(D.jrCold);
+    // 달력 칸의 '기록 2건 보기' → '이 날 기록 추가' (하루 화면과 같은 기록 칸)
+    const badge = page.locator('button[title="기록 2건 보기"]');
+    const cell = page.locator('div').filter({ has: page.getByText('23', { exact: true }) }).filter({ has: badge }).last();
+    const peek = cell.locator(badge).first();
+    await peek.click();
+    await wait(600);
+    await page.getByRole('button', { name: '이 날 기록 추가' }).click();
+    // 곧바로 적고 저장한다 (구독이 오기 전)
+    const box = page.locator('[aria-label="기록 쓰기"]').last().getByPlaceholder(/오늘 있었던 일을 기록해보세요/);
+    await box.fill('열자마자 저장한 기록');
+    await box.press('Control+s');
+    await wait(2500);
+    await closeAll();
+    const stored = (await storedJournals(D.jrCold)).map((e) => e.content);
+    assert(stored.length === 3, `그날 기록 ${stored.length}건: ${stored.join(' / ')}`);
+  });
+
+  await check('다중 선택으로 라벨을 바꾸면 옛 라벨(id로 든 것까지)이 남지 않는다', async () => {
+    await goDay(D.bulk);
+    await page.getByTitle('더보기 메뉴').click();
+    await page.getByRole('button', { name: /다중 선택 모드 켜기/ }).click();
+    await wait(500);
+    for (const t of ['다중 라벨 하나', '다중 라벨 둘']) await eventRows().filter({ hasText: t }).click();
+    await page.getByTitle('선택 일정 라벨 일괄 변경').click();
+    await wait(400);
+    const menu = page.locator('div').filter({ has: page.getByText('라벨 일괄 변경', { exact: true }) }).filter({ has: page.getByRole('button', { name: /라벨 해제/ }) }).last();
+    await menu.getByRole('button', { name: '달력', exact: true }).click();
+    await wait(2500);
+    // 다중 선택 모드가 남아 있으면 끈다 (다음 점검이 줄 단추를 눌러야 한다)
+    await page.getByTitle('더보기 메뉴').click();
+    const off = page.getByRole('button', { name: /다중 선택 모드 종료/ });
+    if (await off.count()) await off.click();
+    await wait(400);
+    await closeAll();
+    const stored = await storedEvents(D.bulk);
+    const shown = await eventRows().allInnerTexts();
+    const bad = stored.filter((e) => (e.labelIds || []).includes('ev_3') || /이월/.test(e.label || ''));
+    assert(bad.length === 0, `옛 이월 라벨이 남음: ${JSON.stringify(stored.map((e) => ({ c: e.content, label: e.label, ids: e.labelIds })))}`);
+    assert(!shown.some((t) => /이월/.test(t)), `화면에 이월 칩: ${shown.map((t) => t.replace(/\s+/g, ' ')).join(' / ')}`);
+  });
+
+  await check('기간 묶음의 한 날을 지웠다가 휴지통에서 되살리면 그날로, 묶음 표시(groupId)째 돌아온다', async () => {
+    await goDay(D.trash);
+    const row = eventRows().filter({ hasText: '되살릴 기간' });
+    await row.hover();
+    await row.getByTitle('일정 삭제').click();
+    await wait(800);
+    await page.getByRole('button', { name: /이 날짜의 일정만 삭제/ }).click();
+    await wait(2000);
+    const afterDel = await storedEvents(D.trash);
+    await page.getByRole('button', { name: '휴지통', exact: true }).first().click();
+    await wait(1500);
+    const item = page.locator('div', { hasText: '되살릴 기간' }).filter({ has: page.getByRole('button', { name: '복원', exact: true }) }).last();
+    await item.getByRole('button', { name: '복원', exact: true }).click();
+    await wait(2500);
+    await closeAll();
+    const back = (await storedEvents(D.trash)).find((e) => e.id === 'fx_tr_group');
+    assert(!afterDel.some((e) => e.id === 'fx_tr_group') && afterDel.some((e) => e.id === 'fx_tr_keep'), '지우기가 잘못됨');
+    assert(back && back.groupId === 'group_fx_trash', `되살린 것: ${JSON.stringify(back)}`);
+    assert((await storedEvents(D.trash)).some((e) => e.id === 'fx_tr_keep'), '곁의 일정이 사라짐');
+  });
+
+  await check('메모를 지웠다가 휴지통에서 되살리면 라벨·즐겨찾기째 돌아온다', async () => {
+    await goScope(5);
+    await page.getByRole('button', { name: /전체 메모/ }).click();
+    await wait(600);
+    const M = `되살릴 메모 ${Date.now() % 10000}`;
+    await page.getByRole('button', { name: /새 메모/ }).click();
+    await wait(600);
+    const ta = page.getByPlaceholder(/자유롭게 생각을 기록해보세요/);
+    await ta.fill(M);
+    await ta.press('Control+s');
+    await wait(1500);
+    await closeAll();
+    const card = page.locator('[data-focus-key^="memo"]', { hasText: M }).first();
+    await card.getByTitle('즐겨찾기').click();
+    await wait(1200);
+    await card.hover();
+    await card.getByTitle('삭제').click();
+    await wait(1500);
+    const gone = await page.locator('[data-focus-key^="memo"]', { hasText: M }).count();
+    await page.getByRole('button', { name: '휴지통', exact: true }).first().click();
+    await wait(1500);
+    await page.locator('div', { hasText: M }).filter({ has: page.getByRole('button', { name: '복원', exact: true }) }).last().getByRole('button', { name: '복원', exact: true }).click();
+    await wait(2500);
+    await closeAll();
+    await page.getByRole('button', { name: /즐겨찾기/ }).first().click();
+    await wait(800);
+    const back = await page.locator('[data-focus-key^="memo"]', { hasText: M }).count();
+    assert(gone === 0, '지운 메모가 남아 있음');
+    assert(back === 1, '되살린 메모가 ⭐ 즐겨찾기에 없음');
+  });
+
+  await check('이월: 어제 못 끝낸 이월 일정은 오늘로 옮겨 오고, 끝낸 것·이월을 끈 것은 어제에 남는다', async () => {
+    await goScope(1);
+    await page.keyboard.press('Control+Space');
+    await wait(1500);
+    // 이월은 앱을 열 때 돈다. 새로 연다.
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.getByRole('heading', { name: '수업' }).first().waitFor({ timeout: 40000 });
+    await until(async () => (await storedEvents(TODAY)).some((e) => e.content === '어제 못 끝낸 이월'), 15000, 500);
+    const today = await storedEvents(TODAY);
+    const yest = await storedEvents(YESTERDAY);
+    const t = (list, c) => list.some((e) => e.content === c);
+    assert(t(today, '어제 못 끝낸 이월') && !t(yest, '어제 못 끝낸 이월'), `못 끝낸 이월: 오늘 ${t(today, '어제 못 끝낸 이월')} / 어제 ${t(yest, '어제 못 끝낸 이월')}`);
+    assert(t(yest, '어제 끝낸 이월') && !t(today, '어제 끝낸 이월'), '끝낸 이월이 옮겨짐');
+    assert(t(yest, '이월 끈 일정') && !t(today, '이월 끈 일정'), '이월을 끈 일정이 옮겨짐');
+    assert((await rowText('어제 못 끝낸 이월')) === 1, '오늘 화면에 이월 일정이 한 건이 아님');
+  });
+
+  await check('그룹 공간에서 쓴 기록·메모는 개인 공간에 보이지 않는다', async () => {
+    const sel = page.locator('header select');
+    if ((await sel.count()) === 0) return '그룹이 없어 건너뜀';
+    const gid = (await sel.locator('option').evaluateAll((os) => os.map((o) => o.value))).find((v) => v);
+    await sel.selectOption(gid);
+    await wait(1500);
+    await goDay(D.jrTabs);
+    await addJournalBtn().click();
+    await wait(600);
+    const box = page.locator('[aria-label="기록 쓰기"]').last().getByPlaceholder(/오늘 있었던 일을 기록해보세요/);
+    await box.fill('그룹 공간 기록');
+    await box.press('Control+s');
+    await wait(1800);
+    await closeAll();
+    await sel.selectOption('');
+    await wait(1500);
+    const inPersonal = await page.locator('[data-focus-key^="journal"]', { hasText: '그룹 공간 기록' }).count();
+    const g = (await storedJournals(D.jrTabs, gid)).some((e) => e.content === '그룹 공간 기록');
+    const pStored = (await storedJournals(D.jrTabs)).some((e) => e.content === '그룹 공간 기록');
+    assert(g && !pStored && inPersonal === 0, `그룹 ${g} / 개인 저장 ${pStored} / 개인 화면 ${inPersonal}`);
   });
 
   await check('점검 동안 페이지 오류가 없다', async () => {
