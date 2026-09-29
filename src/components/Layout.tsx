@@ -534,15 +534,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 )}
               </button>
 
-              {/* 휴지통은 좁은 화면에서 ⋮ 메뉴로 내린다.
+              {/* 휴지통은 휴대폰에서도 맨 위에 둔다 (좁으면 🔍 검색처럼 그림만).
+                  예전에는 좁은 화면에서 숨기고 ⋮ 메뉴에만 두어 찾기 어려웠다.
                   구글 캘린더로 보내기는 자주 쓰지 않아 맨 위 단추를 걷고 ⋮ 메뉴에 둔다. */}
               <button
                 onClick={() => setTrashModalOpen(true)}
-                className="hidden sm:flex px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all items-center gap-1 shadow-2xs shrink-0"
+                className="flex p-1 sm:px-2.5 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md sm:rounded-xl text-xs font-bold transition-all items-center gap-0 sm:gap-1 shadow-2xs shrink-0"
                 title={withShortcut('휴지통', 'trash')}
+                aria-label="휴지통"
               >
                 <span>🗑️</span>
-                <span>휴지통</span>
+                <span className="hidden sm:inline">휴지통</span>
               </button>
             </div>
 
