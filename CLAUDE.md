@@ -4,7 +4,7 @@
 `git pull`로 기기끼리 맞춰진다. 기기마다 따로 쌓이는 Claude 기억(이 기기의
 `~/.claude/projects/<작업 폴더>/memory/`)과는 아래 '기억 합치기' 절차로 하나로 맞춘다.
 
-마지막 합침: 2026-09-29 (Windows PC, `C:\HDL`)
+마지막 합침: 2026-09-30 (Windows PC, `D:\gody5\Git`)
 
 ---
 

@@ -9,6 +9,7 @@ import { isImageAttachment as isImageAtt } from '../../lib/attachments';
 import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
 import { openEntryPanel } from '../../components/EntryPanelHost';
 import { useMainWidth } from '../../hooks/useMainWidth';
+import { expandLabel, labelPath, orderByTree, useLabelTree } from '../../lib/labelTree';
 import { showToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
 import { useDayEvalCounts } from '../../hooks/useDayEvalCounts';
@@ -151,10 +152,15 @@ export default function DayJournal({
   // 휴대폰에서도 2열 (일정 칸과 같게). 넓으면 3·4열.
   const columnsCount = mainWidth >= 980 ? 4 : mainWidth >= 720 ? 3 : 2;
 
+  // 라벨 상위/하위 (lib/labelTree). 상위를 고르면 하위 라벨이 붙은 기록까지 보인다.
+  const journalParents = useLabelTree().journal;
+  const [openParents, setOpenParents] = useState<Record<string, boolean>>({});
+
   // 필터 적용된 리스트
-  const filteredJournals = currentFilter === '전체'
+  const allowedLabels = currentFilter === '전체' ? null : expandLabel(currentFilter, journalParents);
+  const filteredJournals = allowedLabels === null
     ? journals
-    : journals.filter((entry) => getLabelName(entry) === currentFilter);
+    : journals.filter((entry) => allowedLabels.includes(getLabelName(entry)));
 
   const distributeJournals = (items: JournalEntry[]) => {
     const columns = Array.from({ length: columnsCount }, () => [] as { entry: JournalEntry; idx: number }[]);
@@ -237,19 +243,39 @@ export default function DayJournal({
                 >
                   전체
                 </button>
-                {journalLabels.map((lbl) => (
-                  <button
-                    key={lbl.id}
-                    onClick={() => setCurrentFilter(lbl.name)}
-                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm ${
-                      currentFilter === lbl.name
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    {lbl.name}
-                  </button>
-                ))}
+                {/* 상위 칩만 보이고, 하위가 있는 상위는 ▾로 하위 칩을 펼친다 (고른 것이 하위면 펼쳐 둔다) */}
+                {orderByTree(journalLabels.map((l) => l.name), journalParents).map((row) => {
+                  const open = !!openParents[row.parent || row.name] || journalParents[currentFilter] === (row.parent || row.name);
+                  if (row.depth === 1 && !open) return null;
+                  return (
+                    <span key={row.name} className="inline-flex items-center">
+                      {row.depth === 1 && <span className="text-slate-300 text-xs mr-0.5" aria-hidden>└</span>}
+                      <button
+                        onClick={() => setCurrentFilter(row.name)}
+                        title={row.hasChildren ? `${row.name} (하위 라벨 포함)` : labelPath(row.name, journalParents)}
+                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm ${
+                          currentFilter === row.name
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        {row.name}
+                      </button>
+                      {row.hasChildren && (
+                        <button
+                          type="button"
+                          onClick={() => setOpenParents((prev) => ({ ...prev, [row.name]: !open }))}
+                          aria-expanded={open}
+                          aria-label={`${row.name} 하위 라벨 ${open ? '접기' : '펼치기'}`}
+                          title={`${row.name} 하위 라벨 ${open ? '접기' : '펼치기'}`}
+                          className="ml-0.5 w-5 h-5 flex items-center justify-center rounded-full text-2xs text-slate-500 hover:bg-slate-100"
+                        >
+                          {open ? '▴' : '▾'}
+                        </button>
+                      )}
+                    </span>
+                  );
+                })}
               </div>
             )}
         </div>
@@ -308,7 +334,10 @@ export default function DayJournal({
 
                           {/* 💡 라벨이 삭제되지 않고 남아있을 때만 뱃지 표시 */}
                           {getLabelName(entry) && (
-                            <span className={`px-2 py-0.5 rounded-md text-xs font-bold border ${getLabelColorClass(entry)}`}>
+                            <span
+                              title={labelPath(getLabelName(entry), journalParents)}
+                              className={`px-2 py-0.5 rounded-md text-xs font-bold border ${getLabelColorClass(entry)}`}
+                            >
                               {getLabelName(entry)}
                             </span>
                           )}

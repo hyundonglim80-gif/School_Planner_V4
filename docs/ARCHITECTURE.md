@@ -62,6 +62,7 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
 | `users/{uid}/settings/timetable_v5` | 시간표 템플릿·방학 기간 | |
 | `users/{uid}/settings/rosters` | `{ classList, rosters }` (같은 값) | 명렬표 |
 | `users/{uid}/settings/v4_trash` | 휴지통 자동 비우기 기간 | |
+| `users/{uid}/settings/v4_labelTree` | `{ memo, journal }` 각각 "하위 이름 → 상위 이름" | V4 전용. 메모·기록 라벨 상위/하위 |
 | `users/{uid}/trash/{id}` | `{ id, type, originalDateStr, fId, content, data, deletedAt }` | 휴지통. **V3와 같이 쓴다** |
 | `groups/{gid}` | `{ name, ownerId, members: uid[], inviteCode }` | 공유 그룹. 내 그룹은 `members array-contains uid`로 찾는다 |
 | `inviteCodes/{code}` | `{ groupId }` | 초대 코드 → 그룹. 그룹 목록을 열지 않으려고 따로 둔다 |
@@ -134,6 +135,9 @@ Firestore는 캐시에 없는 문서를 "없다"고 답한다. 그대로 믿으�
   라벨을 모르는 것으로 보고 판단을 미룬다(이월이 특히 그렇다).
 - 라벨 이름을 바꾸면 `utils/labelRename`이 저장된 항목의 이름까지 고친다.
 - **맨 위 라벨**이 새 일정·기록·메모를 열 때 미리 골라지는 기본 라벨이다.
+- **상위/하위** (메모·기록만, 2단계, `lib/labelTree`): `settings/labels`에 칸을 더하지 않고 V4 전용 문서
+  `v4_labelTree`에 "하위 이름 → 상위 이름"만 둔다. V3가 라벨을 저장할 때 모르는 칸을 지우기 때문이다.
+  라벨 관리 창은 id로 다루다 저장할 때 이름으로 바꾼다. 거르개는 `expandLabel`로 상위에 하위를 더해 거른다.
 
 ---
 
@@ -229,6 +233,8 @@ Firestore는 캐시에 없는 문서를 "없다"고 답한다. 그대로 믿으�
 
 - 환경은 `CLAUDE.md` 2장(에뮬레이터·JDK·사이트 주소). 크롬, PC 1400px / 휴대폰 390px만 본다.
 - 두 점검 스크립트 모두 `MATCH=<정규식>`으로 골라 돌린다.
+- seed는 날짜마다 자료가 무작위라 **오늘 기록·일정이 없을 수 있다.** 기록 칸 거르개 줄처럼 항목이 있어야 보이는 것은
+  점검 스크립트가 항목을 먼저 만든 뒤에 본다(2026-09-30 `inspect-label-tree`가 그래서 멈췄다).
 - 에뮬레이터에서 **한 문서만 저장이 6~7초씩** 걸리면 앱 버그가 아니라 남은 잠금이다(점검 브라우저를 저장 중에 끈 탓). 에뮬레이터를 다시 켠다.
 
 ---

@@ -1,5 +1,5 @@
 //src/components/LabelModal.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -13,6 +13,7 @@ import { closeAllModals } from '../hooks/useModalLayer';
 import { useGroups } from '../hooks/useGroups';
 import { scanForMissingLabels, pickRecoveryColor } from '../utils/labelRecovery';
 import { applyLabelRenames, diffLabelNames } from '../utils/labelRename';
+import { orderByTree, sanitizeParents, saveLabelTree, useLabelTree } from '../lib/labelTree';
 import { moveToTrash } from '../utils/trashHelper';
 import PopupFrame from './PopupFrame';
 import { showToast, showErrorToast } from '../utils/toast';
@@ -166,6 +167,140 @@ interface LabelModalProps {
   initialTab?: 'event' | 'journal' | 'memo';
 }
 
+/** 같은 상위 아래(또는 맨 위 단계)에서 한 칸 위/아래로. 하위는 제 상위 밑을 벗어나지 않는다. */
+function moveSibling<T extends { id: string }>(list: T[], id: string, dir: 'up' | 'down', parentIds: Record<string, string>): T[] {
+  const parentOf = (x: string) => parentIds[x] || '';
+  const siblings = list.filter((l) => parentOf(l.id) === parentOf(id));
+  const i = siblings.findIndex((l) => l.id === id);
+  const j = dir === 'up' ? i - 1 : i + 1;
+  if (i < 0 || j < 0 || j >= siblings.length) return list;
+  const a = list.findIndex((l) => l.id === id);
+  const b = list.findIndex((l) => l.id === siblings[j].id);
+  const next = [...list];
+  [next[a], next[b]] = [next[b], next[a]];
+  return next;
+}
+
+/**
+ * 기록·메모 라벨 목록. 상위 밑에 하위를 들여 써서 보여 주고, 줄마다 '상위 라벨'을 고른다(2단계).
+ * 상위/하위는 id로 다루고, 저장할 때 이름으로 바꿔 둔다(lib/labelTree) - 이름을 고치는 중에도 끊기지 않게.
+ */
+function TreeLabelRows({
+  labels,
+  setLabels,
+  parentIds,
+  setParentIds,
+  onDelete,
+  noun,
+  focusClass,
+}: {
+  labels: { id: string; name: string; color: string }[];
+  setLabels: (next: any[]) => void;
+  parentIds: Record<string, string>;
+  setParentIds: (next: Record<string, string>) => void;
+  onDelete: (id: string) => void;
+  noun: string;
+  focusClass: string;
+}) {
+  const rows = orderByTree(labels.map((l) => l.id), parentIds);
+  const topIds = labels.map((l) => l.id).filter((id) => !parentIds[id]);
+  return (
+    <>
+      {rows.map((row) => {
+        const idx = labels.findIndex((l) => l.id === row.name);
+        const lbl = labels[idx];
+        if (!lbl) return null;
+        const parentOf = (x: string) => parentIds[x] || '';
+        const siblings = labels.filter((l) => parentOf(l.id) === parentOf(lbl.id));
+        const sibIdx = siblings.findIndex((l) => l.id === lbl.id);
+        const isFirst = sibIdx <= 0;
+        const isLast = sibIdx === siblings.length - 1;
+        const candidates = row.hasChildren ? [] : topIds.filter((id) => id !== lbl.id);
+        return (
+          <div
+            key={lbl.id || `key_${idx}`}
+            data-label-row={lbl.name}
+            className={`flex items-center justify-between gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition-all text-xs ${
+              row.depth === 1 ? 'ml-6 border-l-4 border-l-slate-300' : ''
+            }`}
+          >
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <div className="flex flex-col gap-0.5">
+                <button
+                  disabled={isFirst}
+                  onClick={() => setLabels(moveSibling(labels, lbl.id, 'up', parentIds))}
+                  title="위로 (같은 상위 안에서)"
+                  className={`text-xs px-1 rounded ${isFirst ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
+                >
+                  ▲
+                </button>
+                <button
+                  disabled={isLast}
+                  onClick={() => setLabels(moveSibling(labels, lbl.id, 'down', parentIds))}
+                  title="아래로 (같은 상위 안에서)"
+                  className={`text-xs px-1 rounded ${isLast ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
+                >
+                  ▼
+                </button>
+              </div>
+              {row.depth === 1 && <span className="text-slate-400" aria-hidden>└</span>}
+              <input
+                type="text"
+                value={lbl.name}
+                aria-label={`${noun} 라벨 이름`}
+                onChange={(e) => {
+                  const updated = [...labels];
+                  updated[idx] = { ...updated[idx], name: e.target.value };
+                  setLabels(updated);
+                }}
+                className={`px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-800 w-28 focus:outline-none ${focusClass}`}
+              />
+              <ColorPickerDropdown
+                color={lbl.color}
+                onChange={(newColor) => {
+                  const updated = [...labels];
+                  updated[idx] = { ...updated[idx], color: newColor };
+                  setLabels(updated);
+                }}
+              />
+              <label className="flex items-center gap-1 text-2xs font-bold text-slate-500">
+                상위
+                <select
+                  aria-label={`${lbl.name} 상위 라벨`}
+                  value={parentIds[lbl.id] || ''}
+                  disabled={row.hasChildren}
+                  title={row.hasChildren ? '하위 라벨이 있어 상위를 둘 수 없습니다 (2단계까지)' : '이 라벨을 어느 라벨 밑에 둘지'}
+                  onChange={(e) => {
+                    const next = { ...parentIds };
+                    if (e.target.value) next[lbl.id] = e.target.value;
+                    else delete next[lbl.id];
+                    setParentIds(next);
+                  }}
+                  className="px-1.5 py-1 border border-slate-200 rounded-lg text-2xs font-bold text-slate-700 bg-white disabled:opacity-50"
+                >
+                  <option value="">없음</option>
+                  {candidates.map((id) => (
+                    <option key={id} value={id}>
+                      {labels.find((l) => l.id === id)?.name || id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <button
+              onClick={() => onDelete(lbl.id)}
+              className="text-slate-400 hover:text-red-500 font-black px-1.5 py-0.5 rounded transition-colors cursor-pointer shrink-0"
+              title={`${noun} 라벨 삭제`}
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: LabelModalProps) {
   const { groups } = useGroups();
   const [activeTab, setActiveTab] = useState<'event' | 'journal' | 'memo'>(initialTab);
@@ -194,6 +329,12 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
 
   // 기록 라벨 상태
   const [journalLabels, setJournalLabels] = useState<JournalLabel[]>([]);
+  // 상위/하위 (하위 id → 상위 id). 저장된 트리는 이름으로 있어서 열 때 id로 바꾼다.
+  const labelTree = useLabelTree();
+  const [journalParentIds, setJournalParentIds] = useState<Record<string, string>>({});
+  const [memoParentIds, setMemoParentIds] = useState<Record<string, string>>({});
+  /** 이번에 연 뒤 상위/하위를 손댔나. 손댔으면 늦게 도착한 트리로 덮지 않는다. */
+  const treeTouchedRef = useRef(false);
   const [newJournalName, setNewJournalName] = useState('');
   const [newJournalColor, setNewJournalColor] = useState('green');
 
@@ -204,6 +345,28 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   // 💡 불러오기가 실제로 성공하기 전까지는 저장을 막아서, 로드 실패 시
   // 화면 표시용으로 채운 기본값이 실수로 클라우드에 덮어써지는 것을 방지한다.
   const [labelsLoaded, setLabelsLoaded] = useState(false);
+
+  // 저장된 트리(이름)를 지금 라벨의 id로 바꿔 채운다. 창을 열 때마다 처음부터.
+  useEffect(() => {
+    if (!isOpen) {
+      treeTouchedRef.current = false;
+      return;
+    }
+    if (treeTouchedRef.current || !labelsLoaded) return;
+    const toIds = (parents: Record<string, string>, list: { id: string; name: string }[]) => {
+      const idOf = (n: string) => list.find((l) => l.name === n)?.id;
+      const out: Record<string, string> = {};
+      for (const [child, parent] of Object.entries(parents)) {
+        const c = idOf(child);
+        const pr = idOf(parent);
+        if (c && pr && c !== pr) out[c] = pr;
+      }
+      return out;
+    };
+    setJournalParentIds(toIds(labelTree.journal, journalLabels));
+    setMemoParentIds(toIds(labelTree.memo, memoLabels));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, labelsLoaded, labelTree]);
   const [loadError, setLoadError] = useState(false);
   // 저장 시점에 삭제된 라벨을 찾아내기 위한, 불러온 시점의 원본 스냅샷
   const originalEventLabelsRef = React.useRef<EventLabel[]>([]);
@@ -361,15 +524,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     setMemoLabels(memoLabels.filter((l) => l.id !== id));
   };
 
-  const handleMoveMemoLabel = (index: number, direction: 'up' | 'down') => {
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= memoLabels.length) return;
-    const updated = [...memoLabels];
-    const temp = updated[index];
-    updated[index] = updated[targetIndex];
-    updated[targetIndex] = temp;
-    setMemoLabels(updated);
-  };
+
 
   // --- 기록 라벨 핸들러 ---
   const handleAddJournalLabel = async () => {
@@ -385,15 +540,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     await saveLabelsToCloud(eventLabels, memoLabels, next);
   };
 
-  const handleMoveJournalLabel = (index: number, direction: 'up' | 'down') => {
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= journalLabels.length) return;
-    const updated = [...journalLabels];
-    const temp = updated[index];
-    updated[index] = updated[targetIndex];
-    updated[targetIndex] = temp;
-    setJournalLabels(updated);
-  };
+
 
   const handleDeleteJournalLabel = (id: string) => {
     setJournalLabels(journalLabels.filter((l) => l.id !== id));
@@ -468,6 +615,20 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
       originalEventLabelsRef.current = eventLabels;
       originalJournalLabelsRef.current = journalLabels;
       originalMemoLabelsRef.current = memoLabels;
+
+      // 상위/하위도 함께 저장한다. id로 들고 있던 것을 지금 이름으로 바꿔 두므로 이름을 고친 것도 따라간다.
+      const toNames = (parentIds: Record<string, string>, list: { id: string; name: string }[]) => {
+        const nameOf = (id: string) => list.find((l) => l.id === id)?.name?.trim();
+        const out: Record<string, string> = {};
+        for (const [c, pr] of Object.entries(parentIds)) {
+          const cn = nameOf(c);
+          const pn = nameOf(pr);
+          if (cn && pn && cn !== pn) out[cn] = pn;
+        }
+        return sanitizeParents(out);
+      };
+      await saveLabelTree({ journal: toNames(journalParentIds, journalLabels), memo: toNames(memoParentIds, memoLabels) });
+      treeTouchedRef.current = false;
 
       const renameCount = renames.event.length + renames.journal.length + renames.memo.length;
       if (renameCount > 0) {
@@ -888,60 +1049,20 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                 </p>
               </div>
 
-              {/* 기록 라벨 목록 */}
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {journalLabels.map((lbl, idx) => {
-                  return (
-                    <div
-                      key={lbl.id || `j_key_${idx}`}
-                      className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition-all text-xs"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="flex flex-col gap-0.5">
-                          <button
-                            disabled={idx === 0}
-                            onClick={() => handleMoveJournalLabel(idx, 'up')}
-                            className={`text-xs px-1 rounded ${idx === 0 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
-                          >
-                            ▲
-                          </button>
-                          <button
-                            disabled={idx === journalLabels.length - 1}
-                            onClick={() => handleMoveJournalLabel(idx, 'down')}
-                            className={`text-xs px-1 rounded ${idx === journalLabels.length - 1 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
-                          >
-                            ▼
-                          </button>
-                        </div>
-                        <input
-                          type="text"
-                          value={lbl.name}
-                          onChange={(e) => {
-                            const updated = [...journalLabels];
-                            updated[idx] = { ...updated[idx], name: e.target.value };
-                            setJournalLabels(updated);
-                          }}
-                          className="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-800 w-32 focus:outline-none focus:border-amber-500"
-                        />
-                        <ColorPickerDropdown
-                          color={lbl.color}
-                          onChange={(newColor) => {
-                            const updated = [...journalLabels];
-                            updated[idx] = { ...updated[idx], color: newColor };
-                            setJournalLabels(updated);
-                          }}
-                        />
-                      </div>
-                      <button
-                        onClick={() => handleDeleteJournalLabel(lbl.id)}
-                        className="text-slate-400 hover:text-red-500 font-black px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-                        title="기록 라벨 삭제"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  );
-                })}
+              {/* 기록 라벨 목록 - 상위 밑에 하위를 들여 쓴다 */}
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                <TreeLabelRows
+                  labels={journalLabels}
+                  setLabels={setJournalLabels}
+                  parentIds={journalParentIds}
+                  setParentIds={(next) => {
+                    treeTouchedRef.current = true;
+                    setJournalParentIds(next);
+                  }}
+                  onDelete={handleDeleteJournalLabel}
+                  noun="기록"
+                  focusClass="focus:border-amber-500"
+                />
               </div>
 
               {/* 새 기록 라벨 추가 */}
@@ -978,60 +1099,20 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                 </p>
               </div>
 
-              {/* 메모 라벨 목록 */}
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {memoLabels.map((lbl, idx) => {
-                  return (
-                    <div
-                      key={lbl.id || `memo_key_${idx}`}
-                      className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition-all text-xs"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="flex flex-col gap-0.5">
-                          <button
-                            disabled={idx === 0}
-                            onClick={() => handleMoveMemoLabel(idx, 'up')}
-                            className={`text-xs px-1 rounded ${idx === 0 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
-                          >
-                            ▲
-                          </button>
-                          <button
-                            disabled={idx === memoLabels.length - 1}
-                            onClick={() => handleMoveMemoLabel(idx, 'down')}
-                            className={`text-xs px-1 rounded ${idx === memoLabels.length - 1 ? 'text-slate-200' : 'text-slate-400 hover:text-slate-700 cursor-pointer'}`}
-                          >
-                            ▼
-                          </button>
-                        </div>
-                        <input
-                          type="text"
-                          value={lbl.name}
-                          onChange={(e) => {
-                            const updated = [...memoLabels];
-                            updated[idx] = { ...updated[idx], name: e.target.value };
-                            setMemoLabels(updated);
-                          }}
-                          className="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-800 w-32 focus:outline-none focus:border-emerald-500"
-                        />
-                        <ColorPickerDropdown
-                          color={lbl.color}
-                          onChange={(newColor) => {
-                            const updated = [...memoLabels];
-                            updated[idx] = { ...updated[idx], color: newColor };
-                            setMemoLabels(updated);
-                          }}
-                        />
-                      </div>
-                      <button
-                        onClick={() => handleDeleteMemoLabel(lbl.id)}
-                        className="text-slate-400 hover:text-red-500 font-black px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-                        title="메모 라벨 삭제"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  );
-                })}
+              {/* 메모 라벨 목록 - 상위 밑에 하위를 들여 쓴다 */}
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                <TreeLabelRows
+                  labels={memoLabels}
+                  setLabels={setMemoLabels}
+                  parentIds={memoParentIds}
+                  setParentIds={(next) => {
+                    treeTouchedRef.current = true;
+                    setMemoParentIds(next);
+                  }}
+                  onDelete={handleDeleteMemoLabel}
+                  noun="메모"
+                  focusClass="focus:border-emerald-500"
+                />
               </div>
 
               {/* 새 메모 라벨 추가 */}

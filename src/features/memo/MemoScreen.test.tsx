@@ -8,6 +8,13 @@ import { addDoc as addDocMock, onSnapshot as onSnapshotMock, writeBatch as write
 import { isUnlabeledMemo } from '../../hooks/useMemos';
 import { useAppStore } from '../../store/useAppStore';
 
+// 라벨 상위/하위는 이 파일에서 따로 정한다 (Firestore 구독 흉내가 메모 모양만 돌려준다)
+let memoParents: Record<string, string> = {};
+vi.mock('../../lib/labelTree', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../lib/labelTree')>();
+  return { ...actual, useLabelTree: () => ({ memo: memoParents, journal: {} }) };
+});
+
 vi.mock('../../hooks/useLabels', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../hooks/useLabels')>();
   return {
@@ -327,5 +334,43 @@ describe('메모 즐겨찾기', () => {
 
     expect(within(nav).getByRole('button', { name: /⭐ 즐겨찾기/ })).toHaveAttribute('aria-pressed', 'true');
     expect(within(nav).getByRole('button', { name: /전체 메모/ })).toHaveAttribute('aria-pressed', 'false');
+  });
+});
+
+describe('메모 라벨 상위/하위', () => {
+  // '개인'을 '업무' 밑에 둔다
+  const docs = [
+    { id: 'a', data: () => ({ text: '업무 메모', labels: ['업무'], createdAt: 3 }) },
+    { id: 'b', data: () => ({ text: '개인 메모', labels: ['개인'], createdAt: 2 }) },
+  ];
+  beforeEach(() => {
+    memoParents = { 개인: '업무' };
+    vi.mocked(onSnapshotMock).mockImplementation(((_ref: unknown, next: (s: unknown) => void) => {
+      next({ forEach: (f: (d: unknown) => void) => docs.forEach(f), exists: () => false, data: () => ({}) });
+      return () => {};
+    }) as any);
+  });
+  afterEach(() => {
+    memoParents = {};
+    vi.mocked(onSnapshotMock).mockImplementation((() => () => {}) as any);
+  });
+
+  it('상위를 고르면 하위 라벨이 붙은 메모까지 보이고, 개수도 함께 센다', async () => {
+    const user = userEvent.setup();
+    render(<><MemoScreen /><EntryPanelHost /></>);
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    await screen.findByText('업무 메모');
+
+    expect(within(nav).getByRole('button', { name: /업무/ })).toHaveTextContent(/2$/);
+    // 하위는 들여 쓰여 보이고, 마우스를 올리면 '상위 › 하위'
+    expect(within(nav).getByRole('button', { name: /개인/ })).toHaveAttribute('title', '업무 › 개인');
+
+    await user.click(within(nav).getByRole('button', { name: /업무/ }));
+    expect(screen.getByText('업무 메모')).toBeInTheDocument();
+    expect(screen.getByText('개인 메모')).toBeInTheDocument();
+
+    await user.click(within(nav).getByRole('button', { name: /개인/ }));
+    expect(screen.queryByText('업무 메모')).toBeNull();
+    expect(screen.getByText('개인 메모')).toBeInTheDocument();
   });
 });

@@ -11,6 +11,7 @@
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { PanelRaiseContext } from './panelRaise';
 import MoveEntryModal from './MoveEntryModal';
+import { useLabelTree } from '../lib/labelTree';
 import { isMovableJournal, moveJournalToMemo, moveMemoToJournal } from '../lib/moveEntry';
 import { findStudentTags } from '../lib/studentTag';
 import { formatDateStr } from '../lib/dateUtils';
@@ -147,6 +148,7 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
   const dateStr = target.dateStr || '';
   const { journals, addJournalEntry, updateJournalEntry, deleteJournalEntry } = useDayData(dateStr, target.groupId);
   const { journalLabels, memoLabels } = useLabels();
+  const labelTree = useLabelTree();
   const spaceName = useSpaceName(target.groupId);
 
   // 기록은 라벨을 이름으로도, ID로도 들고 있다. 이름으로 풀어 배너에 넘긴다 (DayJournal과 같은 규칙).
@@ -250,6 +252,7 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
       kind="journal"
       entry={drawerEntry}
       labelOptions={journalLabels.map((l) => l.name)}
+      labelParents={labelTree.journal}
       onSave={handleSave}
       onDelete={
         target.entryId
@@ -289,6 +292,7 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
 
   const { memos, addMemo, updateMemo, deleteMemo } = useMemos(target.groupId);
   const { memoLabels, journalLabels: journalLabelList } = useLabels();
+  const labelTree = useLabelTree();
   const spaceName = useSpaceName(target.groupId);
 
   const current: Memo | null = target.entryId
@@ -346,6 +350,7 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
       kind="memo"
       entry={current}
       labelOptions={memoLabels}
+      labelParents={labelTree.memo}
       onSave={handleSave}
       onDelete={
         target.entryId

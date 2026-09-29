@@ -1,0 +1,117 @@
+// src/lib/labelTree.ts
+//
+// 메모·기록 라벨의 상위/하위 (2단계). 예: '학교' 밑에 'A초', 'B초', 'C초'.
+// 사용자와 정한 것 (2026-09-29):
+//   - 메모·기록 라벨만. 일정 라벨은 속성(달력·이월…) 때문에 뺀다.
+//   - 2단계까지 (상위 › 하위). 하위를 가진 라벨은 상위를 가질 수 없고, 하위의 하위는 없다.
+//   - 거르개에서 상위를 고르면 하위가 붙은 항목까지 보인다.
+//   - 옮기기는 라벨마다 '상위 라벨' 고르기 칸(통합 라벨 관리).
+//
+// 어디에 두나: V4만 쓰는 따로 된 설정 문서(users/{uid}/settings/v4_labelTree)에 "하위 이름 → 상위 이름"만
+// 둔다. 라벨 목록과 항목에 붙은 라벨은 그대로라, V3에서는 예전처럼 평평한 목록으로 보이고 깨지는 것이 없다.
+// (라벨마다 칸을 더하면 V3가 라벨을 저장할 때 모르는 칸을 지워 버릴 수 있다)
+import { doc, setDoc } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
+import { auth, db } from './firebase';
+import { subscribeDocWithServerFallback } from './firestoreSubscribe';
+
+export type LabelTreeKind = 'memo' | 'journal';
+/** 하위 이름 → 상위 이름 */
+export type ParentMap = Record<string, string>;
+export interface LabelTree {
+  memo: ParentMap;
+  journal: ParentMap;
+}
+
+export const EMPTY_TREE: LabelTree = { memo: {}, journal: {} };
+
+const treeRef = (uid: string) => doc(db, 'users', uid, 'settings', 'v4_labelTree');
+
+/**
+ * 믿을 수 있는 모양으로 다듬는다. 지금 있는 라벨 이름(names)을 주면 없는 라벨은 걸러낸다.
+ * 자기 자신이 상위인 것, 상위가 다시 상위를 가진 것(3단계)은 버린다.
+ */
+export function sanitizeParents(raw: unknown, names?: string[]): ParentMap {
+  const out: ParentMap = {};
+  if (!raw || typeof raw !== 'object') return out;
+  const known = names ? new Set(names) : null;
+  for (const [child, parent] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof parent !== 'string' || !child || !parent || child === parent) continue;
+    if (known && (!known.has(child) || !known.has(parent))) continue;
+    out[child] = parent;
+  }
+  // 2단계를 넘는 것(상위가 또 하위인 것)은 끊는다
+  for (const child of Object.keys(out)) {
+    if (out[out[child]]) delete out[child];
+  }
+  return out;
+}
+
+export interface TreeRow {
+  name: string;
+  /** 0 = 상위(또는 혼자), 1 = 하위 */
+  depth: 0 | 1;
+  parent?: string;
+  hasChildren: boolean;
+}
+
+/**
+ * 라벨을 트리 차례로 늘어놓는다. 상위는 원래 차례대로, 하위는 제 상위 바로 뒤에 원래 차례대로.
+ * 상위가 목록에 없는 하위는 맨 위 단계로 둔다.
+ */
+export function orderByTree(names: string[], parents: ParentMap): TreeRow[] {
+  const set = new Set(names);
+  const parentOf = (n: string) => (parents[n] && set.has(parents[n]) && parents[n] !== n ? parents[n] : undefined);
+  const rows: TreeRow[] = [];
+  for (const name of names) {
+    if (parentOf(name)) continue;
+    const children = names.filter((c) => parentOf(c) === name);
+    rows.push({ name, depth: 0, hasChildren: children.length > 0 });
+    for (const c of children) rows.push({ name: c, depth: 1, parent: name, hasChildren: false });
+  }
+  return rows;
+}
+
+/** 거르개: 상위를 고르면 하위까지 (자기 자신 포함) */
+export function expandLabel(name: string, parents: ParentMap): string[] {
+  return [name, ...Object.keys(parents).filter((c) => parents[c] === name)];
+}
+
+/** 칩에 마우스를 올렸을 때 보일 이름. 하위면 '상위 › 하위' */
+export function labelPath(name: string, parents: ParentMap): string {
+  return parents[name] ? `${parents[name]} › ${name}` : name;
+}
+
+/**
+ * '상위 라벨' 고르기 칸에 보일 후보. 자기 자신, 이미 하위인 라벨(3단계가 되므로)은 빠진다.
+ * 자기에게 하위가 있으면 상위를 가질 수 없으므로 빈 목록.
+ */
+export function parentCandidates(name: string, names: string[], parents: ParentMap): string[] {
+  if (Object.values(parents).includes(name)) return [];
+  return names.filter((n) => n !== name && !parents[n]);
+}
+
+/** 트리를 저장한다 (계정에 하나. 메모·기록을 함께) */
+export async function saveLabelTree(tree: LabelTree): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('로그인이 필요합니다.');
+  await setDoc(treeRef(uid), { memo: tree.memo, journal: tree.journal, updatedAt: Date.now() });
+}
+
+/** 라벨 트리를 구독한다 */
+export function useLabelTree(): LabelTree {
+  const [tree, setTree] = useState<LabelTree>(EMPTY_TREE);
+  const uid = auth.currentUser?.uid;
+  useEffect(() => {
+    if (!uid) {
+      setTree(EMPTY_TREE);
+      return;
+    }
+    return subscribeDocWithServerFallback(
+      treeRef(uid),
+      (data) => setTree({ memo: sanitizeParents(data?.memo), journal: sanitizeParents(data?.journal) }),
+      (err) => console.warn('라벨 상위/하위를 불러오지 못했습니다:', err)
+    );
+  }, [uid]);
+  return tree;
+}

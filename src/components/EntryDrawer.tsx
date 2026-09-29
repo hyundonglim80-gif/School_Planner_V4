@@ -17,6 +17,7 @@ import { isImageAttachment } from '../lib/attachments';
 import AutoTextarea from './AutoTextarea';
 import StudentTagPicker from './StudentTagPicker';
 import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
+import { labelPath, orderByTree } from '../lib/labelTree';
 import { isTopSideItem } from './PopupFrame';
 
 export type EntryKind = 'memo' | 'journal';
@@ -62,6 +63,8 @@ interface EntryDrawerProps {
   /** 수정 대상. null이면 새로 작성하는 경우다. */
   entry: EntrySource | null;
   labelOptions: string[];
+  /** 라벨 상위/하위 (하위 이름 → 상위 이름). 주면 하위를 상위 바로 뒤에 들여 보여 준다. */
+  labelParents?: Record<string, string>;
   onSave: (draft: EntryDraft) => Promise<void>;
   onDelete?: () => Promise<void>;
   /**
@@ -147,6 +150,7 @@ export default function EntryDrawer({
   kind,
   entry,
   labelOptions,
+  labelParents = {},
   onSave,
   onDelete,
   onMove,
@@ -533,12 +537,13 @@ export default function EntryDrawer({
               </button>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {labelOptions.map((label) => {
+              {orderByTree(labelOptions, labelParents).map(({ name: label, depth }) => {
                 const isSelected = selectedLabels.includes(label);
                 return (
                   <button
                     key={label}
                     type="button"
+                    title={labelPath(label, labelParents)}
                     onClick={() => toggleLabel(label)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                       isSelected
@@ -546,6 +551,11 @@ export default function EntryDrawer({
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
+                    {depth === 1 && (
+                      <span className="mr-0.5 opacity-60" aria-hidden>
+                        └
+                      </span>
+                    )}
                     {isSelected ? '✓ ' : ''}
                     {label}
                   </button>

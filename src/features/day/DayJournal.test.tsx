@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DayJournal from './DayJournal';
@@ -14,6 +14,13 @@ let hook: {
   updateJournalEntry: ReturnType<typeof vi.fn>;
   deleteJournalEntry: ReturnType<typeof vi.fn>;
 };
+// 라벨 상위/하위는 이 파일에서 따로 정한다
+let journalParents: Record<string, string> = {};
+vi.mock('../../lib/labelTree', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../lib/labelTree')>();
+  return { ...actual, useLabelTree: () => ({ memo: {}, journal: journalParents }) };
+});
+
 vi.mock('../../hooks/useDayData', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../hooks/useDayData')>();
   return { ...actual, useDayData: () => hook };
@@ -405,5 +412,34 @@ describe('기록 칸 - 새로 만든 것을 알려 주기 (링크 창의 만들�
     await user.click(screen.getByRole('button', { name: '저장' }));
     await waitFor(() => expect(hook.updateJournalEntry).toHaveBeenCalled());
     expect(onCreated).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('기록 거르개 - 라벨 상위/하위', () => {
+  // 기본 기록 라벨 가운데 '학생상담'을 '학급활동' 밑에 둔다
+  beforeEach(() => {
+    journalParents = { 학생상담: '학급활동' };
+  });
+  afterEach(() => {
+    journalParents = {};
+  });
+
+  it('하위 칩은 ▾로 펼치고, 상위를 고르면 하위 라벨의 기록까지 보인다', async () => {
+    const user = userEvent.setup();
+    renderJournal([
+      { id: 'jr_a', content: '학급 기록', createdAt: 1, label: '학급활동', labelIds: ['j_1'] },
+      { id: 'jr_b', content: '상담 기록', createdAt: 2, label: '학생상담', labelIds: ['j_2'] },
+      { id: 'jr_c', content: '업무 기록', createdAt: 3, label: '업무전달', labelIds: ['j_3'] },
+    ] as JournalEntry[]);
+
+    // 처음에는 하위 칩이 접혀 있다
+    expect(screen.queryByRole('button', { name: '학생상담' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: '학급활동 하위 라벨 펼치기' }));
+    expect(screen.getByRole('button', { name: '학생상담' })).toHaveAttribute('title', '학급활동 › 학생상담');
+
+    await user.click(screen.getByRole('button', { name: '학급활동' }));
+    expect(screen.getByText('학급 기록')).toBeInTheDocument();
+    expect(screen.getByText('상담 기록')).toBeInTheDocument();
+    expect(screen.queryByText('업무 기록')).toBeNull();
   });
 });

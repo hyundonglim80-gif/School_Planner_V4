@@ -6,6 +6,7 @@ import { useLabels } from '../../hooks/useLabels';
 import MemoCard from './MemoCard';
 import MemoMasonry from './MemoMasonry';
 import { openEntryPanel } from '../../components/EntryPanelHost';
+import { expandLabel, labelPath, orderByTree, useLabelTree } from '../../lib/labelTree';
 import { showToast, showErrorToast } from '../../utils/toast';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
@@ -85,12 +86,19 @@ export default function MemoScreen() {
     setMemoFilter(filter);
   };
 
+  // 라벨 상위/하위 (lib/labelTree). 상위를 고르면 하위 라벨이 붙은 메모까지 보인다.
+  const memoParents = useLabelTree().memo;
+  const hasLabelIn = (memo: { labels?: string[] }, filter: string) => {
+    const allowed = expandLabel(filter, memoParents);
+    return (memo.labels || []).some((l) => allowed.includes(l));
+  };
+
   const matching =
     currentFilter === '전체'
       ? memos
       : currentFilter === FAVORITE_FILTER
       ? memos.filter((memo) => memo.favorite)
-      : memos.filter((memo) => memo.labels?.includes(currentFilter));
+      : memos.filter((memo) => hasLabelIn(memo, currentFilter));
 
   // 즐겨찾기를 맨 위로 올린다. 정렬은 안정적이므로 그 안에서는
   // 원래 차례(나중에 만든 것이 앞)가 그대로 남는다.
@@ -108,7 +116,7 @@ export default function MemoScreen() {
       ? allActive.length
       : filter === FAVORITE_FILTER
       ? allActive.filter(m => m.favorite).length
-      : allActive.filter(m => m.labels?.includes(filter)).length;
+      : allActive.filter((m) => hasLabelIn(m, filter)).length;
 
   // 새로 쓰기·고치기는 오른쪽 칸(Layout의 EntryPanelHost)에서 한다. 칸은 이 화면보다
   // 오래 살아서, 다른 화면으로 옮겨도 쓰던 것이 남는다.
@@ -256,13 +264,23 @@ export default function MemoScreen() {
               'bg-amber-100 text-amber-900 border-amber-300',
               '즐겨찾기한 메모만 보기'
             )}
-            {memoLabels.map((labelName) => {
-              const color = getLabelColor(labelName);
-              return filterChip(
-                labelName,
-                labelName,
+            {/* 상위 밑에 하위를 들여 쓴다. 상위를 고르면 하위가 붙은 메모까지 보인다. */}
+            {orderByTree(memoLabels, memoParents).map((row) => {
+              const color = getLabelColor(row.name);
+              const chip = filterChip(
+                row.name,
+                row.name,
                 { backgroundColor: color.bg, color: color.text, borderColor: color.border },
-                ''
+                '',
+                row.hasChildren ? `${row.name} (하위 라벨 포함)` : labelPath(row.name, memoParents)
+              );
+              return row.depth === 1 ? (
+                <div key={row.name} className="flex items-center gap-0.5 pl-2 sm:pl-3">
+                  <span className="text-slate-300 text-xs shrink-0" aria-hidden>└</span>
+                  <div className="flex-1 min-w-0">{chip}</div>
+                </div>
+              ) : (
+                chip
               );
             })}
             {filterChip('전체', '전체 메모', undefined, 'bg-slate-800 text-white border-slate-800')}
