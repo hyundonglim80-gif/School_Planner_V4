@@ -63,7 +63,11 @@ interface EntryDrawerProps {
   labelOptions: string[];
   onSave: (draft: EntryDraft) => Promise<void>;
   onDelete?: () => Promise<void>;
-  /** 새로 작성할 때 미리 골라둘 라벨 */
+  /**
+   * 메모 ↔ 기록 옮기기. 지금 칸에 적힌 내용(저장 전 고친 것 포함)을 넘긴다.
+   * 주면 고치는 중일 때 삭제 옆에 '기록으로 / 메모로' 단추가 생긴다.
+   */
+  onMove?: (draft: EntryDraft) => void;
   defaultLabel?: string;
   /**
    * 화면 옆에 붙는 칸으로 그린다 (어두운 배경 없이, 화면을 가리지 않고).
@@ -142,6 +146,7 @@ export default function EntryDrawer({
   labelOptions,
   onSave,
   onDelete,
+  onMove,
   defaultLabel,
   docked = false,
   subtitle,
@@ -654,20 +659,39 @@ export default function EntryDrawer({
         </div>
 
         <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50">
-          {isEditing && onDelete ? (
-            <button
-              type="button"
-              onClick={async () => {
-                await onDelete();
-                onClose();
-              }}
-              className="px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-100 rounded-xl transition-colors cursor-pointer"
-            >
-              삭제
-            </button>
-          ) : (
-            <div></div>
-          )}
+          <div className="flex items-center gap-1">
+            {isEditing && onDelete && (
+              <button
+                type="button"
+                onClick={async () => {
+                  await onDelete();
+                  onClose();
+                }}
+                className="px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-100 rounded-xl transition-colors cursor-pointer"
+              >
+                삭제
+              </button>
+            )}
+            {isEditing && onMove && (
+              <button
+                type="button"
+                onClick={() =>
+                  onMove({
+                    content: content.trim(),
+                    labels: selectedLabels,
+                    attachments,
+                    linkedItems,
+                    imageUrl: attachments.find(isImageAttachment)?.url,
+                  })
+                }
+                disabled={saving || uploadingFiles}
+                title={kind === 'memo' ? '이 메모를 기록으로 옮기기 (날짜를 고른다)' : '이 기록을 메모로 옮기기 (첫 줄에 날짜를 남긴다)'}
+                className="px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {kind === 'memo' ? '↔ 기록으로' : '↔ 메모로'}
+              </button>
+            )}
+          </div>
 
           <div className="flex gap-2">
             <button

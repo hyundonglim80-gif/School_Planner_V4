@@ -72,3 +72,18 @@ describe('applyReverseLink - 이월된 일정의 역링크', () => {
     expect(next?.map((l: any) => l.targetId)).toEqual(['ev_other', 'ev_3']);
   });
 });
+
+describe('applyReverseLink - 메모 ↔ 기록 옮기기', () => {
+  it('옮긴 항목의 옛 링크는 종류가 달라도 걷어내고 새 링크로 갈아끼운다', () => {
+    const existing = [
+      { targetType: 'memo', targetId: 'm1', title: '[메모] 옮길 메모' },
+      { targetType: 'memo', targetId: 'm2', title: '[메모] 다른 메모' },
+    ];
+    const next = applyReverseLink(
+      existing,
+      { targetType: 'journal', targetId: 'jr_new', targetDate: '2026-09-29' },
+      { retargetFromIds: ['m1'] }
+    );
+    expect(next!.map((l: any) => l.targetId)).toEqual(['m2', 'jr_new']);
+  });
+});

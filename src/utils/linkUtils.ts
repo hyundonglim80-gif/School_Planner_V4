@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import type { SelectedLinkItem } from '../components/LinkerModal';
 import { eventDocPayload, readEventList } from '../lib/eventText';
+import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 
 export interface ReverseLinkOptions {
   /**
@@ -18,6 +19,12 @@ export interface ReverseLinkOptions {
   liveIdsByDate?: Map<string, Set<string>>;
   /** liveIdsByDate로 판단할 저장소. 다른 그룹을 가리키는 링크는 건드리지 않는다. */
   liveFId?: string;
+  /**
+   * 이 id를 가리키던 역링크는 종류와 상관없이 걷어내고 새 것으로 갈아끼운다.
+   * 메모를 기록으로(또는 반대로) 옮길 때 쓴다. replaceIds는 같은 종류만 보므로
+   * 메모 -> 기록처럼 종류가 바뀌면 옛 메모 링크가 남아 끊어진 링크가 된다.
+   */
+  retargetFromIds?: string[];
 }
 
 const linkIdOf = (l: any) => String(l?.targetId ?? l?.id ?? '');
@@ -38,11 +45,13 @@ export function applyReverseLink(
   const list = Array.isArray(existing) ? existing : [];
   const newId = linkIdOf(sourceMeta);
   const replaceIds = new Set((options?.replaceIds || []).map(String));
+  const retargetFrom = new Set((options?.retargetFromIds || []).map(String));
   const liveIds = options?.liveIdsByDate;
   const liveFId = String(options?.liveFId || 'personal');
 
   const isStale = (l: any) => {
     if (linkIdOf(l) === newId) return false;
+    if (retargetFrom.has(linkIdOf(l))) return true;
     // 종류가 다른 링크(기록/메모/수업)는 이번 일과 무관하다.
     if (String(l?.targetType) !== String(sourceMeta?.targetType)) return false;
     if (replaceIds.has(linkIdOf(l))) return true;
@@ -74,8 +83,10 @@ export const addReverseLink = async (
   try {
     if (targetLink.targetType === 'event') {
       const ref = doc(db, colPath('events'), targetLink.targetDate);
-      const snap = await getDoc(ref);
-      if (snap.exists()) {
+      // 하루치를 한 배열로 다시 쓴다. 캐시(빈 기기)로 읽고 쓰면 그날 다른 일정이 사라진다.
+      // 서버가 답하지 않으면 역링크를 걸지 않는다(링크 하나가 빠지는 쪽이 훨씬 가볍다).
+      const { snap, fromServer } = await getDocTrustingServer(ref);
+      if (fromServer && snap.exists()) {
         const list = readEventList(snap.data());
         if (list) {
           const item = list.find((e: any) => String(e.id) === String(targetLink.targetId));
@@ -90,8 +101,9 @@ export const addReverseLink = async (
       }
     } else if (targetLink.targetType === 'journal') {
       const ref = doc(db, colPath('journals'), targetLink.targetDate);
-      const snap = await getDoc(ref);
-      if (snap.exists()) {
+      // 일정과 같은 이유로 서버에서 읽고, 답이 없으면 쓰지 않는다
+      const { snap, fromServer } = await getDocTrustingServer(ref);
+      if (fromServer && snap.exists()) {
         const list = snap.data().entries || [];
         const item = list.find((j: any) => String(j.id) === String(targetLink.targetId));
         if (item) {
