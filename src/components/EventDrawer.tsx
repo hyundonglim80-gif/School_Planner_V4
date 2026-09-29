@@ -154,7 +154,7 @@ export default function EventDrawer({
     let alarm = '';
     if (item) {
       l = resolveEventLabelNames(item, eventLabels, { keepUnknown: !labelsLoaded });
-      t = eventDisplayContent(item);
+      t = eventDisplayContent(item, eventLabels);
       alarm = item.time || '';
       // 저장된 값이 있으면 그 값, 없으면 라벨의 속성. 라벨이 없는 일정은 달력에 보인다.
       a = {

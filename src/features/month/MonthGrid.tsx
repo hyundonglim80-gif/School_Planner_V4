@@ -415,9 +415,9 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                             '생활…' 두 글자보다 '생활기록부…' 다섯 글자가 낫다. */}
                         <span
                           className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}
-                          style={compact ? { fontSize: fitToWidthFontSize(eventDisplayContent(ev)) } : undefined}
+                          style={compact ? { fontSize: fitToWidthFontSize(eventDisplayContent(ev, eventLabels)) } : undefined}
                         >
-                          {eventDisplayContent(ev)}
+                          {eventDisplayContent(ev, eventLabels)}
                         </span>
                         
                         {(ev.linkedItems || []).length > 0 && (

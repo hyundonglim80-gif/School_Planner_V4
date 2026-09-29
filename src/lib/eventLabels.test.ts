@@ -73,6 +73,21 @@ describe('eventDisplayContent', () => {
   it('text 필드도 읽는다', () => {
     expect(eventDisplayContent({ text: '[완료] 보고서' })).toBe('보고서');
   });
+
+  it('등록된 라벨인 접두어만 뗀다 (칩으로 나오는 것)', () => {
+    expect(eventDisplayContent({ content: '[회의] 교직원 회의' }, labels)).toBe('교직원 회의');
+    expect(eventDisplayContent({ content: '[ev_1] 교직원 회의' }, labels)).toBe('교직원 회의');
+  });
+
+  it('라벨이 아닌 대괄호는 사용자가 적은 글이라 그대로 둔다', () => {
+    // 예전에는 떼어서 화면에서 잘려 보였고, 수정 칸에서 저장하면 앞부분이 실제로 사라졌다
+    expect(eventDisplayContent({ content: '[v] 숙제 확인' }, labels)).toBe('[v] 숙제 확인');
+    expect(eventDisplayContent({ content: '[참고] 공문 회신' }, labels)).toBe('[참고] 공문 회신');
+  });
+
+  it('라벨을 아직 못 읽었으면(빈 목록) 예전처럼 뗀다', () => {
+    expect(eventDisplayContent({ content: '[회의] 교직원 회의' }, [])).toBe('교직원 회의');
+  });
 });
 
 describe('isForwardLabel', () => {

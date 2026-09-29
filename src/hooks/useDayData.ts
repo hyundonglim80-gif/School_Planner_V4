@@ -504,13 +504,13 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         setEventText(rawText);
         if (Array.isArray(data.eventList) && data.eventList.length > 0) {
           const mapped: EventItem[] = data.eventList.map((e: any, idx: number) => {
-            let label = e.label || (e.labels && e.labels[0]);
-            let content = e.content || '';
-            const match = content.match(/^\[(.*?)\]\s*(.*)$/);
-            if (match) {
-              if (!label) label = match[1].trim();
-              content = match[2].trim();
-            }
+            const label = e.label || (e.labels && e.labels[0]);
+            // ⚠️ 본문 앞의 '[무엇]'을 여기서 떼지 않는다. 예전에는 라벨이 따로 있는 일정까지
+            //    '[v] 숙제 확인'을 '숙제 확인'으로 바꿔 들고 있다가, 그날 무엇이든 저장하면
+            //    (완료 표시·순서 바꾸기·다른 일정 고치기) 그 글로 통째로 다시 써서 사용자가
+            //    적은 앞부분이 사라졌다. 옛 '[라벨] 본문' 글은 칩(resolveEventLabelNames)과
+            //    화면 글(eventDisplayContent)이 등록된 라벨일 때만 알아서 나눠 보여 준다.
+            const content = e.content || '';
             return {
               // V3가 붙인 필드(forwardChainId, originalDate 등)를 그대로 통과시킨다
               ...e,
@@ -789,17 +789,18 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
 
   const addEventItem = useCallback(async (content: string, options?: Partial<EventItem>) => {
     if (!content.trim()) return;
-    const parsedList = parseV3EventText(content.trim());
-    const parsed = parsedList.length > 0 ? parsedList[0] : null;
     const newId = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5);
-    
-    // 💡 options.label을 먼저 확인하도록 수정한 부분
+
+    // ⚠️ 적은 글을 V3 옛 글 형식(parseV3EventText)으로 읽지 않는다. 예전에는 그렇게 읽고
+    //    첫 줄만 남겨서, 여러 줄로 적은 새 일정은 둘째 줄부터 말없이 사라졌다. '[v] …'로
+    //    시작하면 완료로, '[무엇] …'으로 시작하면 라벨로 바뀌기도 했다. 라벨·완료는 쓰는 칸이
+    //    따로 넘겨준다. 고치기(updateEventItem)는 처음부터 글을 그대로 썼다.
     const newItem: EventItem = {
       id: newId,
-      content: parsed ? parsed.content : content.trim(),
-      completed: parsed ? parsed.completed : false,
-      label: options?.label || (parsed && parsed.label ? parsed.label : undefined),
-      labelIds: options?.labelIds || (parsed && parsed.label ? [] : undefined),
+      content: content.trim(),
+      completed: false,
+      label: options?.label || undefined,
+      labelIds: options?.labelIds,
       linkedItems: options?.linkedItems || [],
       attachments: options?.attachments || [],
       time: options?.time || undefined,

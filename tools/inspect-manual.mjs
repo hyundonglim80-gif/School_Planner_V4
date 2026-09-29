@@ -12,6 +12,7 @@
 //   BROWSER=chrome|chromium|firefox|webkit   브라우저 (기본 chrome, webkit = 사파리 엔진)
 //   PC_W=1400 PC_H=950                       PC 창 크기 (모니터 절반이면 PC_W=960)
 //   ONLY=pc|mobile                           한쪽만 돌린다
+//   MATCH=<정규식>                           이름이 맞는 점검만 돌린다
 //   에뮬레이터는 돌릴 때마다 새로 띄우고 seed 하는 것이 좋다 (점검이 자료를 고친다).
 //
 // 구글 드라이브·캘린더·시트를 부르는 기능(파일 첨부 업로드, 캘린더 보내기 등)은
@@ -27,7 +28,10 @@ const results = [];
 let page;
 let shotNo = 0;
 
+/** 이름에 이 말이 든 점검만 돌린다 (예: MATCH='D-Day'). 앞 점검이 만든 화면·자료에 기대는 점검은 함께 골라야 한다. */
+const MATCH = process.env.MATCH ? new RegExp(process.env.MATCH) : null;
 async function check(name, fn) {
+  if (MATCH && !MATCH.test(name)) return;
   try {
     const note = await fn();
     results.push({ ok: true, name, note });
@@ -516,8 +520,17 @@ if (ONLY !== 'mobile') {
     const empty = page.locator('div[title*="비어 있음"]').first();
     assert((await empty.count()) > 0, '빈 교시 칸이 없음 (주말이 꺼져 있으면 없을 수 있음)');
     await empty.click();
-    await wait(1200);
-    assert(await heading(/교시 수정/).isVisible(), '수정 팝업이 안 뜸');
+    // 수정 팝업은 처음 열 때 내려받는다. 점검이 몰리면 1.2초로는 모자랄 때가 있었다.
+    await heading(/교시 수정/).waitFor({ timeout: 6000 }).catch(() => {});
+    const shown = await heading(/교시 수정/).isVisible();
+    if (!shown) {
+      const info = {
+        title: await empty.getAttribute('title').catch(() => '?'),
+        dialogs: await page.locator('[role=dialog]').count(),
+        headings: await page.getByRole('heading').allInnerTexts(),
+      };
+      throw new Error(`수정 팝업이 안 뜸 ${JSON.stringify(info)}`);
+    }
     await closeAll();
   });
 
@@ -661,12 +674,20 @@ if (ONLY !== 'mobile') {
   await check('[D-Day] 추가 → ★ 상단 표시 → 삭제', async () => {
     await page.getByTitle(/학사 D-Day 관리/).click();
     await wait(800);
-    await page.getByPlaceholder(/일정명/).fill('점검디데이');
+    // 판마다 새 이름을 쓴다. 지난 판에 만들어 ★가 붙은 '점검디데이'가 남아 있으면
+    // 그것을 새것으로 알고 넘어가, 날이 바뀐 뒤에는 D-9를 보고 틀렸다고 했다.
+    const DD = `점검디데이${Date.now() % 100000}`;
+    await page.getByPlaceholder(/일정명/).fill(DD);
+    // 오늘에서 10일 뒤 (이 컴퓨터 시각으로. toISOString은 UTC라 한국 아침에는 하루 어긋난다)
     const d = new Date(Date.now() + 10 * 864e5);
-    await page.locator('[data-scroll-lock] input[type=date]').first().fill(d.toISOString().slice(0, 10));
-    await page.locator('[data-scroll-lock] button[type=submit]').first().click();
+    const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const dlg = page.locator('[role=dialog]', { has: page.getByPlaceholder(/일정명/) }).last();
+    await dlg.locator('input[type=date]').first().fill(ds);
+    await dlg.locator('button[type=submit]').first().click();
     await wait(1500);
-    const row = page.locator('[data-scroll-lock] button', { hasText: '점검디데이' }).first();
+    const row = dlg.locator('button', { hasText: DD }).first();
+    // 목록은 저장이 서버를 거쳐 돌아와야 바뀐다. 1.5초로는 모자랄 때가 있었다.
+    await row.waitFor({ timeout: 8000 }).catch(() => {});
     assert((await row.count()) > 0, '추가한 D-Day가 목록에 없음');
     const isStar = (await row.innerText()).includes('★');
     if (!isStar) {

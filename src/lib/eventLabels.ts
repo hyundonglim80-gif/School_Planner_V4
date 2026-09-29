@@ -61,11 +61,23 @@ export function resolveEventLabelNames(
   return names;
 }
 
-/** 화면에 보여줄 본문. 라벨로 쓰인 [접두어]는 칩으로 따로 나오므로 떼어낸다. */
-export function eventDisplayContent(item: any): string {
+/**
+ * 화면에 보여줄 본문. 라벨로 쓰인 [접두어]는 칩으로 따로 나오므로 떼어낸다.
+ *
+ * ⚠️ 등록된 라벨 이름(또는 id)인 접두어만 뗀다. 예전에는 '['로 시작하면 무엇이든 뗐다.
+ *    그래서 '[v] 숙제 확인', '[참고] 공문' 처럼 사용자가 적은 글이 화면에서 잘려 보였고,
+ *    수정 칸도 잘린 글로 채워져 저장하면 앞부분이 실제로 사라졌다. 칩이 되지 않는 접두어는
+ *    사용자가 적은 글이다.
+ * @param eventLabels 등록된 일정 라벨. 아직 못 읽었으면(빈 목록) 예전처럼 뗀다 -
+ *    그때는 칩이 접두어 그대로 나온다(resolveEventLabelNames의 keepUnknown).
+ */
+export function eventDisplayContent(item: any, eventLabels?: Array<{ id?: string; name: string }>): string {
   const content = String(item?.content ?? item?.text ?? '');
   const match = content.match(LABEL_PREFIX);
-  return match ? match[2].trim() : content;
+  if (!match) return content;
+  const prefix = match[1].trim();
+  const isLabel = !eventLabels || eventLabels.length === 0 || eventLabels.some((l) => l.name === prefix || l.id === prefix);
+  return isLabel ? match[2].trim() : content;
 }
 
 /** 첫 번째 라벨의 정의. 칩 색과 이월 여부를 정할 때 쓴다. */

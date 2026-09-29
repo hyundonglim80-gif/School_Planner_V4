@@ -27,11 +27,14 @@ export default function WeekScreen() {
     return getWeekDays(parseDateStr(addDays(formatDateStr(curDateObj), 7)));
   }, [curDateObj]);
 
-  // 두 주를 한 번에 읽는다 (구독 하나)
-  const dateStrings = useMemo(() => {
-    const days = showNextWeek ? [...weekDays, ...nextWeekDays] : weekDays;
-    return days.map(d => d.dateStr);
-  }, [weekDays, nextWeekDays, showNextWeek]);
+  // 두 주를 늘 한 번에 읽는다 (구독 하나). 다음 주를 보일지는 그리기만 가른다.
+  // ⚠️ 폭에 따라 읽을 날짜를 바꾸면 안 된다. 교시를 눌러 수정 팝업이 오른쪽에 붙으면
+  //    본문이 좁아져 다음 주가 빠지는데, 그때 읽을 날짜가 바뀌어 다시 읽는 동안 주간
+  //    전체가 '불러오는 중'으로 바뀌었다가 다시 그려져 방금 연 팝업이 닫혔다.
+  const dateStrings = useMemo(
+    () => [...weekDays, ...nextWeekDays].map((d) => d.dateStr),
+    [weekDays, nextWeekDays]
+  );
 
   const { dataMap, loading, toggleEventItem, deleteEventItem } = useCalendarData(dateStrings, selectedGroupId);
 

@@ -94,7 +94,7 @@ export default function DayEvents({
     return {
       names,
       labelDefs: names.map((name) => eventLabels.find((l) => l.name === name)),
-      cleanContent: eventDisplayContent(event),
+      cleanContent: eventDisplayContent(event, eventLabels),
     };
   };
 

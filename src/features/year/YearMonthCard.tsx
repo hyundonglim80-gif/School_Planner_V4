@@ -324,7 +324,7 @@ function YearMonthCard({
                                 </span>
                               )}
                               <span className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}>
-                                {eventDisplayContent(ev)}
+                                {eventDisplayContent(ev, eventLabels)}
                               </span>
 
                               {(ev.linkedItems || []).length > 0 && (
