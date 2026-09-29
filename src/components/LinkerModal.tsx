@@ -10,7 +10,7 @@ import { parseV3EventText } from '../hooks/useDayData';
 import { useLabels } from '../hooks/useLabels';
 import { resolveEventLabelNames } from '../lib/eventLabels';
 import { addReverseLink } from '../utils/linkUtils';
-import LinkCreateModal, { type CreatedItem } from './LinkCreateModal';
+import type { CreatedEntry } from '../store/useAppStore';
 import PopupFrame from './PopupFrame';
 import DateRangeFields from './DateRangeFields';
 
@@ -115,7 +115,6 @@ export default function LinkerModal({
   const [schedulePeriod, setSchedulePeriod] = useState<number>(1);
 
   // 새 항목 즉시 생성 상태
-  const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -333,7 +332,6 @@ export default function LinkerModal({
       setCurrentPage(1);
       setSearchKeyword('');
       setSelectedLabelNames([]);
-      setCreateOpen(false);
       setSelectedSourcePeriod(sourcePeriod ? Number(sourcePeriod) : 1);
       setScheduleDate(sourceDateStr || formatDateStr(new Date()));
       setSchedulePeriod(1);
@@ -351,8 +349,9 @@ export default function LinkerModal({
   }, [dateRange, isOpen, fetchDateRangeData]);
 
   // 등록창에서 만들어 준 항목을 연결 목록(장바구니)에 담는다.
-  // 만드는 일 자체는 LinkCreateModal이 한다. 여기서는 담기만 한다.
-  const handleCreated = (item: CreatedItem) => {
+  // 만드는 일 자체는 하루·메모 화면과 같은 쓰는 칸이 한다. 여기서는 담기만 한다.
+  const handleCreated = (item: CreatedEntry) => {
+    showToast(`🔗 새 ${item.type === 'memo' ? '메모' : item.type === 'journal' ? '기록' : '일정'}을(를) 연결 목록에 담았습니다. '연결 저장'을 누르면 이어집니다.`);
     setSelectedLinks((prev) => [
       ...prev,
       {
@@ -829,12 +828,20 @@ export default function LinkerModal({
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
 
-              {/* 새 항목 만들어 연결. 누르면 등록창이 뜨고, 저장하면 연결 목록에 담긴 채
-                  이 창으로 돌아온다. 예전에는 여기 한 줄 입력칸에서 제목만 받아 바로
-                  만들었는데, 그러면 날짜도 라벨도 정할 수 없었다. */}
+              {/* 새 항목 만들어 연결. 하루·메모 화면과 같은 쓰는 칸(파일 첨부·링크·학생 태그까지)이
+                  이 창 위에 쌓이고, 처음 저장하면 연결 목록에 담긴다. 예전에는 따로 만든 작은
+                  등록창이 떠서 첨부·링크·학생 태그를 쓸 수 없었다. 날짜는 연결하는 쪽의 날짜. */}
               <button
                 type="button"
-                onClick={() => setCreateOpen(true)}
+                onClick={() => {
+                  const kind = currentTab === 'memo' ? 'memo' : currentTab === 'journal' ? 'journal' : 'event';
+                  useAppStore.getState().openEntryPanel({
+                    kind,
+                    groupId: activeFId && activeFId !== 'personal' ? activeFId : null,
+                    dateStr: kind === 'memo' ? undefined : sourceDateStr || formatDateStr(new Date()),
+                    onCreated: handleCreated,
+                  });
+                }}
                 className="w-full mt-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
               >
                 + 새 {currentTab === 'memo' ? '메모' : currentTab === 'journal' ? '기록' : '일정'} 만들어 연결
@@ -988,18 +995,6 @@ export default function LinkerModal({
         </div>
       </PopupFrame>
 
-      {/* 새 항목 등록창. 저장하면 연결 목록에 담고 스스로 닫혀 이 창으로 돌아온다. */}
-      {createOpen && currentTab !== 'schedule' && (
-        <LinkCreateModal
-          isOpen
-          onClose={() => setCreateOpen(false)}
-          type={currentTab}
-          defaultDate={sourceDateStr || formatDateStr(new Date())}
-          fId={activeFId}
-          colPathOf={(col) => getColPath(col)}
-          onCreated={handleCreated}
-        />
-      )}
     </>
   );
 }

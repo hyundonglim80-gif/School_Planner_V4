@@ -842,6 +842,8 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     if (dateStr !== todayStr) {
       runAutoForwarding(groupId).catch(console.error);
     }
+    // 새 일정 칸이 저장한 뒤 방금 만든 일정의 '수정' 칸으로 이어지도록 id를 알려 준다
+    return newItem;
   }, [eventList, saveEventItems, dateStr, groupId]);
 
   const toggleEventItem = useCallback(async (id: string) => {

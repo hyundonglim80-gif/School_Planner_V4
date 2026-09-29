@@ -35,6 +35,22 @@ export interface EntryPanelTarget {
   openedAt?: number;
   /** 맨 위로 올린 때. 이미 열린 항목을 다시 열면 새로 만들지 않고 이것만 바꿔 맨 위로 올린다. */
   raisedAt?: number;
+  /**
+   * 새 항목을 처음 저장했을 때 알려 받을 곳. 링크 창의 '+ 새 00 만들어 연결'이 쓴다 -
+   * 하루 화면과 같은 칸으로 만들고, 만들어지면 연결 목록에 담는다.
+   */
+  onCreated?: (item: CreatedEntry) => void;
+}
+
+/** 쓰는 칸에서 새로 만든 항목 (링크 창이 연결 목록에 담는 모양) */
+export interface CreatedEntry {
+  id: string;
+  type: 'event' | 'journal' | 'memo';
+  title: string;
+  /** 일정·기록의 날짜 (메모는 '') */
+  date: string;
+  /** 'personal' 또는 그룹 id */
+  fId: string;
 }
 
 /** 같은 항목을 고치는 칸인가 (새로 쓰는 칸은 늘 다르다) */

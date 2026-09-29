@@ -219,14 +219,17 @@ if (ONLY !== 'mobile') {
     return `미리 고른 라벨: ${preset[0]}`;
   });
 
-  await check('[일정 추가] Ctrl+S 저장 뒤 칸이 열린 채 비워지고, 목록에 생김', async () => {
+  // 저장한 뒤에도 적은 것이 남고, 방금 만든 일정의 '일정 수정' 칸이 된다 (기록·메모와 같게)
+  await check('[일정 추가] Ctrl+S 저장 뒤 칸이 열린 채 적은 것이 남고(일정 수정), 목록에 생김', async () => {
     const box = eventPanel().getByPlaceholder(EVENT_PH);
     await box.fill(TXT);
     await box.press('Control+s');
     await wait(1500);
-    assert((await box.inputValue()) === '', '저장 뒤 입력칸이 비지 않음');
+    assert((await box.inputValue()) === TXT, '저장 뒤 적은 것이 남지 않음');
+    assert((await eventPanel().getByRole('heading', { name: '일정 수정' }).count()) === 1, '저장 뒤 일정 수정 칸이 되지 않음');
     assert(await box.isVisible(), '저장 뒤 칸이 닫힘');
-    assert((await page.getByText(TXT, { exact: true }).count()) === 1, '목록에 새 일정이 없음');
+    // 적은 것이 칸에도 남아 있으므로 글자 수가 아니라 목록 항목으로 센다
+    assert((await page.locator('[data-focus-key^="event"]', { hasText: TXT }).count()) === 1, '목록에 새 일정이 없음');
   });
 
   await check('[일정 추가] 칸이 본문을 가리지 않고, 왼쪽을 눌러도 닫히지 않음', async () => {
@@ -525,7 +528,7 @@ if (ONLY !== 'mobile') {
     await closeAll();
   });
 
-  await check('[주간 +] + → 오른쪽 새 일정 칸 → Ctrl+S (칸은 비워진 채 남음)', async () => {
+  await check('[주간 +] + → 오른쪽 새 일정 칸 → Ctrl+S (칸은 적은 것째 일정 수정으로 남음)', async () => {
     const Q = `주간추가 ${Date.now() % 10000}`;
     await page.getByTitle('일정 빠른 추가').first().click();
     await wait(800);
@@ -533,10 +536,10 @@ if (ONLY !== 'mobile') {
     await box.fill(Q);
     await box.press('Control+s');
     await wait(1800);
-    const stillOpen = (await box.isVisible()) && (await box.inputValue()) === '';
+    const stillOpen = (await box.isVisible()) && (await box.inputValue()) === Q;
     await closeAll();
     assert((await page.getByText(Q).count()) > 0, '주간 칸에 안 보임');
-    assert(stillOpen, '저장 뒤 칸이 비워진 채 남아 있지 않음');
+    assert(stillOpen, '저장 뒤 칸이 적은 것째 남아 있지 않음');
   });
 
   await check('[기록 표식] 📝 숫자를 누르면 기록만 펼쳐 보는 창', async () => {

@@ -131,3 +131,27 @@ describe('링크 추가 - 고른 범위의 날짜를 보여 주고 고칠 수 �
     expect(screen.getByLabelText('종료일')).toHaveValue('2026-09-22');
   });
 });
+
+describe('링크 추가 - 새 항목 만들어 연결', () => {
+  // 예전에는 따로 만든 작은 등록창이 떠서 첨부·링크·학생 태그를 쓸 수 없었다.
+  // 이제 하루·메모 화면과 같은 쓰는 칸을 열고, 처음 저장하면 연결 목록에 담는다.
+  it('하루 화면과 같은 기록 칸을 연결하는 쪽 날짜로 열고, 만들어지면 연결 목록에 담는다', async () => {
+    const { useAppStore } = await import('../store/useAppStore');
+    useAppStore.setState({ entryPanels: [], entryPanel: null });
+    const user = userEvent.setup();
+    render(<LinkerModal {...props} />);
+
+    await user.click(screen.getByRole('button', { name: /기록/ }));
+    await user.click(await screen.findByRole('button', { name: /새 기록 만들어 연결/ }));
+
+    const panel = useAppStore.getState().entryPanel!;
+    expect(panel).toMatchObject({ kind: 'journal', dateStr: '2026-09-15', groupId: null });
+    expect(typeof panel.onCreated).toBe('function');
+
+    // 칸이 처음 저장하면 알려 준다 -> 연결 목록에 담긴다
+    await import('@testing-library/react').then(({ act }) =>
+      act(() => panel.onCreated!({ id: 'jr_new', type: 'journal', title: '상담 기록', date: '2026-09-15', fId: 'personal' }))
+    );
+    expect(await screen.findByText(/상담 기록/)).toBeInTheDocument();
+  });
+});

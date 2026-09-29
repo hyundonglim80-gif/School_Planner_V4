@@ -204,6 +204,7 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
       linkedItems: draft.linkedItems,
     });
     if (typeof newId === 'string') {
+      target.onCreated?.({ id: newId, type: 'journal', title: draft.content, date: dateStr, fId: target.groupId || 'personal' });
       // 이어서 저장하면 방금 만든 기록을 고친다 (새로 하나 더 생기지 않게)
       setEntryPanelId(newId, {
         id: newId,
@@ -301,6 +302,7 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
     }
     const ref = await addMemo(draft);
     if (ref?.id) {
+      target.onCreated?.({ id: ref.id, type: 'memo', title: draft.content, date: '', fId: target.groupId || 'personal' });
       setEntryPanelId(ref.id, {
         firestoreId: ref.id,
         content: draft.content,
@@ -372,7 +374,7 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
 }
 
 function EventPanel({ target }: { target: EntryPanelTarget }) {
-  const { closeEntryPanel } = usePanelActions(target);
+  const { closeEntryPanel, setEntryPanelId } = usePanelActions(target);
   const docked = useMinWidth(DOCK_MIN_WIDTH);
   const flushRef = useFlushRegistration();
   const unsavedRef = useUnsavedRegistration();
@@ -385,6 +387,10 @@ function EventPanel({ target }: { target: EntryPanelTarget }) {
       groupId={target.groupId}
       entryId={target.entryId}
       initial={target.initial}
+      onCreated={(id, item) => {
+        setEntryPanelId(id, item);
+        target.onCreated?.({ id, type: 'event', title: item.content || '', date: dateStr, fId: target.groupId || 'personal' });
+      }}
       docked={docked}
       flushRef={flushRef}
       unsavedRef={unsavedRef}

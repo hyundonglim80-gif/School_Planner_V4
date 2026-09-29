@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, act } from '@testing-library/react';
+import { render, screen, within, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DayJournal from './DayJournal';
 import EntryPanelHost from '../../components/EntryPanelHost';
@@ -384,5 +384,26 @@ describe('EntryDrawer - 저장으로 나가는 첨부에 undefined가 없다', (
       // 값이 undefined인 키가 하나라도 있으면 Firestore가 저장을 통째로 막는다
       expect(Object.entries(att).filter(([, v]) => v === undefined)).toEqual([]);
     }
+  });
+});
+
+describe('기록 칸 - 새로 만든 것을 알려 주기 (링크 창의 만들어 연결)', () => {
+  it('처음 저장할 때 한 번만 알려 준다 (그 뒤 저장은 고치기)', async () => {
+    const user = userEvent.setup();
+    renderJournal([], vi.fn(async () => 'jr_made') as any);
+    const onCreated = vi.fn();
+    await act(async () => {
+      useAppStore.getState().openEntryPanel({ kind: 'journal', groupId: null, dateStr: '2026-09-15', onCreated });
+    });
+    const box = await screen.findByPlaceholderText(/기록/);
+    await user.type(box, '상담 기록');
+    await user.click(screen.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
+    expect(onCreated.mock.calls[0][0]).toMatchObject({ id: 'jr_made', type: 'journal', date: '2026-09-15' });
+
+    await user.type(box, '!');
+    await user.click(screen.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(hook.updateJournalEntry).toHaveBeenCalled());
+    expect(onCreated).toHaveBeenCalledTimes(1);
   });
 });

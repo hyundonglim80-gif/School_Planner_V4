@@ -29,6 +29,8 @@ interface EventDrawerProps {
   groupId: string | null;
   /** 고치는 일정의 id. 없으면 새로 쓴다. */
   entryId?: string;
+  /** 새 일정을 만들었을 때 (그 일정의 '수정' 칸으로 이어진다) */
+  onCreated?: (id: string, item: EventItem) => void;
   /** 고칠 때 넘기는 그 순간의 일정 (구독이 도착하기 전 빈 칸이 보이지 않게) */
   initial?: EventItem;
   docked: boolean;
@@ -66,6 +68,7 @@ export default function EventDrawer({
   dateStr,
   groupId,
   entryId,
+  onCreated,
   initial,
   docked,
   onClose,
@@ -256,15 +259,24 @@ export default function EventDrawer({
         setAlarmDirty(false);
         showToast('✅ 일정을 저장했습니다.');
       } else {
-        await addEventItem(content, {
+        const created = await addEventItem(content, {
           ...fields,
           linkedItems: newLinks,
           time: alarmTime || undefined,
         });
         showToast('✅ 일정을 추가했습니다.');
-        // 하루치를 연달아 적는 자리다. 칸은 닫지 않고 비운 뒤 초점을 돌려준다.
-        fill(null);
-        textRef.current?.focus();
+        if (created && onCreated) {
+          // 기록·메모처럼 저장한 뒤에도 적은 것이 남는다 - 방금 만든 일정의 '수정' 칸이 된다
+          // (사용자와 정함). 예전에는 연달아 적으라고 칸을 비웠는데, 기록·메모와 달라 헷갈렸다.
+          // 지금 모습을 '저장된 것'으로 삼아, 일정이 구독으로 도착하면 그 값으로 채운다.
+          snapshotRef.current = snapshotOf(content, labels, attrs, alarmTime, []);
+          setNewLinks([]);
+          setAlarmDirty(false);
+          onCreated(String(created.id), created);
+        } else {
+          fill(null);
+          textRef.current?.focus();
+        }
       }
       return true;
     } finally {

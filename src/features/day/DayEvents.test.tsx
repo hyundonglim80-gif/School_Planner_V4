@@ -478,3 +478,25 @@ describe('쓰는 칸 - ESC와 Ctrl+S', () => {
     expect(hook.updateEventItem.mock.calls[0][1].content).toBe('안전 점검?');
   });
 });
+
+describe('새 일정 - 저장한 뒤에도 적은 것이 남는다 (기록·메모와 같게)', () => {
+  it('저장하면 방금 만든 일정의 수정 칸이 되고 내용이 그대로 보인다', async () => {
+    const user = userEvent.setup();
+    renderEvents();
+    hook.addEventItem.mockImplementation(async (content: string) => ({
+      id: 'ev_new',
+      content,
+      completed: false,
+      linkedItems: [],
+      attachments: [],
+    }));
+    await user.click(screen.getByRole('button', { name: '일정 추가' }));
+    await screen.findByRole('heading', { name: '새 일정' });
+    await user.type(within(panel()).getByPlaceholderText('새로운 일정을 입력하세요...'), '학년 협의회');
+    await user.click(within(panel()).getByRole('button', { name: '저장' }));
+
+    await waitFor(() => expect(within(panel()).getByRole('heading', { name: '일정 수정' })).toBeInTheDocument());
+    expect(within(panel()).getByDisplayValue('학년 협의회')).toBeInTheDocument();
+    expect(useAppStore.getState().entryPanel?.entryId).toBe('ev_new');
+  });
+});
