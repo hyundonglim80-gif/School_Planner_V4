@@ -238,7 +238,7 @@ async function doAutoForwarding(groupId: string | null) {
   }
 
   const incompleteItems: EventItem[] = [];
-  const pastUpdates: { pDate: string, updatedList: EventItem[] }[] = [];
+  const pastUpdates: { pDate: string, movedIds: Set<string> }[] = [];
   // 이월된 항목의 '이월 전 id'. 연결된 기록·메모 쪽 역링크를 새로 쌓지 않고
   // 그 자리에 갈아끼우기 위해 기억해 둔다.
   const previousIdOf = new Map<string, string>();
@@ -356,7 +356,8 @@ async function doAutoForwarding(groupId: string | null) {
     liveIdsByDate.set(pDate, new Set(remainingItems.map((i) => String(i.id))));
 
     if (hasChanges) {
-      pastUpdates.push({ pDate, updatedList: remainingItems });
+      const kept = new Set(remainingItems.map((i) => String(i.id)));
+      pastUpdates.push({ pDate, movedIds: new Set(items.map((i) => String(i.id)).filter((id) => !kept.has(id))) });
     }
   }
 
@@ -423,10 +424,16 @@ async function doAutoForwarding(groupId: string | null) {
       ? doc(db, 'groups', groupId, 'events', update.pDate)
       : doc(db, 'users', user.uid, 'events', update.pDate);
 
-    const v3EventList = update.updatedList.map((item, idx) =>
-      normalizeEventForWrite(item, idx, user)
-    );
-    await setDoc(pDocRef, eventDocPayload(v3EventList), { merge: true });
+    // 앞에서 읽은 목록으로 통째로 덮지 않는다. 그 사이 그날을 고쳤을 수 있다(다른 기기에서 완료 표시 등).
+    // 서버의 지금 목록에서 오늘로 옮긴 항목만 뺀다.
+    await runTransaction(db, async (tx) => {
+      const freshSnap = await tx.get(pDocRef);
+      if (!freshSnap.exists()) return;
+      const fresh = readEventList(freshSnap.data()) as EventItem[];
+      const next = fresh.filter((item) => !update.movedIds.has(String(item.id)));
+      if (next.length === fresh.length) return;
+      tx.set(pDocRef, eventDocPayload(next.map((item, idx) => normalizeEventForWrite(item, idx, user))), { merge: true });
+    });
   }
 
   return incompleteItems.length;
@@ -777,7 +784,18 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         const addedByOthers = fresh.filter(
           (f) => !baselineIds.has(String(f.id)) && !keptIds.has(String(f.id))
         );
-        const merged = [...validList, ...addedByOthers].map((item: any, idx: number) =>
+        // 내가 손대지 않은 항목(기준선 그대로)은 서버의 지금 모습을 쓴다. 들고 있던 옛 모습으로
+        // 쓰면, 그 사이 다른 기기(또는 방금 내 앞선 저장 - 트랜잭션은 화면에 바로 반영되지 않는다)가
+        // 고친 완료 표시·글이 되돌아가고, 지운 항목이 되살아난다.
+        const baselineById = new Map(eventBaselineRef.current.map((i) => [String(i.id), i]));
+        const freshById = new Map(fresh.map((f) => [String(f.id), f]));
+        const mine = validList.flatMap((item) => {
+          const base = baselineById.get(String(item.id));
+          if (base !== item) return [item];
+          const now = freshById.get(String(item.id));
+          return now ? [now as EventItem] : [];
+        });
+        const merged = [...mine, ...addedByOthers].map((item: any, idx: number) =>
           normalizeEventForWrite(item, idx, user)
         );
         tx.set(eventDocRef, eventDocPayload(merged), { merge: true });

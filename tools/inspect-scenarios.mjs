@@ -52,6 +52,7 @@ const D = {
   jrKeep: '2026-11-26', // 기록 고치기·지우기에 곁의 기록과 모르는 필드가 남는가
   v3Bulk: '2026-11-27', // V3 옛 글만 있는 날에서 다중 선택 완료
   v3Trash: '2026-11-30', // V3 옛 글만 있는 날로 휴지통 되살리기
+  quick: '2026-12-01', // 일정 둘을 빠르게 연달아 완료
 };
 const pad2 = (n) => String(n).padStart(2, '0');
 const localDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -108,6 +109,10 @@ async function plantFixtures() {
     content: 'V3날로 되살릴 일정', deletedAt: Date.now(),
     data: { id: 'fx_v3_back', content: 'V3날로 되살릴 일정', label: '달력', labelIds: ['ev_1'], completed: false, linkedItems: [], attachments: [] },
   });
+  await setDoc(evRef(D.quick), {
+    eventList: ['빠른완료 하나', '빠른완료 둘', '빠른완료 셋'].map((c, i) => ({ id: `fx_q_${i}`, content: c, label: '달력', labelIds: ['ev_1'], completed: false, linkedItems: [], attachments: [] })),
+    updatedAt: Date.now(),
+  });
   // 다중 선택 라벨: 라벨을 id로만 든 일정
   await setDoc(evRef(D.bulk), {
     eventList: [
@@ -125,6 +130,13 @@ async function plantFixtures() {
     updatedAt: Date.now(),
   });
   // 이월: 어제 날짜에 미완료 이월 / 완료한 이월 / 이월을 끈 것
+  // 앞선 점검이 오늘로 옮겨 둔 것을 치운다. 오늘에 같은 글이 있으면 이월은 어제 것을 일부러 둔다.
+  const FW = ['어제 못 끝낸 이월', '어제 끝낸 이월', '이월 끈 일정'];
+  const t0 = (await getDoc(evRef(TODAY))).data();
+  if (t0?.eventList) {
+    const rest = t0.eventList.filter((e) => !FW.includes(e.content));
+    await setDoc(evRef(TODAY), { eventList: rest, eventText: '', updatedAt: Date.now() }, { merge: true });
+  }
   const y = (await getDoc(evRef(YESTERDAY))).data();
   const keepY = (y?.eventList || []).filter((e) => !String(e.id).startsWith('fx_fw_'));
   await setDoc(evRef(YESTERDAY), {
@@ -823,6 +835,18 @@ if (ONLY !== 'mobile') {
     const bad = stored.filter((e) => (e.labelIds || []).includes('ev_3') || /이월/.test(e.label || ''));
     assert(bad.length === 0, `옛 이월 라벨이 남음: ${JSON.stringify(stored.map((e) => ({ c: e.content, label: e.label, ids: e.labelIds })))}`);
     assert(!shown.some((t) => /이월/.test(t)), `화면에 이월 칩: ${shown.map((t) => t.replace(/\s+/g, ' ')).join(' / ')}`);
+  });
+
+  await check('일정 셋을 빠르게 연달아 완료해도 셋 다 완료로 남는다 (앞 저장이 되돌아가지 않는다)', async () => {
+    await goDay(D.quick);
+    for (const t of ['빠른완료 하나', '빠른완료 둘', '빠른완료 셋']) {
+      await eventRows().filter({ hasText: t }).getByTitle(/클릭하여 완료 처리/).first().click();
+      await wait(60);
+    }
+    await wait(3000);
+    const stored = await storedEvents(D.quick);
+    const done = stored.filter((e) => e.completed).map((e) => e.content);
+    assert(done.length === 3, `완료로 남은 것: ${done.join(' / ') || '(없음)'}`);
   });
 
   await check('V3 옛 글만 있는 날에서 한 건을 다중 선택으로 완료해도 다른 일정이 남는다', async () => {
