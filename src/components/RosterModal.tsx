@@ -945,6 +945,8 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     <ModalShell
       isOpen={isOpen}
       onClose={onClose}
+      // Ctrl+S = 저장 단추 (누를 수 없을 때는 하지 않는다)
+      onSave={() => { if (!saving) void handleSave(); }}
       width="4xl"
       bare
       title="학급 정보(명렬표) 관리"

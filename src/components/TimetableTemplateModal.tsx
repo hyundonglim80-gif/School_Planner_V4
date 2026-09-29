@@ -362,7 +362,13 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   };
 
   return (
-    <PopupFrame isOpen={isOpen} onClose={onClose} width="4xl">
+    <PopupFrame
+      isOpen={isOpen}
+      onClose={onClose}
+      width="4xl"
+      // Ctrl+S = 템플릿 클라우드 저장
+      onSave={() => { if (!saving && canSave) void handleSaveAll(); }}
+    >
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <div className="flex items-center gap-2">

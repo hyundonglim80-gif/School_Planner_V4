@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import type React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import PopupFrame, { useSidePopups, getSideColumn } from './PopupFrame';
 import SidePanelFrame from './SidePanelFrame';
 import { useAppStore } from '../store/useAppStore';
@@ -140,5 +141,98 @@ describe('PopupFrame - 칸 위에서 연 칸', () => {
     expect(col.contains(frameOf('일정 쓰는 칸'))).toBe(true);
     expect(frameOf('링크 추가').style.order).toBe('0');
     expect(frameOf('일정 쓰는 칸').style.order).toBe('1');
+  });
+});
+
+describe('PopupFrame - Ctrl+S 저장', () => {
+  const ctrlS = (target: Element | Document = document.activeElement || document.body) =>
+    fireEvent.keyDown(target, { key: 's', code: 'KeyS', ctrlKey: true });
+
+  it('팝업 안에 커서가 있으면 그 팝업의 저장을 부른다', () => {
+    setWidth(1280);
+    const onSave = vi.fn();
+    render(
+      <PopupFrame isOpen onClose={vi.fn()} onSave={onSave}>
+        <input aria-label="이름" />
+      </PopupFrame>
+    );
+    const box = screen.getByLabelText('이름');
+    box.focus();
+    ctrlS(box);
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
+  it('겹쳐 연 팝업에서 누르면 그 팝업만 저장한다 (아래 팝업은 저장하지 않는다)', () => {
+    setWidth(1280);
+    const saveBelow = vi.fn();
+    const saveTop = vi.fn();
+    render(
+      <>
+        <PopupFrame isOpen onClose={vi.fn()} onSave={saveBelow}>
+          <input aria-label="아래" />
+        </PopupFrame>
+        <PopupFrame isOpen onClose={vi.fn()} onSave={saveTop}>
+          <input aria-label="위" />
+        </PopupFrame>
+      </>
+    );
+    const top = screen.getByLabelText('위');
+    top.focus();
+    ctrlS(top);
+    expect(saveTop).toHaveBeenCalledTimes(1);
+    expect(saveBelow).not.toHaveBeenCalled();
+  });
+
+  it('커서가 아무 데도 없으면 맨 위 팝업이 받는다', () => {
+    setWidth(390);
+    const saveBelow = vi.fn();
+    const saveTop = vi.fn();
+    render(
+      <>
+        <PopupFrame isOpen onClose={vi.fn()} onSave={saveBelow}>
+          <p>아래</p>
+        </PopupFrame>
+        <PopupFrame isOpen onClose={vi.fn()} onSave={saveTop}>
+          <p>위</p>
+        </PopupFrame>
+      </>
+    );
+    (document.activeElement as HTMLElement | null)?.blur();
+    ctrlS(document.body);
+    expect(saveTop).toHaveBeenCalledTimes(1);
+    expect(saveBelow).not.toHaveBeenCalled();
+  });
+
+  it('저장을 따로 주지 않았으면 글을 쓰던 칸의 form을 제출한다 (D-Day·그룹 등)', () => {
+    setWidth(1280);
+    const onSubmit = vi.fn((e: React.FormEvent) => e.preventDefault());
+    render(
+      <PopupFrame isOpen onClose={vi.fn()}>
+        <form onSubmit={onSubmit}>
+          <input aria-label="일정명" />
+        </form>
+      </PopupFrame>
+    );
+    const box = screen.getByLabelText('일정명');
+    box.focus();
+    ctrlS(box);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('팝업 밖(왼쪽 화면)에 커서가 있으면 받지 않는다', () => {
+    setWidth(1280);
+    const onSave = vi.fn();
+    render(
+      <>
+        <input aria-label="화면 칸" />
+        <PopupFrame isOpen onClose={vi.fn()} onSave={onSave}>
+          <p>설정</p>
+        </PopupFrame>
+      </>
+    );
+    const outside = screen.getByLabelText('화면 칸');
+    outside.focus();
+    ctrlS(outside);
+    expect(onSave).not.toHaveBeenCalled();
   });
 });

@@ -20,7 +20,7 @@
 //     제 길이대로 쌓이고, 줄 전체가 한 덩어리로 스크롤한다. 왼쪽 화면과는 따로 돈다.
 //   - 새 칸을 열면 줄을 맨 위로 올려 방금 연 칸이 보이게 한다.
 // 휴대폰 배너는 줄에 세우지 않는다 - 화면이 작아 쌓아 두면 쓸 수 없다. 위에 덮는다.
-import React, { useEffect, useId } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { create } from 'zustand';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
@@ -120,7 +120,55 @@ interface PopupFrameProps {
   onBackdropClose?: () => void;
   /** 가운데 팝업의 판에 더할 class (예: 모서리·그림자를 조금 다르게) */
   cardClassName?: string;
+  /**
+   * Ctrl+S로 할 저장. 주지 않으면 글을 쓰던 입력칸이 든 <form>을 제출한다(D-Day·그룹 등).
+   * 이 팝업 안에 커서가 있을 때(또는 아무 데도 없고 이 팝업이 맨 위일 때)만 받는다 - 겹쳐 연
+   * 팝업에서 누른 Ctrl+S가 아래 팝업·쓰는 칸까지 저장하지 않게.
+   */
+  onSave?: () => void;
   children: React.ReactNode;
+}
+
+const isSaveKey = (e: KeyboardEvent) =>
+  (e.ctrlKey || e.metaKey) && !e.altKey && (e.code === 'KeyS' || e.key.toLowerCase() === 's');
+
+/** 열려 있는 팝업 판 가운데 맨 위(나중에 그려진 것)인가 */
+function isTopDialog(el: HTMLElement) {
+  const all = document.querySelectorAll('[data-popup-card]');
+  return all[all.length - 1] === el;
+}
+
+/**
+ * 팝업 안에서 누른 Ctrl+S. 예전에는 일정·메모·기록·조사표 칸만 받고, 저장 단추가 있는
+ * 나머지 팝업(환경설정·라벨·시간표·D-Day 등)에서는 브라우저 '다른 이름으로 저장'만 막고 아무 일도 없었다.
+ */
+function useSaveKey(isOpen: boolean, cardRef: React.RefObject<HTMLElement | null>, onSave?: () => void) {
+  const saveRef = useRef(onSave);
+  saveRef.current = onSave;
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!isSaveKey(e)) return;
+      const card = cardRef.current;
+      if (!card) return;
+      const active = document.activeElement;
+      const inside = !!active && card.contains(active);
+      const nowhere = !active || active === document.body;
+      if (!inside && !(nowhere && isTopDialog(card))) return;
+      e.preventDefault();
+      // 아래에 깔린 쓰는 칸(일정·기록 등)이 같은 키로 또 저장하지 않게 여기서 멈춘다
+      e.stopPropagation();
+      if (e.repeat) return;
+      if (saveRef.current) {
+        saveRef.current();
+        return;
+      }
+      const form = active instanceof Element ? active.closest('form') : null;
+      if (form && card.contains(form)) form.requestSubmit();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isOpen, cardRef]);
 }
 
 export default function PopupFrame({
@@ -129,8 +177,11 @@ export default function PopupFrame({
   width = 'md',
   onBackdropClose,
   cardClassName = '',
+  onSave,
   children,
 }: PopupFrameProps) {
+  const cardRef = useRef<HTMLElement | null>(null);
+  useSaveKey(isOpen, cardRef, onSave);
   const side = useAppStore((s) => s.popupStyle) !== 'center';
   const wide = useMinWidth(SIDE_DOCK_MIN_WIDTH);
   const docked = isOpen && side && wide;
@@ -147,7 +198,14 @@ export default function PopupFrame({
   if (docked) {
     const { className, style } = sideSlotProps(slot);
     return createPortal(
-      <section role="dialog" data-popup-frame="side" className={`${className} animate-fade-in`} style={style}>
+      <section
+        ref={cardRef}
+        role="dialog"
+        data-popup-card
+        data-popup-frame="side"
+        className={`${className} animate-fade-in`}
+        style={style}
+      >
         {children}
       </section>,
       getSideColumn()
@@ -163,7 +221,9 @@ export default function PopupFrame({
       >
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs animate-fade-in" {...backdrop} />
         <div
+          ref={cardRef as React.RefObject<HTMLDivElement>}
           role="dialog"
+          data-popup-card
           className="relative bg-white h-full w-full max-w-lg shadow-2xl flex flex-col overflow-y-auto overscroll-contain"
         >
           {children}
@@ -180,7 +240,9 @@ export default function PopupFrame({
       {...backdrop}
     >
       <div
+        ref={cardRef as React.RefObject<HTMLDivElement>}
         role="dialog"
+        data-popup-card
         className={`bg-white w-full ${CENTER_WIDTH[width]} max-h-full rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden ${cardClassName}`}
         onClick={(e) => e.stopPropagation()}
       >

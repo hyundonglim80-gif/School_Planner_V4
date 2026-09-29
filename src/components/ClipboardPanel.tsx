@@ -25,6 +25,7 @@ import {
   type ClipItem,
 } from '../lib/clipboardHistory';
 import { showToast, showErrorToast } from '../utils/toast';
+import { SHORTCUT_ACTIONS, formatActionBinding, resolveBindings } from '../lib/shortcuts';
 
 /** 이 폭 이상이면 화면 옆에 붙인다 (오른쪽 칸과 같은 경계) */
 const DOCK_MIN_WIDTH = 768;
@@ -141,6 +142,10 @@ export default function ClipboardPanel() {
   const docked = useMinWidth(DOCK_MIN_WIDTH);
   const items = useClipboardHistory((s) => s.items);
   const [granted, setGranted] = useState(true);
+  // 여닫는 단축키 (환경설정 > 단축키에서 정한 것이 있으면 단추 설명에 붙인다)
+  const overrides = useAppStore((s) => s.shortcutOverrides);
+  const key = resolveBindings(overrides).clipboard;
+  const keyHint = key.key ? ` (단축키: ${formatActionBinding(SHORTCUT_ACTIONS.find((a) => a.id === 'clipboard')!, key)})` : '';
 
   // 휴대폰에서는 화면을 덮으므로, 열어 둔 채 앱을 다시 열었을 때 곧바로 덮지 않게 닫고 시작한다
   useEffect(() => {
@@ -168,7 +173,7 @@ export default function ClipboardPanel() {
       type="button"
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => setOpen(!open)}
-      title={open ? '클립보드 닫기' : '클립보드 열기 (복사한 것 모아 보기)'}
+      title={(open ? '클립보드 닫기' : '클립보드 열기 (복사한 것 모아 보기)') + keyHint}
       aria-label={open ? '클립보드 닫기' : '클립보드 열기'}
       aria-expanded={open}
       className="fixed top-1/2 -translate-y-1/2 z-[46] w-6 h-14 flex items-center justify-center rounded-r-xl bg-white/90 border border-l-0 border-slate-200 shadow-md text-xs hover:bg-primary/10 hover:w-7 transition-all cursor-pointer"

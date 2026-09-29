@@ -541,6 +541,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     <ModalShell
       isOpen={isOpen}
       onClose={onClose}
+      // Ctrl+S = 저장 단추 (누를 수 없을 때는 하지 않는다)
+      onSave={() => { if (!saving) void handleSave(); }}
       width="lg"
       title="⚙️ 환경설정"
       bare

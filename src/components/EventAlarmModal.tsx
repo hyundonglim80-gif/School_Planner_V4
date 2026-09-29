@@ -64,6 +64,8 @@ export default function EventAlarmModal({
     <ModalShell
       isOpen={isOpen}
       onClose={onClose}
+      // Ctrl+S = 저장 단추 (누를 수 없을 때는 하지 않는다)
+      onSave={() => void handleSave()}
       width="sm"
       title="⏰ 알림 시간 설정"
       footer={

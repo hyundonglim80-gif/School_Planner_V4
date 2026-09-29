@@ -169,6 +169,8 @@ export default function ShortcutModal({ isOpen, onClose }: ShortcutModalProps) {
     <ModalShell
       isOpen={isOpen}
       onClose={onClose}
+      // Ctrl+S = 저장 단추 (누를 수 없을 때는 하지 않는다)
+      onSave={handleSave}
       width="2xl"
       title="⌨️ 단축키"
       bare

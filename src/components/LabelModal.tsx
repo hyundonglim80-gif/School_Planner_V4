@@ -599,7 +599,13 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   };
 
   return (
-    <PopupFrame isOpen={isOpen} onClose={onClose} width="2xl">
+    <PopupFrame
+      isOpen={isOpen}
+      onClose={onClose}
+      width="2xl"
+      // Ctrl+S = 클라우드 저장
+      onSave={() => { if (!saving && labelsLoaded) void handleSaveAll(); }}
+    >
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <div className="flex items-center gap-2">

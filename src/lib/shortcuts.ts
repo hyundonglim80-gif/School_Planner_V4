@@ -30,6 +30,7 @@ export type ShortcutId =
   | 'toggleWeekend'
   | 'toggleEvents'
   | 'toggleClass'
+  | 'clipboard'
   | 'multiSelect'
   | 'calendar'
   | 'dday'
@@ -90,6 +91,7 @@ export const SHORTCUT_ACTIONS: ShortcutAction[] = [
   // 아래는 기본값이 비어 있다. 쓰고 싶은 사람이 직접 정한다.
   // 자주 쓰는 조합을 미리 차지해 두면 오히려 걸리적거린다.
   { id: 'multiSelect', label: '다중 선택 모드', group: '메뉴 열기', def: b('') },
+  { id: 'clipboard', label: '클립보드 칸 열기 / 닫기', group: '메뉴 열기', def: b('') },
   { id: 'calendar', label: '캘린더', group: '메뉴 열기', def: b('') },
   { id: 'dday', label: 'D-Day 관리', group: '메뉴 열기', def: b('') },
   { id: 'trash', label: '휴지통', group: '메뉴 열기', def: b('') },
@@ -121,9 +123,9 @@ export const FIXED_SHORTCUTS: FixedShortcut[] = [
     why: '거의 모든 프로그램이 같은 뜻으로 쓰는 키라 바꾸지 않습니다.',
   },
   {
-    label: '일정 · 메모 · 기록 · 조사표 즉시 저장',
+    label: '저장 (일정·메모·기록·알림장·출석부 칸, 조사표, 그리고 저장 단추가 있는 모든 팝업)',
     keys: 'Ctrl + S',
-    why: '입력칸 안에서 동작하는 키라 화면 전체 단축키와 따로 움직입니다.',
+    why: '글을 쓰던 칸·팝업 안에서 동작하는 키라 화면 전체 단축키와 따로 움직입니다.',
   },
 ];
 

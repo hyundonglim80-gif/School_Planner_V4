@@ -34,6 +34,8 @@ interface ModalShellProps {
    * 적던 것을 저장하고 닫아야 하는 팝업이 쓴다 (빠른 추가 등).
    */
   onBackdropClose?: () => void;
+  /** Ctrl+S로 할 저장 (PopupFrame.onSave). 주지 않으면 입력칸이 든 form을 제출한다. */
+  onSave?: () => void;
   children: React.ReactNode;
 }
 
@@ -46,10 +48,11 @@ export default function ModalShell({
   footer,
   bare = false,
   onBackdropClose,
+  onSave,
   children,
 }: ModalShellProps) {
   return (
-    <PopupFrame isOpen={isOpen} onClose={onClose} width={width} onBackdropClose={onBackdropClose}>
+    <PopupFrame isOpen={isOpen} onClose={onClose} width={width} onBackdropClose={onBackdropClose} onSave={onSave}>
       {title !== undefined && (
         <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50/60 shrink-0">
           <h2 className="text-base font-black text-slate-800 truncate">{title}</h2>

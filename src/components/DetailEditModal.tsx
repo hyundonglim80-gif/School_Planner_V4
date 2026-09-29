@@ -305,7 +305,14 @@ export default function DetailEditModal({
 
   return (
     <>
-<PopupFrame isOpen={isOpen} onClose={onClose} width="md" onBackdropClose={() => backdropCloseRef.current()}>
+<PopupFrame
+  isOpen={isOpen}
+  onClose={onClose}
+  width="md"
+  onBackdropClose={() => backdropCloseRef.current()}
+  // Ctrl+S = 저장 단추
+  onSave={() => { if (!saving) void handleSave(); }}
+>
 <div className="contents" onInputCapture={() => { touchedRef.current = true; }}>
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">

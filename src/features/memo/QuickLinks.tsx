@@ -122,7 +122,13 @@ export default function QuickLinks() {
 
       {/* 링크 설정 모달 */}
       {isModalOpen && (
-        <PopupFrame isOpen={true} onClose={() => setIsModalOpen(false)} width="md">
+        <PopupFrame
+          isOpen={true}
+          onClose={() => setIsModalOpen(false)}
+          width="md"
+          // Ctrl+S = 링크 추가
+          onSave={() => { if (!saving) void handleAddLink(); }}
+        >
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50">
               <div className="flex items-center gap-2">
                 <span className="text-lg">⚙️</span>

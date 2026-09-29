@@ -26,8 +26,8 @@ describe('단축키 팝업 - 목록', () => {
     render(<ShortcutModal isOpen onClose={vi.fn()} />);
     expect(screen.queryByText('통합 검색 (빠른 키)')).not.toBeInTheDocument();
     expect(screen.queryByText('일정 빠른 등록')).not.toBeInTheDocument();
-    // 즉시 저장에는 일정도 조사표도 포함된다
-    expect(screen.getByText('일정 · 메모 · 기록 · 조사표 즉시 저장')).toBeInTheDocument();
+    // 저장(Ctrl+S)에는 쓰는 칸·조사표와 저장 단추가 있는 모든 팝업이 포함된다
+    expect(screen.getByText('저장 (일정·메모·기록·알림장·출석부 칸, 조사표, 그리고 저장 단추가 있는 모든 팝업)')).toBeInTheDocument();
   });
 
   it('ESC에는 키 입력칸이 없다 (바꿀 수 없다)', () => {

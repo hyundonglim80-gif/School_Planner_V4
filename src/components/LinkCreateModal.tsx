@@ -148,6 +148,8 @@ export default function LinkCreateModal({
     <ModalShell
       isOpen={isOpen}
       onClose={onClose}
+      // Ctrl+S = 저장 단추 (누를 수 없을 때는 하지 않는다)
+      onSave={() => { if (!saving && content.trim()) void handleSave(); }}
       width="md"
       title={`+ 새 ${TYPE_LABEL[type]} 만들어 연결`}
       footer={

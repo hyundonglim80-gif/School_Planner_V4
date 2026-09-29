@@ -237,6 +237,8 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
     <ModalShell
       isOpen={isOpen}
       onClose={onClose}
+      // Ctrl+S = 저장 단추 (누를 수 없을 때는 하지 않는다)
+      onSave={() => { if (!processing) void handleForwardAll(); }}
       width="md"
       title="📤 미완료 일정 전달"
       bare

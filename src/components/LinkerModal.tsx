@@ -625,7 +625,13 @@ export default function LinkerModal({
 
   return (
     <>
-<PopupFrame isOpen={isOpen} onClose={onClose} width="xl">
+<PopupFrame
+  isOpen={isOpen}
+  onClose={onClose}
+  width="xl"
+  // Ctrl+S = 연결 저장
+  onSave={() => void handleSaveLinks()}
+>
         {/* 모달 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <h3 className="text-base font-black text-slate-800 flex items-center gap-2">

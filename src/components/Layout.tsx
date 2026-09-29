@@ -378,6 +378,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       case 'backup': setIsBackupModalOpen(true); return;
       case 'help': setIsHelpModalOpen(true); return;
       case 'settings': setIsSettingsModalOpen(true); return;
+      case 'clipboard': {
+        const s = useAppStore.getState();
+        s.setClipboardOpen(!s.clipboardOpen);
+        return;
+      }
     }
   };
 
