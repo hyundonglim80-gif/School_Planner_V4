@@ -161,11 +161,13 @@ export async function addClipImage(blob: Blob): Promise<void> {
 
 export async function removeClip(id: string): Promise<void> {
   useClipboardHistory.setState((s) => ({ items: s.items.filter((it) => it.id !== id) }));
+  void markSystemClipboardSeen();
   await dbRun('readwrite', (store) => store.delete(id));
 }
 
 export async function clearClips(): Promise<void> {
   useClipboardHistory.setState({ items: [] });
+  void markSystemClipboardSeen();
   await dbRun('readwrite', (store) => store.clear());
 }
 
@@ -182,9 +184,76 @@ export async function clipboardReadGranted(): Promise<boolean> {
   }
 }
 
+// ── 시스템 클립보드가 '바뀌었나' ──────────────────────────
+//
+// 칸이 열려 있는 동안 2초마다, 그리고 창으로 돌아올 때마다 시스템 클립보드를 읽는다.
+// 예전에는 읽을 때마다 담았다. 그래서 '모두 지우기'(또는 ✕)를 해도 클립보드에는 그 내용이
+// 그대로 있어 2초 뒤에 도로 담겼다 - 가장 최근에 복사한 것만 지워지지 않는 것처럼 보였다.
+// 이제 스스로 읽을 때는 지난번에 본 것과 달라졌을 때만 담는다. 무엇을 봤는지는 이 기기에
+// 기억해 둔다(새로 고쳐 연 뒤에도 지운 것이 되살아나지 않게). '가져오기'를 누르면 그대로 담는다.
+const LAST_SEEN_KEY = 'sp4-clipboard-last-seen';
+
+/** 긴 글자도 짧게 기억하려고 쓰는 해시 (FNV-1a) */
+function shortHash(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return `${s.length}:${(h >>> 0).toString(36)}`;
+}
+
+function readLastSeen(): string | null {
+  try {
+    return localStorage.getItem(LAST_SEEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeLastSeen(v: string) {
+  try {
+    localStorage.setItem(LAST_SEEN_KEY, v);
+  } catch {
+    /* 기억 못 하면 다음에 한 번 더 담길 뿐이다 */
+  }
+}
+
+/** 이 앱 안에서 Ctrl+C 한 글자. 그 글자가 곧 시스템 클립보드이므로 '본 것'으로 적어 둔다. */
+export async function addCopiedText(text: string): Promise<void> {
+  if (!text) return;
+  writeLastSeen(`t:${shortHash(text)}`);
+  await addClipText(text);
+}
+
+/**
+ * 지우거나 비운 순간의 시스템 클립보드를 '본 것'으로 적는다. 그래야 다음에 스스로 읽을 때
+ * 방금 지운 것을 도로 담지 않는다. 읽기를 허락하지 않았으면 할 일이 없다(스스로 읽지도 않는다).
+ */
+async function markSystemClipboardSeen(): Promise<void> {
+  const cb = typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
+  if (!cb || !(await clipboardReadGranted())) return;
+  try {
+    const keys: string[] = [];
+    if (cb.read) {
+      for (const ci of await cb.read()) {
+        const imageType = ci.types.find((t) => t.startsWith('image/'));
+        if (imageType) keys.push(`i:${await hashBlob(await ci.getType(imageType))}`);
+        else if (ci.types.includes('text/plain')) keys.push(`t:${shortHash(await (await ci.getType('text/plain')).text())}`);
+      }
+    } else {
+      keys.push(`t:${shortHash(await cb.readText())}`);
+    }
+    writeLastSeen(keys.join('|'));
+  } catch {
+    /* 창이 초점을 잃었으면 못 읽는다 - 그때는 다음 읽기가 알아서 맞춘다 */
+  }
+}
+
 /**
  * 시스템 클립보드를 읽어 목록에 담는다.
- * userAsked가 아니면(창으로 돌아올 때 등) 이미 허락된 경우에만 읽는다 - 묻는 창이 불쑥 뜨면 안 된다.
+ * userAsked가 아니면(창으로 돌아올 때 등) 이미 허락된 경우에만 읽고, 지난번과 달라졌을 때만 담는다.
+ * 묻는 창이 불쑥 뜨면 안 되고, 지운 것이 되살아나도 안 된다.
  */
 export async function readSystemClipboard(userAsked: boolean): Promise<ReadResult> {
   const cb = typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
@@ -192,18 +261,33 @@ export async function readSystemClipboard(userAsked: boolean): Promise<ReadResul
   if (!userAsked && !(await clipboardReadGranted())) return 'skipped';
   if (typeof document !== 'undefined' && !document.hasFocus()) return 'skipped';
   try {
+    // 먼저 읽기만 한다. 담을지는 '달라졌나'를 본 뒤에 정한다.
+    const found: ({ kind: 'text'; text: string } | { kind: 'image'; blob: Blob })[] = [];
     if (cb.read) {
       const clipItems = await cb.read();
       for (const ci of clipItems) {
         const imageType = ci.types.find((t) => t.startsWith('image/'));
         if (imageType) {
-          await addClipImage(await ci.getType(imageType));
+          found.push({ kind: 'image', blob: await ci.getType(imageType) });
         } else if (ci.types.includes('text/plain')) {
-          await addClipText(await (await ci.getType('text/plain')).text());
+          found.push({ kind: 'text', text: await (await ci.getType('text/plain')).text() });
         }
       }
     } else {
-      await addClipText(await cb.readText());
+      found.push({ kind: 'text', text: await cb.readText() });
+    }
+
+    const keys = await Promise.all(
+      found.map(async (f) => (f.kind === 'text' ? `t:${shortHash(f.text)}` : `i:${await hashBlob(f.blob)}`))
+    );
+    const seen = keys.join('|');
+    const changed = seen !== readLastSeen();
+    writeLastSeen(seen);
+    if (!userAsked && !changed) return 'ok';
+
+    for (const f of found) {
+      if (f.kind === 'image') await addClipImage(f.blob);
+      else await addClipText(f.text);
     }
     return 'ok';
   } catch {

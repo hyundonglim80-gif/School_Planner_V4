@@ -147,6 +147,16 @@ await box.click();
 await page.locator('aside[aria-label="클립보드"] li', { hasText: '다른 프로그램에서 복사' }).getByTitle('눌러서 붙여넣기').click();
 await page.waitForTimeout(400);
 console.log(`  항목을 누르면 쓰던 칸에 붙는다: ${ok((await box.inputValue()) === '다른 프로그램에서 복사')}`);
+// '모두 지우기' 뒤에 가장 최근 복사한 것이 2초 뒤 도로 담기던 것
+page.once('dialog', (d) => d.accept());
+await page.getByRole('button', { name: '모두 지우기' }).click();
+await page.waitForTimeout(5000);
+const afterClear = await page.locator('aside[aria-label="클립보드"] li').count();
+console.log(`  '모두 지우기' 뒤 5초 - 되살아나지 않는다: ${ok(afterClear === 0)} (${afterClear}개)`);
+await page.evaluate(() => navigator.clipboard.writeText('지운 뒤 새로 복사'));
+await page.waitForTimeout(2600);
+const afterNew = await page.locator('aside[aria-label="클립보드"] li').allInnerTexts();
+console.log(`  새로 복사하면 다시 모인다: ${ok(afterNew.length === 1 && afterNew[0].includes('지운 뒤 새로 복사'))}`);
 // 클립보드 칸 폭 조절
 const cw0 = clip.w;
 const lh = await page.locator('[data-column-resizer="left"]').boundingBox();

@@ -12,7 +12,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useMinWidth } from '../hooks/useMinWidth';
 import { useBackLayer } from '../hooks/useModalLayer';
 import {
-  addClipText,
+  addCopiedText,
   clearClips,
   loadClipboardHistory,
   pasteClip,
@@ -46,7 +46,7 @@ export function useClipboardCapture() {
 
     const onCopy = () => {
       const text = selectedTextForCopy();
-      if (text) void addClipText(text);
+      if (text) void addCopiedText(text);
     };
     const onFocusIn = (e: FocusEvent) => rememberEditable(e.target as Element);
     // 다른 프로그램에서 복사·캡처하고 돌아왔을 때 (읽기를 허락해 둔 경우만)

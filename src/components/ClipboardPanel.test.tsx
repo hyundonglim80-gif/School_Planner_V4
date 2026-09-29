@@ -8,6 +8,9 @@ import {
   addClipText,
   pasteClip,
   rememberEditable,
+  readSystemClipboard,
+  clearClips,
+  removeClip,
   MAX_ITEMS,
 } from '../lib/clipboardHistory';
 
@@ -142,5 +145,56 @@ describe('ClipboardPanel', () => {
     const panel = screen.getByLabelText('클립보드', { selector: 'aside' });
     expect(panel.className).toContain('overflow-y-auto');
     expect(panel.className).toContain('overscroll-contain');
+  });
+});
+
+describe('시스템 클립보드를 스스로 읽을 때', () => {
+  // 칸이 열려 있으면 2초마다 읽는다. 예전에는 읽을 때마다 담아서, '모두 지우기'를 해도
+  // 클립보드에 그대로 있는 가장 최근 것이 2초 뒤 도로 담겼다.
+  let systemText = '';
+  beforeEach(() => {
+    localStorage.clear();
+    systemText = '가장 최근 복사';
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { readText: vi.fn(async () => systemText) },
+    });
+    Object.defineProperty(navigator, 'permissions', {
+      configurable: true,
+      value: { query: vi.fn(async () => ({ state: 'granted' })) },
+    });
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+  });
+
+  it("'모두 지우기' 뒤에는 클립보드가 그대로면 도로 담지 않는다", async () => {
+    await readSystemClipboard(false);
+    expect(useClipboardHistory.getState().items.map((i) => i.text)).toEqual(['가장 최근 복사']);
+
+    await clearClips();
+    await new Promise((r) => setTimeout(r, 0));
+    await readSystemClipboard(false);
+    await readSystemClipboard(false);
+    expect(useClipboardHistory.getState().items).toHaveLength(0);
+
+    // 새로 복사하면(클립보드가 바뀌면) 담는다
+    systemText = '새로 복사';
+    await readSystemClipboard(false);
+    expect(useClipboardHistory.getState().items.map((i) => i.text)).toEqual(['새로 복사']);
+  });
+
+  it('✕로 지운 것도 되살아나지 않는다', async () => {
+    await readSystemClipboard(false);
+    await removeClip(useClipboardHistory.getState().items[0].id);
+    await new Promise((r) => setTimeout(r, 0));
+    await readSystemClipboard(false);
+    expect(useClipboardHistory.getState().items).toHaveLength(0);
+  });
+
+  it("'가져오기'를 누르면 그대로여도 담는다", async () => {
+    await readSystemClipboard(false);
+    await clearClips();
+    await new Promise((r) => setTimeout(r, 0));
+    await readSystemClipboard(true);
+    expect(useClipboardHistory.getState().items.map((i) => i.text)).toEqual(['가장 최근 복사']);
   });
 });
