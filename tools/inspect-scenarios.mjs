@@ -49,6 +49,7 @@ const D = {
   jrCold: '2026-11-23', // 기록 칸을 열자마자 저장
   bulk: '2026-11-24', // 다중 선택 라벨 바꾸기
   trash: '2026-11-25', // 지우고 되살리기
+  jrKeep: '2026-11-26', // 기록 고치기·지우기에 곁의 기록과 모르는 필드가 남는가
 };
 const pad2 = (n) => String(n).padStart(2, '0');
 const localDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -87,6 +88,14 @@ async function plantFixtures() {
     entries: [
       { id: 'fx_jr_1', content: '먼저 있던 기록 하나', createdAt: 1, label: '학급활동', labelIds: ['j_1'], linkedItems: [], attachments: [] },
       { id: 'fx_jr_2', content: '먼저 있던 기록 둘', createdAt: 2, label: '학생상담', labelIds: ['j_2'], linkedItems: [], attachments: [] },
+    ],
+    updatedAt: Date.now(),
+  });
+  await setDoc(jrRef(D.jrKeep), {
+    entries: [
+      { id: 'fx_keep_1', content: '고칠 기록', createdAt: 1, label: '학급활동', labelIds: ['j_1'], linkedItems: [], attachments: [] },
+      { id: 'fx_keep_2', content: '곁의 기록', createdAt: 2, label: '학생상담', labelIds: ['j_2'], linkedItems: [], attachments: [], v3Extra: '남아야 함' },
+      { id: 'fx_keep_3', content: '지울 기록', createdAt: 3, label: '', labelIds: [], linkedItems: [], attachments: [] },
     ],
     updatedAt: Date.now(),
   });
@@ -756,6 +765,31 @@ if (ONLY !== 'mobile') {
     await closeAll();
     const stored = (await storedJournals(D.jrCold)).map((e) => e.content);
     assert(stored.length === 3, `그날 기록 ${stored.length}건: ${stored.join(' / ')}`);
+  });
+
+  await check('기록을 고치고 지워도 곁의 기록과 앱이 모르는 필드(V3 등)가 남는다', async () => {
+    await goDay(D.jrKeep);
+    const card = (t) => page.locator('[data-focus-key^="journal"]', { hasText: t }).first();
+    await card('고칠 기록').click();
+    await wait(800);
+    const box = journalPanel().getByPlaceholder(/오늘 있었던 일을 기록해보세요/);
+    await box.fill('고친 기록');
+    await box.press('Control+s');
+    await wait(1800);
+    await closeAll();
+    // 화면이 받지 못한 기록을 서버에 바로 넣고, 곧바로 지운다
+    const snap = await getDoc(jrRef(D.jrKeep));
+    await setDoc(jrRef(D.jrKeep), { entries: [...snap.data().entries, { id: 'fx_keep_srv', content: '다른 기기 기록', createdAt: 4, labelIds: [], linkedItems: [], attachments: [] }] }, { merge: true });
+    const del = card('지울 기록');
+    await del.hover();
+    await del.getByTitle(/삭제/).first().click();
+    await wait(2500);
+    const stored = await storedJournals(D.jrKeep);
+    const by = (id) => stored.find((e) => e.id === id);
+    assert(by('fx_keep_1')?.content === '고친 기록', `고친 글: ${by('fx_keep_1')?.content}`);
+    assert(by('fx_keep_2')?.v3Extra === '남아야 함', `곁의 기록: ${JSON.stringify(by('fx_keep_2'))}`);
+    assert(!by('fx_keep_3'), '지운 기록이 남음');
+    assert(by('fx_keep_srv'), '다른 기기에서 넣은 기록이 사라짐');
   });
 
   await check('다중 선택으로 라벨을 바꾸면 옛 라벨(id로 든 것까지)이 남지 않는다', async () => {

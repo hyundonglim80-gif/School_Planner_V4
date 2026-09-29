@@ -87,6 +87,9 @@ forwardChainId/originalDate(이월 사슬), linkedItems, authorId/authorName`.
   서버가 답하지 않으면 **저장을 거부**한다.
 - `useDayData.saveEventItems`는 트랜잭션 안에서 서버 목록을 다시 읽고, "내가 마지막으로 본 뒤 남이 더한 것"
   (`eventBaselineRef`에 없던 id)을 살려 둔다. 그래서 두 탭·두 기기가 동시에 넣어도 둘 다 남는다.
+- 기록(`useDayData.mutateJournals`)도 트랜잭션 안에서 서버의 `entries`를 읽어 **항목 하나만** 더하고·고치고·지운다.
+  예전에는 화면이 든 목록으로 통째로 덮어써서, 화면이 아직 못 받은 기록과 V4가 모르는 필드(V3 것)가 지워질 수 있었다.
+- 다중 선택 라벨 바꾸기는 `label`과 함께 `labelIds`도 새로 쓴다. label만 바꾸면 옛 라벨이 id로 남아 칩이 둘이 된다.
 - 출석부는 바뀐 학생만 `mergeFields`로 고쳐 쓴다(통째로 덮지 않는다). 자동 기록(`lib/autoJournal`)도 트랜잭션.
 
 ### 4-2. "없다"는 답을 의심한다

@@ -1019,15 +1019,35 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     }
   }, [dateStr, groupId, schedules]);
 
+  /**
+   * 그날 기록 문서를 서버에서 읽어, 바꿀 항목만 바꿔 쓴다.
+   *
+   * ⚠️ 예전에는 이 화면이 들고 있는 목록(journals)으로 entries를 통째로 덮어썼다.
+   *    그래서 다른 기기·V3가 그 사이 넣은 기록, 이 화면이 아직 받지 못한 기록이 말없이
+   *    사라질 수 있었다(오프라인에서 쓴 것이 나중에 올라갈 때도). 또 화면용으로 추린
+   *    필드만 다시 써서, 이 앱이 모르는 필드(V3가 쓰는 것 등)도 지워졌다.
+   *    일정(saveEventItems)처럼 서버 목록을 읽고, 항목 하나만 더하고·고치고·지운다.
+   */
+  const mutateJournals = useCallback(async (mutate: (fresh: any[]) => any[]) => {
+    const user = auth.currentUser;
+    if (!user || !dateStr) return;
+    const journalDocRef = groupId
+      ? doc(db, 'groups', groupId, 'journals', dateStr)
+      : doc(db, 'users', user.uid, 'journals', dateStr);
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(journalDocRef);
+      const raw: any[] = snap.exists() && Array.isArray(snap.data().entries) ? snap.data().entries : [];
+      // id 없는 옛 항목은 화면과 같은 이름(jr_차례)으로 맞춘다 (applyJournalData 참고)
+      const fresh = raw.map((j, idx) => (j && j.id ? j : { ...j, id: 'jr_' + idx }));
+      tx.set(journalDocRef, { entries: mutate(fresh), updatedAt: Date.now() }, { merge: true });
+    });
+  }, [dateStr, groupId]);
+
   const addJournalEntry = useCallback(async (content: string, label: string = '', labelIds: string[] = [], imageUrl?: string, options?: Partial<JournalEntry>) => {
     const user = auth.currentUser;
     if (!user || !dateStr || (!content.trim() && !imageUrl && (!options?.attachments || options.attachments.length === 0))) return;
     
-    const journalDocRef = groupId
-      ? doc(db, 'groups', groupId, 'journals', dateStr)
-      : doc(db, 'users', user.uid, 'journals', dateStr);
-
-    const newId = 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5);
+    const newId = 'jr_'+ Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5);
     const newEntry: JournalEntry = {
       id: newId,
       content: content.trim(),
@@ -1039,13 +1059,8 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       ...options
     };
     
-    const newJournals = [...journals, newEntry];
-
     try {
-      await setDoc(journalDocRef, {
-        entries: newJournals,
-        updatedAt: Date.now()
-      }, { merge: true });
+      await mutateJournals((fresh) => [...fresh.filter((j) => j.id !== newId), newEntry]);
     } catch (err) {
       showErrorToast('기록 저장에 실패했습니다. 네트워크를 확인해 주세요.', err);
       return;
@@ -1067,7 +1082,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     // 저장 후에도 배너가 열려 있으므로, 화면이 방금 만든 항목으로 수정 대상을
     // 바꿀 수 있게 ID를 돌려준다. 안 그러면 한 번 더 저장할 때 새로 추가된다.
     return newId;
-  }, [dateStr, groupId, journals]);
+  }, [dateStr, groupId, mutateJournals]);
 
   const reorderEvents = useCallback(async (sourceIndex: number, targetIndex: number) => {
     if (sourceIndex === targetIndex || sourceIndex < 0 || targetIndex < 0 || sourceIndex >= eventList.length || targetIndex >= eventList.length) return;
@@ -1082,33 +1097,26 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   const reorderJournals = useCallback(async (sourceIndex: number, targetIndex: number) => {
     if (sourceIndex === targetIndex || sourceIndex < 0 || targetIndex < 0 || sourceIndex >= journals.length || targetIndex >= journals.length) return;
     
-    const user = auth.currentUser;
-    if (!user || !dateStr) return;
-    const journalDocRef = groupId
-      ? doc(db, 'groups', groupId, 'journals', dateStr)
-      : doc(db, 'users', user.uid, 'journals', dateStr);
-      
     const newList = [...journals];
     const [moved] = newList.splice(sourceIndex, 1);
     newList.splice(targetIndex, 0, moved);
-    
+    const order = newList.map((j) => j.id);
+
     try {
-      await setDoc(journalDocRef, {
-        entries: newList,
-        updatedAt: Date.now()
-      }, { merge: true });
+      // 이 화면에서 정한 차례대로 두고, 그 사이 남이 넣은 기록은 뒤에 붙인다
+      await mutateJournals((fresh) => {
+        const byId = new Map(fresh.map((j) => [j.id, j]));
+        const known = new Set(order);
+        return [...order.map((id) => byId.get(id)).filter(Boolean), ...fresh.filter((j) => !known.has(j.id))];
+      });
     } catch (err) {
       showErrorToast('기록 순서 변경에 실패했습니다.', err);
     }
-  }, [dateStr, groupId, journals]);
+  }, [dateStr, journals, mutateJournals]);
 
   const deleteJournalEntry = useCallback(async (id: string) => {
     const user = auth.currentUser;
     if (!user || !dateStr) return;
-    
-    const journalDocRef = groupId
-      ? doc(db, 'groups', groupId, 'journals', dateStr)
-      : doc(db, 'users', user.uid, 'journals', dateStr);
 
     const itemToDelete = journals.find(j => j.id === id);
     if (itemToDelete) {
@@ -1126,13 +1134,8 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       }
     }
 
-    const newJournals = journals.filter(j => j.id !== id);
-
     try {
-      await setDoc(journalDocRef, {
-        entries: newJournals,
-        updatedAt: Date.now()
-      }, { merge: true });
+      await mutateJournals((fresh) => fresh.filter((j) => j.id !== id));
     } catch (err) {
       showErrorToast('기록 삭제에 실패했습니다.', err);
       return;
@@ -1140,7 +1143,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
 
     // 알림장·출결 자동 항목이면 원본(알림장·출석부)도 비운다
     if (itemToDelete) await syncAutoSourceAndTell({ entry: itemToDelete, groupId, dateStr, content: null });
-  }, [dateStr, groupId, journals]);
+  }, [dateStr, groupId, journals, mutateJournals]);
 
   const updateJournalEntry = useCallback(async (id: string, updates: { content?: string; label?: string; labelIds?: string[]; imageUrl?: string; attachments?: Attachment[]; linkedItems?: any[] }) => {
     const user = auth.currentUser;
@@ -1159,10 +1162,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       return;
     }
     
-    const journalDocRef = groupId
-      ? doc(db, 'groups', groupId, 'journals', dateStr)
-      : doc(db, 'users', user.uid, 'journals', dateStr);
-
     const newJournals = journals
       .map(j => j.id === id ? { ...j, ...updates, updatedAt: Date.now() } : j)
       .filter((j) => 
@@ -1180,11 +1179,14 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       return;
     }
 
+    const edited = newJournals.find((j) => j.id === id)!;
     try {
-      await setDoc(journalDocRef, {
-        entries: newJournals,
-        updatedAt: Date.now()
-      }, { merge: true });
+      // 서버 목록에서 그 항목만 고친다. 그 사이 다른 기기에서 지워졌으면 고친 글로 되살린다.
+      await mutateJournals((fresh) =>
+        fresh.some((j) => j.id === id)
+          ? fresh.map((j) => (j.id === id ? { ...j, ...updates, updatedAt: Date.now() } : j))
+          : [...fresh, edited]
+      );
     } catch (err) {
       showErrorToast('기록 수정에 실패했습니다.', err);
       return;
