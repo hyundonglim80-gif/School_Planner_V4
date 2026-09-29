@@ -45,17 +45,21 @@ await check('새 일정 다시', () => page.getByRole('button', { name: '일정 
 
 // 옆에 붙은 칸(768px 이상)에서만 왼쪽 화면을 누를 수 있다
 if (Number(process.env.W || 390) >= 768) {
-console.log('\n[칸을 연 채 다른 일정을 열고, 닫기 단추로 닫는다]');
+console.log('\n[칸을 연 채 다른 일정을 열어 쌓고, 닫기 단추로 하나씩 닫는다]');
 const len0 = await page.evaluate(() => history.length);
 await page.getByRole('button', { name: '일정 추가' }).first().click();
 await page.waitForTimeout(600);
 await page.getByTitle('일정 수정').first().click();
 await page.waitForTimeout(1200);
-console.log(`  다른 일정으로 바꿔 열어도 칸이 남는다: ${ok(await panelOpen(/일정 수정/))}  기록: ${await hist()}`);
-await page.getByRole('button', { name: /^닫기$|^취소$/ }).first().click().catch(() => page.getByTitle('닫기').first().click());
-await page.waitForTimeout(1200);
+const panels = () => page.locator('#side-column > aside').count();
+console.log(`  다른 일정을 열면 칸이 둘로 쌓인다: ${ok((await panels()) === 2)}  기록: ${await hist()}`);
+for (let i = 0; i < 2; i++) {
+  await page.locator('#side-column > aside').first().getByRole('button', { name: /^닫기$/ }).click();
+  await page.waitForTimeout(800);
+}
+await page.waitForTimeout(600);
 const len1 = await page.evaluate(() => history.length);
-console.log(`  닫기 단추로 닫음 - 칸 닫힘 ${ok(!(await panelOpen(/일정 수정/)))} / 표지판 치움 ${ok((await hist()).endsWith('null'))} / 기록 길이 ${len0} -> ${len1}`);
+console.log(`  닫기 단추로 둘 다 닫음 - 칸 없음 ${ok((await panels()) === 0)} / 표지판 치움 ${ok((await hist()).endsWith('null'))} / 기록 길이 ${len0} -> ${len1}`);
 await page.goBack();
 await page.waitForTimeout(1000);
 console.log(`  그다음 뒤로가기는 진짜로 앱을 나간다(삼키지 않는다): ${ok(!onApp())}`);

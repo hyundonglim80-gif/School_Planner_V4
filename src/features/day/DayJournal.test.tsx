@@ -20,7 +20,7 @@ vi.mock('../../hooks/useDayData', async (importOriginal) => {
 });
 
 beforeEach(() => {
-  useAppStore.setState({ entryPanel: null });
+  useAppStore.setState({ entryPanels: [], entryPanel: null });
 });
 
 const entries: JournalEntry[] = [

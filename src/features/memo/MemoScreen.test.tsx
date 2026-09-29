@@ -25,7 +25,7 @@ vi.mock('../../hooks/useLabels', async (importOriginal) => {
 beforeEach(() => {
   vi.clearAllMocks();
   // 아래 시험 대부분은 '전체'를 보며 진행한다. 처음 열 때의 거르개는 따로 본다.
-  useAppStore.setState({ memoFilter: '전체', entryPanel: null });
+  useAppStore.setState({ memoFilter: '전체', entryPanels: [], entryPanel: null });
 });
 
 async function 새메모작성(user: ReturnType<typeof userEvent.setup>) {

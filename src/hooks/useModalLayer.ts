@@ -165,8 +165,12 @@ export function closeAllModals() {
   if (snapshot.length > 0 && stack.length === 0) removeSign();
 }
 
-export function useModalLayer(isOpen: boolean, onClose: () => void): number {
-  return useLayer(isOpen, onClose, false);
+/**
+ * raise가 바뀌면 층에서 빠졌다가 맨 위로 다시 선다 (휴대폰에서 이미 열린 쓰는 칸을 다시 열 때).
+ * 빠지고 서는 것이 한 번에 일어나므로 뒤로가기 표지판은 그대로 둔다(아래 '한 박자 늦게').
+ */
+export function useModalLayer(isOpen: boolean, onClose: () => void, raise?: number): number {
+  return useLayer(isOpen, onClose, false, raise);
 }
 
 /**
@@ -181,7 +185,7 @@ export function useBackLayer(isOpen: boolean, onClose: () => void): void {
   useLayer(isOpen, onClose, true);
 }
 
-function useLayer(isOpen: boolean, onClose: () => void, backOnly: boolean): number {
+function useLayer(isOpen: boolean, onClose: () => void, backOnly: boolean, raise?: number): number {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   const [zIndex, setZIndex] = useState(BASE_Z);
@@ -220,7 +224,7 @@ function useLayer(isOpen: boolean, onClose: () => void, backOnly: boolean): numb
         if (stack.length === 0) removeSign();
       });
     };
-  }, [isOpen, backOnly]);
+  }, [isOpen, backOnly, raise]);
 
   return zIndex;
 }

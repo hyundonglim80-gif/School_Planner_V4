@@ -227,7 +227,8 @@ export default function EntryDrawer({
       if (!isOpen) return;
       // 옆에 붙은 칸은 왼쪽 화면과 함께 쓴다. 왼쪽에서 누른 Ctrl+S(일정 저장 등)까지
       // 여기서 가로채면 두 곳이 함께 저장된다. 이 칸 안에 있을 때만 받는다.
-      if (docked && !panelRef.current?.contains(document.activeElement)) return;
+      // 커서가 이 칸 안에 있을 때만. 쓰는 칸이 여럿 쌓이면(휴대폰도) 커서가 든 칸만 저장한다.
+      if (!panelRef.current?.contains(document.activeElement)) return;
       if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
         e.preventDefault();
         // 키를 누른 채로 두면 브라우저가 keydown을 되풀이해 보낸다.
@@ -406,9 +407,10 @@ export default function EntryDrawer({
   };
   if (flushRef) flushRef.current = saveIfChanged;
 
+  // 배경을 누르면 이 칸만 닫는다. 칸이 여럿 쌓여 있을 때 아래 칸까지 적던 것째 닫히면 안 된다.
   backdropCloseRef.current = async () => {
     if (!(await saveIfChanged())) return;
-    closeAllModals();
+    onClose();
   };
 
   const panel = (

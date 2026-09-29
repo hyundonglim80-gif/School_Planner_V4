@@ -8,13 +8,14 @@
 //             뒤로가기는 받는다 (useBackLayer).
 //             팝업과 같은 오른쪽 줄에 서고(폭·스크롤은 줄이 맡는다), Layout이 그 폭만큼 화면을 줄인다.
 //   아니면  : 휴대폰처럼 좁은 화면. 예전처럼 어두운 배경 위로 오른쪽에서 뜬다.
-import React from 'react';
+import React, { useContext } from 'react';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, useBackLayer } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
 import { createPortal } from 'react-dom';
 import { useSideSlot, sideSlotProps, getSideColumn } from './PopupFrame';
+import { PanelRaiseContext } from './panelRaise';
 
 interface SidePanelFrameProps {
   docked: boolean;
@@ -39,11 +40,14 @@ export default function SidePanelFrame({
 }: SidePanelFrameProps) {
   useBodyScrollLock(!docked);
   const vv = useVisualViewport(true);
-  const zIndex = useModalLayer(!docked, onClose);
+  const raisedAt = useContext(PanelRaiseContext);
+  // 휴대폰(덮는 배너)에서도 다시 연 칸이 맨 앞으로 오게 층에 다시 선다
+  const zIndex = useModalLayer(!docked, onClose, raisedAt);
   // 옆에 붙은 칸은 팝업이 아니지만 휴대폰 뒤로가기는 칸을 닫아야 한다 (안 그러면 크롬이 닫힌다)
   useBackLayer(docked, onClose);
-  // 이 칸 위에서 팝업을 열면(링크 추가 등) 오른쪽을 위아래로 나눠 이 칸은 아래로 내려간다
-  const slot = useSideSlot(docked);
+  // 이 칸 위에서 팝업·다른 칸을 열면 그것이 위에 쌓이고 이 칸은 아래로 내려간다.
+  // 이미 열린 이 칸을 다시 열면(raisedAt) 줄에 다시 서서 맨 위로 올라온다.
+  const slot = useSideSlot(docked, raisedAt);
   const backdrop = useBackdropClose(onBackdropClose);
 
   if (docked) {
@@ -78,7 +82,10 @@ export default function SidePanelFrame({
         className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-300"
         {...backdrop}
       />
-      {children}
+      {/* 칸이 여럿 떠 있을 때 Ctrl+S가 커서가 든 칸만 저장하도록, 휴대폰에서도 칸을 가리킨다 */}
+      <div ref={panelRef as React.RefObject<HTMLDivElement>} className="contents">
+        {children}
+      </div>
     </div>
   );
 }

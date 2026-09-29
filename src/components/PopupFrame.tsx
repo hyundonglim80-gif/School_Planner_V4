@@ -81,8 +81,11 @@ export interface SideSlot {
   rows: number;
 }
 
-/** 오른쪽 줄에 선다. 켜져 있는 동안 줄에 서고, 위에서 몇 번째인지 돌려준다. */
-export function useSideSlot(active: boolean): SideSlot {
+/**
+ * 오른쪽 줄에 선다. 켜져 있는 동안 줄에 서고, 위에서 몇 번째인지 돌려준다.
+ * raise가 바뀌면 줄에서 빠졌다가 다시 서서 맨 위로 간다 (이미 열린 쓰는 칸을 다시 열 때).
+ */
+export function useSideSlot(active: boolean, raise?: number): SideSlot {
   const id = useId();
   useEffect(() => {
     if (!active) return;
@@ -92,7 +95,7 @@ export function useSideSlot(active: boolean): SideSlot {
     return () => {
       useSidePopups.setState((s) => ({ order: s.order.filter((x) => x !== id) }));
     };
-  }, [active, id]);
+  }, [active, id, raise]);
 
   const order = useSidePopups((s) => s.order);
   const index = order.indexOf(id);

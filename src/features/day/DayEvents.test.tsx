@@ -24,7 +24,7 @@ vi.mock('../../hooks/useDayData', async (importOriginal) => {
 vi.mock('../../hooks/useMinWidth', () => ({ useMinWidth: () => true }));
 
 beforeEach(() => {
-  useAppStore.setState({ entryPanel: null });
+  useAppStore.setState({ entryPanels: [], entryPanel: null });
 });
 
 const events: EventItem[] = [
@@ -141,7 +141,8 @@ describe('DayEvents - 일정을 누르면 오른쪽 칸에서 고친다', () => 
     expect(rows[1].className).not.toContain('ring-primary');
   });
 
-  it('칸을 연 채 다른 일정을 누르면 고친 것을 먼저 저장한다', async () => {
+  it('칸을 연 채 다른 일정을 누르면 새 칸이 위에 쌓이고, 먼저 연 칸은 적던 것째 아래에 남는다', async () => {
+    // 예전에는 먼저 연 칸을 저장하고 새 칸으로 바꿨다. 이제 다른 팝업 칸처럼 쌓인다.
     const user = userEvent.setup();
     renderEvents();
 
@@ -149,9 +150,46 @@ describe('DayEvents - 일정을 누르면 오른쪽 칸에서 고친다', () => 
     await user.type(await screen.findByDisplayValue('교직원 회의'), '!');
     await user.click(screen.getByText('안전 점검'));
 
-    await waitFor(() => expect(hook.updateEventItem).toHaveBeenCalledTimes(1));
-    expect(hook.updateEventItem.mock.calls[0][1].content).toBe('교직원 회의!');
-    expect(await within(panel()).findByDisplayValue('안전 점검')).toBeInTheDocument();
+    const panels = await screen.findAllByRole('complementary', { name: '일정 쓰기' });
+    expect(panels).toHaveLength(2);
+    // 나중에 연 것이 위(order 0), 먼저 연 것이 아래(order 1)
+    const top = panels.find((p) => p.style.order === '0')!;
+    const below = panels.find((p) => p.style.order === '1')!;
+    expect(within(top).getByDisplayValue('안전 점검')).toBeInTheDocument();
+    expect(within(below).getByDisplayValue('교직원 회의!')).toBeInTheDocument();
+    // 쓰던 중이므로 저장하지 않는다
+    expect(hook.updateEventItem).not.toHaveBeenCalled();
+  });
+
+  it('이미 열린 일정을 다시 누르면 새 칸을 만들지 않고 그 칸을 맨 위로 올린다', async () => {
+    const user = userEvent.setup();
+    renderEvents();
+
+    await user.click(screen.getByText('교직원 회의'));
+    await user.type(await screen.findByDisplayValue('교직원 회의'), '!');
+    await user.click(screen.getByText('안전 점검'));
+    await user.click(screen.getByText('교직원 회의'));
+
+    const panels = await screen.findAllByRole('complementary', { name: '일정 쓰기' });
+    expect(panels).toHaveLength(2);
+    const top = panels.find((p) => p.style.order === '0')!;
+    // 적던 것이 그대로 남아 있다 (다시 그리지 않았다)
+    expect(within(top).getByDisplayValue('교직원 회의!')).toBeInTheDocument();
+  });
+
+  it('쌓인 칸 중 하나를 닫으면 그 칸만 닫힌다', async () => {
+    const user = userEvent.setup();
+    renderEvents();
+
+    await user.click(screen.getByText('교직원 회의'));
+    await user.click(screen.getByText('안전 점검'));
+    const panels = await screen.findAllByRole('complementary', { name: '일정 쓰기' });
+    const top = panels.find((p) => p.style.order === '0')!;
+    await user.click(within(top).getByRole('button', { name: '닫기' }));
+
+    const left = screen.getAllByRole('complementary', { name: '일정 쓰기' });
+    expect(left).toHaveLength(1);
+    expect(within(left[0]).getByDisplayValue('교직원 회의')).toBeInTheDocument();
   });
 
   it('닫기는 저장하지 않고 닫는다', async () => {

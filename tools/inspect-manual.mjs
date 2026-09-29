@@ -1195,7 +1195,8 @@ if (ONLY !== 'mobile') {
     assert((await entryPanel().count()) === 0, '닫기로 닫히지 않음');
   });
 
-  await check('[옆 칸] 메모를 고치다 다른 메모를 누르면 고친 것을 저장하고 넘어감', async () => {
+  // 쓰는 칸은 쌓인다: 다른 메모를 누르면 새 칸이 위에 생기고, 고치던 칸은 적던 것째 아래에 남는다
+  await check('[옆 칸] 메모를 고치다 다른 메모를 누르면 새 칸이 위에 쌓이고, 고치던 칸은 적던 것째 아래에', async () => {
     await page.keyboard.press('Shift+Digit5');
     await wait(2000);
     await page.getByRole('button', { name: /전체 메모/ }).click();
@@ -1205,14 +1206,19 @@ if (ONLY !== 'mobile') {
     await wait(800);
     const ta = page.getByPlaceholder(/자유롭게 생각을 기록해보세요/);
     const M = `옆칸 메모 ${Date.now() % 10000}`;
-    await ta.fill(M);
+    await ta.first().fill(M);
     await cards.nth(1).click();
-    await wait(2000);
-    const now = await ta.inputValue();
-    assert(now !== M, '다른 메모로 넘어가지 않음');
-    assert((await page.locator('section [data-focus-key^="memo"]', { hasText: M }).count()) === 1, '앞 메모가 저장되지 않음');
-    await page.locator('aside').getByRole('button', { name: '닫기' }).click();
-    await wait(500);
+    await wait(1500);
+    assert((await ta.count()) === 2, `칸이 쌓이지 않음 (${await ta.count()}개)`);
+    const stacked = await page.$$eval('#side-column > aside', (els) =>
+      els.map((e) => ({ top: e.getBoundingClientRect().top, v: e.querySelector('textarea')?.value || '' })).sort((a, b) => a.top - b.top)
+    );
+    assert(stacked[0].v !== M, '새 칸이 맨 위가 아님');
+    assert(stacked[1].v === M, '고치던 칸의 글이 남지 않음');
+    for (let i = 0; i < 2; i++) {
+      await page.locator('#side-column > aside').first().getByRole('button', { name: '닫기' }).click();
+      await wait(400);
+    }
     await page.keyboard.press('Shift+Digit1');
     await wait(1200);
   });

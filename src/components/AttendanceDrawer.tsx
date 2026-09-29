@@ -177,7 +177,8 @@ export default function AttendanceDrawer({
   saveRef.current = handleSave;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (docked && !panelRef.current?.contains(document.activeElement)) return;
+      // 커서가 이 칸 안에 있을 때만. 쓰는 칸이 여럿 쌓이면(휴대폰도) 커서가 든 칸만 저장한다.
+      if (!panelRef.current?.contains(document.activeElement)) return;
       if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
         e.preventDefault();
         if (!e.repeat) void saveRef.current();

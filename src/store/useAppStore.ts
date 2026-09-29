@@ -31,8 +31,19 @@ export interface EntryPanelTarget {
   defaultLabel?: string;
   /** 알림장('write'|'list')·출석부('check'|'summary')를 열 때 처음 보일 탭 */
   tab?: 'write' | 'list' | 'check' | 'summary';
+  /** 이 칸의 고유 번호 (열 때 붙는다). 여러 칸이 쌓이므로 닫기·id 알리기에 쓴다. */
   openedAt?: number;
+  /** 맨 위로 올린 때. 이미 열린 항목을 다시 열면 새로 만들지 않고 이것만 바꿔 맨 위로 올린다. */
+  raisedAt?: number;
 }
+
+/** 같은 항목을 고치는 칸인가 (새로 쓰는 칸은 늘 다르다) */
+const samePanelTarget = (a: EntryPanelTarget, b: EntryPanelTarget) =>
+  !!a.entryId &&
+  a.kind === b.kind &&
+  String(a.entryId) === String(b.entryId) &&
+  (a.groupId || null) === (b.groupId || null) &&
+  (a.dateStr || '') === (b.dateStr || '');
 
 interface AppState {
   scope: Scope;
@@ -194,11 +205,21 @@ interface AppState {
    * 메모·기록·일정을 쓰는 오른쪽 칸. 화면(페이지)이 아니라 Layout이 그린다.
    * 그래서 다른 날짜·다른 화면으로 옮겨 다녀도 쓰던 것이 그대로 남는다.
    */
+  /**
+   * 열려 있는 쓰는 칸들 (메모·기록·일정·알림장·출석부). 뒤에 있을수록 나중에 연 것(맨 위).
+   * 예전에는 한 칸뿐이라, 새 일정 칸을 연 채 새 기록을 열면 일정 칸이 기록 칸으로 바뀌었다.
+   * 이제 다른 팝업 칸처럼 위에 쌓이고, 먼저 연 칸은 적던 것을 그대로 가진 채 아래로 내려간다.
+   */
+  entryPanels: EntryPanelTarget[];
+  /** 맨 위 칸 (없으면 null). entryPanels의 마지막과 같다. */
   entryPanel: EntryPanelTarget | null;
   openEntryPanel: (target: EntryPanelTarget) => void;
-  /** 새로 만든 항목의 id를 알려 준다 (이어서 저장하면 그 항목을 고친다) */
-  setEntryPanelId: (id: string, initial?: any) => void;
-  closeEntryPanel: () => void;
+  /** 새로 만든 항목의 id를 알려 준다 (이어서 저장하면 그 항목을 고친다). key는 그 칸의 openedAt. */
+  setEntryPanelId: (id: string, initial?: any, key?: number) => void;
+  /** key(openedAt)의 칸을 닫는다. 주지 않으면 맨 위 칸. */
+  closeEntryPanel: (key?: number) => void;
+  /** 이 항목을 고치고 있던 칸을 모두 닫는다 (항목을 지웠을 때) */
+  closeEntryPanelsFor: (kind: EntryPanelTarget['kind'], entryId: string) => void;
 
   clearAuthData: () => void;
 }
@@ -519,14 +540,47 @@ export const useAppStore = create<AppState>()(
       openLabelModal: (tab = 'event') => set({ isLabelModalOpen: true, labelModalTab: tab }),
       closeLabelModal: () => set({ isLabelModalOpen: false }),
 
+      entryPanels: [],
       entryPanel: null,
-      // 여는 쪽이 '열 때마다 새 것'으로 넘기므로, 같은 대상을 다시 눌러도 칸이 새로 시작한다
-      openEntryPanel: (target) => set({ entryPanel: { ...target, openedAt: Date.now() } }),
-      setEntryPanelId: (id, initial) =>
-        set((st) =>
-          st.entryPanel ? { entryPanel: { ...st.entryPanel, entryId: id, ...(initial ? { initial } : {}) } } : {}
-        ),
-      closeEntryPanel: () => set({ entryPanel: null }),
+      // 새 칸은 맨 위에 쌓는다. 이미 같은 항목을 고치는 칸이 열려 있으면 새로 만들지 않고
+      // 그 칸을 맨 위로 올린다 (적던 것이 그대로 남는다).
+      openEntryPanel: (target) =>
+        set((st) => {
+          const now = Date.now();
+          const existing = st.entryPanels.find((p) => samePanelTarget(p, target));
+          let panels: EntryPanelTarget[];
+          if (existing) {
+            const raised = { ...existing, raisedAt: now };
+            panels = [...st.entryPanels.filter((p) => p !== existing), raised];
+          } else {
+            // 같은 밀리초에 둘을 열어도 번호가 겹치지 않게
+            const last = Math.max(0, ...st.entryPanels.map((p) => p.openedAt || 0));
+            const openedAt = now > last ? now : last + 1;
+            panels = [...st.entryPanels, { ...target, openedAt, raisedAt: openedAt }];
+          }
+          return { entryPanels: panels, entryPanel: panels[panels.length - 1] };
+        }),
+      setEntryPanelId: (id, initial, key) =>
+        set((st) => {
+          const k = key ?? st.entryPanel?.openedAt;
+          const panels = st.entryPanels.map((p) =>
+            p.openedAt === k ? { ...p, entryId: id, ...(initial ? { initial } : {}) } : p
+          );
+          return { entryPanels: panels, entryPanel: panels[panels.length - 1] || null };
+        }),
+      closeEntryPanel: (key) =>
+        set((st) => {
+          const k = key ?? st.entryPanel?.openedAt;
+          const panels = st.entryPanels.filter((p) => p.openedAt !== k);
+          return { entryPanels: panels, entryPanel: panels[panels.length - 1] || null };
+        }),
+      closeEntryPanelsFor: (kind, entryId) =>
+        set((st) => {
+          const panels = st.entryPanels.filter(
+            (p) => !(p.kind === kind && p.entryId !== undefined && String(p.entryId) === String(entryId))
+          );
+          return { entryPanels: panels, entryPanel: panels[panels.length - 1] || null };
+        }),
 
     }),
     {

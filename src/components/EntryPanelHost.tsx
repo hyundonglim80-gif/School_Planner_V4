@@ -8,7 +8,8 @@
 //
 // 저장 로직도 여기로 옮겼다. 배너가 화면보다 오래 살기 때문에, 저장하는 쪽도
 // 화면이 아니라 배너 곁에 있어야 한다.
-import React, { Suspense, useEffect, useRef } from 'react';
+import React, { Suspense, useRef } from 'react';
+import { PanelRaiseContext } from './panelRaise';
 import EntryDrawer, { type EntryDraft } from './EntryDrawer';
 import EventDrawer from './EventDrawer';
 import { lazyWithReload } from '../lib/lazyWithReload';
@@ -31,49 +32,58 @@ export const DOCK_MIN_WIDTH = 768;
 // 칸의 폭은 팝업과 같은 오른쪽 줄의 폭 하나를 쓴다 (PopupFrame.RIGHT_COLUMN_WIDTH, 경계선을 끌어 바꾼다).
 // 출석부의 누계 표(17칸)는 칸 안에서 가로로 밀어 본다.
 
-/** 지금 칸에서 '고친 것 있으면 저장'. 다른 항목을 열기 전에 부른다. */
-let flushCurrent: (() => Promise<boolean>) | null = null;
-
 /**
- * 오른쪽 칸을 연다. 이미 쓰던 것이 있으면 먼저 저장한다(저장이 실패하면 열지 않는다).
- * 화면들은 store를 직접 부르지 말고 이것을 부른다.
+ * 오른쪽 칸을 연다. 화면들은 store를 직접 부르지 말고 이것을 부른다.
+ *
+ * 예전에는 칸이 하나뿐이라, 쓰던 칸을 먼저 저장하고 새 칸으로 바꿨다. 그래서 새 일정 칸을
+ * 연 채 새 기록을 열면 일정 칸이 사라졌다. 이제 다른 팝업 칸처럼 새 칸이 맨 위에 쌓이고,
+ * 먼저 연 칸은 적던 것을 그대로 가진 채 아래로 내려간다(저장하지 않는다 - 쓰던 중이다).
+ * 이미 열린 항목을 다시 열면 새 칸을 만들지 않고 그 칸을 맨 위로 올린다.
  */
 export async function openEntryPanel(target: EntryPanelTarget): Promise<void> {
-  const store = useAppStore.getState();
-  if (store.entryPanel && flushCurrent && !(await flushCurrent())) return;
-  store.openEntryPanel(target);
+  useAppStore.getState().openEntryPanel(target);
 }
 
+
 export default function EntryPanelHost() {
-  const target = useAppStore((s) => s.entryPanel);
-  if (!target) return null;
-  // 열 때마다 새로 그린다(openedAt). 다른 항목을 열었는데 앞의 글이 남아 있으면 안 된다.
-  if (target.kind === 'event') return <EventPanel key={target.openedAt} target={target} />;
-  if (target.kind === 'notice' || target.kind === 'attendance') {
-    return (
-      <Suspense fallback={null}>
-        <ClassroomPanel key={target.openedAt} target={target} />
-      </Suspense>
-    );
-  }
-  return target.kind === 'journal' ? (
-    <JournalPanel key={target.openedAt} target={target} />
-  ) : (
-    <MemoPanel key={target.openedAt} target={target} />
+  const panels = useAppStore((s) => s.entryPanels);
+  return (
+    <>
+      {panels.map((target) => (
+        // 칸마다 따로 산다(openedAt). 위로 올려도 다시 그리지 않아 적던 것이 남는다.
+        <PanelRaiseContext.Provider key={target.openedAt} value={target.raisedAt}>
+          <PanelFor target={target} />
+        </PanelRaiseContext.Provider>
+      ))}
+    </>
   );
 }
 
-/** 이 칸의 '고친 것 있으면 저장'을 openEntryPanel이 부를 수 있게 등록한다 */
+function PanelFor({ target }: { target: EntryPanelTarget }) {
+  if (target.kind === 'event') return <EventPanel target={target} />;
+  if (target.kind === 'notice' || target.kind === 'attendance') {
+    return (
+      <Suspense fallback={null}>
+        <ClassroomPanel target={target} />
+      </Suspense>
+    );
+  }
+  return target.kind === 'journal' ? <JournalPanel target={target} /> : <MemoPanel target={target} />;
+}
+
+/** 칸마다의 '고친 것 있으면 저장' 자리. 칸(EntryDrawer 등)이 채운다. */
 function useFlushRegistration() {
-  const flushRef = useRef<(() => Promise<boolean>) | null>(null);
-  useEffect(() => {
-    const flush = () => (flushRef.current ? flushRef.current() : Promise.resolve(true));
-    flushCurrent = flush;
-    return () => {
-      if (flushCurrent === flush) flushCurrent = null;
-    };
-  }, []);
-  return flushRef;
+  return useRef<(() => Promise<boolean>) | null>(null);
+}
+
+/** 이 칸만 닫기 / 이 칸이 새로 만든 항목의 id 알리기 */
+function usePanelActions(target: EntryPanelTarget) {
+  const closeEntryPanel = useAppStore((s) => s.closeEntryPanel);
+  const setEntryPanelIdFor = useAppStore((s) => s.setEntryPanelId);
+  return {
+    closeEntryPanel: () => closeEntryPanel(target.openedAt),
+    setEntryPanelId: (id: string, initial?: any) => setEntryPanelIdFor(id, initial, target.openedAt),
+  };
 }
 
 function useSpaceName(groupId: string | null) {
@@ -82,7 +92,7 @@ function useSpaceName(groupId: string | null) {
 }
 
 function JournalPanel({ target }: { target: EntryPanelTarget }) {
-  const { closeEntryPanel, setEntryPanelId } = useAppStore();
+  const { closeEntryPanel, setEntryPanelId } = usePanelActions(target);
   const docked = useMinWidth(DOCK_MIN_WIDTH);
   const flushRef = useFlushRegistration();
 
@@ -185,7 +195,7 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
 }
 
 function MemoPanel({ target }: { target: EntryPanelTarget }) {
-  const { closeEntryPanel, setEntryPanelId } = useAppStore();
+  const { closeEntryPanel, setEntryPanelId } = usePanelActions(target);
   const docked = useMinWidth(DOCK_MIN_WIDTH);
   const flushRef = useFlushRegistration();
 
@@ -241,7 +251,7 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
 }
 
 function EventPanel({ target }: { target: EntryPanelTarget }) {
-  const { closeEntryPanel } = useAppStore();
+  const { closeEntryPanel } = usePanelActions(target);
   const docked = useMinWidth(DOCK_MIN_WIDTH);
   const flushRef = useFlushRegistration();
   const spaceName = useSpaceName(target.groupId);
@@ -263,7 +273,7 @@ function EventPanel({ target }: { target: EntryPanelTarget }) {
 
 /** 알림장·출석부. 날짜는 칸 안에서 ◀ ▶ 로 옮긴다 (칸마다 자기 날짜를 들고 있다). */
 function ClassroomPanel({ target }: { target: EntryPanelTarget }) {
-  const { closeEntryPanel } = useAppStore();
+  const { closeEntryPanel } = usePanelActions(target);
   const docked = useMinWidth(DOCK_MIN_WIDTH);
   const flushRef = useFlushRegistration();
   const spaceName = useSpaceName(target.groupId);

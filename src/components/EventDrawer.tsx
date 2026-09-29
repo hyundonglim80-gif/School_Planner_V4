@@ -13,7 +13,6 @@ import { useDayData, type EventItem } from '../hooks/useDayData';
 import { useLabels } from '../hooks/useLabels';
 import { useAppStore } from '../store/useAppStore';
 import { useGroupDelete } from '../hooks/useGroupDelete';
-import { closeAllModals } from '../hooks/useModalLayer';
 import { resolveEventLabelNames, eventDisplayContent } from '../lib/eventLabels';
 import { baseContentOf } from '../lib/eventGroups';
 import { showToast } from '../utils/toast';
@@ -278,9 +277,10 @@ export default function EventDrawer({
   if (flushRef) flushRef.current = saveIfChanged;
 
   // 좁은 화면에서 배경을 누르면: 고친 것이 있으면 저장하고 닫는다. 실패하면 닫지 않는다.
+  // 이 칸만 닫는다. 칸이 여럿 쌓여 있을 때 아래 칸까지 적던 것째 닫히면 안 된다.
   const closeByBackdrop = async () => {
     if (!(await saveIfChanged())) return;
-    closeAllModals();
+    onClose();
   };
 
   // Ctrl+S. 옆에 붙은 칸은 왼쪽 화면과 함께 쓰므로, 이 칸 안에 있을 때만 받는다.
@@ -288,7 +288,8 @@ export default function EventDrawer({
   saveRef.current = handleSave;
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (docked && !panelRef.current?.contains(document.activeElement)) return;
+      // 커서가 이 칸 안에 있을 때만. 쓰는 칸이 여럿 쌓이면(휴대폰도) 커서가 든 칸만 저장한다.
+      if (!panelRef.current?.contains(document.activeElement)) return;
       if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
         e.preventDefault();
         if (e.repeat) return;

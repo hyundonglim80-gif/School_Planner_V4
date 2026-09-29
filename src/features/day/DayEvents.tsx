@@ -34,16 +34,24 @@ export default function DayEvents({
   onUpdateEvent,
   onReorderEvents,
 }: DayEventsProps) {
-  const { openLinkViewerModal, openLabelModal, currentDate, selectedGroupId, isMultiSelectMode, selectedEventIds, toggleEventSelection, closeEntryPanel } = useAppStore();
+  const { openLinkViewerModal, openLabelModal, currentDate, selectedGroupId, isMultiSelectMode, selectedEventIds, toggleEventSelection } = useAppStore();
   const { eventLabels, getLabelColor, labelsLoaded } = useLabels();
   const formattedDate = formatDateStr(new Date(currentDate));
 
-  // 오른쪽 칸에서 고치고 있는 일정. 목록에서 어느 것인지 짚어 준다.
-  const panel = useAppStore((s) => s.entryPanel);
-  const editingId =
-    panel?.kind === 'event' && panel.dateStr === formattedDate && (panel.groupId || null) === (selectedGroupId || null)
-      ? panel.entryId
-      : undefined;
+  // 오른쪽 칸에서 고치고 있는 일정들. 목록에서 어느 것인지 짚어 준다 (칸이 여럿 쌓일 수 있다).
+  const panels = useAppStore((s) => s.entryPanels);
+  const editingIds = new Set(
+    panels
+      .filter(
+        (p) =>
+          p.kind === 'event' &&
+          p.entryId !== undefined &&
+          p.dateStr === formattedDate &&
+          (p.groupId || null) === (selectedGroupId || null)
+      )
+      .map((p) => String(p.entryId))
+  );
+  const closeEntryPanelsFor = useAppStore((s) => s.closeEntryPanelsFor);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -63,7 +71,7 @@ export default function DayEvents({
     deleteOne: async (_dateStr, id) => {
       await onDeleteEvent(id);
       // 오른쪽 칸에서 고치던 일정이면 칸도 닫는다 (없는 일정을 붙들고 있지 않게)
-      if (String(editingId) === String(id)) closeEntryPanel();
+      closeEntryPanelsFor('event', String(id));
       showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
     },
   });
@@ -142,11 +150,11 @@ export default function DayEvents({
 
       {!isCollapsed && (
         <>
-      {/* 2열 카드 (휴대폰·PC 같다). 카드마다 위 줄에 순서(▲▼)·수정/삭제, 아래에 내용. */}
-      <div className={`flex-1 overflow-y-auto pr-1 min-h-[110px] ${events.length > 0 ? 'grid grid-cols-2 gap-2 content-start' : ''}`}>
+      {/* 카드. 휴대폰은 2열, PC(sm 이상)는 1열. 카드마다 위 줄에 순서(▲▼)·수정/삭제, 아래에 내용. */}
+      <div className={`flex-1 overflow-y-auto pr-1 min-h-[110px] ${events.length > 0 ? 'grid grid-cols-2 sm:grid-cols-1 gap-2 content-start' : ''}`}>
         {events.length > 0 ? (
           events.map((event, idx) => {
-            const isEditing = editingId !== undefined && String(editingId) === String(event.id);
+            const isEditing = editingIds.has(String(event.id));
             const info = getEventLabelInfo(event);
 
             return (
@@ -158,7 +166,7 @@ export default function DayEvents({
                   else startEditing(event);
                 }}
                 title={isMultiSelectMode ? '' : '클릭하여 오른쪽 칸에서 수정'}
-                className={`group flex flex-col gap-1.5 p-2.5 rounded-xl border shadow-2xs transition-all cursor-pointer min-w-0 ${
+                className={`group flex flex-col gap-1.5 sm:flex-row sm:items-start p-2.5 sm:p-3 rounded-xl border shadow-2xs transition-all cursor-pointer min-w-0 ${
                   isMultiSelectMode ? 'hover:bg-slate-50' : ''
                 } ${
                   selectedEventIds.includes(event.id) || isEditing
@@ -168,10 +176,12 @@ export default function DayEvents({
                     : 'bg-white border-slate-200/60 hover:border-slate-300 text-slate-800'
                 }`}
               >
-                {/* 위 줄: 순서 바꾸기 · 수정/삭제 */}
+                {/* 휴대폰(2열 카드): 위 줄에 순서 바꾸기 · 수정/삭제, 아래에 내용.
+                    PC(1열): 예전처럼 한 줄 - 왼쪽 ▲▼(세로), 가운데 내용, 오른쪽 수정/삭제.
+                    PC에서는 이 줄 틀을 없는 셈 치고(sm:contents) 순서(order)로 자리를 잡는다. */}
                 {!isMultiSelectMode && (
-                  <div className="flex items-center justify-between -mt-0.5">
-                    <div className="flex items-center gap-0.5 shrink-0">
+                  <div className="flex items-center justify-between -mt-0.5 sm:contents">
+                    <div className="flex items-center gap-0.5 shrink-0 sm:flex-col sm:order-1 sm:mt-0.5">
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); if (idx > 0 && onReorderEvents) onReorderEvents(idx, idx - 1); }}
@@ -189,14 +199,16 @@ export default function DayEvents({
                         ▼
                       </button>
                     </div>
-                    <EventItemActions
-                      onEdit={() => startEditing(event)}
-                      onDelete={() => deleteEditing(event.id)}
-                    />
+                    <span className="shrink-0 sm:order-3">
+                      <EventItemActions
+                        onEdit={() => startEditing(event)}
+                        onDelete={() => deleteEditing(event.id)}
+                      />
+                    </span>
                   </div>
                 )}
 
-                <div className="min-w-0 pointer-events-auto">
+                <div className="min-w-0 pointer-events-auto sm:order-2 sm:flex-1">
                   <div className="leading-relaxed text-sm break-words">
                     {isMultiSelectMode && (
                       <input
