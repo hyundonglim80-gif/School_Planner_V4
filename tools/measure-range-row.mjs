@@ -62,9 +62,9 @@ await page.setViewportSize({ width: 1440, height: 900 });
 await page.keyboard.press('Escape');
 await page.waitForTimeout(600);
 
-// ── 링크 추가 팝업 (하루 화면의 '+ 새 일정' 안에 있다) ──
+// ── 링크 추가 팝업 (하루 화면의 일정 '+ 추가' 안에 있다) ──
 console.log('\n[링크 추가 팝업]');
-await page.getByRole('button', { name: /새 일정/ }).first().click();
+await page.getByRole('button', { name: '일정 추가' }).first().click();
 await page.waitForTimeout(400);
 await page.getByRole('button', { name: /링크 추가/ }).first().click();
 await page.waitForTimeout(2000);

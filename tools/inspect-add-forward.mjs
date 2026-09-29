@@ -66,7 +66,7 @@ for (let i = 0; i < 3; i++) { await page.getByRole('button', { name: '이전 날
 await page.waitForTimeout(2000);
 
 // 새 일정 + ToDo 라벨로 등록
-await page.getByRole('button', { name: '+ 새 일정' }).click();
+await page.getByRole('button', { name: '일정 추가' }).click();
 await page.getByPlaceholder('새로운 일정을 입력하세요...').fill(NEW);
 await page.getByRole('button', { name: 'ToDo', exact: true }).first().click();
 await page.waitForTimeout(400);

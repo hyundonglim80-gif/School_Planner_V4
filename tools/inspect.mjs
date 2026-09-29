@@ -242,7 +242,7 @@ async function run() {
   }, { settle: 600 });
 
   await step(page, s, '새 일정 추가', async () => {
-    await page.getByRole('button', { name: '+ 새 일정' }).click();
+    await page.getByRole('button', { name: '일정 추가' }).click();
     const box = page.locator('form textarea, form input[type="text"]').first();
     await box.fill('점검용 일정 — 지워도 됩니다');
     await page.keyboard.press('Enter');

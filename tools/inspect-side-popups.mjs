@@ -53,7 +53,7 @@ await page.keyboard.press('Escape');
 await page.waitForTimeout(400);
 
 // 칸 위에서 연 칸: 일정 쓰는 칸 -> 링크 추가 -> 새 일정 만들어 연결
-await page.getByRole('button', { name: /새 일정/ }).first().click();
+await page.getByRole('button', { name: '일정 추가' }).first().click();
 await page.waitForTimeout(600);
 await page.locator('#side-column aside').getByRole('button', { name: /링크 추가/ }).first().click();
 await page.waitForTimeout(1200);
@@ -118,7 +118,7 @@ const clip = (await rect(page, 'aside[aria-label="클립보드"]'))[0];
 const mainLeft = await page.$eval('main', (m) => Math.round(m.getBoundingClientRect().left));
 console.log(`  📋로 열면 왼쪽에 붙고 화면이 오른쪽으로 밀림: ${ok(clip?.left === 0 && mainLeft >= clip.w - 1)}  ${JSON.stringify(clip)}`);
 // 앱 안 Ctrl+C
-await page.getByRole('button', { name: /새 일정/ }).first().click();
+await page.getByRole('button', { name: '일정 추가' }).first().click();
 await page.waitForTimeout(600);
 const box = page.locator('#side-column').getByPlaceholder('새로운 일정을 입력하세요...');
 await box.fill('복사해 갈 문장');

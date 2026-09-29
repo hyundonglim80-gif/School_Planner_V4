@@ -210,8 +210,8 @@ if (ONLY !== 'mobile') {
 
   // ── 일정 ──
   const TXT = `점검용 일정 ${Date.now() % 100000}`;
-  await check('[일정 추가] + 새 일정 → 오른쪽 칸, 맨 위 라벨이 미리 골라짐', async () => {
-    await page.getByRole('button', { name: '+ 새 일정' }).click();
+  await check('[일정 추가] + 추가 → 오른쪽 칸, 맨 위 라벨이 미리 골라짐', async () => {
+    await page.getByRole('button', { name: '일정 추가' }).click();
     await wait(500);
     assert((await eventPanel().count()) === 1, '오른쪽에 붙은 일정 칸이 아님');
     const preset = await eventPanel().locator('button[aria-pressed="true"]').allInnerTexts();
@@ -245,7 +245,7 @@ if (ONLY !== 'mobile') {
   });
 
   await check('[일정 속성] 라벨을 고르면 그 라벨의 속성이 따라 켜짐 (이월 라벨 → 이월 체크)', async () => {
-    await page.getByRole('button', { name: '+ 새 일정' }).click();
+    await page.getByRole('button', { name: '일정 추가' }).click();
     await wait(400);
     const form = eventPanel();
     // 미리 골라진 라벨을 떼고 '이월'만 고른다
@@ -258,7 +258,7 @@ if (ONLY !== 'mobile') {
   });
 
   await check('[기간 일정] 기간을 켜면 연속 기간 등록 창, 닫으면 기간이 다시 꺼짐', async () => {
-    await page.getByRole('button', { name: '+ 새 일정' }).click();
+    await page.getByRole('button', { name: '일정 추가' }).click();
     await wait(400);
     const form = eventPanel();
     await form.locator('label', { hasText: /^기간$/ }).locator('input').check();
@@ -273,7 +273,7 @@ if (ONLY !== 'mobile') {
   });
 
   await check('[일정 알림] ⏰ 알림 추가 → 1430 입력 → 표시', async () => {
-    await page.getByRole('button', { name: '+ 새 일정' }).click();
+    await page.getByRole('button', { name: '일정 추가' }).click();
     await wait(400);
     await eventPanel().getByRole('button', { name: /알림 추가/ }).click();
     await wait(500);
@@ -386,7 +386,7 @@ if (ONLY !== 'mobile') {
   const JTXT = `점검 기록 ${Date.now() % 100000}`;
   await check('[기록] + 추가 → 배너, 라벨 미리 선택, Ctrl+S 두 번 눌러도 하나만', async () => {
     const before = Number(await page.getByRole('heading', { name: '기록', exact: true }).locator('xpath=following-sibling::span[1]').innerText());
-    await page.getByRole('button', { name: '+ 추가' }).click();
+    await page.getByRole('button', { name: '기록 추가' }).click();
     await wait(600);
     assert(await heading('새 기록').isVisible(), '배너가 열리지 않음');
     const preset = await page.locator('button', { hasText: /^✓ / }).allInnerTexts();
@@ -406,7 +406,7 @@ if (ONLY !== 'mobile') {
   });
 
   await check('[캡처 붙여넣기] 내용칸에 그림을 붙이면 업로드를 시도 (에뮬레이터에는 드라이브가 없음)', async () => {
-    await page.getByRole('button', { name: '+ 추가' }).click();
+    await page.getByRole('button', { name: '기록 추가' }).click();
     await wait(600);
     const ta = page.getByPlaceholder(/오늘 있었던 일을 기록해보세요/);
     await ta.focus();
@@ -911,7 +911,7 @@ if (ONLY !== 'mobile') {
   });
 
   await check('[누가기록] 기록에 학생 태그 넣기 → ⋮ 학생 누가기록에 기록과 출결이 모임 → 누르면 그 날로', async () => {
-    await page.getByRole('button', { name: '+ 추가' }).click();
+    await page.getByRole('button', { name: '기록 추가' }).click();
     await wait(600);
     const ta = page.getByPlaceholder(/오늘 있었던 일을 기록해보세요/);
     await ta.fill('발표를 적극적으로 함');
@@ -1159,7 +1159,7 @@ if (ONLY !== 'mobile') {
   const entryPanel = () => page.locator('aside[aria-label$="쓰기"]');
   await check('[옆 칸] 기록 추가: 화면 옆에 붙고, 왼쪽 화면을 눌러도 닫히지 않음', async () => {
     const J2 = `옆칸 기록 ${Date.now() % 10000}`;
-    await page.getByRole('button', { name: '+ 추가' }).click();
+    await page.getByRole('button', { name: '기록 추가' }).click();
     await wait(600);
     assert((await entryPanel().count()) === 1, '옆에 붙은 칸이 아님');
     const panelBox = await entryPanel().boundingBox();
@@ -1289,7 +1289,7 @@ if (ONLY !== 'mobile') {
     await page.keyboard.press('Shift+Digit1');
     await goToday();
     const P = `점검기간 ${Date.now() % 10000}`;
-    await page.getByRole('button', { name: '+ 새 일정' }).click();
+    await page.getByRole('button', { name: '일정 추가' }).click();
     await wait(500);
     await eventPanel().getByPlaceholder(EVENT_PH).fill(P);
     await eventPanel().locator('label', { hasText: /^기간$/ }).locator('input').check();
@@ -1341,7 +1341,7 @@ if (ONLY !== 'mobile') {
   // ── 찾기 · 정리 ──
   await check('[라벨 이름 바꾸기] 통합 라벨 관리에서 바꾸면 이미 붙은 일정 칩도 바뀜', async () => {
     const L = `점검라벨일정 ${Date.now() % 10000}`;
-    await page.getByRole('button', { name: '+ 새 일정' }).click();
+    await page.getByRole('button', { name: '일정 추가' }).click();
     await wait(500);
     const preset = (await eventPanel().locator('button[aria-pressed="true"]').allInnerTexts())[0];
     const box = eventPanel().getByPlaceholder(EVENT_PH);
@@ -1543,7 +1543,7 @@ if (ONLY !== 'pc') {
 
   await check('[휴대폰] 새 일정 칸은 화면을 덮고, 저장 → 닫기로 목록에 생김', async () => {
     const Q = `폰일정 ${Date.now() % 10000}`;
-    await page.getByRole('button', { name: '+ 새 일정' }).click();
+    await page.getByRole('button', { name: '일정 추가' }).click();
     await wait(800);
     assert((await eventPanel().count()) === 0, '좁은 화면인데 옆에 붙는 칸으로 열림');
     const box = page.getByPlaceholder(EVENT_PH);

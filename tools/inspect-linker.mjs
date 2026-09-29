@@ -15,7 +15,7 @@ await page.getByRole('heading', { name: '일정' }).waitFor({ timeout: 40000 });
 await page.waitForTimeout(4000);
 
 // 일정 하나를 펼쳐 링크 추가로 들어간다
-await page.getByRole('button', { name: '+ 새 일정' }).click();
+await page.getByRole('button', { name: '일정 추가' }).click();
 await page.getByPlaceholder('새로운 일정을 입력하세요...').fill('링커 점검용 일정');
 await page.getByRole('button', { name: '저장', exact: true }).click();
 await page.waitForTimeout(2500);

@@ -208,9 +208,9 @@ describe('DayEvents - 일정을 누르면 오른쪽 칸에서 고친다', () => 
   });
 });
 
-describe('DayEvents - + 새 일정도 오른쪽 칸에서', () => {
+describe('DayEvents - + 추가(새 일정)도 오른쪽 칸에서', () => {
   const openCreate = async (user: ReturnType<typeof userEvent.setup>) => {
-    await user.click(screen.getByRole('button', { name: /새 일정/ }));
+    await user.click(screen.getByRole('button', { name: '일정 추가' }));
     await screen.findByRole('heading', { name: '새 일정' });
   };
 
@@ -304,7 +304,7 @@ describe('DayEvents - 기간 속성', () => {
   it("새 일정에서 '기간'을 켜면 적던 내용을 가지고 기간을 정하는 칸이 뜬다", async () => {
     const user = userEvent.setup();
     renderEvents([]);
-    await user.click(screen.getByRole('button', { name: /새 일정/ }));
+    await user.click(screen.getByRole('button', { name: '일정 추가' }));
     await user.type(await screen.findByPlaceholderText(/새로운 일정/), '여름방학');
 
     await turnOnPeriod(user);
@@ -318,7 +318,7 @@ describe('DayEvents - 기간 속성', () => {
   it('기간을 정하지 않고 닫으면 체크도 다시 풀린다', async () => {
     const user = userEvent.setup();
     renderEvents([]);
-    await user.click(screen.getByRole('button', { name: /새 일정/ }));
+    await user.click(screen.getByRole('button', { name: '일정 추가' }));
     await screen.findByRole('heading', { name: '새 일정' });
 
     const periodBox = await turnOnPeriod(user);

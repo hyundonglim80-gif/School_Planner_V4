@@ -40,14 +40,14 @@ async function check(label, open, heading) {
   }
 }
 
-await check('새 일정', () => page.getByRole('button', { name: /새 일정/ }).first().click(), /새 일정|일정 수정/);
-await check('새 일정 다시', () => page.getByRole('button', { name: /새 일정/ }).first().click(), /새 일정|일정 수정/);
+await check('새 일정', () => page.getByRole('button', { name: '일정 추가' }).first().click(), /새 일정|일정 수정/);
+await check('새 일정 다시', () => page.getByRole('button', { name: '일정 추가' }).first().click(), /새 일정|일정 수정/);
 
 // 옆에 붙은 칸(768px 이상)에서만 왼쪽 화면을 누를 수 있다
 if (Number(process.env.W || 390) >= 768) {
 console.log('\n[칸을 연 채 다른 일정을 열고, 닫기 단추로 닫는다]');
 const len0 = await page.evaluate(() => history.length);
-await page.getByRole('button', { name: /새 일정/ }).first().click();
+await page.getByRole('button', { name: '일정 추가' }).first().click();
 await page.waitForTimeout(600);
 await page.getByTitle('일정 수정').first().click();
 await page.waitForTimeout(1200);

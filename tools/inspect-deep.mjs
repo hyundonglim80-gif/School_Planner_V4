@@ -136,7 +136,7 @@ async function run() {
 
   const shared = '공유 점검용 일정 ' + Date.now().toString(36).slice(-4);
   if (await switchToGroup(A, 'A')) {
-    await A.getByRole('button', { name: '+ 새 일정' }).click();
+    await A.getByRole('button', { name: '일정 추가' }).click();
     await A.locator('form textarea, form input[type="text"]').first().fill(shared);
     // ⚠️ Enter를 누르지 말 것. 일정 칸은 textarea라 줄바꿈만 들어가고 저장이 안 된다.
     //    예전 하네스는 이걸로 '저장했다'고 믿고 'B에게 안 보인다'는 엉뚱한 결론을 냈다.
@@ -242,7 +242,7 @@ async function run() {
   await A.waitForTimeout(2500);
 
   const mark = '휴지통 점검용 ' + Date.now().toString(36).slice(-4);
-  await A.getByRole('button', { name: '+ 새 일정' }).click();
+  await A.getByRole('button', { name: '일정 추가' }).click();
   await A.locator('form textarea, form input[type="text"]').first().fill(mark);
   await A.getByRole('button', { name: '저장', exact: true }).first().click();
   await A.waitForTimeout(3000);

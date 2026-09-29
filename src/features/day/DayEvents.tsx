@@ -101,8 +101,9 @@ export default function DayEvents({
   return (
     <>
     <div className={`bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 flex flex-col ${isCollapsed ? '' : 'h-full'}`}>
-      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isCollapsed ? '' : 'mb-4'}`}>
-        <div className="flex items-center gap-2">
+      {/* 머리줄: ▼ 📅 일정 8 [+ 추가] ……… ⚙️  (기록 칸과 같은 배치) */}
+      <div className={`flex items-center justify-between gap-2 ${isCollapsed ? '' : 'mb-4'}`}>
+        <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
             onClick={() => setIsCollapsed(!isCollapsed)}
@@ -116,30 +117,33 @@ export default function DayEvents({
           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
             {events.length}
           </span>
-          <button
-            type="button"
-            onClick={() => openLabelModal('event')}
-            className="w-6 h-6 flex items-center justify-center rounded-md text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
-            title="일정 라벨 설정"
-            aria-label="일정 라벨 설정"
-          >
-            ⚙️
-          </button>
+          {!isCollapsed && (
+            <button
+              onClick={openCreate}
+              aria-label="일정 추가"
+              title="일정 추가 (오른쪽 칸)"
+              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors shrink-0"
+            >
+              + 추가
+            </button>
+          )}
         </div>
-        
-        {!isCollapsed && (
-          <button
-            onClick={openCreate}
-            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
-          >
-            + 새 일정
-          </button>
-        )}
+
+        <button
+          type="button"
+          onClick={() => openLabelModal('event')}
+          className="w-7 h-7 flex items-center justify-center rounded-md text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+          title="일정 라벨 설정"
+          aria-label="일정 라벨 설정"
+        >
+          ⚙️
+        </button>
       </div>
 
       {!isCollapsed && (
         <>
-      <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[110px]">
+      {/* 2열 카드 (휴대폰·PC 같다). 카드마다 위 줄에 순서(▲▼)·수정/삭제, 아래에 내용. */}
+      <div className={`flex-1 overflow-y-auto pr-1 min-h-[110px] ${events.length > 0 ? 'grid grid-cols-2 gap-2 content-start' : ''}`}>
         {events.length > 0 ? (
           events.map((event, idx) => {
             const isEditing = editingId !== undefined && String(editingId) === String(event.id);
@@ -154,7 +158,7 @@ export default function DayEvents({
                   else startEditing(event);
                 }}
                 title={isMultiSelectMode ? '' : '클릭하여 오른쪽 칸에서 수정'}
-                className={`group flex items-start justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                className={`group flex flex-col gap-1.5 p-2.5 rounded-xl border shadow-2xs transition-all cursor-pointer min-w-0 ${
                   isMultiSelectMode ? 'hover:bg-slate-50' : ''
                 } ${
                   selectedEventIds.includes(event.id) || isEditing
@@ -164,9 +168,10 @@ export default function DayEvents({
                     : 'bg-white border-slate-200/60 hover:border-slate-300 text-slate-800'
                 }`}
               >
-                <div className="flex-1 min-w-0 pointer-events-auto flex items-start">
-                  {!isMultiSelectMode && (
-                    <div className="flex flex-col items-center gap-0.5 shrink-0 px-0.5 mr-1.5 mt-0.5">
+                {/* 위 줄: 순서 바꾸기 · 수정/삭제 */}
+                {!isMultiSelectMode && (
+                  <div className="flex items-center justify-between -mt-0.5">
+                    <div className="flex items-center gap-0.5 shrink-0">
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); if (idx > 0 && onReorderEvents) onReorderEvents(idx, idx - 1); }}
@@ -184,9 +189,15 @@ export default function DayEvents({
                         ▼
                       </button>
                     </div>
-                  )}
+                    <EventItemActions
+                      onEdit={() => startEditing(event)}
+                      onDelete={() => deleteEditing(event.id)}
+                    />
+                  </div>
+                )}
 
-                  <div className="leading-relaxed text-sm break-words flex-1">
+                <div className="min-w-0 pointer-events-auto">
+                  <div className="leading-relaxed text-sm break-words">
                     {isMultiSelectMode && (
                       <input
                         type="checkbox"
@@ -277,13 +288,6 @@ export default function DayEvents({
                     )}
                   </div>
                 </div>
-
-                {!isMultiSelectMode && (
-                  <EventItemActions
-                    onEdit={() => startEditing(event)}
-                    onDelete={() => deleteEditing(event.id)}
-                  />
-                )}
               </div>
             );
           })
@@ -291,7 +295,7 @@ export default function DayEvents({
           <div className="flex flex-col items-center justify-center py-10 text-center text-slate-400 text-xs">
             <span className="text-3xl mb-2">📋</span>
             <p>오늘의 일정이 없습니다.</p>
-            <p className="mt-1 text-slate-400">+ 새 일정 버튼을 눌러 추가해보세요.</p>
+            <p className="mt-1 text-slate-400">+ 추가 버튼을 눌러 일정을 넣어 보세요.</p>
           </div>
         )}
       </div>

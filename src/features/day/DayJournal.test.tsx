@@ -59,7 +59,7 @@ describe('DayJournal - 기록 추가/수정 배너', () => {
     const user = userEvent.setup();
     renderJournal();
 
-    await user.click(screen.getByRole('button', { name: /추가/ }));
+    await user.click(screen.getByRole('button', { name: '기록 추가' }));
 
     expect(await screen.findByRole('heading', { name: '새 기록' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/기록/)).toBeInTheDocument();
@@ -98,7 +98,7 @@ describe('DayJournal - 기록 추가/수정 배너', () => {
     const user = userEvent.setup();
     renderJournal();
 
-    await user.click(screen.getByRole('button', { name: /추가/ }));
+    await user.click(screen.getByRole('button', { name: '기록 추가' }));
 
     expect(await screen.findByText(/Ctrl \+ S/)).toBeInTheDocument();
     expect(screen.queryByText(/Ctrl \+ Enter/)).toBeNull();
@@ -217,7 +217,7 @@ describe('DayJournal - 라벨 칩과 필터', () => {
     const user = userEvent.setup();
     const { props } = renderJournal([]);
 
-    await user.click(screen.getByRole('button', { name: /추가/ }));
+    await user.click(screen.getByRole('button', { name: '기록 추가' }));
     await user.type(await screen.findByPlaceholderText(/기록/), '라벨 없는 기록');
 
     // 미리 골라져 있는 라벨을 해제한다
@@ -282,7 +282,7 @@ describe('DayJournal - 배너 버튼과 닫기', () => {
     const { props } = renderJournal([], onAddJournal);
     const onUpdateJournal = props.onUpdateJournal;
 
-    await user.click(screen.getByRole('button', { name: /추가/ }));
+    await user.click(screen.getByRole('button', { name: '기록 추가' }));
     await user.type(await screen.findByPlaceholderText(/기록/), '두 번 저장');
 
     await user.click(screen.getByRole('button', { name: '저장' }));

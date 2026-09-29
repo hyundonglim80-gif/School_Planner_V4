@@ -148,7 +148,8 @@ export default function DayJournal({
 
   // 칸 수는 창 폭이 아니라 본문 폭으로 정한다. 오른쪽 칸이 열려 본문이 좁아지면 줄인다.
   const mainWidth = useMainWidth();
-  const columnsCount = mainWidth >= 980 ? 4 : mainWidth >= 720 ? 3 : mainWidth >= 600 ? 2 : 1;
+  // 휴대폰에서도 2열 (일정 칸과 같게). 넓으면 3·4열.
+  const columnsCount = mainWidth >= 980 ? 4 : mainWidth >= 720 ? 3 : 2;
 
   // 필터 적용된 리스트
   const filteredJournals = currentFilter === '전체'
@@ -171,9 +172,9 @@ export default function DayJournal({
       {/* 조사표 표식은 만들어 둔 것이 없으면 마우스를 올렸을 때만 나온다.
           그 group-hover가 걸릴 자리가 여기다. */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 group">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-
-          <div className="flex flex-wrap items-center gap-3 flex-1">
+        {/* 머리줄: ▼ 📔 기록 N [+ 추가] 📊 · 라벨 거르개 ……… ⚙️  (일정 칸과 같은 배치)
+            휴대폰에서는 ⚙️가 제목 줄 오른쪽 끝에 남고, 거르개는 아랫줄로 내려간다. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
@@ -188,15 +189,16 @@ export default function DayJournal({
               <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
                 {journals.length}
               </span>
-              <button
-                type="button"
-                onClick={() => openLabelModal('journal')}
-                className="w-6 h-6 flex items-center justify-center rounded-md text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
-                title="기록 라벨 설정"
-                aria-label="기록 라벨 설정"
-              >
-                ⚙️
-              </button>
+              {!isCollapsed && (
+                <button
+                  onClick={openCreate}
+                  aria-label="기록 추가"
+                  title="기록 추가 (오른쪽 칸)"
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors shrink-0"
+                >
+                  + 추가
+                </button>
+              )}
               {/* 기록 칸에 붙은 조사표. 만들어 둔 것이 있을 때만 보인다. */}
               <button
                 type="button"
@@ -212,9 +214,19 @@ export default function DayJournal({
               </button>
             </div>
 
+            <button
+              type="button"
+              onClick={() => openLabelModal('journal')}
+              className="order-2 sm:order-3 ml-auto w-7 h-7 flex items-center justify-center rounded-md text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+              title="기록 라벨 설정"
+              aria-label="기록 라벨 설정"
+            >
+              ⚙️
+            </button>
+
             {/* 라벨 필터 바 */}
             {!isCollapsed && journals.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="order-3 sm:order-2 w-full sm:w-auto sm:flex-1 flex flex-wrap items-center gap-1.5">
                 <button
                   onClick={() => setCurrentFilter('전체')}
                   className={`px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm ${
@@ -240,19 +252,6 @@ export default function DayJournal({
                 ))}
               </div>
             )}
-          </div>
-
-          {/* 우측 상단 버튼 - 메모처럼 오른쪽 배너를 연다 */}
-          {!isCollapsed && (
-            <div className="flex items-center shrink-0">
-              <button
-                onClick={openCreate}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
-              >
-                + 추가
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
