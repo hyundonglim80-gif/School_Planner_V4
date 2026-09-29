@@ -42,6 +42,7 @@ import EntryPanelHost, { DOCK_MIN_WIDTH, openEntryPanel } from './EntryPanelHost
 import { useSidePopups, RIGHT_COLUMN_CSS_WIDTH } from './PopupFrame';
 import ClipboardPanel, { useClipboardCapture, LEFT_COLUMN_CSS_WIDTH } from './ClipboardPanel';
 import ColumnResizer from './ColumnResizer';
+import { purgeExpiredTrashDaily } from '../lib/trashRetention';
 import { MainWidthContext } from '../hooks/useMainWidth';
 import { useMinWidth } from '../hooks/useMinWidth';
 import { useGlobalGestures } from '../hooks/useGlobalGestures';
@@ -139,6 +140,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       setSelectedGroupId(null);
     }
   }, [groupsLoading, groups, selectedGroupId, setSelectedGroupId]);
+
+  // 휴지통 자동 비우기 (환경설정에서 기간을 정했을 때만, 하루 한 번)
+  useEffect(() => {
+    if (user?.uid) void purgeExpiredTrashDaily(user.uid);
+  }, [user?.uid]);
 
   useGlobalGestures();
   // 검색에서 '이동'한 항목을 찾아 스크롤하고 강조한다

@@ -125,8 +125,8 @@ function ClipRow({ item }: { item: ClipItem }) {
         type="button"
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => void removeClip(item.id)}
-        title="이 항목 지우기"
-        aria-label="이 항목 지우기"
+        title="휴지통으로 (휴지통에서 되살릴 수 있다)"
+        aria-label="이 항목 휴지통으로"
         className="absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
       >
         ✕
@@ -220,7 +220,7 @@ export default function ClipboardPanel() {
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
-                if (window.confirm(`클립보드 목록 ${items.length}개를 모두 지울까요?`)) void clearClips();
+                if (window.confirm(`클립보드 목록 ${items.length}개를 모두 휴지통으로 옮길까요?`)) void clearClips();
               }}
               className="px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-500 text-2xs font-bold hover:bg-slate-200 cursor-pointer"
             >

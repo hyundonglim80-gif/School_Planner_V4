@@ -3,7 +3,8 @@ import { db, auth } from '../lib/firebase';
 
 export interface TrashItem {
   id: string; // The original ID of the item
-  type: 'event' | 'journal' | 'memo' | 'schedule' | 'dday' | 'eval' | 'roster' | 'label' | 'template'; // Type of item
+  /** clip: 클립보드 항목. 계정이 아니라 이 기기(IndexedDB)의 휴지통에 있다 (lib/clipboardHistory). */
+  type: 'event' | 'journal' | 'memo' | 'schedule' | 'dday' | 'eval' | 'roster' | 'label' | 'template' | 'clip'; // Type of item
   deletedAt: number; // Timestamp of deletion
   originalDateStr?: string; // The date string it belonged to (e.g., '2026-09-07')
   /** V3가 읽는 이름. originalDateStr와 같은 값을 함께 쓴다. */

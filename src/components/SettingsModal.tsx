@@ -12,6 +12,7 @@ import type { PopupStyle } from '../lib/preferenceSync';
 import React, { useState, useEffect } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
 import { auth, db } from '../lib/firebase';
+import { TRASH_RETENTION_OPTIONS, loadTrashRetention, saveTrashRetention, type TrashRetentionDays } from '../lib/trashRetention';
 import { collection, doc, getDoc, getDocFromServer, getDocs, setDoc } from 'firebase/firestore';
 import { useAppStore } from '../store/useAppStore';
 import type { StartupScope } from '../store/useAppStore';
@@ -120,6 +121,25 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const fontScale = useAppStore((s) => s.fontScale);
   const setFontScale = useAppStore((s) => s.setFontScale);
   // 팝업 모양도 고르는 즉시 바뀐다 (이 창부터 바로 옮겨 가 보인다)
+  // 휴지통 자동 비우기 기간. 계정에 하나(lib/trashRetention) - 고르는 즉시 저장한다.
+  const [trashDays, setTrashDays] = useState<TrashRetentionDays | null>(null);
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (isOpen && uid) void loadTrashRetention(uid).then(setTrashDays);
+  }, [isOpen]);
+  const chooseTrashDays = async (days: TrashRetentionDays) => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    const before = trashDays;
+    setTrashDays(days);
+    try {
+      await saveTrashRetention(uid, days);
+      showToast(days > 0 ? `🗑️ 지운 지 ${days}일이 지난 항목은 자동으로 비웁니다.` : '🗑️ 휴지통 자동 비우기를 껐습니다.');
+    } catch {
+      setTrashDays(before);
+      showErrorToast('저장하지 못했습니다. 잠시 뒤 다시 골라 주세요.');
+    }
+  };
   const popupStyle = useAppStore((s) => s.popupStyle);
   const setPopupStyle = useAppStore((s) => s.setPopupStyle);
   const shortcutOverrides = useAppStore((s) => s.shortcutOverrides);
@@ -610,6 +630,29 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 }`}
               >
                 {opt.label}
+              </button>
+            ))}
+          </div>
+        </Section>
+
+        <Section
+          title="휴지통 자동 비우기"
+          desc="고른 기간이 지난 휴지통 항목을 영구 삭제합니다. 고르는 즉시 저장되고, PC·휴대폰이 같은 값을 씁니다. 앱을 열 때와 휴지통을 열 때 비웁니다. 휴지통에서 '휴지통 비우기'로 바로 지울 수도 있습니다."
+        >
+          <div className="flex flex-wrap gap-1.5">
+            {TRASH_RETENTION_OPTIONS.map((d) => (
+              <button
+                key={d}
+                onClick={() => void chooseTrashDays(d)}
+                disabled={trashDays === null}
+                aria-pressed={trashDays === d}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all disabled:opacity-50 ${
+                  trashDays === d
+                    ? 'bg-primary text-white border-primary shadow-xs'
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-primary hover:text-primary'
+                }`}
+              >
+                {d === 0 ? '끄기' : `${d}일`}
               </button>
             ))}
           </div>

@@ -24,7 +24,7 @@ function setWidth(px: number) {
 }
 
 beforeEach(() => {
-  useClipboardHistory.setState({ items: [], loaded: true });
+  useClipboardHistory.setState({ items: [], trash: [], loaded: true });
   useAppStore.setState({ clipboardOpen: false });
   setWidth(1280);
 });

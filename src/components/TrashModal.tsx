@@ -7,6 +7,8 @@ import { collectUploadUrls, deleteUnreferencedUploads } from '../utils/storageCl
 import { formatV3EventText } from '../hooks/useDayData';
 import { syncAutoSourceAndTell } from '../lib/autoJournalSync';
 import PopupFrame from './PopupFrame';
+import { deleteClipTrash, listClipTrash, restoreClipFromTrash } from '../lib/clipboardHistory';
+import { loadTrashRetention, purgeExpiredTrash } from '../lib/trashRetention';
 import { ModalCloseButton } from './ModalShell';
 
 interface TrashModalProps {
@@ -24,7 +26,19 @@ const TYPE_LABELS: Record<string, string> = {
   roster: '명단',
   label: '라벨',
   template: '시간표',
+  clip: '클립보드',
 };
+
+/** 클립보드 휴지통 항목은 계정 휴지통과 id가 겹치지 않게 앞에 붙인다 */
+const CLIP_PREFIX = 'clip:';
+const isClip = (item: TrashItem) => item.type === 'clip';
+const clipIdOf = (item: TrashItem) => item.id.slice(CLIP_PREFIX.length);
+
+/** 영구 삭제: 클립보드 항목은 이 기기에서, 나머지는 계정 휴지통에서 */
+async function deleteTrashItem(item: TrashItem) {
+  if (isClip(item)) await deleteClipTrash([clipIdOf(item)]);
+  else await deleteFromTrash(item.id);
+}
 
 export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
   const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
@@ -32,6 +46,8 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
+  /** 자동 비우기 기간(일). 0이면 꺼짐. 환경설정에서 정한다. */
+  const [retentionDays, setRetentionDays] = useState(0);
 
   useEffect(() => {
     if (isOpen) {
@@ -45,12 +61,28 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
     setLoading(true);
     setSelectedIds(new Set());
     try {
+      // 기간이 지난 것부터 비운다 (앱을 열 때 하루 한 번도 돌지만, 휴지통을 열면 바로 맞춘다)
+      const days = await loadTrashRetention(user.uid);
+      setRetentionDays(days);
+      if (days > 0) await purgeExpiredTrash(user.uid, days).catch(console.warn);
+
       const q = query(collection(db, 'users', user.uid, 'trash'), orderBy('deletedAt', 'desc'));
       const snap = await getDocs(q);
       const items: TrashItem[] = [];
       snap.forEach(doc => {
         items.push(doc.data() as TrashItem);
       });
+      // 이 기기의 클립보드 휴지통도 함께 보여 준다
+      for (const c of await listClipTrash()) {
+        items.push({
+          id: CLIP_PREFIX + c.id,
+          type: 'clip',
+          deletedAt: c.deletedAt,
+          content: c.kind === 'image' ? '🖼️ 그림' : c.text || '',
+          data: null,
+        });
+      }
+      items.sort((a, b) => b.deletedAt - a.deletedAt);
       setTrashItems(items);
     } catch (err) {
       console.error('Failed to fetch trash', err);
@@ -65,6 +97,11 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
     if (!user) return;
 
     // 💡 V3는 같은 문서를 dateStr 이라는 이름으로 쓴다. 둘 다 받아준다.
+    if (isClip(item)) {
+      await restoreClipFromTrash(clipIdOf(item));
+      return;
+    }
+
     const { type, fId, data } = item;
     const originalDateStr = item.originalDateStr || (item as any).dateStr;
     const isGroup = fId && fId !== 'personal';
@@ -191,7 +228,7 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
     try {
       // 문서를 지우기 전에 첨부 URL을 모아 둔다
       const uploadUrls = collectUploadUrls(item.data);
-      await deleteFromTrash(item.id);
+      await deleteTrashItem(item);
       // 살아 있는 곳에서 더 이상 쓰지 않는 파일만 Storage에서 정리한다
       const uid = auth.currentUser?.uid;
       if (uid && uploadUrls.length > 0) {
@@ -268,7 +305,7 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
     for (const item of targets) {
       try {
         uploadUrls.push(...collectUploadUrls(item.data));
-        await deleteFromTrash(item.id);
+        await deleteTrashItem(item);
         deletedIds.push(item.id);
       } catch (err) {
         console.error('일괄 삭제 실패:', item.id, err);
@@ -287,6 +324,33 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
     showToast(`${deletedIds.length}개 항목을 영구 삭제했습니다.`);
   };
 
+  // 휴지통 비우기: 지금 들어 있는 것을 모두 영구 삭제한다 (기간을 기다리지 않고 바로)
+  const handleEmptyTrash = async () => {
+    if (trashItems.length === 0 || bulkProcessing) return;
+    if (!window.confirm(`휴지통의 ${trashItems.length}개 항목을 모두 영구 삭제하시겠습니까? 복구할 수 없습니다.`)) return;
+
+    setBulkProcessing(true);
+    const uploadUrls: string[] = [];
+    const deletedIds: string[] = [];
+    for (const item of trashItems) {
+      try {
+        uploadUrls.push(...collectUploadUrls(item.data));
+        await deleteTrashItem(item);
+        deletedIds.push(item.id);
+      } catch (err) {
+        console.error('휴지통 비우기 실패:', item.id, err);
+      }
+    }
+    const uid = auth.currentUser?.uid;
+    if (uid && uploadUrls.length > 0) {
+      deleteUnreferencedUploads(uploadUrls, uid).catch(console.warn);
+    }
+    setTrashItems(prev => prev.filter(t => !deletedIds.includes(t.id)));
+    setSelectedIds(new Set());
+    setBulkProcessing(false);
+    showToast(`휴지통을 비웠습니다 (${deletedIds.length}개 영구 삭제).`);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -299,6 +363,27 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
             title="닫기" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200">
             ✕
           </button>
+        </div>
+
+        {/* 자동 비우기 안내와 지금 비우기 */}
+        <div className="px-4 py-2 border-b bg-amber-50/60 flex items-center justify-between gap-2 flex-wrap text-xs">
+          <span className="text-slate-600">
+            {retentionDays > 0 ? (
+              <>🕒 지운 지 <b>{retentionDays}일</b>이 지난 항목은 자동으로 영구 삭제됩니다.</>
+            ) : (
+              <>🕒 자동 비우기 꺼짐 - 직접 지우기 전까지 남아 있습니다.</>
+            )}
+            <span className="text-slate-400"> (환경설정에서 바꿈)</span>
+          </span>
+          {trashItems.length > 0 && (
+            <button
+              onClick={handleEmptyTrash}
+              disabled={bulkProcessing}
+              className="px-3 py-1.5 bg-red-600 text-white hover:bg-red-700 font-bold text-xs rounded-lg transition-colors disabled:opacity-40"
+            >
+              휴지통 비우기
+            </button>
+          )}
         </div>
 
         {trashItems.length > 0 && (
@@ -357,7 +442,7 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
                       <span className="font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
                         {TYPE_LABELS[item.type] || item.type}
                       </span>
-                      <span>{item.originalDateStr || (item as any).dateStr || '날짜 없음'}</span>
+                      <span>{isClip(item) ? '이 기기' : item.originalDateStr || (item as any).dateStr || '날짜 없음'}</span>
                       <span>•</span>
                       <span>{new Date(item.deletedAt).toLocaleString()} 삭제됨</span>
                     </div>

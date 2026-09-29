@@ -36,16 +36,27 @@ export const MAX_IMAGES = 30;
 /** 너무 긴 글자는 담지 않는다 (책 한 권을 복사한 경우 등) */
 const MAX_TEXT = 200_000;
 
+/** 휴지통에 든 클립보드 항목. 이 기기에만 있다 (계정 휴지통에 올리지 않는다 - 비밀번호·캡처가 지나간다). */
+export interface ClipTrashItem extends ClipItem {
+  deletedAt: number;
+}
+
+/** 클립보드 휴지통도 끝없이 쌓지 않는다. 그림은 커서 따로 적게 둔다. */
+const MAX_TRASH = 200;
+const MAX_TRASH_IMAGES = 60;
+
 interface ClipState {
   items: ClipItem[];
+  trash: ClipTrashItem[];
   loaded: boolean;
 }
 
-export const useClipboardHistory = create<ClipState>(() => ({ items: [], loaded: false }));
+export const useClipboardHistory = create<ClipState>(() => ({ items: [], trash: [], loaded: false }));
 
 // ── IndexedDB ──────────────────────────────────────────────
 const DB_NAME = 'sp4-clipboard';
 const STORE = 'items';
+const TRASH_STORE = 'trash';
 let dbPromise: Promise<IDBDatabase | null> | null = null;
 
 function openDb(): Promise<IDBDatabase | null> {
@@ -53,9 +64,11 @@ function openDb(): Promise<IDBDatabase | null> {
   dbPromise = new Promise((resolve) => {
     try {
       if (typeof indexedDB === 'undefined') return resolve(null);
-      const req = indexedDB.open(DB_NAME, 1);
+      // 2판: 지운 항목을 담는 휴지통 칸을 더했다
+      const req = indexedDB.open(DB_NAME, 2);
       req.onupgradeneeded = () => {
         if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE, { keyPath: 'id' });
+        if (!req.result.objectStoreNames.contains(TRASH_STORE)) req.result.createObjectStore(TRASH_STORE, { keyPath: 'id' });
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => resolve(null);
@@ -66,13 +79,17 @@ function openDb(): Promise<IDBDatabase | null> {
   return dbPromise;
 }
 
-async function dbRun(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => void): Promise<void> {
+async function dbRun(
+  mode: IDBTransactionMode,
+  fn: (store: IDBObjectStore) => void,
+  storeName: string = STORE
+): Promise<void> {
   const db = await openDb();
   if (!db) return;
   await new Promise<void>((resolve) => {
     try {
-      const tx = db.transaction(STORE, mode);
-      fn(tx.objectStore(STORE));
+      const tx = db.transaction(storeName, mode);
+      fn(tx.objectStore(storeName));
       tx.oncomplete = () => resolve();
       tx.onerror = () => resolve();
       tx.onabort = () => resolve();
@@ -83,26 +100,31 @@ async function dbRun(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => vo
 }
 
 /** 저장해 둔 목록을 읽는다. 처음 한 번만. */
+async function readAll<T>(storeName: string): Promise<T[]> {
+  const db = await openDb();
+  if (!db) return [];
+  return new Promise<T[]>((resolve) => {
+    try {
+      const req = db.transaction(storeName, 'readonly').objectStore(storeName).getAll();
+      req.onsuccess = () => resolve((req.result as T[]) || []);
+      req.onerror = () => resolve([]);
+    } catch {
+      resolve([]);
+    }
+  });
+}
+
+/** 저장해 둔 목록과 휴지통을 읽는다. 처음 한 번만. */
 export async function loadClipboardHistory(): Promise<void> {
   if (useClipboardHistory.getState().loaded) return;
-  const db = await openDb();
-  let items: ClipItem[] = [];
-  if (db) {
-    items = await new Promise<ClipItem[]>((resolve) => {
-      try {
-        const req = db.transaction(STORE, 'readonly').objectStore(STORE).getAll();
-        req.onsuccess = () => resolve((req.result as ClipItem[]) || []);
-        req.onerror = () => resolve([]);
-      } catch {
-        resolve([]);
-      }
-    });
-  }
+  const [items, trash] = await Promise.all([readAll<ClipItem>(STORE), readAll<ClipTrashItem>(TRASH_STORE)]);
   // 읽는 사이에 새로 담긴 것이 있으면 합친다
-  const current = useClipboardHistory.getState().items;
-  const merged = [...current, ...items.filter((it) => !current.some((c) => c.key === it.key))];
+  const cur = useClipboardHistory.getState();
+  const merged = [...cur.items, ...items.filter((it) => !cur.items.some((c) => c.key === it.key))];
   merged.sort((a, b) => b.createdAt - a.createdAt);
-  useClipboardHistory.setState({ items: merged, loaded: true });
+  const mergedTrash = [...cur.trash, ...trash.filter((t) => !cur.trash.some((c) => c.id === t.id))];
+  mergedTrash.sort((a, b) => b.deletedAt - a.deletedAt);
+  useClipboardHistory.setState({ items: merged, trash: mergedTrash, loaded: true });
 }
 
 // ── 담기 ───────────────────────────────────────────────────
@@ -159,16 +181,79 @@ export async function addClipImage(blob: Blob): Promise<void> {
   await put({ kind: 'image', blob, key: `i:${await hashBlob(blob)}` });
 }
 
+// ── 지우기 = 휴지통으로 ────────────────────────────────────
+/** 목록에서 빼서 휴지통에 넣는다. 휴지통이 넘치면 오래된 것부터 영구 삭제한다. */
+async function moveClipsToTrash(ids: string[]): Promise<void> {
+  const { items, trash } = useClipboardHistory.getState();
+  const now = Date.now();
+  const moved: ClipTrashItem[] = items.filter((it) => ids.includes(it.id)).map((it) => ({ ...it, deletedAt: now }));
+  if (moved.length === 0) return;
+
+  let nextTrash = [...moved, ...trash];
+  const dropped: ClipTrashItem[] = [];
+  let images = 0;
+  nextTrash = nextTrash.filter((t) => {
+    if (t.kind === 'image' && ++images > MAX_TRASH_IMAGES) {
+      dropped.push(t);
+      return false;
+    }
+    return true;
+  });
+  while (nextTrash.length > MAX_TRASH) dropped.push(nextTrash.pop()!);
+
+  useClipboardHistory.setState({ items: items.filter((it) => !ids.includes(it.id)), trash: nextTrash });
+  await dbRun('readwrite', (store) => ids.forEach((id) => store.delete(id)));
+  await dbRun(
+    'readwrite',
+    (store) => {
+      moved.forEach((t) => store.put(t));
+      dropped.forEach((t) => store.delete(t.id));
+    },
+    TRASH_STORE
+  );
+}
+
 export async function removeClip(id: string): Promise<void> {
-  useClipboardHistory.setState((s) => ({ items: s.items.filter((it) => it.id !== id) }));
   void markSystemClipboardSeen();
-  await dbRun('readwrite', (store) => store.delete(id));
+  await moveClipsToTrash([id]);
 }
 
 export async function clearClips(): Promise<void> {
-  useClipboardHistory.setState({ items: [] });
   void markSystemClipboardSeen();
-  await dbRun('readwrite', (store) => store.clear());
+  await moveClipsToTrash(useClipboardHistory.getState().items.map((it) => it.id));
+}
+
+/** 휴지통에 든 클립보드 항목 (최근에 지운 것이 앞) */
+export async function listClipTrash(): Promise<ClipTrashItem[]> {
+  await loadClipboardHistory();
+  return useClipboardHistory.getState().trash;
+}
+
+/** 휴지통에서 되살린다. 복사했던 때의 자리로 돌아간다(같은 것이 이미 목록에 있으면 그것을 둔다). */
+export async function restoreClipFromTrash(id: string): Promise<void> {
+  const { items, trash } = useClipboardHistory.getState();
+  const t = trash.find((x) => x.id === id);
+  if (!t) return;
+  const { deletedAt: _deletedAt, ...item } = t;
+  const exists = items.some((it) => it.key === item.key);
+  const nextItems = exists ? items : [...items, item].sort((a, b) => b.createdAt - a.createdAt);
+  useClipboardHistory.setState({ items: nextItems, trash: trash.filter((x) => x.id !== id) });
+  await dbRun('readwrite', (store) => store.delete(id), TRASH_STORE);
+  if (!exists) await dbRun('readwrite', (store) => store.put(item));
+}
+
+/** 휴지통에서 영구 삭제한다 */
+export async function deleteClipTrash(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  useClipboardHistory.setState((s) => ({ trash: s.trash.filter((t) => !ids.includes(t.id)) }));
+  await dbRun('readwrite', (store) => ids.forEach((id) => store.delete(id)), TRASH_STORE);
+}
+
+/** cutoff(ms)보다 먼저 지운 것을 영구 삭제한다. 지운 개수를 돌려준다. */
+export async function purgeClipTrash(cutoff: number): Promise<number> {
+  const old = (await listClipTrash()).filter((t) => t.deletedAt < cutoff).map((t) => t.id);
+  await deleteClipTrash(old);
+  return old.length;
 }
 
 // ── 시스템 클립보드 읽기 ───────────────────────────────────
