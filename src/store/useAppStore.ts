@@ -58,6 +58,11 @@ interface AppState {
    * 'center'는 예전처럼 화면 가운데에 어둡게 덮어 띄운다. 계정에도 저장된다.
    */
   popupStyle: PopupStyle;
+  /** 오른쪽·왼쪽 줄의 폭(px). 경계선을 끌어 바꾼 값이다. null이면 기본 폭. 이 기기에만 남는다. */
+  rightPanelWidth: number | null;
+  leftPanelWidth: number | null;
+  /** 왼쪽 클립보드 칸을 열어 두었나 */
+  clipboardOpen: boolean;
   // 기본값에서 바꾼 단축키만 담는다. 나머지는 lib/shortcuts.ts의 기본값을 쓴다.
   shortcutOverrides: ShortcutOverrides;
 
@@ -73,6 +78,9 @@ interface AppState {
   setStartupScope: (scope: StartupScope) => void;
   setFontScale: (scale: FontScale) => void;
   setPopupStyle: (style: PopupStyle) => void;
+  setRightPanelWidth: (px: number | null) => void;
+  setLeftPanelWidth: (px: number | null) => void;
+  setClipboardOpen: (open: boolean) => void;
   setForwardLookbackDays: (days: number) => void;
   setShortcutOverrides: (overrides: ShortcutOverrides) => void;
   navigatePrevDate: () => void;
@@ -212,6 +220,9 @@ export const useAppStore = create<AppState>()(
       fontScale: DEFAULT_FONT_SCALE,
       forwardLookbackDays: FORWARD_LOOKBACK_DAYS,
       popupStyle: 'side',
+      rightPanelWidth: null,
+      leftPanelWidth: null,
+      clipboardOpen: false,
       shortcutOverrides: {},
 
       clearAuthData: () => set({
@@ -241,6 +252,9 @@ export const useAppStore = create<AppState>()(
         set({ fontScale });
       },
       setPopupStyle: (popupStyle) => set({ popupStyle }),
+      setRightPanelWidth: (rightPanelWidth) => set({ rightPanelWidth }),
+      setLeftPanelWidth: (leftPanelWidth) => set({ leftPanelWidth }),
+      setClipboardOpen: (clipboardOpen) => set({ clipboardOpen }),
       setForwardLookbackDays: (days) => set({ forwardLookbackDays: clampLookbackDays(days) }),
       setShortcutOverrides: (shortcutOverrides) => set({ shortcutOverrides }),
 
@@ -536,6 +550,9 @@ export const useAppStore = create<AppState>()(
         fontScale: state.fontScale,
         forwardLookbackDays: state.forwardLookbackDays,
         popupStyle: state.popupStyle,
+        rightPanelWidth: state.rightPanelWidth,
+        leftPanelWidth: state.leftPanelWidth,
+        clipboardOpen: state.clipboardOpen,
         shortcutOverrides: state.shortcutOverrides,
         // govApiKey는 일부러 넣지 않는다. 키는 Firestore의 admin/config에 있고
         // 개발자가 환경설정을 열 때 거기서 읽어온다. 이 기기에도 남길 이유가 없다.

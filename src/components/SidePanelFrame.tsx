@@ -6,14 +6,15 @@
 //   docked  : 화면 옆에 붙는 칸. 팝업이 아니다 - 뒤 화면을 잠그지 않고, 팝업 층
 //             (ESC로 모두 닫기)에도 들지 않는다. 칸 안에서 누른 ESC만 칸을 닫는다.
 //             뒤로가기는 받는다 (useBackLayer).
-//             Layout이 이 폭(--entry-panel-w)만큼 화면을 왼쪽으로 줄여 둔다.
+//             팝업과 같은 오른쪽 줄에 서고(폭·스크롤은 줄이 맡는다), Layout이 그 폭만큼 화면을 줄인다.
 //   아니면  : 휴대폰처럼 좁은 화면. 예전처럼 어두운 배경 위로 오른쪽에서 뜬다.
 import React from 'react';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, useBackLayer } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
-import { useSideSlot, sideSlotStyle, sideSlotClass, sideSlotInnerStyle } from './PopupFrame';
+import { createPortal } from 'react-dom';
+import { useSideSlot, sideSlotProps, getSideColumn } from './PopupFrame';
 
 interface SidePanelFrameProps {
   docked: boolean;
@@ -46,12 +47,14 @@ export default function SidePanelFrame({
   const backdrop = useBackdropClose(onBackdropClose);
 
   if (docked) {
-    return (
+    // 팝업과 같은 오른쪽 줄(PopupFrame.getSideColumn)에 선다. 폭도, 스크롤도 줄이 맡는다.
+    const { className, style } = sideSlotProps(slot);
+    return createPortal(
       <aside
         ref={panelRef}
         aria-label={ariaLabel}
-        className={`fixed right-0 z-[45] border-l border-slate-200 shadow-xl bg-white overflow-y-auto overscroll-contain ${sideSlotClass(slot)}`}
-        style={{ ...sideSlotStyle(slot), width: 'var(--entry-panel-w)' }}
+        className={className}
+        style={style}
         onKeyDown={(e) => {
           // 이 칸 안에서 누른 ESC는 이 칸만 닫는다 (저장하지 않는다)
           if (e.key === 'Escape') {
@@ -60,10 +63,9 @@ export default function SidePanelFrame({
           }
         }}
       >
-        <div className="flex flex-col" style={sideSlotInnerStyle(slot)}>
-          {children}
-        </div>
-      </aside>
+        {children}
+      </aside>,
+      getSideColumn()
     );
   }
 

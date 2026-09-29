@@ -38,8 +38,10 @@ const StudentRecordModal = lazyWithReload(() => import('./StudentRecordModal'));
 import MultiEventActionBar from './MultiEventActionBar';
 import MiniCalendarPicker from './MiniCalendarPicker';
 import MobileTabBar from './MobileTabBar';
-import EntryPanelHost, { DOCK_MIN_WIDTH, openEntryPanel, entryPanelWidth } from './EntryPanelHost';
-import { useSidePopups } from './PopupFrame';
+import EntryPanelHost, { DOCK_MIN_WIDTH, openEntryPanel } from './EntryPanelHost';
+import { useSidePopups, RIGHT_COLUMN_CSS_WIDTH } from './PopupFrame';
+import ClipboardPanel, { useClipboardCapture, LEFT_COLUMN_CSS_WIDTH } from './ClipboardPanel';
+import ColumnResizer from './ColumnResizer';
 import { MainWidthContext } from '../hooks/useMainWidth';
 import { useMinWidth } from '../hooks/useMinWidth';
 import { useGlobalGestures } from '../hooks/useGlobalGestures';
@@ -179,17 +181,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // D-Day 표시에 따라 높이가 달라지므로 재서 쓴다.
   // 메모·기록 칸이 화면 옆에 붙어 있으면 그 폭만큼 화면을 왼쪽으로 줄인다
   const entryPanelOpen = useAppStore((s) => !!s.entryPanel);
-  const entryPanelKind = useAppStore((s) => s.entryPanel?.kind);
   const canDock = useMinWidth(DOCK_MIN_WIDTH);
   const panelDocked = entryPanelOpen && canDock;
-  // 화면 옆에 붙은 팝업들(환경설정 > 팝업 모양 '오른쪽 칸'). 오른쪽 칸과 함께 가장 넓은 것만큼 줄인다.
-  const sidePopupWidths = useSidePopups((s) => s.widths);
-  const rightWidths = [
-    ...(panelDocked ? ['var(--entry-panel-w)'] : []),
-    ...new Set(Object.values(sidePopupWidths)),
-  ];
-  const rightInset =
-    rightWidths.length === 0 ? undefined : rightWidths.length === 1 ? rightWidths[0] : `max(${rightWidths.join(', ')})`;
+  // 오른쪽 줄(팝업·쓰는 칸)이 하나라도 서 있으면 그 폭만큼 화면을 줄인다. 폭은 모든 칸이 같다.
+  const rightOpen = useSidePopups((s) => s.order.length > 0) || panelDocked;
+  // 왼쪽 클립보드 칸 (넓은 화면에서 열려 있으면 그만큼 화면을 오른쪽으로 민다)
+  useClipboardCapture();
+  const clipboardOpen = useAppStore((s) => s.clipboardOpen);
+  const leftOpen = clipboardOpen && canDock;
+  // 경계선을 끌어 바꾼 폭. 칸들은 body 아래에 그려지므로(createPortal) 문서 맨 위에 건다.
+  const rightPanelWidth = useAppStore((s) => s.rightPanelWidth);
+  const leftPanelWidth = useAppStore((s) => s.leftPanelWidth);
+  useEffect(() => {
+    const root = document.documentElement.style;
+    if (rightPanelWidth) root.setProperty('--right-column-w', `${rightPanelWidth}px`);
+    else root.removeProperty('--right-column-w');
+    if (leftPanelWidth) root.setProperty('--left-column-w', `${leftPanelWidth}px`);
+    else root.removeProperty('--left-column-w');
+  }, [rightPanelWidth, leftPanelWidth]);
 
   // 본문의 실제 폭. 칸이 열려 좁아지면 화면들이 그에 맞춰 칸 수를 줄인다 (hooks/useMainWidth)
   const mainRef = useRef<HTMLElement>(null);
@@ -482,9 +491,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div
       className="min-h-screen bg-bg-body text-slate-900 transition-[padding] duration-200"
       style={{
-        // 오른쪽 칸의 폭. 칸(SidePanelFrame)이 같은 값을 쓴다. 폭 규칙은 EntryPanelHost.entryPanelWidth
-        ['--entry-panel-w' as any]: entryPanelWidth(entryPanelKind),
-        paddingRight: rightInset,
+        paddingRight: rightOpen ? RIGHT_COLUMN_CSS_WIDTH : undefined,
+        paddingLeft: leftOpen ? LEFT_COLUMN_CSS_WIDTH : undefined,
       }}
     >
       <header ref={headerRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm px-4 py-3 border-b border-border shadow-xs flex flex-col gap-2.5">
@@ -958,6 +966,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* 메모·기록 쓰는 칸. 화면과 따로 살아서, 다른 화면으로 옮겨도 남는다. */}
       <EntryPanelHost />
+      <ClipboardPanel />
+      {rightOpen && <ColumnResizer side="right" width={RIGHT_COLUMN_CSS_WIDTH} />}
+      {leftOpen && <ColumnResizer side="left" width={LEFT_COLUMN_CSS_WIDTH} />}
 
       {/* 모달 모음 - 열려 있을 때만 그려서 필요한 시점에 내려받는다 */}
       <Suspense fallback={null}>

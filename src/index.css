@@ -98,3 +98,10 @@
   border-color: #f59e0b !important;
   scroll-margin-top: calc(var(--app-header-h, 64px) + 16px);
 }
+
+/* 오른쪽 줄(PopupFrame.getSideColumn): 칸 안쪽 스크롤 영역이 끝에 닿으면 줄 전체가 이어서
+   굴러가게 한다. 칸마다 overscroll-contain 이 걸려 있어, 칸이 여럿 쌓였을 때 칸 위에서
+   굴려도 줄이 꼼짝하지 않았다. 뒤 화면으로 새지 않는 것은 줄 자신의 overscroll-contain 이 막는다. */
+#side-column * {
+  overscroll-behavior: auto;
+}
