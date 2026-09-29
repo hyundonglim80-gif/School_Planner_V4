@@ -32,8 +32,8 @@ describe('팝업 공통 규칙', () => {
   );
 
   it.each(entries)('$name - 배경을 눌러 닫을 수 있다', ({ src }) => {
-    // ModalShell을 쓰면 껍데기가 처리한다. 직접 만든 팝업은 스스로 처리해야 한다.
-    const handled = src.includes('ModalShell') || src.includes('useBackdropClose');
+    // ModalShell·PopupFrame을 쓰면 껍데기가 처리한다. 직접 만든 팝업은 스스로 처리해야 한다.
+    const handled = src.includes('ModalShell') || src.includes('PopupFrame') || src.includes('useBackdropClose');
     expect(handled).toBe(true);
   });
 
@@ -46,25 +46,11 @@ describe('팝업 공통 규칙', () => {
   });
 
   it.each(entries.filter((e) => !CENTERED_BY_DESIGN.includes(e.name)))(
-    '$name - 껍데기를 직접 만들지 않는다 (ModalShell 사용)',
-    ({ src, name }) => {
-      // 아직 옮기지 못한 팝업은 여기 적어둔다. 옮기면 목록에서 지운다.
-      const NOT_MIGRATED = [
-        'BackupModal.tsx',
-        'DetailEditModal.tsx',
-        'EvaluationModal.tsx',
-        'LabelModal.tsx',
-        'LinkViewerModal.tsx',
-        'LinkerModal.tsx',
-        'SearchModal.tsx',
-        'TimetableTemplateModal.tsx',
-        'TrashModal.tsx',
-      ];
-      if (NOT_MIGRATED.includes(name)) {
-        expect(src).toContain('useBackdropClose');
-        return;
-      }
-      expect(src).toContain('ModalShell');
+    '$name - 껍데기를 직접 만들지 않는다 (ModalShell 또는 PopupFrame 사용)',
+    ({ src }) => {
+      // 바깥 틀을 직접 만들면 환경설정 > 팝업 모양(오른쪽 칸 / 가운데)을 따르지 않는다.
+      expect(src.includes('ModalShell') || src.includes('PopupFrame')).toBe(true);
+      expect(src).not.toMatch(/fixed inset-0 flex items-start justify-center/);
     }
   );
 

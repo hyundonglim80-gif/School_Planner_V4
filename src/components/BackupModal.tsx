@@ -18,10 +18,7 @@ import { useLabels } from '../hooks/useLabels';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
 import { parseCsv } from '../lib/csv';
 import { parseRosterCsvRows, mergeRosters, ROSTER_CSV_HEADER } from '../lib/rosterCsv';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer } from '../hooks/useModalLayer';
-import { useBackdropClose } from '../hooks/useBackdropClose';
+import PopupFrame from './PopupFrame';
 
 interface BackupModalProps {
   isOpen: boolean;
@@ -32,13 +29,6 @@ type PeriodType = 'current' | 'today' | 'week' | 'month' | 'sem1' | 'sem2' | 'ye
 type ExportTarget = 'calendar' | 'sheets' | 'csv' | 'json';
 
 export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
-  useBodyScrollLock(isOpen);
-
-  const vv = useVisualViewport(isOpen);
-
-  const zIndex = useModalLayer(isOpen, onClose);
-
-  const backdrop = useBackdropClose();
   const { groups } = useGroups();
   // Keep 파일을 여기에 넣는 일이 잦다. 그때는 Keep 전용 창으로 그대로 넘긴다.
   const [keepFiles, setKeepFiles] = useState<File[] | null>(null);
@@ -831,8 +821,8 @@ ${summary}
     else await importRosterCsv(csv[0], csv.length);
   };
   return (
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} {...backdrop}>
-      <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-full" onClick={(e) => e.stopPropagation()}>
+    <>
+<PopupFrame isOpen={isOpen} onClose={onClose} width="xl">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <div className="flex items-center gap-2">
@@ -1059,7 +1049,7 @@ ${summary}
             </button>
           </div>
         </div>
-      </div>
+      </PopupFrame>
 
       {/* Keep 파일을 넣었을 때. 라벨 등록·사진 붙이기·중복 건너뛰기를 그 창이 맡는다. */}
       {keepFiles && (
@@ -1072,6 +1062,6 @@ ${summary}
           onUpdateMemo={updateMemo}
         />
       )}
-    </div>
+    </>
   );
 }

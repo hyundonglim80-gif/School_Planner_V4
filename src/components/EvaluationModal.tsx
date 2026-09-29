@@ -4,11 +4,9 @@ import type { EvaluationItem } from '../hooks/useEvaluation';
 import { useRoster } from '../hooks/useRoster';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
 import { useAppStore } from '../store/useAppStore';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
-import { useBackdropClose } from '../hooks/useBackdropClose';
+import { closeAllModals } from '../hooks/useModalLayer';
 import { showToast, showErrorToast } from '../utils/toast';
+import PopupFrame from './PopupFrame';
 import { auth } from '../lib/firebase';
 
 interface EvaluationModalProps {
@@ -26,13 +24,6 @@ const DEFAULT_STEPS = ['우수', '보통', '노력요함', '미흡', '매우미�
 // 교시를 넘기지 않고 열면 그날 조사표 전체를 맡는다. 달력에서 날짜 표식을
 // 눌렀을 때가 그렇다. 그 자리에서는 어느 교시 것인지 알 수가 없다.
 export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSource = 'schedule', defaultPeriod = '', defaultSubject = '' }: EvaluationModalProps) {
-  useBodyScrollLock(isOpen);
-
-  const vv = useVisualViewport(isOpen);
-
-  const zIndex = useModalLayer(isOpen, onClose);
-
-  const backdrop = useBackdropClose();
   const { selectedGroupId, openEvaluationModal } = useAppStore();
   const { templates, currentTemplateName } = useTimetableTemplate();
   const periodNames = templates[currentTemplateName]?.names || ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'];
@@ -448,8 +439,7 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} {...backdrop}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-full flex flex-col border border-slate-200" onClick={e => e.stopPropagation()}>
+    <PopupFrame isOpen={isOpen} onClose={onClose} width="2xl">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
@@ -871,7 +861,6 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
             </div>
           </div>
         )}
-      </div>
-    </div>
+      </PopupFrame>
   );
 }

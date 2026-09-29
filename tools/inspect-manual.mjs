@@ -1417,7 +1417,7 @@ if (ONLY !== 'mobile') {
   // 단축키 창은 환경설정 창 위에 뜬다. 두 창 모두 '저장'이 있으니 단축키 창의 것을 누른다.
   const shortcutDialogSave = () =>
     page
-      .locator('div.rounded-2xl', { has: page.getByRole('heading', { name: /단축키$/ }) })
+      .locator('[role=dialog]', { has: page.getByRole('heading', { name: /단축키$/ }) })
       .last()
       .getByRole('button', { name: '저장', exact: true })
       .last()

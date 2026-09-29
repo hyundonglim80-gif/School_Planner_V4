@@ -8,6 +8,7 @@ import { showErrorToast } from '../utils/toast';
 import { FORWARD_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
 import type { ShortcutOverrides } from '../lib/shortcuts';
 import { applyFontScale, DEFAULT_FONT_SCALE, type FontScale } from '../lib/fontScale';
+import type { PopupStyle } from '../lib/preferenceSync';
 import type { FocusTarget } from '../lib/searchFocus';
 
 type Scope = 'day' | 'week' | 'month' | 'year' | 'memo';
@@ -52,6 +53,11 @@ interface AppState {
   /** 화면 글자 크기. 계정에도 저장된다(hooks/usePreferenceSync). */
   fontScale: FontScale;
   forwardLookbackDays: number;
+  /**
+   * 팝업을 어디에 띄우나. 'side'는 메모·기록 쓰는 칸처럼 화면 오른쪽을 나눠 쓰고,
+   * 'center'는 예전처럼 화면 가운데에 어둡게 덮어 띄운다. 계정에도 저장된다.
+   */
+  popupStyle: PopupStyle;
   // 기본값에서 바꾼 단축키만 담는다. 나머지는 lib/shortcuts.ts의 기본값을 쓴다.
   shortcutOverrides: ShortcutOverrides;
 
@@ -66,6 +72,7 @@ interface AppState {
   setEnableScrollNav: (enable: boolean) => void;
   setStartupScope: (scope: StartupScope) => void;
   setFontScale: (scale: FontScale) => void;
+  setPopupStyle: (style: PopupStyle) => void;
   setForwardLookbackDays: (days: number) => void;
   setShortcutOverrides: (overrides: ShortcutOverrides) => void;
   navigatePrevDate: () => void;
@@ -204,6 +211,7 @@ export const useAppStore = create<AppState>()(
       startupScope: 'last',
       fontScale: DEFAULT_FONT_SCALE,
       forwardLookbackDays: FORWARD_LOOKBACK_DAYS,
+      popupStyle: 'side',
       shortcutOverrides: {},
 
       clearAuthData: () => set({
@@ -232,6 +240,7 @@ export const useAppStore = create<AppState>()(
         applyFontScale(fontScale);
         set({ fontScale });
       },
+      setPopupStyle: (popupStyle) => set({ popupStyle }),
       setForwardLookbackDays: (days) => set({ forwardLookbackDays: clampLookbackDays(days) }),
       setShortcutOverrides: (shortcutOverrides) => set({ shortcutOverrides }),
 
@@ -526,6 +535,7 @@ export const useAppStore = create<AppState>()(
         startupScope: state.startupScope,
         fontScale: state.fontScale,
         forwardLookbackDays: state.forwardLookbackDays,
+        popupStyle: state.popupStyle,
         shortcutOverrides: state.shortcutOverrides,
         // govApiKey는 일부러 넣지 않는다. 키는 Firestore의 admin/config에 있고
         // 개발자가 환경설정을 열 때 거기서 읽어온다. 이 기기에도 남길 이유가 없다.

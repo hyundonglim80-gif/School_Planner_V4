@@ -8,6 +8,7 @@
 //     (상단 줄의 표시 버튼은 그 자리에서 바로 켜고 끄는 것이고, 여기 있는 같은
 //      항목은 '다음에 열었을 때의 기본값'을 정하는 자리다. 값은 같은 것을 본다.)
 //   - 개발자 설정은 등록된 계정으로 로그인했을 때만 보인다.
+import type { PopupStyle } from '../lib/preferenceSync';
 import React, { useState, useEffect } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
 import { auth, db } from '../lib/firebase';
@@ -31,6 +32,11 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const POPUP_STYLE_OPTIONS: { value: PopupStyle; label: string }[] = [
+  { value: 'side', label: '오른쪽 칸' },
+  { value: 'center', label: '가운데 팝업 (예전 방식)' },
+];
 
 const STARTUP_OPTIONS: { value: StartupScope; label: string }[] = [
   { value: 'last', label: '마지막에 보던 화면' },
@@ -113,6 +119,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   // 지역 상태에 담아 두었다가 '저장'에서 옮기면 눌러도 화면이 그대로다.
   const fontScale = useAppStore((s) => s.fontScale);
   const setFontScale = useAppStore((s) => s.setFontScale);
+  // 팝업 모양도 고르는 즉시 바뀐다 (이 창부터 바로 옮겨 가 보인다)
+  const popupStyle = useAppStore((s) => s.popupStyle);
+  const setPopupStyle = useAppStore((s) => s.setPopupStyle);
   const shortcutOverrides = useAppStore((s) => s.shortcutOverrides);
   const selectedGroupId = useAppStore((s) => s.selectedGroupId);
   const { eventLabels, journalLabels, memoLabels, labelsLoaded } = useLabels();
@@ -577,6 +586,28 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 // 단계마다 그 크기로 적어 둔다. 이름만으로는 얼마나 달라지는지
                 // 알 수 없어, 고르기 전에 한 번씩 눌러 보게 된다.
                 style={{ fontSize: `calc(0.75rem * ${opt.percent} / 100)` }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </Section>
+
+        <Section
+          title="팝업 모양"
+          desc="고르는 즉시 적용됩니다. '오른쪽 칸'은 넓은 화면에서 화면을 나눠 오른쪽에 띄우고(왼쪽 화면을 보며 쓸 수 있다), 휴대폰에서는 오른쪽에서 나오는 배너로 띄웁니다."
+        >
+          <div className="flex flex-wrap gap-1.5">
+            {POPUP_STYLE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setPopupStyle(opt.value)}
+                aria-pressed={popupStyle === opt.value}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                  popupStyle === opt.value
+                    ? 'bg-primary text-white border-primary shadow-xs'
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-primary hover:text-primary'
+                }`}
               >
                 {opt.label}
               </button>

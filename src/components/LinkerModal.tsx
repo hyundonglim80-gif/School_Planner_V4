@@ -10,11 +10,8 @@ import { parseV3EventText } from '../hooks/useDayData';
 import { useLabels } from '../hooks/useLabels';
 import { resolveEventLabelNames } from '../lib/eventLabels';
 import { addReverseLink } from '../utils/linkUtils';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer } from '../hooks/useModalLayer';
-import { useBackdropClose } from '../hooks/useBackdropClose';
 import LinkCreateModal, { type CreatedItem } from './LinkCreateModal';
+import PopupFrame from './PopupFrame';
 import DateRangeFields from './DateRangeFields';
 
 interface LinkerModalProps {
@@ -81,13 +78,6 @@ export default function LinkerModal({
 }: LinkerModalProps) {
   const { selectedGroupId, linkerCallback } = useAppStore();
   const { eventLabels, journalLabels, memoLabels } = useLabels();
-  useBodyScrollLock(isOpen);
-
-  const vv = useVisualViewport(isOpen);
-
-  const zIndex = useModalLayer(isOpen, onClose);
-
-  const backdrop = useBackdropClose();
 
   const [currentTab, setCurrentTab] = useState<'event' | 'schedule' | 'journal' | 'memo'>('event');
   const [selectedSourcePeriod, setSelectedSourcePeriod] = useState<number>(
@@ -634,14 +624,8 @@ export default function LinkerModal({
   const pagedItems = filteredList.slice(startIndex, startIndex + itemsPerPage);
 
   return (
-    <div
-      className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
-      {...backdrop}
-    >
-      <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-full flex flex-col border border-slate-200 overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <>
+<PopupFrame isOpen={isOpen} onClose={onClose} width="xl">
         {/* 모달 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
@@ -996,7 +980,7 @@ export default function LinkerModal({
             연결 저장
           </button>
         </div>
-      </div>
+      </PopupFrame>
 
       {/* 새 항목 등록창. 저장하면 연결 목록에 담고 스스로 닫혀 이 창으로 돌아온다. */}
       {createOpen && currentTab !== 'schedule' && (
@@ -1010,6 +994,6 @@ export default function LinkerModal({
           onCreated={handleCreated}
         />
       )}
-    </div>
+    </>
   );
 }

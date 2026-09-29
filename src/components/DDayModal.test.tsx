@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DDayModal from './DDayModal';
+import { useAppStore } from '../store/useAppStore';
 import type { DDayItem } from '../hooks/useDDay';
 
 const addDDay = vi.fn(async () => {});
@@ -35,6 +36,9 @@ beforeEach(() => {
   ];
   selectedDDayId = 'dday_1';
 });
+
+// 가운데 팝업(예전 방식)의 모양을 본다. 오른쪽 칸은 PopupFrame.test.tsx에서 본다.
+beforeEach(() => useAppStore.setState({ popupStyle: 'center' }));
 
 describe('DDayModal - 레이아웃과 버튼', () => {
   it('추가 버튼과 항목별 삭제 버튼이 있다', () => {

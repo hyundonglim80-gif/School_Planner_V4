@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { useAppStore } from '../store/useAppStore';
 import ModalShell from './ModalShell';
 
 // 팝업 안에서 글자를 끌어 선택하다가 팝업 밖에서 손을 떼면 팝업이 닫혀버렸다.
@@ -17,6 +18,9 @@ const setup = () => {
   const backdrop = panelText.closest('.fixed') as HTMLElement;
   return { onClose, panelText, backdrop };
 };
+
+// 가운데 팝업(예전 방식)의 모양을 본다. 오른쪽 칸은 PopupFrame.test.tsx에서 본다.
+beforeEach(() => useAppStore.setState({ popupStyle: 'center' }));
 
 describe('ModalShell - 배경 눌러 닫기', () => {
   it('배경에서 누르고 배경에서 떼면 닫는다', () => {

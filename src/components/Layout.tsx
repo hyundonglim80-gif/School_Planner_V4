@@ -39,6 +39,7 @@ import MultiEventActionBar from './MultiEventActionBar';
 import MiniCalendarPicker from './MiniCalendarPicker';
 import MobileTabBar from './MobileTabBar';
 import EntryPanelHost, { DOCK_MIN_WIDTH, openEntryPanel, entryPanelWidth } from './EntryPanelHost';
+import { useSidePopups } from './PopupFrame';
 import { MainWidthContext } from '../hooks/useMainWidth';
 import { useMinWidth } from '../hooks/useMinWidth';
 import { useGlobalGestures } from '../hooks/useGlobalGestures';
@@ -181,6 +182,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const entryPanelKind = useAppStore((s) => s.entryPanel?.kind);
   const canDock = useMinWidth(DOCK_MIN_WIDTH);
   const panelDocked = entryPanelOpen && canDock;
+  // 화면 옆에 붙은 팝업들(환경설정 > 팝업 모양 '오른쪽 칸'). 오른쪽 칸과 함께 가장 넓은 것만큼 줄인다.
+  const sidePopupWidths = useSidePopups((s) => s.widths);
+  const rightWidths = [
+    ...(panelDocked ? ['var(--entry-panel-w)'] : []),
+    ...new Set(Object.values(sidePopupWidths)),
+  ];
+  const rightInset =
+    rightWidths.length === 0 ? undefined : rightWidths.length === 1 ? rightWidths[0] : `max(${rightWidths.join(', ')})`;
 
   // 본문의 실제 폭. 칸이 열려 좁아지면 화면들이 그에 맞춰 칸 수를 줄인다 (hooks/useMainWidth)
   const mainRef = useRef<HTMLElement>(null);
@@ -475,7 +484,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       style={{
         // 오른쪽 칸의 폭. 칸(SidePanelFrame)이 같은 값을 쓴다. 폭 규칙은 EntryPanelHost.entryPanelWidth
         ['--entry-panel-w' as any]: entryPanelWidth(entryPanelKind),
-        paddingRight: panelDocked ? 'var(--entry-panel-w)' : undefined,
+        paddingRight: rightInset,
       }}
     >
       <header ref={headerRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm px-4 py-3 border-b border-border shadow-xs flex flex-col gap-2.5">

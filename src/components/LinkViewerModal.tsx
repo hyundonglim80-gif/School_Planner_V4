@@ -3,13 +3,11 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { eventDocPayload } from '../lib/eventText';
 import { useAppStore } from '../store/useAppStore';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
-import { useBackdropClose } from '../hooks/useBackdropClose';
+import { closeAllModals } from '../hooks/useModalLayer';
 import { showToast, showErrorToast } from '../utils/toast';
 import { attachmentImageSrc } from '../lib/driveApi';
 import { collectImages, collectFiles, type ViewerImage } from '../lib/attachments';
+import PopupFrame from './PopupFrame';
 import ImageViewerModal from './ImageViewerModal';
 
 interface LinkViewerModalProps {
@@ -46,13 +44,6 @@ export default function LinkViewerModal({
   sourcePeriod,
   sourceFId,
 }: LinkViewerModalProps) {
-  useBodyScrollLock(isOpen);
-
-  const vv = useVisualViewport(isOpen);
-
-  const zIndex = useModalLayer(isOpen, onClose);
-
-  const backdrop = useBackdropClose();
   const { selectedGroupId, setCurrentDate, setScope, openDetailEdit, openEntryEditor } = useAppStore();
   const [links, setLinks] = useState<NormalizedLink[]>([]);
   const [loading, setLoading] = useState(false);
@@ -427,14 +418,8 @@ export default function LinkViewerModal({
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-black/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
-      {...backdrop}
-    >
-      <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-full flex flex-col border border-slate-200 overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <>
+<PopupFrame isOpen={isOpen} onClose={onClose} width="lg">
         {/* 모달 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
@@ -590,7 +575,7 @@ export default function LinkViewerModal({
             닫기
           </button>
         </div>
-      </div>
+      </PopupFrame>
 
       {/* 사진 크게 보기. 링크 팝업 위에 뜬다. */}
       {viewerImages && (
@@ -601,6 +586,6 @@ export default function LinkViewerModal({
           onClose={() => setViewerImages(null)}
         />
       )}
-    </div>
+    </>
   );
 }

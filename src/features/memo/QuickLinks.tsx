@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
-import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../../hooks/useModalLayer';
+import PopupFrame from '../../components/PopupFrame';
 
 export interface QuickLinkItem {
   id: string;
@@ -23,13 +21,6 @@ export default function QuickLinks() {
   const [newName, setNewName] = useState('');
   const [newUrl, setNewUrl] = useState('');
   const [saving, setSaving] = useState(false);
-  useBodyScrollLock(isModalOpen);
-
-  const vv = useVisualViewport(isModalOpen);
-
-
-  const zIndex = useModalLayer(isModalOpen, () => setIsModalOpen(false));
-
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
@@ -131,16 +122,7 @@ export default function QuickLinks() {
 
       {/* 링크 설정 모달 */}
       {isModalOpen && (
-        <div
-          className="fixed inset-0 flex items-start justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs"
-          style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
-          onClick={closeAllModals}
-        >
-          {/* 배경 클릭으로 닫히도록 패널 안쪽 클릭은 전파를 막는다 */}
-          <div
-            className="bg-white w-full max-w-md max-h-full rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <PopupFrame isOpen={true} onClose={() => setIsModalOpen(false)} width="md">
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50">
               <div className="flex items-center gap-2">
                 <span className="text-lg">⚙️</span>
@@ -217,8 +199,7 @@ export default function QuickLinks() {
                 닫기
               </button>
             </div>
-          </div>
-        </div>
+          </PopupFrame>
       )}
     </div>
   );

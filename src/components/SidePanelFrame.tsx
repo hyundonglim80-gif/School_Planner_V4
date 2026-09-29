@@ -13,6 +13,7 @@ import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import { useModalLayer, useBackLayer } from '../hooks/useModalLayer';
 import { useBackdropClose } from '../hooks/useBackdropClose';
+import { useSideSlot, sideSlotStyle, sideSlotClass, sideSlotInnerStyle } from './PopupFrame';
 
 interface SidePanelFrameProps {
   docked: boolean;
@@ -40,6 +41,8 @@ export default function SidePanelFrame({
   const zIndex = useModalLayer(!docked, onClose);
   // 옆에 붙은 칸은 팝업이 아니지만 휴대폰 뒤로가기는 칸을 닫아야 한다 (안 그러면 크롬이 닫힌다)
   useBackLayer(docked, onClose);
+  // 이 칸 위에서 팝업을 열면(링크 추가 등) 오른쪽을 위아래로 나눠 이 칸은 아래로 내려간다
+  const slot = useSideSlot(docked);
   const backdrop = useBackdropClose(onBackdropClose);
 
   if (docked) {
@@ -47,8 +50,8 @@ export default function SidePanelFrame({
       <aside
         ref={panelRef}
         aria-label={ariaLabel}
-        className="fixed top-0 right-0 bottom-0 z-[45] border-l border-slate-200 shadow-xl bg-white"
-        style={{ width: 'var(--entry-panel-w)' }}
+        className={`fixed right-0 z-[45] border-l border-slate-200 shadow-xl bg-white overflow-y-auto overscroll-contain ${sideSlotClass(slot)}`}
+        style={{ ...sideSlotStyle(slot), width: 'var(--entry-panel-w)' }}
         onKeyDown={(e) => {
           // 이 칸 안에서 누른 ESC는 이 칸만 닫는다 (저장하지 않는다)
           if (e.key === 'Escape') {
@@ -57,7 +60,9 @@ export default function SidePanelFrame({
           }
         }}
       >
-        {children}
+        <div className="flex flex-col" style={sideSlotInnerStyle(slot)}>
+          {children}
+        </div>
       </aside>
     );
   }

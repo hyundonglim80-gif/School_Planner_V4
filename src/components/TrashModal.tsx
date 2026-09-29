@@ -6,10 +6,7 @@ import { completeRestoreFromTrash, deleteFromTrash, type TrashItem } from '../ut
 import { collectUploadUrls, deleteUnreferencedUploads } from '../utils/storageCleanup';
 import { formatV3EventText } from '../hooks/useDayData';
 import { syncAutoSourceAndTell } from '../lib/autoJournalSync';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer } from '../hooks/useModalLayer';
-import { useBackdropClose } from '../hooks/useBackdropClose';
+import PopupFrame from './PopupFrame';
 import { ModalCloseButton } from './ModalShell';
 
 interface TrashModalProps {
@@ -30,13 +27,6 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
-  useBodyScrollLock(isOpen);
-
-  const vv = useVisualViewport(isOpen);
-
-  const zIndex = useModalLayer(isOpen, onClose);
-
-  const backdrop = useBackdropClose();
   const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -300,8 +290,7 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} {...backdrop}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-full overflow-hidden animate-scale-in" onClick={(e) => e.stopPropagation()}>
+    <PopupFrame isOpen={isOpen} onClose={onClose} width="2xl">
         <div className="p-4 border-b flex justify-between items-center bg-slate-50">
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
             <span>🗑️</span> 휴지통
@@ -403,7 +392,6 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
         <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
           <ModalCloseButton onClose={onClose} />
         </div>
-      </div>
-    </div>
+      </PopupFrame>
   );
 }

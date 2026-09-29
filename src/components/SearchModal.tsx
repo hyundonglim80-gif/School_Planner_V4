@@ -7,12 +7,9 @@ import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { parseDateStr, formatDateStr } from '../lib/dateUtils';
 import { parseV3EventText } from '../hooks/useDayData';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer } from '../hooks/useModalLayer';
-import { useBackdropClose } from '../hooks/useBackdropClose';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 import { focusKey, type FocusSection } from '../lib/searchFocus';
+import PopupFrame from './PopupFrame';
 import DateRangeFields from './DateRangeFields';
 
 interface SearchResultItem {
@@ -96,12 +93,6 @@ const FILTER_OPTIONS = [
 ];
 
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
-  useBodyScrollLock(isOpen);
-  const vv = useVisualViewport(isOpen);
-
-  const zIndex = useModalLayer(isOpen, onClose);
-
-  const backdrop = useBackdropClose();
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<SearchResultItem[]>([]);
   // 찾은 것을 한꺼번에 다 그리지 않는다. 검색어를 비우고 한 학기를 고르면 수업만으로도
@@ -513,13 +504,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
   return (
     <>
-    <div
-      className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4"
-      style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
-    >
-      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" {...backdrop} />
-
-      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-full">
+    <PopupFrame isOpen={isOpen} onClose={onClose} width="2xl">
         {/* 머리말 — 다른 팝업과 같은 모양(제목 + ✕)으로 맞춘다.
             예전에는 검색만 제목이 없고, 제목 자리에 검색칸이 들어가 있었다.
             그 줄에 '데이터 찾기'와 ✕까지 함께 밀려 들어가 안내 문구가
@@ -692,8 +677,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
         <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
           <ModalCloseButton onClose={onClose} />
         </div>
-      </div>
-    </div>
+      </PopupFrame>
 
     {/* 자세히 보기. 검색 창 위에 뜨고, 닫으면 검색 결과로 돌아간다. */}
     {selected && (

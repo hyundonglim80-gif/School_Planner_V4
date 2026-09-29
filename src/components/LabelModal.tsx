@@ -9,14 +9,12 @@ import {
   readLegacyJournalLabels,
   readLegacyMemoLabels,
 } from '../lib/legacyLabels';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
-import { useBackdropClose } from '../hooks/useBackdropClose';
+import { closeAllModals } from '../hooks/useModalLayer';
 import { useGroups } from '../hooks/useGroups';
 import { scanForMissingLabels, pickRecoveryColor } from '../utils/labelRecovery';
 import { applyLabelRenames, diffLabelNames } from '../utils/labelRename';
 import { moveToTrash } from '../utils/trashHelper';
+import PopupFrame from './PopupFrame';
 import { showToast, showErrorToast } from '../utils/toast';
 
 interface MemoLabel {
@@ -169,13 +167,6 @@ interface LabelModalProps {
 }
 
 export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: LabelModalProps) {
-  useBodyScrollLock(isOpen);
-
-  const vv = useVisualViewport(isOpen);
-
-  const zIndex = useModalLayer(isOpen, onClose);
-
-  const backdrop = useBackdropClose();
   const { groups } = useGroups();
   const [activeTab, setActiveTab] = useState<'event' | 'journal' | 'memo'>(initialTab);
   const [scanning, setScanning] = useState(false);
@@ -608,8 +599,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   };
 
   return (
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto bg-black/50 p-4 animate-fade-in backdrop-blur-xs" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} {...backdrop}>
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-full" onClick={(e) => e.stopPropagation()}>
+    <PopupFrame isOpen={isOpen} onClose={onClose} width="2xl">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <div className="flex items-center gap-2">
@@ -1105,7 +1095,6 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
             <span>💾</span> {renaming ? '이름 반영 중...' : saving ? '저장 중...' : '클라우드 저장'}
           </button>
         </div>
-      </div>
-    </div>
+      </PopupFrame>
   );
 }

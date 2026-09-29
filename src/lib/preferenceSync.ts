@@ -48,6 +48,9 @@ export function detectDeviceKind(): DeviceKind {
   return /Android|iPhone|iPad|iPod|Mobile/i.test(ua) ? 'mobile' : 'pc';
 }
 
+/** 팝업을 화면 오른쪽 칸에 띄울지(side), 예전처럼 가운데에 띄울지(center) */
+export type PopupStyle = 'side' | 'center';
+
 export interface SyncedPreferences {
   semesterFilter: 'all' | 1 | 2;
   showWeekend: boolean;
@@ -58,6 +61,7 @@ export interface SyncedPreferences {
   fontScale: FontScale;
   forwardLookbackDays: number;
   shortcutOverrides: ShortcutOverrides;
+  popupStyle: PopupStyle;
 }
 
 export const SYNCED_PREFERENCE_KEYS = [
@@ -70,6 +74,7 @@ export const SYNCED_PREFERENCE_KEYS = [
   'fontScale',
   'forwardLookbackDays',
   'shortcutOverrides',
+  'popupStyle',
 ] as const satisfies ReadonlyArray<keyof SyncedPreferences>;
 
 /** 스토어 상태에서 계정에 붙여 둘 값만 골라낸다 */
@@ -108,6 +113,9 @@ export function sanitizePreferences(data: unknown): Partial<SyncedPreferences> {
   }
   if (typeof d.fontScale === 'string' && FONT_SCALES.some((s) => s.id === d.fontScale)) {
     out.fontScale = d.fontScale as FontScale;
+  }
+  if (d.popupStyle === 'side' || d.popupStyle === 'center') {
+    out.popupStyle = d.popupStyle;
   }
   if (d.forwardLookbackDays !== undefined && d.forwardLookbackDays !== null) {
     out.forwardLookbackDays = clampLookbackDays(d.forwardLookbackDays);

@@ -4,14 +4,12 @@ import { useDayData, type EventItem } from '../hooks/useDayData';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
 
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer, closeAllModals } from '../hooks/useModalLayer';
-import { useBackdropClose } from '../hooks/useBackdropClose';
+import { closeAllModals } from '../hooks/useModalLayer';
 import EventAlarmModal from './EventAlarmModal';
 import PeriodModal from './PeriodModal';
 import GroupDeleteModal from './GroupDeleteModal';
 import { baseContentOf, groupIdOf } from '../lib/eventGroups';
+import PopupFrame from './PopupFrame';
 import AutoTextarea from './AutoTextarea';
 
 function formatAlarmBadge(time?: string) {
@@ -47,18 +45,9 @@ export default function DetailEditModal({
   initialData,
   fId,
 }: DetailEditModalProps) {
-  useBodyScrollLock(isOpen);
-
-  const vv = useVisualViewport(isOpen);
-
-
-  const zIndex = useModalLayer(isOpen, onClose);
-
-
   // 배경을 눌러 닫을 때는 고친 것을 저장하고 닫는다 (아래 closeByBackdrop).
   // 훅은 상태보다 먼저 불러야 해서, 그때그때의 함수를 ref로 넘긴다.
   const backdropCloseRef = useRef<() => void>(closeAllModals);
-  const backdrop = useBackdropClose(() => backdropCloseRef.current());
   const { selectedGroupId, openLinkerModal, openLinkViewerModal, openEvaluationModal, openLabelModal } = useAppStore();
   // fId를 받으면 그 공간의 것을 고친다 ('personal'은 개인 공간 = groupId 없음).
   const targetGroupId = fId ? (fId === 'personal' ? null : fId) : selectedGroupId;
@@ -315,12 +304,9 @@ export default function DetailEditModal({
   const title = type === 'schedule' ? `${itemId}교시 수정` : '일정 수정';
 
   return (
-    <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in" style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }} {...backdrop}>
-      <div
-        className="bg-white rounded-2xl w-full max-w-md max-h-full shadow-2xl flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-        onInputCapture={() => { touchedRef.current = true; }}
-      >
+    <>
+<PopupFrame isOpen={isOpen} onClose={onClose} width="md" onBackdropClose={() => backdropCloseRef.current()}>
+<div className="contents" onInputCapture={() => { touchedRef.current = true; }}>
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <h2 className="text-lg font-black text-slate-800">{title}</h2>
@@ -557,6 +543,7 @@ export default function DetailEditModal({
             </div>
           </div>
       </div>
+</PopupFrame>
 
       {type === 'event' && alarmModalOpen && (
         <EventAlarmModal
@@ -608,6 +595,6 @@ export default function DetailEditModal({
           onClose={() => setGroupDeleteOpen(false)}
         />
       )}
-    </div>
+    </>
   );
 }

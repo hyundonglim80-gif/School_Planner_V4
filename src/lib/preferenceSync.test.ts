@@ -11,6 +11,7 @@ const base: SyncedPreferences = {
   fontScale: 'md',
   forwardLookbackDays: 7,
   shortcutOverrides: {},
+  popupStyle: 'side',
 };
 
 describe('preferenceSync', () => {

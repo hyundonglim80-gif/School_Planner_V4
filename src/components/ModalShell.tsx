@@ -4,28 +4,18 @@
 // 정렬·스크롤 잠금이 파일마다 조금씩 달랐다(여백이 아예 없는 팝업도 7개 있었다).
 // 공통 규칙을 여기 한 곳에서만 지킨다.
 //
+// 바깥 틀(오른쪽 칸 / 휴대폰 배너 / 가운데 팝업)은 PopupFrame이 맡고, 여기는 머리말·본문·아랫단을 맞춘다.
+//
 //   - 상단을 기준으로 붙고 아래로만 자란다. 탭을 바꿔 내용 높이가 달라져도
 //     팝업의 위쪽 위치가 흔들리지 않는다.
 //   - 배경을 누르면 열린 팝업이 전부 닫힌다.
 //   - index.html이 viewport를 화면 폭으로 두므로, 실제로 보이는 영역(visual viewport)
 //     에 맞춰야 핀치 줌 상태에서도 팝업이 화면 밖으로 밀려나지 않는다.
-//   - 본문 스크롤을 잠근다.
+//   - 본문 스크롤을 잠근다 (화면 옆에 붙은 칸일 때는 왼쪽 화면을 함께 쓰므로 잠그지 않는다).
 import React from 'react';
-import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
-import { useVisualViewport } from '../hooks/useVisualViewport';
-import { useModalLayer } from '../hooks/useModalLayer';
-import { useBackdropClose } from '../hooks/useBackdropClose';
+import PopupFrame, { type ModalWidth } from './PopupFrame';
 
-export type ModalWidth = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl';
-
-const WIDTH_CLASS: Record<ModalWidth, string> = {
-  sm: 'max-w-sm',
-  md: 'max-w-md',
-  lg: 'max-w-lg',
-  xl: 'max-w-xl',
-  '2xl': 'max-w-2xl',
-  '4xl': 'max-w-4xl',
-};
+export type { ModalWidth };
 
 interface ModalShellProps {
   isOpen: boolean;
@@ -58,54 +48,38 @@ export default function ModalShell({
   onBackdropClose,
   children,
 }: ModalShellProps) {
-  useBodyScrollLock(isOpen);
-  const vv = useVisualViewport(isOpen);
-  const zIndex = useModalLayer(isOpen, onClose);
-  const backdrop = useBackdropClose(onBackdropClose);
-
-  if (!isOpen) return null;
-
   return (
-    <div
-      className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in"
-      style={{ left: vv.left, top: vv.top, width: vv.width, height: vv.height, zIndex }}
-      {...backdrop}
-    >
-      <div
-        className={`bg-white w-full ${WIDTH_CLASS[width]} max-h-full rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {title !== undefined && (
-          <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50/60 shrink-0">
-            <h2 className="text-base font-black text-slate-800 truncate">{title}</h2>
-            <div className="flex items-center gap-2 shrink-0">
-              {headerExtra}
-              <button
-                type="button"
-                onClick={onClose}
-                title="닫기"
-                className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 font-bold transition-colors cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
+    <PopupFrame isOpen={isOpen} onClose={onClose} width={width} onBackdropClose={onBackdropClose}>
+      {title !== undefined && (
+        <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50/60 shrink-0">
+          <h2 className="text-base font-black text-slate-800 truncate">{title}</h2>
+          <div className="flex items-center gap-2 shrink-0">
+            {headerExtra}
+            <button
+              type="button"
+              onClick={onClose}
+              title="닫기"
+              className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 font-bold transition-colors cursor-pointer"
+            >
+              ✕
+            </button>
           </div>
-        )}
-
-        <div
-          className={`flex-1 min-h-0 overflow-y-auto overscroll-contain ${bare ? '' : 'px-5 py-4'}`}
-          data-scroll-lock
-        >
-          {children}
         </div>
+      )}
 
-        {footer && (
-          <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
-            {footer}
-          </div>
-        )}
+      <div
+        className={`flex-1 min-h-0 overflow-y-auto overscroll-contain ${bare ? '' : 'px-5 py-4'}`}
+        data-scroll-lock
+      >
+        {children}
       </div>
-    </div>
+
+      {footer && (
+        <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
+          {footer}
+        </div>
+      )}
+    </PopupFrame>
   );
 }
 
