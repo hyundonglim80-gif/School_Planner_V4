@@ -17,6 +17,7 @@ import { resolveEventLabelNames, eventDisplayContent } from '../lib/eventLabels'
 import { baseContentOf } from '../lib/eventGroups';
 import { showToast } from '../utils/toast';
 import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
+import { isTopSideItem } from './PopupFrame';
 import EventAlarmModal from './EventAlarmModal';
 import PeriodModal from './PeriodModal';
 import AutoTextarea from './AutoTextarea';
@@ -36,6 +37,8 @@ interface EventDrawerProps {
   subtitle?: string;
   /** '고친 것이 있으면 저장하기'를 밖에서 부를 수 있게 넘겨준다 (EntryDrawer와 같다) */
   flushRef?: React.MutableRefObject<(() => Promise<boolean>) | null>;
+  /** 저장 안 한 것이 있나. ESC로 칸을 모두 닫기 전에 묻는다. */
+  unsavedRef?: React.MutableRefObject<(() => boolean) | null>;
 }
 
 interface Attrs {
@@ -68,6 +71,7 @@ export default function EventDrawer({
   onClose,
   subtitle,
   flushRef,
+  unsavedRef,
 }: EventDrawerProps) {
   const { openLinkerModal, openLinkViewerModal, openLabelModal } = useAppStore();
   const { eventLabels, getLabelColor, labelsLoaded } = useLabels();
@@ -275,6 +279,7 @@ export default function EventDrawer({
     return handleSave();
   };
   if (flushRef) flushRef.current = saveIfChanged;
+  if (unsavedRef) unsavedRef.current = () => !untouched && !!text.trim();
 
   // 좁은 화면에서 배경을 누르면: 고친 것이 있으면 저장하고 닫는다. 실패하면 닫지 않는다.
   // 이 칸만 닫는다. 칸이 여럿 쌓여 있을 때 아래 칸까지 적던 것째 닫히면 안 된다.
@@ -288,8 +293,13 @@ export default function EventDrawer({
   saveRef.current = handleSave;
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      // 커서가 이 칸 안에 있을 때만. 쓰는 칸이 여럿 쌓이면(휴대폰도) 커서가 든 칸만 저장한다.
-      if (!panelRef.current?.contains(document.activeElement)) return;
+      // 커서가 이 칸 안에 있을 때. 쓰는 칸이 여럿 쌓이면(휴대폰도) 커서가 든 칸만 저장한다.
+      // 커서가 아무 데도 없으면(칸의 빈 곳·왼쪽 화면을 누른 뒤) 오른쪽 줄 맨 위 칸이 받는다 -
+      // 예전에는 이때 아무 칸도 받지 않아 'Ctrl+S가 가끔 안 먹는' 것처럼 보였다.
+      const active = document.activeElement;
+      const inside = !!panelRef.current?.contains(active);
+      const nowhere = !active || active === document.body;
+      if (!inside && !(nowhere && isTopSideItem(panelRef.current))) return;
       if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
         e.preventDefault();
         if (e.repeat) return;

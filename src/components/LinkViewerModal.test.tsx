@@ -50,15 +50,15 @@ const props = {
 beforeEach(() => {
   vi.clearAllMocks();
   useAppStore.setState({
-    isEntryEditorOpen: false,
-    entryEditorTarget: null,
+    entryPanels: [],
+    entryPanel: null,
     isDetailEditOpen: false,
     detailEditTarget: null,
   });
 });
 
 describe('연결된 링크 - 수정 버튼', () => {
-  it('기록 링크는 기록·메모 배너를 연다', async () => {
+  it('기록 링크는 하루 화면과 같은 기록 칸을 연다', async () => {
     mockSource([journalLink]);
     const user = userEvent.setup();
     render(<LinkViewerModal {...props} />);
@@ -66,12 +66,12 @@ describe('연결된 링크 - 수정 버튼', () => {
     await user.click(await screen.findByRole('button', { name: /수정/ }));
 
     const s = useAppStore.getState();
-    expect(s.isEntryEditorOpen).toBe(true);
-    expect(s.entryEditorTarget).toEqual({
+    expect(s.entryPanels).toHaveLength(1);
+    expect(s.entryPanels[0]).toMatchObject({
       kind: 'journal',
       dateStr: '2026-09-16',
-      id: 'jr_1',
-      fId: 'personal',
+      entryId: 'jr_1',
+      groupId: null,
     });
     // 일정 수정 팝업은 열리지 않는다
     expect(s.isDetailEditOpen).toBe(false);
@@ -92,7 +92,7 @@ describe('연결된 링크 - 수정 버튼', () => {
       itemId: 'ev_1',
       fId: 'personal',
     });
-    expect(s.isEntryEditorOpen).toBe(false);
+    expect(s.entryPanels).toHaveLength(0);
   });
 
   it('글자만 고치는 칸은 더 이상 열지 않는다', async () => {

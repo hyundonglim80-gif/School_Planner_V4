@@ -18,7 +18,7 @@ describe('단축키 팝업 - 목록', () => {
     expect(screen.getByText('통합 검색 열기')).toBeInTheDocument();
     expect(screen.getByText('일정 보이기 / 숨기기')).toBeInTheDocument();
     expect(screen.getByText('다중 선택 모드')).toBeInTheDocument();
-    expect(screen.getByText('모든 팝업창 저장 없이 닫기')).toBeInTheDocument();
+    expect(screen.getByText('모든 팝업창·오른쪽 칸 저장 없이 닫기')).toBeInTheDocument();
     expect(screen.getByText('ESC')).toBeInTheDocument();
   });
 
@@ -32,7 +32,7 @@ describe('단축키 팝업 - 목록', () => {
 
   it('ESC에는 키 입력칸이 없다 (바꿀 수 없다)', () => {
     render(<ShortcutModal isOpen onClose={vi.fn()} />);
-    expect(screen.queryByLabelText('모든 팝업창 저장 없이 닫기 키')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('모든 팝업창·오른쪽 칸 저장 없이 닫기 키')).not.toBeInTheDocument();
   });
 
   it('지금 설정된 조합이 입력칸에 들어 있다', () => {

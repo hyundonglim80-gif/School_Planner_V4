@@ -4,7 +4,8 @@
 //
 // 달력 화면들은 기록의 '개수'만 들고 있다(달력마다 기록 본문까지 실어 나르면
 // 화면이 무거워진다). 그래서 내용은 여기서 그날 문서 하나만 읽어 온다.
-// 고치고 싶으면 항목을 눌러 기록·메모 화면과 같은 편집 배너를 연다.
+// 고치거나 새로 쓰면 하루 화면과 같은 기록 칸(오른쪽 쓰는 칸)을 연다 - 파일 첨부·링크·
+// 삭제·옮기기까지 하루 화면과 똑같다. (예전에는 따로 만든 편집기가 열렸고, 새로 쓰는 길은 없었다)
 import { useEffect, useState } from 'react';
 import { doc, getDoc, getDocFromServer } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -28,6 +29,8 @@ const JOURNAL_LABEL_COLOR: Record<string, string> = {
 };
 
 interface PeekEntry {
+  /** 칸에 넘길 원래 항목 (구독이 도착하기 전 빈 칸이 보이지 않게) */
+  raw: any;
   id: string;
   content: string;
   labelIds?: string[];
@@ -45,7 +48,8 @@ export default function JournalPeekModal({
   fId?: string | null;
   onClose: () => void;
 }) {
-  const { openEntryEditor } = useAppStore();
+  const { openEntryEditor, openEntryPanel } = useAppStore();
+  const groupId = fId && fId !== 'personal' ? fId : null;
   const { journalLabels } = useLabels();
   const [entries, setEntries] = useState<PeekEntry[] | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -60,6 +64,7 @@ export default function JournalPeekModal({
     const apply = (data: any) => {
       const list: PeekEntry[] = (data?.entries || [])
         .map((j: any, idx: number) => ({
+          raw: j,
           id: j.id || `jr_${idx}`,
           content: j.content || '',
           labelIds: j.labelIds || [],
@@ -92,6 +97,21 @@ export default function JournalPeekModal({
       isOpen
       onClose={onClose}
       width="lg"
+      headerExtra={
+        <button
+          type="button"
+          onClick={() => {
+            // 하루 화면의 '기록 + 추가'와 같은 칸
+            openEntryPanel({ kind: 'journal', groupId, dateStr });
+            onClose();
+          }}
+          aria-label="이 날 기록 추가"
+          title="이 날 기록 추가 (하루 화면과 같은 기록 칸)"
+          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
+        >
+          + 추가
+        </button>
+      }
       title={
         <span className="flex items-center gap-2">
           <span>📝</span>
@@ -149,7 +169,7 @@ export default function JournalPeekModal({
                   )}
                   <button
                     onClick={() => {
-                      openEntryEditor({ kind: 'journal', dateStr, id: j.id, fId: fId || 'personal' });
+                      openEntryEditor({ kind: 'journal', dateStr, id: j.id, fId: fId || 'personal', initial: j.raw });
                       onClose();
                     }}
                     className="text-2xs font-bold text-primary hover:bg-blue-50 px-2 py-1 rounded"

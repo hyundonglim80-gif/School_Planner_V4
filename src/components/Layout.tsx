@@ -21,11 +21,8 @@ const SettingsModal = lazyWithReload(() => import('./SettingsModal'));
 const EvaluationModal = lazyWithReload(() => import('./EvaluationModal'));
 const RecurringModal = lazyWithReload(() => import('./RecurringModal'));
 const ForwardingModal = lazyWithReload(() => import('./ForwardingModal'));
-// 연결된 링크 팝업에서 여는 편집기 (일정/수업은 팝업, 기록/메모는 옆 배너)
+// 연결된 링크 팝업에서 여는 편집기 (일정/수업은 팝업, 기록/메모는 하루·메모 화면과 같은 쓰는 칸)
 const DetailEditModal = lazyWithReload(() => import('./DetailEditModal'));
-const LinkedEntryEditorHost = lazy(() =>
-  import('./LinkedEntryEditor').then((m) => ({ default: m.LinkedEntryEditorHost }))
-);
 const JournalPeekHost = lazy(() =>
   import('./JournalPeekModal').then((m) => ({ default: m.JournalPeekHost }))
 );
@@ -38,7 +35,7 @@ const StudentRecordModal = lazyWithReload(() => import('./StudentRecordModal'));
 import MultiEventActionBar from './MultiEventActionBar';
 import MiniCalendarPicker from './MiniCalendarPicker';
 import MobileTabBar from './MobileTabBar';
-import EntryPanelHost, { DOCK_MIN_WIDTH, openEntryPanel } from './EntryPanelHost';
+import EntryPanelHost, { DOCK_MIN_WIDTH, openEntryPanel, closeAllEntryPanels } from './EntryPanelHost';
 import { useSidePopups, RIGHT_COLUMN_CSS_WIDTH } from './PopupFrame';
 import ClipboardPanel, { useClipboardCapture, LEFT_COLUMN_CSS_WIDTH } from './ClipboardPanel';
 import ColumnResizer from './ColumnResizer';
@@ -426,6 +423,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         closeLinkViewerModal();
         closeEvaluationModal();
         setTrashModalOpen(false);
+        // 오른쪽 줄의 쓰는 칸(메모·기록·일정·알림장·출석부)도 모두 닫는다. 예전에는 칸 안에서 누르면
+        // 그 칸 하나만, 밖에서 누르면 팝업만 닫혀 '오른쪽 줄 전체가 안 닫힌다'고 느꼈다.
+        // 저장 안 한 것이 있으면 먼저 묻는다.
+        closeAllEntryPanels();
         return;
       }
 
@@ -1075,7 +1076,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           />
         )}
 
-        <LinkedEntryEditorHost />
         <JournalPeekHost />
 
         {isStudentRecordOpen && (

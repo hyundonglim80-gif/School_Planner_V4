@@ -59,13 +59,6 @@ export default function SidePanelFrame({
         aria-label={ariaLabel}
         className={className}
         style={style}
-        onKeyDown={(e) => {
-          // 이 칸 안에서 누른 ESC는 이 칸만 닫는다 (저장하지 않는다)
-          if (e.key === 'Escape') {
-            e.stopPropagation();
-            onClose();
-          }
-        }}
       >
         {children}
       </aside>,

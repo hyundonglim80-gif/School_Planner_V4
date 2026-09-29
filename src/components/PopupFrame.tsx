@@ -135,9 +135,20 @@ interface PopupFrameProps {
 const isSaveKey = (e: KeyboardEvent) =>
   (e.ctrlKey || e.metaKey) && !e.altKey && (e.code === 'KeyS' || e.key.toLowerCase() === 's');
 
-/** 열려 있는 팝업 판 가운데 맨 위(나중에 그려진 것)인가 */
+/**
+ * 오른쪽 줄(화면 옆에 붙은 팝업·쓰는 칸)에서 맨 위 칸인가. 줄 안의 차례는 CSS order로
+ * 정해진다(0이 맨 위 = 가장 나중에 연 것). 줄 밖이면 false.
+ * 커서가 아무 데도 없을 때(칸의 빈 곳이나 왼쪽 화면을 누른 뒤) Ctrl+S를 누가 받을지 정한다.
+ */
+export function isTopSideItem(el: Element | null | undefined): boolean {
+  const item = el?.closest('#side-column > *') as HTMLElement | null;
+  return !!item && item.style.order === '0';
+}
+
+/** 열려 있는 팝업 판 가운데 맨 위인가 (오른쪽 줄 안이면 줄의 맨 위, 밖이면 나중에 그려진 것) */
 function isTopDialog(el: HTMLElement) {
-  const all = document.querySelectorAll('[data-popup-card]');
+  if (el.closest('#side-column')) return isTopSideItem(el);
+  const all = [...document.querySelectorAll('[data-popup-card]')].filter((c) => !c.closest('#side-column'));
   return all[all.length - 1] === el;
 }
 

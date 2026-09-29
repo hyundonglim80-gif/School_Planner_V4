@@ -34,6 +34,7 @@ const CONFIRM_ALLOWED: Record<string, string> = {
   'DaySchedule.tsx': '기본 시간표 불러오기 - 과목을 덮어쓴다',
   'SettingsModal.tsx': '첨부를 드라이브로 옮긴 뒤 원본 삭제 - 여러 건, 복구 불가',
   'EvaluationModal.tsx': '조사표의 대상 학급 교체 - 학생 명단을 통째로 갈아 끼운다',
+  'EntryPanelHost.tsx': 'ESC로 쓰는 칸을 모두 닫을 때 저장 안 한 글이 있으면 - 적던 글이 사라진다',
   'ClipboardPanel.tsx': '클립보드 목록 모두 지우기 - 여러 건, 휴지통에 남지 않는다',
 };
 

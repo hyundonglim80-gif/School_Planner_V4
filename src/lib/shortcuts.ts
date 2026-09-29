@@ -118,7 +118,7 @@ export interface FixedShortcut {
 
 export const FIXED_SHORTCUTS: FixedShortcut[] = [
   {
-    label: '모든 팝업창 저장 없이 닫기',
+    label: '모든 팝업창·오른쪽 칸 저장 없이 닫기',
     keys: 'ESC',
     why: '거의 모든 프로그램이 같은 뜻으로 쓰는 키라 바꾸지 않습니다.',
   },

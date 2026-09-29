@@ -8,7 +8,7 @@
 //
 // 저장 로직도 여기로 옮겼다. 배너가 화면보다 오래 살기 때문에, 저장하는 쪽도
 // 화면이 아니라 배너 곁에 있어야 한다.
-import React, { Suspense, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { PanelRaiseContext } from './panelRaise';
 import MoveEntryModal from './MoveEntryModal';
 import { isMovableJournal, moveJournalToMemo, moveMemoToJournal } from '../lib/moveEntry';
@@ -75,9 +75,50 @@ function PanelFor({ target }: { target: EntryPanelTarget }) {
   return target.kind === 'journal' ? <JournalPanel target={target} /> : <MemoPanel target={target} />;
 }
 
+/** 칸마다 '저장 안 한 것이 있나'. 칸(EntryDrawer 등)이 채우고, ESC로 모두 닫기 전에 본다. */
+const unsavedChecks = new Set<React.MutableRefObject<(() => boolean) | null>>();
+
+/** 열린 쓰는 칸 가운데 저장 안 한 것이 있는가 */
+export function anyEntryPanelUnsaved(): boolean {
+  for (const ref of unsavedChecks) {
+    try {
+      if (ref.current?.()) return true;
+    } catch {
+      /* 확인을 못 하면 없는 것으로 */
+    }
+  }
+  return false;
+}
+
+/**
+ * 쓰는 칸을 모두 닫는다 (ESC). 저장 안 한 것이 있으면 먼저 묻는다 - ESC 한 번에 적던 글이
+ * 사라지면 되돌릴 길이 없다. 닫았으면 true.
+ */
+export function closeAllEntryPanels(): boolean {
+  const st = useAppStore.getState();
+  if (st.entryPanels.length === 0) return true;
+  if (anyEntryPanelUnsaved() && !window.confirm('저장하지 않은 내용이 있는 칸이 있습니다. 저장하지 않고 모두 닫을까요?')) {
+    return false;
+  }
+  useAppStore.setState({ entryPanels: [], entryPanel: null });
+  return true;
+}
+
 /** 칸마다의 '고친 것 있으면 저장' 자리. 칸(EntryDrawer 등)이 채운다. */
 function useFlushRegistration() {
   return useRef<(() => Promise<boolean>) | null>(null);
+}
+
+/** 칸마다의 '저장 안 한 것이 있나' 자리. 칸이 열려 있는 동안 목록에 올린다. */
+function useUnsavedRegistration() {
+  const ref = useRef<(() => boolean) | null>(null);
+  useEffect(() => {
+    unsavedChecks.add(ref);
+    return () => {
+      unsavedChecks.delete(ref);
+    };
+  }, []);
+  return ref;
 }
 
 /** 이 칸만 닫기 / 이 칸이 새로 만든 항목의 id 알리기 */
@@ -101,6 +142,7 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
   const [moveDraft, setMoveDraft] = useState<EntryDraft | null>(null);
   const docked = useMinWidth(DOCK_MIN_WIDTH);
   const flushRef = useFlushRegistration();
+  const unsavedRef = useUnsavedRegistration();
 
   const dateStr = target.dateStr || '';
   const { journals, addJournalEntry, updateJournalEntry, deleteJournalEntry } = useDayData(dateStr, target.groupId);
@@ -201,6 +243,7 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
       isOpen
       docked={docked}
       flushRef={flushRef}
+      unsavedRef={unsavedRef}
       onClose={closeEntryPanel}
       onMove={current && isMovableJournal(current) ? setMoveDraft : undefined}
       kind="journal"
@@ -241,6 +284,7 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
   const viewedDate = useAppStore((s) => s.currentDate);
   const docked = useMinWidth(DOCK_MIN_WIDTH);
   const flushRef = useFlushRegistration();
+  const unsavedRef = useUnsavedRegistration();
 
   const { memos, addMemo, updateMemo, deleteMemo } = useMemos(target.groupId);
   const { memoLabels, journalLabels: journalLabelList } = useLabels();
@@ -294,6 +338,7 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
       isOpen
       docked={docked}
       flushRef={flushRef}
+      unsavedRef={unsavedRef}
       onClose={closeEntryPanel}
       onMove={current ? setMoveDraft : undefined}
       kind="memo"
@@ -330,6 +375,7 @@ function EventPanel({ target }: { target: EntryPanelTarget }) {
   const { closeEntryPanel } = usePanelActions(target);
   const docked = useMinWidth(DOCK_MIN_WIDTH);
   const flushRef = useFlushRegistration();
+  const unsavedRef = useUnsavedRegistration();
   const spaceName = useSpaceName(target.groupId);
   const dateStr = target.dateStr || '';
 
@@ -341,6 +387,7 @@ function EventPanel({ target }: { target: EntryPanelTarget }) {
       initial={target.initial}
       docked={docked}
       flushRef={flushRef}
+      unsavedRef={unsavedRef}
       onClose={closeEntryPanel}
       subtitle={`${shortDateLabel(dateStr)} 일정 · ${spaceName}`}
     />
@@ -352,6 +399,7 @@ function ClassroomPanel({ target }: { target: EntryPanelTarget }) {
   const { closeEntryPanel } = usePanelActions(target);
   const docked = useMinWidth(DOCK_MIN_WIDTH);
   const flushRef = useFlushRegistration();
+  const unsavedRef = useUnsavedRegistration();
   const spaceName = useSpaceName(target.groupId);
   const dateStr = target.dateStr || '';
 
@@ -364,6 +412,7 @@ function ClassroomPanel({ target }: { target: EntryPanelTarget }) {
         initialTab={target.tab === 'list' ? 'list' : 'write'}
         docked={docked}
         flushRef={flushRef}
+        unsavedRef={unsavedRef}
         onClose={closeEntryPanel}
       />
     );
@@ -374,6 +423,7 @@ function ClassroomPanel({ target }: { target: EntryPanelTarget }) {
       initialTab={target.tab === 'summary' ? 'summary' : 'check'}
       docked={docked}
       flushRef={flushRef}
+      unsavedRef={unsavedRef}
       onClose={closeEntryPanel}
     />
   );

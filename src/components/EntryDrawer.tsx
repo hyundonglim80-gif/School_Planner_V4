@@ -17,6 +17,7 @@ import { isImageAttachment } from '../lib/attachments';
 import AutoTextarea from './AutoTextarea';
 import StudentTagPicker from './StudentTagPicker';
 import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
+import { isTopSideItem } from './PopupFrame';
 
 export type EntryKind = 'memo' | 'journal';
 
@@ -82,6 +83,8 @@ interface EntryDrawerProps {
    * 저장했거나 저장할 것이 없으면 true.
    */
   flushRef?: React.MutableRefObject<(() => Promise<boolean>) | null>;
+  /** 저장 안 한 것이 있나. ESC로 칸을 모두 닫기 전에 묻는다. */
+  unsavedRef?: React.MutableRefObject<(() => boolean) | null>;
 }
 
 const KIND_TEXT: Record<EntryKind, { noun: string; contentLabel: string; placeholder: string }> = {
@@ -151,6 +154,7 @@ export default function EntryDrawer({
   docked = false,
   subtitle,
   flushRef,
+  unsavedRef,
 }: EntryDrawerProps) {
   const { openLabelModal, openLinkerModal, currentDate } = useAppStore();
   const formattedDate = formatDateStr(new Date(currentDate));
@@ -163,6 +167,9 @@ export default function EntryDrawer({
 
   const [content, setContent] = useState('');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  // 라벨이 늦게 풀릴 때 '사용자가 손댔나'를 보려고 지금 값을 들고 있는다
+  const selectedLabelsRef = useRef<string[]>([]);
+  selectedLabelsRef.current = selectedLabels;
   /** 미리 골라 둘 라벨. 배너를 여는 그 순간의 값만 쓴다. */
   const defaultLabelRef = useRef(defaultLabel);
   defaultLabelRef.current = defaultLabel;
@@ -207,6 +214,7 @@ export default function EntryDrawer({
       setLinkedItems(k);
       setAttachments(a);
       snapshotRef.current = formSnapshot(c, l, a, k);
+      openedLabelsRef.current = JSON.stringify(l);
     } else {
       setContent('');
       // 미리 골라 둘 라벨은 '열 때'의 값으로 정한다. 라벨은 구독으로 들어와서
@@ -222,6 +230,30 @@ export default function EntryDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entryKey, isOpen]);
 
+  // 라벨이 늦게 풀리는 경우. 기록은 라벨을 id로 들고 있어서 라벨 목록으로 이름을 푸는데,
+  // 칸을 여는 순간에는 라벨 목록이 아직 기본값이라 이름이 안 풀려 체크가 하나도 안 된 채
+  // 열렸다(위 효과는 대상이 바뀔 때만 돌아 다시 채우지 않는다). 풀린 라벨이 바뀌면, 사용자가
+  // 라벨을 아직 손대지 않았을 때만 따라간다 - 고르던 것을 덮어쓰지 않는다.
+  const openedLabelsRef = useRef('[]');
+  const sourceLabelsKey = entry ? JSON.stringify(sourceLabels(entry)) : '';
+  useEffect(() => {
+    const source = entryRef.current;
+    if (!source || !sourceLabelsKey || sourceLabelsKey === openedLabelsRef.current) return;
+    const next: string[] = JSON.parse(sourceLabelsKey);
+    const untouched = JSON.stringify(selectedLabelsRef.current) === openedLabelsRef.current;
+    openedLabelsRef.current = sourceLabelsKey;
+    if (!untouched) return;
+    setSelectedLabels(next);
+    // '고친 것이 있나'를 재는 기준도 풀린 라벨로 맞춘다 (라벨만 풀렸다고 고친 것으로 치지 않게)
+    try {
+      const snap = JSON.parse(snapshotRef.current);
+      snap[1] = next;
+      snapshotRef.current = JSON.stringify(snap);
+    } catch {
+      /* 기준을 못 읽으면 그대로 둔다 */
+    }
+  }, [sourceLabelsKey]);
+
   useEffect(() => {
     handleSubmitRef.current = () => handleSubmit();
   }, [content, selectedLabels, attachments, linkedItems]);
@@ -232,8 +264,13 @@ export default function EntryDrawer({
       if (!isOpen) return;
       // 옆에 붙은 칸은 왼쪽 화면과 함께 쓴다. 왼쪽에서 누른 Ctrl+S(일정 저장 등)까지
       // 여기서 가로채면 두 곳이 함께 저장된다. 이 칸 안에 있을 때만 받는다.
-      // 커서가 이 칸 안에 있을 때만. 쓰는 칸이 여럿 쌓이면(휴대폰도) 커서가 든 칸만 저장한다.
-      if (!panelRef.current?.contains(document.activeElement)) return;
+      // 커서가 이 칸 안에 있을 때. 쓰는 칸이 여럿 쌓이면(휴대폰도) 커서가 든 칸만 저장한다.
+      // 커서가 아무 데도 없으면(칸의 빈 곳·왼쪽 화면을 누른 뒤) 오른쪽 줄 맨 위 칸이 받는다 -
+      // 예전에는 이때 아무 칸도 받지 않아 'Ctrl+S가 가끔 안 먹는' 것처럼 보였다.
+      const active = document.activeElement;
+      const inside = !!panelRef.current?.contains(active);
+      const nowhere = !active || active === document.body;
+      if (!inside && !(nowhere && isTopSideItem(panelRef.current))) return;
       if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
         e.preventDefault();
         // 키를 누른 채로 두면 브라우저가 keydown을 되풀이해 보낸다.
@@ -411,6 +448,7 @@ export default function EntryDrawer({
     return changed ? handleSubmit() : true;
   };
   if (flushRef) flushRef.current = saveIfChanged;
+  if (unsavedRef) unsavedRef.current = () => formSnapshot(content, selectedLabels, attachments, linkedItems) !== snapshotRef.current;
 
   // 배경을 누르면 이 칸만 닫는다. 칸이 여럿 쌓여 있을 때 아래 칸까지 적던 것째 닫히면 안 된다.
   backdropCloseRef.current = async () => {

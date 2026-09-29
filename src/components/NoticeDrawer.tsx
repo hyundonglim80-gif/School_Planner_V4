@@ -9,6 +9,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import AutoTextarea from './AutoTextarea';
 import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
+import { isTopSideItem } from './PopupFrame';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
 import { loadHolidayYears } from '../hooks/useGovHolidays';
 import { isVacationDay } from '../lib/semester';
@@ -42,6 +43,8 @@ interface NoticeDrawerProps {
   onClose: () => void;
   /** 다른 항목을 열기 전에 '고친 것 있으면 저장'을 부를 수 있게 넘겨준다 */
   flushRef?: React.MutableRefObject<(() => Promise<boolean>) | null>;
+  /** 저장 안 한 것이 있나. ESC로 칸을 모두 닫기 전에 묻는다. */
+  unsavedRef?: React.MutableRefObject<(() => boolean) | null>;
 }
 
 async function copyText(text: string) {
@@ -61,6 +64,7 @@ export default function NoticeDrawer({
   docked,
   onClose,
   flushRef,
+  unsavedRef,
 }: NoticeDrawerProps) {
   const { semesterConfig } = useTimetableTemplate();
   const panelRef = useRef<HTMLElement>(null);
@@ -135,6 +139,7 @@ export default function NoticeDrawer({
   // 다른 항목을 열기 전·바깥을 눌러 닫기 전에: 적던 것이 있으면 저장한다
   const saveIfChanged = async () => (dirty ? handleSave() : true);
   if (flushRef) flushRef.current = saveIfChanged;
+  if (unsavedRef) unsavedRef.current = () => dirty;
 
   // 다른 날짜로 가기 전에 적던 것을 저장한다
   const moveDate = async (next: string) => {
@@ -147,8 +152,13 @@ export default function NoticeDrawer({
   saveRef.current = handleSave;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // 커서가 이 칸 안에 있을 때만. 쓰는 칸이 여럿 쌓이면(휴대폰도) 커서가 든 칸만 저장한다.
-      if (!panelRef.current?.contains(document.activeElement)) return;
+      // 커서가 이 칸 안에 있을 때. 쓰는 칸이 여럿 쌓이면(휴대폰도) 커서가 든 칸만 저장한다.
+      // 커서가 아무 데도 없으면(칸의 빈 곳·왼쪽 화면을 누른 뒤) 오른쪽 줄 맨 위 칸이 받는다 -
+      // 예전에는 이때 아무 칸도 받지 않아 'Ctrl+S가 가끔 안 먹는' 것처럼 보였다.
+      const active = document.activeElement;
+      const inside = !!panelRef.current?.contains(active);
+      const nowhere = !active || active === document.body;
+      if (!inside && !(nowhere && isTopSideItem(panelRef.current))) return;
       if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
         e.preventDefault();
         if (!e.repeat) void saveRef.current();

@@ -152,7 +152,7 @@ describe('사용 설명서 - 기능별 분류 → 세부 기능 → 설명·사�
     await user.click(screen.getByRole('button', { name: /단축키 한눈에 보기/ }));
     const row = screen.getByText('휴지통').closest('div')!;
     expect(within(row).getByText('Ctrl + Shift + T')).toBeInTheDocument();
-    expect(screen.getByText('모든 팝업창 저장 없이 닫기')).toBeInTheDocument();
+    expect(screen.getByText('모든 팝업창·오른쪽 칸 저장 없이 닫기')).toBeInTheDocument();
   });
 });
 

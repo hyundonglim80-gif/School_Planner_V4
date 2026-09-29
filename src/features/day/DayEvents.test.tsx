@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, act, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DayEvents from './DayEvents';
-import EntryPanelHost from '../../components/EntryPanelHost';
+import EntryPanelHost, { closeAllEntryPanels } from '../../components/EntryPanelHost';
 import type { EventItem } from '../../hooks/useDayData';
 import { useAppStore } from '../../store/useAppStore';
 
@@ -429,5 +429,52 @@ describe('DayEvents - 묶인 일정 삭제 범위', () => {
     expect(screen.queryByRole('heading', { name: /연결된 일정 삭제/ })).toBeNull();
     expect(confirmSpy).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
+  });
+});
+
+describe('쓰는 칸 - ESC와 Ctrl+S', () => {
+  it('저장 안 한 것이 없으면 ESC 한 번에 쓰는 칸이 모두 닫힌다', async () => {
+    const user = userEvent.setup();
+    renderEvents();
+    await user.click(screen.getByText('교직원 회의'));
+    await user.click(screen.getByText('안전 점검'));
+    expect(screen.getAllByRole('complementary', { name: '일정 쓰기' })).toHaveLength(2);
+
+    act(() => {
+      expect(closeAllEntryPanels()).toBe(true);
+    });
+    expect(screen.queryAllByRole('complementary', { name: '일정 쓰기' })).toHaveLength(0);
+  });
+
+  it('저장 안 한 글이 있으면 먼저 묻고, 아니라고 하면 닫지 않는다', async () => {
+    const user = userEvent.setup();
+    renderEvents();
+    await user.click(screen.getByText('교직원 회의'));
+    await user.type(await screen.findByDisplayValue('교직원 회의'), '!');
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    act(() => {
+      expect(closeAllEntryPanels()).toBe(false);
+    });
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByRole('complementary', { name: '일정 쓰기' })).toHaveLength(1);
+    ask.mockRestore();
+  });
+
+  it('커서가 아무 데도 없을 때 Ctrl+S는 맨 위 칸만 저장한다', async () => {
+    const user = userEvent.setup();
+    renderEvents();
+    await user.click(screen.getByText('교직원 회의'));
+    await user.type(await screen.findByDisplayValue('교직원 회의'), '!');
+    await user.click(screen.getByText('안전 점검'));
+    const panels = await screen.findAllByRole('complementary', { name: '일정 쓰기' });
+    const top = panels.find((p) => p.style.order === '0')!;
+    await user.type(within(top).getByDisplayValue('안전 점검'), '?');
+    (document.activeElement as HTMLElement | null)?.blur();
+
+    fireEvent.keyDown(document.body, { key: 's', code: 'KeyS', ctrlKey: true });
+
+    await waitFor(() => expect(hook.updateEventItem).toHaveBeenCalledTimes(1));
+    expect(hook.updateEventItem.mock.calls[0][1].content).toBe('안전 점검?');
   });
 });

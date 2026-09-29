@@ -177,10 +177,12 @@ interface AppState {
   openJournalPeek: (dateStr: string, fId?: string | null) => void;
   closeJournalPeek: () => void;
 
-  isEntryEditorOpen: boolean;
-  entryEditorTarget: { kind: 'journal' | 'memo'; dateStr: string; id: string; fId?: string } | null;
-  openEntryEditor: (t: { kind: 'journal' | 'memo'; dateStr: string; id: string; fId?: string }) => void;
-  closeEntryEditor: () => void;
+  /**
+   * 다른 곳(달력의 '기록 N건 보기', 링크 보기)에서 기록·메모를 고칠 때. 하루·메모 화면과
+   * 같은 쓰는 칸(entryPanels)을 연다. 예전에는 따로 만든 편집기(LinkedEntryEditor)가 열려
+   * 날짜 표시·삭제·옮기기가 없고, PC에서도 화면을 덮었다.
+   */
+  openEntryEditor: (t: { kind: 'journal' | 'memo'; dateStr: string; id: string; fId?: string; initial?: any }) => void;
 
   // Evaluation Modal State
   isEvaluationModalOpen: boolean;
@@ -515,10 +517,14 @@ export const useAppStore = create<AppState>()(
       openJournalPeek: (dateStr, fId) => set({ journalPeek: { dateStr, fId: fId ?? null } }),
       closeJournalPeek: () => set({ journalPeek: null }),
 
-      isEntryEditorOpen: false,
-      entryEditorTarget: null,
-      openEntryEditor: (t) => set({ isEntryEditorOpen: true, entryEditorTarget: t }),
-      closeEntryEditor: () => set({ isEntryEditorOpen: false, entryEditorTarget: null }),
+      openEntryEditor: (t) =>
+        get().openEntryPanel({
+          kind: t.kind,
+          groupId: t.fId && t.fId !== 'personal' ? t.fId : null,
+          dateStr: t.kind === 'journal' ? t.dateStr : undefined,
+          entryId: t.id,
+          ...(t.initial ? { initial: t.initial } : {}),
+        }),
 
       isEvaluationModalOpen: false,
       evalDateStr: '',
