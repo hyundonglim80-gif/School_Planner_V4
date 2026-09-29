@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { formatV3EventText } from '../hooks/useDayData';
+import { readEventList } from '../lib/eventText';
 import { moveToTrash } from '../utils/trashHelper';
 import { formatDateStr } from '../lib/dateUtils';
 import { showErrorToast } from '../utils/toast';
@@ -388,7 +389,8 @@ export const useAppStore = create<AppState>()(
           const snap = await getDoc(eventDocRef);
           if (!snap.exists()) return;
           const data = snap.data();
-          const currentList: any[] = data.eventList || [];
+          // V3 옛 글(eventText)만 있는 날도 목록으로 읽는다. eventList만 보면 빈 목록을 써서 그날 일정이 사라진다.
+          const currentList: any[] = readEventList(data);
 
           const updatedList = currentList.map((item) => {
             if (ids.includes(item.id)) {
@@ -444,7 +446,8 @@ export const useAppStore = create<AppState>()(
           const snap = await getDoc(eventDocRef);
           if (!snap.exists()) return;
           const data = snap.data();
-          const currentList: any[] = data.eventList || [];
+          // V3 옛 글(eventText)만 있는 날도 목록으로 읽는다. eventList만 보면 빈 목록을 써서 그날 일정이 사라진다.
+          const currentList: any[] = readEventList(data);
 
           const toDelete = currentList.filter((item) => ids.map(String).includes(String(item.id)));
           for (const item of toDelete) {

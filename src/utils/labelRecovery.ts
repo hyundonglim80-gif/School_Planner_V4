@@ -1,4 +1,5 @@
 import { collection, getDocs } from 'firebase/firestore';
+import { readEventList } from '../lib/eventText';
 import { db } from '../lib/firebase';
 
 const COLOR_CYCLE = ['blue', 'green', 'red', 'orange', 'yellow', 'indigo', 'purple', 'gray'];
@@ -45,7 +46,7 @@ async function scanDayDocCollection(
       const snap = await getDocs(collection(db, `${base.join('/')}/${colName}`));
       snap.forEach((docSnap) => {
         const data = docSnap.data();
-        const list = colName === 'events' ? data.eventList || [] : data.entries || [];
+        const list = colName === 'events' ? readEventList(data) : data.entries || [];
         list.forEach((item: any) => {
           const names = colName === 'events' ? extractEventLabelNames(item) : extractJournalLabelNames(item);
           names.forEach((n) => found.add(n));

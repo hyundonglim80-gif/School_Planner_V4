@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { doc, setDoc, getDocs, query, where, documentId, writeBatch, collection } from 'firebase/firestore';
+import { readEventList } from '../lib/eventText';
 import { subscribeDocWithServerFallback } from '../lib/firestoreSubscribe';
 import { db, auth } from '../lib/firebase';
 import { formatDate } from '../lib/dateUtils';
@@ -168,8 +169,9 @@ export function useTimetableTemplate() {
         // 공휴일 or 행사 중 'skip' 속성 체크
         const eData = eventMap[dateStr];
         if (!isSkip && eData) {
-          const list = eData.eventList || [];
-          if (list.some((item: any) => item.skip || (item.text && item.text.includes('휴업')))) {
+          // V3 옛 글(eventText)만 있는 날도 읽는다. V4 일정은 본문이 content에 있다.
+          const list = readEventList(eData);
+          if (list.some((item: any) => item.skip || String(item.content || item.text || '').includes('휴업'))) {
             isSkip = true;
           }
         }

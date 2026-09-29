@@ -50,6 +50,8 @@ const D = {
   bulk: '2026-11-24', // 다중 선택 라벨 바꾸기
   trash: '2026-11-25', // 지우고 되살리기
   jrKeep: '2026-11-26', // 기록 고치기·지우기에 곁의 기록과 모르는 필드가 남는가
+  v3Bulk: '2026-11-27', // V3 옛 글만 있는 날에서 다중 선택 완료
+  v3Trash: '2026-11-30', // V3 옛 글만 있는 날로 휴지통 되살리기
 };
 const pad2 = (n) => String(n).padStart(2, '0');
 const localDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -98,6 +100,13 @@ async function plantFixtures() {
       { id: 'fx_keep_3', content: '지울 기록', createdAt: 3, label: '', labelIds: [], linkedItems: [], attachments: [] },
     ],
     updatedAt: Date.now(),
+  });
+  await setDoc(evRef(D.v3Bulk), { eventText: ['[달력] V3다중 하나', '[달력] V3다중 둘'].join(String.fromCharCode(10)), updatedAt: Date.now() });
+  await setDoc(evRef(D.v3Trash), { eventText: '[달력] V3에 남을 일정', updatedAt: Date.now() });
+  await setDoc(doc(db, 'users', uid, 'trash', 'fx_trash_v3'), {
+    id: 'fx_trash_v3', type: 'event', originalDateStr: D.v3Trash, dateStr: D.v3Trash, fId: 'personal',
+    content: 'V3날로 되살릴 일정', deletedAt: Date.now(),
+    data: { id: 'fx_v3_back', content: 'V3날로 되살릴 일정', label: '달력', labelIds: ['ev_1'], completed: false, linkedItems: [], attachments: [] },
   });
   // 다중 선택 라벨: 라벨을 id로만 든 일정
   await setDoc(evRef(D.bulk), {
@@ -814,6 +823,34 @@ if (ONLY !== 'mobile') {
     const bad = stored.filter((e) => (e.labelIds || []).includes('ev_3') || /이월/.test(e.label || ''));
     assert(bad.length === 0, `옛 이월 라벨이 남음: ${JSON.stringify(stored.map((e) => ({ c: e.content, label: e.label, ids: e.labelIds })))}`);
     assert(!shown.some((t) => /이월/.test(t)), `화면에 이월 칩: ${shown.map((t) => t.replace(/\s+/g, ' ')).join(' / ')}`);
+  });
+
+  await check('V3 옛 글만 있는 날에서 한 건을 다중 선택으로 완료해도 다른 일정이 남는다', async () => {
+    await goDay(D.v3Bulk);
+    await page.getByTitle('더보기 메뉴').click();
+    await page.getByRole('button', { name: /다중 선택 모드 켜기/ }).click();
+    await wait(500);
+    await eventRows().filter({ hasText: 'V3다중 하나' }).click();
+    await page.getByTitle('선택 일정 일괄 완료 처리').click();
+    await wait(2500);
+    await page.getByTitle('더보기 메뉴').click();
+    const off = page.getByRole('button', { name: /다중 선택 모드 종료/ });
+    if (await off.count()) await off.click();
+    await closeAll();
+    const stored = await storedEvents(D.v3Bulk);
+    const one = stored.find((e) => e.content === 'V3다중 하나');
+    assert(stored.some((e) => e.content === 'V3다중 둘'), `남은 일정: ${stored.map((e) => e.content).join(' / ') || '(없음)'}`);
+    assert(one?.completed === true, '고른 일정이 완료되지 않음');
+  });
+
+  await check('V3 옛 글만 있는 날로 휴지통의 일정을 되살려도 그날 V3 일정이 남는다', async () => {
+    await page.getByRole('button', { name: '휴지통', exact: true }).first().click();
+    await wait(1500);
+    await page.locator('div', { hasText: 'V3날로 되살릴 일정' }).filter({ has: page.getByRole('button', { name: '복원', exact: true }) }).last().getByRole('button', { name: '복원', exact: true }).click();
+    await wait(2500);
+    await closeAll();
+    const stored = (await storedEvents(D.v3Trash)).map((e) => e.content);
+    assert(stored.includes('V3날로 되살릴 일정') && stored.includes('V3에 남을 일정'), `그날 일정: ${stored.join(' / ')}`);
   });
 
   await check('기간 묶음의 한 날을 지웠다가 휴지통에서 되살리면 그날로, 묶음 표시(groupId)째 돌아온다', async () => {

@@ -5,6 +5,7 @@ import { db, auth } from '../lib/firebase';
 import { completeRestoreFromTrash, deleteFromTrash, type TrashItem } from '../utils/trashHelper';
 import { collectUploadUrls, deleteUnreferencedUploads } from '../utils/storageCleanup';
 import { formatV3EventText } from '../hooks/useDayData';
+import { readEventList } from '../lib/eventText';
 import { syncAutoSourceAndTell } from '../lib/autoJournalSync';
 import PopupFrame from './PopupFrame';
 import { deleteClipTrash, listClipTrash, restoreClipFromTrash } from '../lib/clipboardHistory';
@@ -123,13 +124,16 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
       const currentData = snap.exists() ? snap.data() : {};
 
       if (type === 'event') {
-        const list = currentData.eventList || [];
-        list.push(data);
+        // V3 옛 글(eventText)만 있는 날이면 그것을 목록으로 읽는다. eventList만 보면 빈 목록 위에
+        // 되살린 한 건만 써서, 그날 V3 일정이 모두 사라진다.
+        const list = readEventList(currentData);
+        // 이미 돌아와 있으면(두 번 누름·다른 기기에서 먼저 복원) 또 넣지 않는다
+        if (!list.some((e: any) => String(e?.id) === String(data?.id))) list.push(data);
         const serializedText = formatV3EventText(list);
         await setDoc(targetRef, { eventList: list, eventText: serializedText, updatedAt: Date.now() }, { merge: true });
       } else {
         const entries = currentData.entries || [];
-        entries.push(data);
+        if (!entries.some((e: any) => String(e?.id) === String(data?.id))) entries.push(data);
         await setDoc(targetRef, { entries, updatedAt: Date.now() }, { merge: true });
         // 알림장·출결 자동 항목이면 지울 때 비웠던 알림장·출석부도 되살린다
         await syncAutoSourceAndTell({
