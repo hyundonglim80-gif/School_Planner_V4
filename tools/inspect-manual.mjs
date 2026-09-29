@@ -760,7 +760,8 @@ if (ONLY !== 'mobile') {
   });
 
   await check('[캘린더 보내기] 창, 병합/교체, 보낼 대상', async () => {
-    await page.getByRole('button', { name: /캘린더/ }).first().click();
+    // 맨 위 📅 캘린더 단추는 걷어냈다. ⋮ 메뉴에서 연다.
+    await openMenu('구글 캘린더로 보내기');
     await wait(1000);
     for (const t of ['병합', '교체', '지금 화면 기간으로']) assert((await page.getByText(t).count()) > 0, `${t} 없음`);
     await closeAll();

@@ -528,16 +528,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 )}
               </button>
 
-              {/* 캘린더·휴지통은 좁은 화면에서 ⋮ 메뉴로 내린다 */}
-              <button
-                onClick={() => setIsCalendarModalOpen(true)}
-                className="hidden sm:flex px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 rounded-xl text-xs font-bold transition-all items-center gap-1 shadow-2xs shrink-0"
-                title={withShortcut('구글 캘린더로 보내기', 'calendar')}
-              >
-                <span>📅</span>
-                <span>캘린더</span>
-              </button>
-
+              {/* 휴지통은 좁은 화면에서 ⋮ 메뉴로 내린다.
+                  구글 캘린더로 보내기는 자주 쓰지 않아 맨 위 단추를 걷고 ⋮ 메뉴에 둔다. */}
               <button
                 onClick={() => setTrashModalOpen(true)}
                 className="hidden sm:flex px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all items-center gap-1 shadow-2xs shrink-0"
@@ -618,13 +610,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
                   {/* 좁은 화면에서 상단에 둘 자리가 없어 내려온 항목들 */}
                   <div className="sm:hidden border-b border-slate-200 pb-1 mb-1">
-                    <button
-                      onClick={() => { setIsMoreMenuOpen(false); setIsCalendarModalOpen(true); }}
-                      className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
-                    >
-                      <span>📅</span> 구글 캘린더로 보내기
-                      {menuKey('calendar')}
-                    </button>
                     <button
                       onClick={() => { setIsMoreMenuOpen(false); setTrashModalOpen(true); }}
                       className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
@@ -773,6 +758,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   >
                     <span>⏰</span> 시간표 적용 (주간 템플릿)
                     {menuKey('timetable')}
+                  </button>
+
+                  {/* 병합/교체·'지금 화면 기간으로'는 이 창에만 있다 (백업 창의 캘린더 보내기에는 없다) */}
+                  <button
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      setIsCalendarModalOpen(true);
+                    }}
+                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
+                  >
+                    <span>📅</span> 구글 캘린더로 보내기
+                    {menuKey('calendar')}
                   </button>
 
                   <button
