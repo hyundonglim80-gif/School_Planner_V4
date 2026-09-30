@@ -1,4 +1,4 @@
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { db, storage } from '../lib/firebase';
 
@@ -50,17 +50,31 @@ export async function deleteUnreferencedUploads(urls: string[], uid: string): Pr
   const candidates = new Set(urls.filter(isStorageUrl));
   if (candidates.size === 0) return 0;
 
-  const collectionsToScan = ['events', 'journals', 'tasks', 'trash'];
-  for (const colName of collectionsToScan) {
+  // ⚠️ 개인 공간만 보면 안 된다. 공유 그룹의 항목도 개인 휴지통으로 오고, 그룹 안에서 이월된 사본이 같은
+  //    파일을 가리킨다. 예전에는 개인 공간의 일정·기록·메모·휴지통만 훑어서, 그룹의 살아 있는 사본(과 수업 칸)의
+  //    첨부 파일까지 지웠다. 내 그룹들과 수업(schedules)까지 훑는다.
+  let groupIds: string[] = [];
+  try {
+    const gs = await getDocs(query(collection(db, 'groups'), where('members', 'array-contains', uid)));
+    groupIds = gs.docs.map((g) => g.id);
+  } catch (e) {
+    console.warn('그룹 목록을 읽지 못해 첨부 파일 삭제를 건너뜁니다.', e);
+    return 0;
+  }
+  const scans: string[][] = [
+    ...['events', 'journals', 'tasks', 'schedules', 'trash'].map((c) => ['users', uid, c]),
+    ...groupIds.flatMap((g) => ['events', 'journals', 'tasks', 'schedules'].map((c) => ['groups', g, c])),
+  ];
+  for (const path of scans) {
     if (candidates.size === 0) break;
     try {
-      const snap = await getDocs(collection(db, 'users', uid, colName));
+      const snap = await getDocs(collection(db, path.join('/')));
       snap.forEach((d) => {
         collectUploadUrls(d.data()).forEach((u) => candidates.delete(u));
       });
     } catch (e) {
       // 한 컬렉션이라도 확인하지 못하면 삭제를 포기한다(지우는 것보다 남기는 편이 안전).
-      console.warn(`첨부 참조 확인 실패(${colName}) - 파일 삭제를 건너뜁니다.`, e);
+      console.warn(`첨부 참조 확인 실패(${path.join('/')}) - 파일 삭제를 건너뜁니다.`, e);
       return 0;
     }
   }

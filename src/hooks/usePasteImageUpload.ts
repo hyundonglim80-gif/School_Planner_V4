@@ -65,9 +65,9 @@ export function usePasteImageUpload(onUploaded: (images: PastedImage[]) => void)
       return;
     }
 
+    const uploaded: PastedImage[] = [];
     try {
       setPasting(true);
-      const uploaded: PastedImage[] = [];
       for (let i = 0; i < files.length; i++) {
         const mimeType = files[i].type || 'image/png';
         const name = buildPastedName(i, mimeType);
@@ -80,7 +80,13 @@ export function usePasteImageUpload(onUploaded: (images: PastedImage[]) => void)
       onUploadedRef.current(uploaded);
     } catch (err) {
       console.error('붙여넣은 이미지 업로드 실패:', err);
-      showErrorToast('이미지 업로드에 실패했습니다.');
+      // 앞서 올라간 그림은 붙여 둔다 (버리면 드라이브에만 남는다)
+      if (uploaded.length > 0) {
+        onUploadedRef.current(uploaded);
+        showErrorToast(`그림 ${files.length}개 중 ${uploaded.length}개만 올렸습니다. 나머지를 다시 붙여 주세요.`);
+      } else {
+        showErrorToast('이미지 업로드에 실패했습니다.');
+      }
     } finally {
       setPasting(false);
     }

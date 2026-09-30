@@ -397,9 +397,9 @@ export default function EntryDrawer({
       return;
     }
 
+    const uploaded: EntryAttachment[] = [];
     try {
       setUploadingFiles(true);
-      const uploaded: EntryAttachment[] = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         // 이미지도 압축하지 않고 원본 그대로 올린다. 화면 캡처는 글자가 많아
@@ -412,7 +412,14 @@ export default function EntryDrawer({
       setAttachments((prev) => [...prev, ...uploaded]);
     } catch (error) {
       console.error('파일 업로드 에러:', error);
-      showErrorToast('파일 업로드에 실패했습니다.');
+      // 앞서 올라간 파일은 붙여 둔다. 예전엔 하나라도 실패하면 이미 올린 것까지 버려서, 드라이브에만 남고
+      // 다시 올리면 두 벌이 됐다.
+      if (uploaded.length > 0) {
+        setAttachments((prev) => [...prev, ...uploaded]);
+        showErrorToast(`파일 ${files.length}개 중 ${uploaded.length}개만 올렸습니다. 나머지를 다시 올려 주세요.`);
+      } else {
+        showErrorToast('파일 업로드에 실패했습니다.');
+      }
     } finally {
       setUploadingFiles(false);
       e.target.value = '';
