@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import type { EntryTable } from '../lib/entryTable';
-import { collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc, writeBatch, runTransaction } from 'firebase/firestore';
 import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 import { db, auth } from '../lib/firebase';
 import { moveToTrash } from '../utils/trashHelper';
-import { syncReverseLinks } from '../utils/linkUtils';
+import { syncReverseLinks, mergeLinkEdits } from '../utils/linkUtils';
 import { showErrorToast, failWithToast } from '../utils/toast';
 
 export interface MemoAttachment {
@@ -143,7 +143,7 @@ export function useMemos(groupId: string | null = null) {
     return ref;
   };
 
-  const updateMemo = async (firestoreId: string, data: { content?: string; labels?: string[]; completed?: boolean; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[]; keepId?: string; favorite?: boolean; tables?: EntryTable[] }) => {
+  const updateMemo = async (firestoreId: string, data: { content?: string; labels?: string[]; completed?: boolean; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[]; linkedItemsBase?: any[]; keepId?: string; favorite?: boolean; tables?: EntryTable[] }) => {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
 
@@ -166,7 +166,20 @@ export function useMemos(groupId: string | null = null) {
     if (data.tables !== undefined) updateData.tables = data.tables;
 
     const previous = memos.find((m) => m.firestoreId === firestoreId);
-    const result = await updateDoc(docRef, updateData);
+    let result: void;
+    if (data.linkedItems !== undefined && data.linkedItemsBase !== undefined) {
+      // 링크는 칸이 더하고 뺀 것만 서버의 지금 목록에 옮긴다 (칸을 연 사이 걸린 역링크를 덮지 않게)
+      result = await runTransaction(db, async (tx) => {
+        const snap = await tx.get(docRef);
+        if (!snap.exists()) throw new Error('메모를 찾지 못했습니다. 다른 곳에서 지웠을 수 있습니다.');
+        tx.update(docRef, {
+          ...updateData,
+          linkedItems: mergeLinkEdits(snap.data().linkedItems, data.linkedItemsBase, data.linkedItems),
+        });
+      });
+    } else {
+      result = await updateDoc(docRef, updateData);
+    }
 
     await syncReverseLinks(
       previous?.linkedItems,

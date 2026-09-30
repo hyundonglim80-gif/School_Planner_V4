@@ -6,7 +6,7 @@ import {
   collection, query, where, documentId, getDocs, getDocsFromServer, orderBy, limit,
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { addReverseLink, syncReverseLinks } from '../utils/linkUtils';
+import { addReverseLink, syncReverseLinks, mergeLinkEdits } from '../utils/linkUtils';
 import { moveToTrash } from '../utils/trashHelper';
 import { DEFAULT_EVENT_LABELS, normalizeEventLabel } from './useLabels';
 import { showErrorToast, failWithToast, ShownError } from '../utils/toast';
@@ -162,13 +162,13 @@ export function runAutoForwarding(groupId: string | null): Promise<number> {
 async function doAutoForwarding(groupId: string | null) {
   const user = auth.currentUser;
   if (!user) return 0;
-  
+
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  
+
   // 환경설정 > 이월에서 정한 기간. 훅 밖이라 store를 직접 읽는다.
   const pastDates = pastDateStrings(now, useAppStore.getState().forwardLookbackDays);
-  
+
   const settingsRef = doc(db, 'users', user.uid, 'settings', 'labels');
   // ⚠️ 라벨 정의를 못 읽었는데 기본값으로 대신 판단하면 안 된다.
   //    이월은 '어떤 라벨이 이월 대상인가'로 지난 일정을 오늘로 옮기는 일이다.
@@ -225,10 +225,10 @@ async function doAutoForwarding(groupId: string | null) {
     return 0;
   }
   const rawLabelDefs: any[] = chosen as any[];
-  
+
   // V3는 isForward/isSkip, V4는 forward/skip을 쓴다. 한 모양으로 맞춘 뒤 쓴다.
   const labelDefs = rawLabelDefs.map((l: any, i: number) => normalizeEventLabel(l, i));
-  
+
   // 오늘 날짜의 이월 중복 방지를 위해 오늘 목록 미리 조회
   const todayDocRef = groupId
     ? doc(db, 'groups', groupId, 'events', todayStr)
@@ -277,7 +277,7 @@ async function doAutoForwarding(groupId: string | null) {
   for (const pastDoc of pastSnaps.docs) {
     const pDate = pastDoc.id;
     const items: EventItem[] = readEventList(pastDoc.data()) as EventItem[];
-    
+
     let hasChanges = false;
     const remainingItems: EventItem[] = [];
 
@@ -551,8 +551,8 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
               createdAt: e.createdAt,
             };
           }).filter((e: EventItem) =>
-            (e.content && e.content.trim().length > 0) || 
-            e.label || 
+            (e.content && e.content.trim().length > 0) ||
+            e.label ||
             (e.labelIds && e.labelIds.length > 0) ||
             (e.attachments && e.attachments.length > 0) ||
             (e.linkedItems && e.linkedItems.length > 0)
@@ -707,7 +707,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           // 붙인 표 (lib/entryTable). 여기서 빼면 저장은 되는데 화면에는 안 보인다 (첨부와 같은 실수)
           ...(Array.isArray(j.tables) && j.tables.length > 0 ? { tables: j.tables } : {}),
         })).filter((j: JournalEntry) =>
-          (j.content && j.content.trim().length > 0) || 
+          (j.content && j.content.trim().length > 0) ||
           !!j.imageUrl ||
           j.label ||
           (j.labelIds && j.labelIds.length > 0) ||
@@ -782,9 +782,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const eventDocRef = groupId
       ? doc(db, 'groups', groupId, 'events', dateStr)
       : doc(db, 'users', user.uid, 'events', dateStr);
-    const validList = newList.filter((item) => 
-      (item.content && item.content.trim().length > 0) || 
-      item.label || 
+    const validList = newList.filter((item) =>
+      (item.content && item.content.trim().length > 0) ||
+      item.label ||
       (item.labelIds && item.labelIds.length > 0) ||
       (item.attachments && item.attachments.length > 0) ||
       (item.linkedItems && item.linkedItems.length > 0)
@@ -851,16 +851,16 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       ...(options?.skip !== undefined ? { skip: options.skip } : {}),
     };
 
-    const validList = [...eventList, newItem].filter((item) => 
-      (item.content && item.content.trim().length > 0) || 
-      item.label || 
+    const validList = [...eventList, newItem].filter((item) =>
+      (item.content && item.content.trim().length > 0) ||
+      item.label ||
       (item.labelIds && item.labelIds.length > 0) ||
       (item.attachments && item.attachments.length > 0) ||
       (item.linkedItems && item.linkedItems.length > 0)
     );
-    
+
     await saveEventItems(validList, eventList);
-    
+
     if (newItem.linkedItems && newItem.linkedItems.length > 0) {
       const sourceMeta = {
         targetType: 'event',
@@ -901,7 +901,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const eventDocRef = groupId
       ? doc(db, 'groups', groupId, 'events', dateStr)
       : doc(db, 'users', user.uid, 'events', dateStr);
-    
+
     // 휴지통에 넣을 원본. 화면 목록에 없으면(아직 못 받았거나 다른 화면에서 지울 때) 서버에서 찾는다.
     // ⚠️ 예전에는 여기서 캐시(getDoc)로 읽고 eventList만 봤다. 그리고 화면 목록으로 저장을 돌려서,
     //    화면 목록이 빈 채로 지우면 지울 항목이 '남이 넣은 것'으로 살아남아 휴지통과 그날에 둘 다 남았다.
@@ -961,14 +961,14 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   const updateEventItem = useCallback(async (id: string, updates: Partial<EventItem>) => {
     const newList = eventList
       .map(item => item.id === id ? { ...item, ...updates } : item)
-      .filter((item) => 
-        (item.content && item.content.trim().length > 0) || 
-        item.label || 
+      .filter((item) =>
+        (item.content && item.content.trim().length > 0) ||
+        item.label ||
         (item.labelIds && item.labelIds.length > 0) ||
         (item.attachments && item.attachments.length > 0) ||
         (item.linkedItems && item.linkedItems.length > 0)
       );
-      
+
     const itemStillExists = newList.some(item => item.id === id);
     if (!itemStillExists) {
       await deleteEventItem(id);
@@ -1088,7 +1088,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   const addJournalEntry = useCallback(async (content: string, label: string = '', labelIds: string[] = [], imageUrl?: string, options?: Partial<JournalEntry>) => {
     const user = auth.currentUser;
     if (!user || !dateStr || (!content.trim() && !imageUrl && (!options?.attachments || options.attachments.length === 0))) return;
-    
+
     const newId = 'jr_'+ Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5);
     const newEntry: JournalEntry = {
       id: newId,
@@ -1100,7 +1100,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       imageUrl: imageUrl || '',
       ...options
     };
-    
+
     try {
       await mutateJournals((fresh) => [...fresh.filter((j) => j.id !== newId), newEntry]);
     } catch (err) {
@@ -1127,11 +1127,11 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
 
   const reorderEvents = useCallback(async (sourceIndex: number, targetIndex: number) => {
     if (sourceIndex === targetIndex || sourceIndex < 0 || targetIndex < 0 || sourceIndex >= eventList.length || targetIndex >= eventList.length) return;
-    
+
     const newList = [...eventList];
     const [moved] = newList.splice(sourceIndex, 1);
     newList.splice(targetIndex, 0, moved);
-    
+
     try {
       await saveEventItems(newList, eventList);
     } catch (err) {
@@ -1141,7 +1141,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
 
   const reorderJournals = useCallback(async (sourceIndex: number, targetIndex: number) => {
     if (sourceIndex === targetIndex || sourceIndex < 0 || targetIndex < 0 || sourceIndex >= journals.length || targetIndex >= journals.length) return;
-    
+
     const newList = [...journals];
     const [moved] = newList.splice(sourceIndex, 1);
     newList.splice(targetIndex, 0, moved);
@@ -1202,10 +1202,12 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     if (itemToDelete) await syncAutoSourceAndTell({ entry: itemToDelete, groupId, dateStr, content: null });
   }, [dateStr, groupId, journals, mutateJournals]);
 
-  const updateJournalEntry = useCallback(async (id: string, updates: { content?: string; label?: string; labelIds?: string[]; imageUrl?: string; attachments?: Attachment[]; linkedItems?: any[]; tables?: EntryTable[] }) => {
+  const updateJournalEntry = useCallback(async (id: string, input: { content?: string; label?: string; labelIds?: string[]; imageUrl?: string; attachments?: Attachment[]; linkedItems?: any[]; tables?: EntryTable[]; linkedItemsBase?: any[] }) => {
+    // linkedItemsBase는 저장할 칸이 아니다 - 링크를 합치는 기준으로만 쓴다
+    const { linkedItemsBase, ...updates } = input;
     const user = auth.currentUser;
     if (!user || !dateStr) return;
-    
+
     const target = journals.find(j => j.id === id);
     const newContent = updates.content !== undefined ? updates.content.trim() : (target?.content || '');
     const newImage = updates.imageUrl !== undefined ? updates.imageUrl : (target?.imageUrl || '');
@@ -1213,23 +1215,23 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const hasLabelIds = updates.labelIds !== undefined ? updates.labelIds.length > 0 : !!(target?.labelIds && target.labelIds.length > 0);
     const hasAttachments = !!(target?.attachments && target.attachments.length > 0);
     const hasLinks = !!(target?.linkedItems && target.linkedItems.length > 0);
-    
+
     if (!newContent && !newImage && !hasLabel && !hasLabelIds && !hasAttachments && !hasLinks) {
       await deleteJournalEntry(id);
       return;
     }
-    
+
     const newJournals = journals
       .map(j => j.id === id ? { ...j, ...updates, updatedAt: Date.now() } : j)
-      .filter((j) => 
-        (j.content && j.content.trim().length > 0) || 
+      .filter((j) =>
+        (j.content && j.content.trim().length > 0) ||
         !!j.imageUrl ||
         j.label ||
         (j.labelIds && j.labelIds.length > 0) ||
         (j.attachments && j.attachments.length > 0) ||
         (j.linkedItems && j.linkedItems.length > 0)
       );
-      
+
     const itemStillExists = newJournals.some(j => j.id === id);
     if (!itemStillExists) {
       await deleteJournalEntry(id);
@@ -1241,7 +1243,15 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       // 서버 목록에서 그 항목만 고친다. 그 사이 다른 기기에서 지워졌으면 고친 글로 되살린다.
       await mutateJournals((fresh) =>
         fresh.some((j) => j.id === id)
-          ? fresh.map((j) => (j.id === id ? { ...j, ...updates, updatedAt: Date.now() } : j))
+          ? fresh.map((j) => {
+              if (j.id !== id) return j;
+              // 링크는 칸이 더하고 뺀 것만 서버 목록에 옮긴다 (칸을 연 사이 걸린 역링크를 덮지 않게)
+              const links =
+                updates.linkedItems !== undefined && linkedItemsBase !== undefined
+                  ? { linkedItems: mergeLinkEdits(j.linkedItems, linkedItemsBase, updates.linkedItems) }
+                  : {};
+              return { ...j, ...updates, ...links, updatedAt: Date.now() };
+            })
           : [...fresh, edited]
       );
     } catch (err) {
@@ -1278,15 +1288,15 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   const forwardedDateRef = useRef<string | null>(null);
   useEffect(() => {
     if (loading || !auth.currentUser) return;
-    
+
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    
+
     if (dateStr !== todayStr) {
       forwardedDateRef.current = null;
       return;
     }
-    
+
     if (dateStr === todayStr && forwardedDateRef.current !== dateStr) {
       forwardedDateRef.current = dateStr;
       forwardIncompleteEvents().catch(console.error);

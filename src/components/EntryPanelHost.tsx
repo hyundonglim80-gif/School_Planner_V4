@@ -202,6 +202,7 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
         imageUrl: '', // 구버전 imageUrl은 첨부 목록으로 옮겨 담았다
         attachments,
         linkedItems: draft.linkedItems,
+        linkedItemsBase: draft.linkedItemsBase,
         tables: draft.tables,
       });
       return;

@@ -57,6 +57,11 @@ export interface EntryDraft {
   labels: string[];
   attachments: EntryAttachment[];
   linkedItems: any[];
+  /**
+   * 칸이 열릴 때(또는 마지막으로 저장할 때)의 링크 목록. 저장하는 쪽이 칸에서 더하고 뺀 링크만 서버 목록에
+   * 옮기는 데 쓴다(utils/linkUtils.mergeLinkEdits) - 칸을 연 사이 다른 곳에서 걸린 링크를 덮지 않게.
+   */
+  linkedItemsBase: any[];
   imageUrl?: string;
   /** 붙인 표. 엑셀에서 복사해 본문에 붙여넣으면 생긴다 */
   tables: EntryTable[];
@@ -212,6 +217,8 @@ export default function EntryDrawer({
   const entryKey = entry ? String(entry.id ?? entry.firestoreId ?? '') : null;
   const entryRef = useRef<EntrySource | null>(entry);
   entryRef.current = entry;
+  /** 칸이 열릴 때(또는 마지막 저장 때)의 링크 목록 (EntryDraft.linkedItemsBase) */
+  const baseLinksRef = useRef<any[]>([]);
 
   useEffect(() => {
     const source = entryRef.current;
@@ -227,6 +234,7 @@ export default function EntryDrawer({
       setAttachments(a);
       setTables(t);
       snapshotRef.current = formSnapshot(c, l, a, k, t);
+      baseLinksRef.current = k;
       openedLabelsRef.current = JSON.stringify(l);
     } else {
       setContent('');
@@ -240,6 +248,7 @@ export default function EntryDrawer({
       setLinkedItems([]);
       setTables([]);
       snapshotRef.current = formSnapshot('', l, [], [], []);
+      baseLinksRef.current = [];
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entryKey, isOpen]);
@@ -458,12 +467,14 @@ export default function EntryDrawer({
         labels: selectedLabels,
         attachments,
         linkedItems,
+        linkedItemsBase: baseLinksRef.current,
         imageUrl: attachments.find(isImageAttachment)?.url,
         tables: tables.map(tableForSave),
       });
       // 저장해도 배너는 닫지 않는다. 닫기 버튼이나 배경 클릭으로만 닫힌다.
       showToast(`✅ ${text.noun}을(를) 저장했습니다.`);
       snapshotRef.current = formSnapshot(content, selectedLabels, attachments, linkedItems, tables);
+      baseLinksRef.current = linkedItems;
       return true;
     } catch (error) {
       // 저장 함수가 이미 안내했으면(ShownError) 또 띄우지 않는다
@@ -783,6 +794,7 @@ export default function EntryDrawer({
                     labels: selectedLabels,
                     attachments,
                     linkedItems,
+                    linkedItemsBase: baseLinksRef.current,
                     imageUrl: attachments.find(isImageAttachment)?.url,
                     tables: tables.map(tableForSave),
                   })

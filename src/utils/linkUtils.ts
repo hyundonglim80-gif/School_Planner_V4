@@ -70,6 +70,25 @@ export function applyReverseLink(
   return [...kept, sourceMeta];
 }
 
+/**
+ * 칸에서 고친 링크 목록을 서버의 지금 목록에 반영한다. 칸이 **더하고 뺀 것만** 옮긴다.
+ *
+ * ⚠️ 쓰는 칸은 열 때의 링크 목록을 들고 있다가 저장할 때 통째로 썼다. 칸을 연 사이 다른 칸(쌓인 칸)·다른 기기에서
+ *    이 항목에 걸린 역링크가 그 옛 목록에 덮여 빠지고, 상대 쪽에만 링크가 남았다.
+ * @param server 서버의 지금 목록
+ * @param base 칸이 열릴 때(또는 마지막으로 저장할 때)의 목록
+ * @param edited 칸에서 고친 목록
+ */
+export function mergeLinkEdits(server: any[] | undefined, base: any[] | undefined, edited: any[] | undefined): any[] {
+  const baseIds = new Set((base || []).map(linkIdOf));
+  const editedIds = new Set((edited || []).map(linkIdOf));
+  const removed = new Set([...baseIds].filter((id) => !editedIds.has(id)));
+  const kept = (Array.isArray(server) ? server : []).filter((l) => !removed.has(linkIdOf(l)));
+  const have = new Set(kept.map(linkIdOf));
+  const added = (edited || []).filter((l) => !baseIds.has(linkIdOf(l)) && !have.has(linkIdOf(l)));
+  return [...kept, ...added];
+}
+
 export const addReverseLink = async (
   targetLink: SelectedLinkItem,
   sourceMeta: SelectedLinkItem,

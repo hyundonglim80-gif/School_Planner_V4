@@ -19,6 +19,7 @@ import type { StartupScope } from '../store/useAppStore';
 import { FONT_SCALES } from '../lib/fontScale';
 import { isDeveloper } from '../lib/developers';
 import { labelDiagnostics, useLabels, toSharedEventLabel } from '../hooks/useLabels';
+import { readLegacyMemoLabels } from '../lib/legacyLabels';
 import { MIN_LOOKBACK_DAYS, MAX_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
 import { SHORTCUT_ACTIONS, resolveBindings, formatActionBinding, type ShortcutId } from '../lib/shortcuts';
 import ShortcutModal from './ShortcutModal';
@@ -450,9 +451,30 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
     try {
       const ref = doc(db, 'users', uid, 'settings', 'labels');
+      // ⚠️ 화면이 든 라벨은 추린 모양이다: 메모 라벨은 이름만(useLabels), 일정 라벨은 V4가 아는 칸만.
+      //    그대로 올리면 V3의 메모 라벨({id, name, color})이 이름 문자열로 바뀌어 V3 메모 라벨 창·색이 깨지고,
+      //    일정 라벨의 V3 칸(isSystem 등)이 빠진다. 서버에 있는 원래 객체를 바탕으로 올린다.
+      let cloud: any = {};
+      try {
+        const cur = await getDocFromServer(ref);
+        cloud = cur.exists() ? cur.data() : {};
+      } catch {
+        /* 못 읽으면 이 기기 값으로 올린다 */
+      }
+      const now = Date.now();
+      const cloudEventsById = new Map<string, any>(
+        (Array.isArray(cloud.eventLabels) ? cloud.eventLabels : []).map((l: any) => [String(l?.id), l])
+      );
+      const events = eventLabels.map((l) => ({ ...(cloudEventsById.get(String(l.id)) || {}), ...toSharedEventLabel(l) }));
+      const memoRaw =
+        Array.isArray(cloud.memoLabels) && cloud.memoLabels.length > 0
+          ? cloud.memoLabels
+          : readLegacyMemoLabels() || memoLabels.map((name, i) => ({ id: `memo_${now + i}`, name, color: 'gray' }));
+      const journalRaw =
+        Array.isArray(cloud.journalLabels) && cloud.journalLabels.length > 0 ? cloud.journalLabels : journalLabels;
       await setDoc(
         ref,
-        { eventLabels: eventLabels.map(toSharedEventLabel), journalLabels, memoLabels, updatedAt: Date.now() },
+        { eventLabels: events, journalLabels: journalRaw, memoLabels: memoRaw, updatedAt: now },
         { merge: true }
       );
 

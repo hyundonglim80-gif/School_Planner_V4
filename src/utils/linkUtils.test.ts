@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyReverseLink } from './linkUtils';
+import { applyReverseLink, mergeLinkEdits } from './linkUtils';
 
 const eventLink = (id: string, date: string) => ({
   targetType: 'event',
@@ -85,5 +85,20 @@ describe('applyReverseLink - 메모 ↔ 기록 옮기기', () => {
       { retargetFromIds: ['m1'] }
     );
     expect(next!.map((l: any) => l.targetId)).toEqual(['m2', 'jr_new']);
+  });
+});
+
+describe('mergeLinkEdits - 칸이 더하고 뺀 링크만 서버 목록에', () => {
+  const A = { targetType: 'event', targetId: 'a' };
+  const B = { targetType: 'memo', targetId: 'b' };
+  const C = { targetType: 'journal', targetId: 'c' };
+  it('칸을 연 사이 다른 곳에서 걸린 링크(C)를 지키고, 칸에서 뺀 것(A)은 빼고, 더한 것(B)은 더한다', () => {
+    expect(mergeLinkEdits([A, C], [A], [B]).map((l) => l.targetId)).toEqual(['c', 'b']);
+  });
+  it('링크를 건드리지 않았으면 서버 목록 그대로', () => {
+    expect(mergeLinkEdits([A, C], [A], [A])).toEqual([A, C]);
+  });
+  it('이미 서버에 있는 것은 두 번 넣지 않는다', () => {
+    expect(mergeLinkEdits([B], [], [B])).toEqual([B]);
   });
 });

@@ -57,6 +57,7 @@ const D = {
   evalMix: '2026-12-03', // V4가 맞춰 쓴 뒤 V3가 evalList만 고친 조사표
   evalOther: '2026-12-04', // 날짜를 바꿔 만든 조사표가 들어갈 날
   periodMove: '2026-12-07', // 교시 차례 바꾸기 (월요일)
+  linkKeep: '2026-12-08', // 칸을 연 사이 걸린 링크가 저장 뒤에도 남는가
 };
 const pad2 = (n) => String(n).padStart(2, '0');
 const localDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -154,6 +155,11 @@ async function plantFixtures() {
       1: { subject: '국어', content: '', memo: '1교시 메모', supplies: '', linkedItems: [], v3Extra: '1교시 것' },
       2: { subject: '수학', content: '', memo: '2교시 메모', supplies: '', linkedItems: [], v3Extra: '2교시 것' },
     },
+    updatedAt: Date.now(),
+  });
+  // 칸을 연 사이 다른 곳에서 걸린 링크: 기록 하나와 메모 하나
+  await setDoc(jrRef(D.linkKeep), {
+    entries: [{ id: 'fx_ln_j', content: '링크 지킬 기록', createdAt: 1, label: '', labelIds: [], linkedItems: [], attachments: [] }],
     updatedAt: Date.now(),
   });
   await setDoc(evRef(D.quick), {
@@ -903,6 +909,25 @@ if (ONLY !== 'mobile') {
     assert(by('fx_keep_2')?.v3Extra === '남아야 함', `곁의 기록: ${JSON.stringify(by('fx_keep_2'))}`);
     assert(!by('fx_keep_3'), '지운 기록이 남음');
     assert(by('fx_keep_srv'), '다른 기기에서 넣은 기록이 사라짐');
+  });
+
+  await check('기록 칸을 연 사이 다른 곳에서 그 기록에 링크가 걸려도, 칸에서 글을 고쳐 저장하면 링크가 남는다', async () => {
+    await goDay(D.linkKeep);
+    await page.locator('[data-focus-key^="journal"]', { hasText: '링크 지킬 기록' }).first().click();
+    await wait(800);
+    const box = journalPanel().getByPlaceholder(/오늘 있었던 일을 기록해보세요/);
+    await box.fill('링크 지킬 기록 (고침)');
+    // 칸을 연 채로, 다른 칸·다른 기기가 이 기록에 역링크를 건다
+    const link = { targetType: 'event', targetId: 'fx_ln_ev', targetDate: D.linkKeep, title: '다른 곳에서 건 링크', targetFId: 'personal' };
+    const cur = await storedJournals(D.linkKeep);
+    await setDoc(jrRef(D.linkKeep), { entries: cur.map((e) => (e.id === 'fx_ln_j' ? { ...e, linkedItems: [link] } : e)) }, { merge: true });
+    await wait(1200);
+    await box.press('Control+s');
+    await wait(2000);
+    await closeAll();
+    const saved = (await storedJournals(D.linkKeep)).find((e) => e.id === 'fx_ln_j');
+    assert(saved?.content === '링크 지킬 기록 (고침)', `글: ${saved?.content}`);
+    assert((saved?.linkedItems || []).some((l) => l.targetId === 'fx_ln_ev'), `링크가 사라짐: ${JSON.stringify(saved?.linkedItems)}`);
   });
 
   await check('다중 선택으로 라벨을 바꾸면 옛 라벨(id로 든 것까지)이 남지 않는다', async () => {
