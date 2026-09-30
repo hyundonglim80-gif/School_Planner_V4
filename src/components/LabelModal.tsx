@@ -499,7 +499,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
         eventLabels: nextEvents.map(toSharedEventLabel),
         memoLabels: nextMemos,
         journalLabels: nextJournals,
-        labels: nextEvents, // V3 호환성
+        labels: nextEvents.map(toSharedEventLabel), // V3 호환성 (두 이름으로 - normalizeEventLabel 참고)
         updatedAt: Date.now(),
       };
 

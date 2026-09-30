@@ -145,6 +145,8 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 
 - 일정 라벨: `{ id, name, color, calendar, forward, period, recur, skip }`. V3는 같은 속성을
   `showInCalendar/isForward/isPeriod/isRecur/isSkip`로 쓴다 — 둘 다 읽는다(`normalizeEventLabel`).
+  V4는 늘 두 이름을 같게 쓰고(`toSharedEventLabel`) V3는 제 이름만 고치므로, **둘이 다르면 V3 이름을 따른다**.
+- 라벨 이름 바꾸기(`utils/labelRename`)는 문서마다 트랜잭션으로 나눠 쓴다(예전 한 번의 일괄 쓰기는 500건을 넘으면 통째로 실패).
 - 항목이 라벨을 드는 자리가 셋이다: `label`(콤마로 이은 이름·id), `labelIds`, 본문 앞 `[이름]`.
   **해석은 `lib/eventLabels.resolveEventLabelNames` 한 곳에서만** 한다(화면마다 따로 풀어 칩이 갈리던 버그).
 - 기록 라벨은 **id로** 저장한다(V3가 id로만 찾는다). 메모 라벨은 **이름 배열**.

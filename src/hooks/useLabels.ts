@@ -57,18 +57,24 @@ export const DEFAULT_JOURNAL_LABELS: JournalLabel[] = [
   { id: 'j_4', name: '수업기록', color: 'purple' },
 ];
 
-// V3는 isSkip/isPeriod/isRecur/showInCalendar, V4는 skip/period/recur/calendar를 쓴다.
+// V3는 isSkip/isForward/isPeriod/isRecur/showInCalendar, V4는 skip/forward/period/recur/calendar를 쓴다.
 // 어느 쪽으로 저장되어 있든 같게 읽는다.
+//
+// ⚠️ 두 이름이 다 있으면 V3 이름을 믿는다. V4는 늘 두 이름을 같게 쓰는데(toSharedEventLabel), V3는 제 이름만
+//    고치고 V4 이름은 그대로 둔다. 그러니 둘이 다르면 V3가 나중에 고친 것이다. 예전에는 'forward || isForward'로
+//    합쳐 읽어서, V3에서 이월을 끈 라벨을 V4는 계속 이월 라벨로 보고 일정을 옮겼다(수업X·기간·반복도 같고,
+//    달력 표시는 거꾸로 V3에서 켜도 V4에 안 보였다).
+const preferV3 = (v3: unknown, v4: unknown) => (typeof v3 === 'boolean' ? v3 : !!v4);
 export function normalizeEventLabel(l: any, i: number): EventLabel {
   return {
     id: l.id || `ev_${i}_${l.name || ''}`,
     name: l.name || '',
     color: l.color || 'blue',
-    calendar: l.calendar !== false && l.showInCalendar !== false,
-    skip: !!(l.skip || l.isSkip),
-    forward: !!(l.forward || l.isForward),
-    period: !!(l.period || l.isPeriod),
-    recur: !!(l.recur || l.isRecur),
+    calendar: typeof l.showInCalendar === 'boolean' ? l.showInCalendar : l.calendar !== false,
+    skip: preferV3(l.isSkip, l.skip),
+    forward: preferV3(l.isForward, l.forward),
+    period: preferV3(l.isPeriod, l.period),
+    recur: preferV3(l.isRecur, l.recur),
   };
 }
 

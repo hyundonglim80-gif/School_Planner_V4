@@ -5,7 +5,7 @@
 // 기록은 label/labelIds, 메모는 labels 배열) 등록된 라벨과 이름이 어긋나는 순간
 // 라벨 칩이 사라지고 필터에도 걸리지 않는다.
 // 그래서 이름을 바꿀 때 저장된 항목의 이름도 함께 고쳐 준다.
-import { collection, doc, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDocs, runTransaction } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { eventDocPayload, readEventList } from '../lib/eventText';
 
@@ -63,92 +63,96 @@ function toMap(renames: LabelRename[]): Map<string, string> {
   return map;
 }
 
-async function renameInEvents(basePath: string, map: Map<string, string>): Promise<number> {
-  const snap = await getDocs(collection(db, `${basePath}/events`));
-  const batch = writeBatch(db);
-  let touched = 0;
+/** 날짜·메모 문서를 한 번에 몇 개씩 고칠지 (문서마다 트랜잭션 하나) */
+const PARALLEL_DOCS = 8;
 
+/**
+ * 컬렉션을 훑어 바뀔 문서를 고르고, 문서마다 트랜잭션으로 서버의 지금 값에 다시 적용해 쓴다. 고친 문서 수를 준다.
+ *
+ * ⚠️ 예전에는 모두 읽은 뒤 한 번의 일괄 쓰기로 썼다. 일괄 쓰기는 500건까지라, 라벨이 500일 넘게 쓰였으면 통째로
+ *    실패해 경고만 남고 아무것도 바뀌지 않았다(칩이 사라짐). 또 읽고 쓰는 사이 그날 바뀐 것을 옛 모습으로 덮었다.
+ */
+async function renameInCollection(
+  basePath: string,
+  colName: string,
+  transform: (data: any) => Record<string, any> | null
+): Promise<number> {
+  const snap = await getDocs(collection(db, `${basePath}/${colName}`));
+  const ids: string[] = [];
   snap.forEach((docSnap) => {
-    const list = readEventList(docSnap.data());
-    if (list.length === 0) return;
-
-    let docChanged = false;
-    const nextList = list.map((item: any) => {
-      const label = renameCommaField(item.label, map);
-      const ids = renameList(item.labelIds, map);
-      const content = renameContentPrefix(item.content ?? item.text, map);
-      if (!label.changed && !ids.changed && !content.changed) return item;
-      docChanged = true;
-      return {
-        ...item,
-        ...(label.changed ? { label: label.next } : {}),
-        ...(ids.changed ? { labelIds: ids.next } : {}),
-        ...(content.changed ? { content: content.next } : {}),
-      };
-    });
-
-    if (docChanged) {
-      // eventDocPayload로 써야 V3가 읽는 eventText도 같이 갱신된다.
-      batch.set(doc(db, `${basePath}/events`, docSnap.id), eventDocPayload(nextList), { merge: true });
-      touched += 1;
-    }
+    if (transform(docSnap.data())) ids.push(docSnap.id);
   });
-
-  if (touched > 0) await batch.commit();
+  let touched = 0;
+  for (let i = 0; i < ids.length; i += PARALLEL_DOCS) {
+    const results = await Promise.all(
+      ids.slice(i, i + PARALLEL_DOCS).map((id) =>
+        runTransaction(db, async (tx) => {
+          const ref = doc(db, `${basePath}/${colName}`, id);
+          const fresh = await tx.get(ref);
+          if (!fresh.exists()) return false;
+          const payload = transform(fresh.data());
+          if (!payload) return false;
+          tx.set(ref, payload, { merge: true });
+          return true;
+        })
+      )
+    );
+    touched += results.filter(Boolean).length;
+  }
   return touched;
 }
 
-async function renameInJournals(basePath: string, map: Map<string, string>): Promise<number> {
-  const snap = await getDocs(collection(db, `${basePath}/journals`));
-  const batch = writeBatch(db);
-  let touched = 0;
-
-  snap.forEach((docSnap) => {
-    const entries = docSnap.data().entries;
-    if (!Array.isArray(entries) || entries.length === 0) return;
-
-    let docChanged = false;
-    const nextEntries = entries.map((entry: any) => {
-      const label = renameCommaField(entry.label, map);
-      const ids = renameList(entry.labelIds, map);
-      if (!label.changed && !ids.changed) return entry;
-      docChanged = true;
-      return {
-        ...entry,
-        ...(label.changed ? { label: label.next } : {}),
-        ...(ids.changed ? { labelIds: ids.next } : {}),
-      };
-    });
-
-    if (docChanged) {
-      batch.set(
-        doc(db, `${basePath}/journals`, docSnap.id),
-        { entries: nextEntries, updatedAt: Date.now() },
-        { merge: true }
-      );
-      touched += 1;
-    }
+function renameEventDoc(data: any, map: Map<string, string>): Record<string, any> | null {
+  const list = readEventList(data);
+  if (list.length === 0) return null;
+  let docChanged = false;
+  const nextList = list.map((item: any) => {
+    const label = renameCommaField(item.label, map);
+    const ids = renameList(item.labelIds, map);
+    const content = renameContentPrefix(item.content ?? item.text, map);
+    if (!label.changed && !ids.changed && !content.changed) return item;
+    docChanged = true;
+    return {
+      ...item,
+      ...(label.changed ? { label: label.next } : {}),
+      ...(ids.changed ? { labelIds: ids.next } : {}),
+      ...(content.changed ? { content: content.next } : {}),
+    };
   });
-
-  if (touched > 0) await batch.commit();
-  return touched;
+  // eventDocPayload로 써야 V3가 읽는 eventText도 같이 갱신된다.
+  return docChanged ? eventDocPayload(nextList) : null;
 }
 
-async function renameInMemos(basePath: string, map: Map<string, string>): Promise<number> {
-  const snap = await getDocs(collection(db, `${basePath}/tasks`));
-  const batch = writeBatch(db);
-  let touched = 0;
-
-  snap.forEach((docSnap) => {
-    const { next, changed } = renameList(docSnap.data().labels, map);
-    if (!changed) return;
-    batch.set(doc(db, `${basePath}/tasks`, docSnap.id), { labels: next }, { merge: true });
-    touched += 1;
+function renameJournalDoc(data: any, map: Map<string, string>): Record<string, any> | null {
+  const entries = data?.entries;
+  if (!Array.isArray(entries) || entries.length === 0) return null;
+  let docChanged = false;
+  const nextEntries = entries.map((entry: any) => {
+    if (!entry || typeof entry !== 'object') return entry;
+    const label = renameCommaField(entry.label, map);
+    const ids = renameList(entry.labelIds, map);
+    if (!label.changed && !ids.changed) return entry;
+    docChanged = true;
+    return {
+      ...entry,
+      ...(label.changed ? { label: label.next } : {}),
+      ...(ids.changed ? { labelIds: ids.next } : {}),
+    };
   });
-
-  if (touched > 0) await batch.commit();
-  return touched;
+  return docChanged ? { entries: nextEntries, updatedAt: Date.now() } : null;
 }
+
+function renameMemoDoc(data: any, map: Map<string, string>): Record<string, any> | null {
+  const { next, changed } = renameList(data?.labels, map);
+  return changed ? { labels: next } : null;
+}
+
+const renameInEvents = (basePath: string, map: Map<string, string>) =>
+  renameInCollection(basePath, 'events', (d) => renameEventDoc(d, map));
+const renameInJournals = (basePath: string, map: Map<string, string>) =>
+  renameInCollection(basePath, 'journals', (d) => renameJournalDoc(d, map));
+const renameInMemos = (basePath: string, map: Map<string, string>) =>
+  renameInCollection(basePath, 'tasks', (d) => renameMemoDoc(d, map));
 
 /**
  * 바뀐 라벨 이름을 저장된 항목들에 일괄 반영한다.

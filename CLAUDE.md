@@ -87,6 +87,8 @@
   V4가 읽지 못한 게 아니라 **V4가 만들지 못했다는 신호**다.
 - 공유 설정을 건드리면 V3가 같은 것을 어떻게 쓰는지 먼저 보고, V4가 읽지 못한 필드를 덮어쓰지 않는다.
   읽기는 `src/lib/firestoreSubscribe.ts`를 거친다.
+- **라벨 속성은 V3가 `isForward` 등 제 이름만 고친다** (2026-10-01): V4는 두 이름을 같게 쓰므로 둘이 다르면 V3가 나중에
+  고친 것이다. `normalizeEventLabel`은 V3 이름을 먼저 본다(예전 `forward || isForward`는 V3에서 끈 이월을 V4가 계속 이월했다).
 - **조사표는 V3가 `evalList`만 읽고 쓴다** (2026-10-01): V4가 `list`를 먼저 읽어, V4가 저장한 날에 V3가 더한 조사표가
   V4에 안 보이고 V4에서 저장하면 지워졌다. 읽기는 `lib/evalList.readEvalList`, 쓰기는 `evalDocPayload`(두 이름 함께).
 
