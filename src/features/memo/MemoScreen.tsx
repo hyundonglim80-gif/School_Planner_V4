@@ -239,7 +239,7 @@ export default function MemoScreen() {
     selectedStyle: React.CSSProperties | undefined,
     selectedClass: string,
     title?: string,
-    label?: { included: boolean }
+    label?: { included: boolean; caret?: boolean; plus?: boolean }
   ) => {
     // 라벨 칩은 여러 개 고르기(눌러서 붙이고 떼기), 즐겨찾기·전체는 하나만
     const isSelected = label ? labelFilter.labels.includes(filter) : currentFilter === filter;
@@ -254,7 +254,10 @@ export default function MemoScreen() {
         onMouseDown={(e) => e.shiftKey && e.preventDefault()}
         aria-pressed={isSelected}
         title={title ?? (typeof text === 'string' ? text : undefined)}
-        className={`relative w-full flex items-center justify-between gap-1 px-1.5 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs text-left border transition-all cursor-pointer ${
+        className={`relative w-full flex items-center justify-between gap-1 ${
+          // 칩 안 왼쪽에 ▸/▾(접기)가 앉는 상위 칩은 그만큼 비운다
+          label?.caret ? 'pl-6 pr-1.5 sm:pl-7 sm:pr-3' : 'px-1.5 sm:px-3'
+        } py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs text-left border transition-all cursor-pointer ${
           isSelected
             ? `font-black ring-2 ring-slate-900/70 ring-offset-1 shadow-sm ${selectedClass}`
             : isIncluded
@@ -267,6 +270,15 @@ export default function MemoScreen() {
           {isSelected && <span className="mr-0.5">✓</span>}
           {text}
         </span>
+        {/* '하위 포함'을 켠 상위 - 칩 아래 테두리에 걸친 작은 꼬리표. 칸이 좁아 이름 옆에 두면 이름이 눌린다 */}
+        {label?.plus && (
+          <span
+            aria-hidden
+            className="absolute -bottom-2 left-5 sm:left-6 px-1 rounded border border-slate-300 bg-white text-slate-600 text-2xs leading-3.5 font-bold whitespace-nowrap"
+          >
+            +하위
+          </span>
+        )}
         {/* 휴대폰의 좁은 칸에서는 이름과 나란히 둘 자리가 없어 모서리 배지로 띄운다 */}
         <span className="absolute -top-1.5 -right-1 min-w-4 h-4 px-1 rounded-full bg-slate-600 text-white text-2xs leading-4 text-center font-black sm:static sm:min-w-0 sm:h-auto sm:px-1.5 sm:bg-black/10 sm:text-current sm:text-xs sm:leading-normal shrink-0">
           {countOf(filter)}
@@ -316,56 +328,67 @@ export default function MemoScreen() {
               'bg-amber-100 text-amber-900 border-amber-300',
               '즐겨찾기한 메모만 보기'
             )}
-            {/* 라벨은 여러 개 고른다. 상위 밑에 하위를 들여 쓰고, ▾/▴로 접고 편다.
-                상위 앞 체크('하위 포함')를 켜야 하위 라벨 메모까지 걸러진다. */}
-            {treeRows.map((row) => {
-              const color = getLabelColor(row.name);
-              const parentName = row.parent || row.name;
-              const withChildren = labelFilter.withChildren.includes(parentName);
-              const chip = filterChip(
-                row.name,
-                row.name,
-                { backgroundColor: color.bg, color: color.text, borderColor: color.border },
-                '',
-                labelPath(row.name, memoParents),
-                { included: row.depth === 1 && withChildren }
-              );
-              if (row.depth === 1) {
-                // 접은 상위의 하위라도, 고른 것은 숨기지 않는다 (무엇으로 거르는지 보여야 한다)
-                if (foldedParents[parentName] && !labelFilter.labels.includes(row.name)) return null;
+            {/* 라벨은 여러 개 고른다. 모양 (2026-09-30 다듬음 - 체크박스·└·바깥 단추가 칸을 좁혀 들쭉날쭉했다):
+                - 하위가 있는 상위는 칩 안 왼쪽의 ▸/▾로 접고 편다. 칩 폭은 다른 칩과 같다.
+                - 하위는 상위 밑에 왼쪽 안내선으로 묶는다. 묶음 맨 위에 '하위 포함' 토글.
+                - '하위 포함'을 켠 채 접으면 상위 칩 아래에 +하위 꼬리표가 붙는다. */}
+            {treeRows
+              .filter((row) => row.depth === 0)
+              .map((row) => {
+                const chipOf = (name: string, extra?: { caret?: boolean; included?: boolean; plus?: boolean }) =>
+                  filterChip(
+                    name,
+                    name,
+                    { backgroundColor: getLabelColor(name).bg, color: getLabelColor(name).text, borderColor: getLabelColor(name).border },
+                    '',
+                    extra?.plus ? `${labelPath(name, memoParents)} (하위 라벨 포함)` : labelPath(name, memoParents),
+                    { included: !!extra?.included, caret: !!extra?.caret, plus: !!extra?.plus }
+                  );
+                if (!row.hasChildren) return chipOf(row.name);
+                const folded = !!foldedParents[row.name];
+                const withChildren = labelFilter.withChildren.includes(row.name);
+                const children = treeRows.filter((r) => r.parent === row.name);
+                // 접었어도 고른 하위는 보인다 (무엇으로 거르는지 보여야 한다)
+                const shown = folded ? children.filter((c) => labelFilter.labels.includes(c.name)) : children;
                 return (
-                  <div key={row.name} className="flex items-center gap-0.5 pl-4 sm:pl-6">
-                    <span className="text-slate-300 text-xs shrink-0" aria-hidden>└</span>
-                    <div className="flex-1 min-w-0">{chip}</div>
+                  <div key={row.name} className="flex flex-col gap-1.5 sm:gap-1">
+                    <div className="relative">
+                      {/* +하위 꼬리표는 접었을 때만 (펼치면 아래 '하위 포함' 체크가 보인다) */}
+                      {chipOf(row.name, { caret: true, plus: withChildren && folded })}
+                      <button
+                        type="button"
+                        onClick={() => setFoldedParents((prev) => ({ ...prev, [row.name]: !folded }))}
+                        aria-expanded={!folded}
+                        aria-label={`${row.name} 하위 라벨 ${folded ? '펼치기' : '접기'}`}
+                        title={`${row.name} 하위 라벨 ${folded ? '펼치기' : '접기'}`}
+                        className="absolute left-0.5 sm:left-1 top-1/2 -translate-y-1/2 z-10 w-5 h-5 flex items-center justify-center rounded text-2xs text-slate-500 hover:bg-black/10 cursor-pointer"
+                      >
+                        {folded ? '▸' : '▾'}
+                      </button>
+                    </div>
+                    {(shown.length > 0 || !folded) && (
+                      <div className="ml-2 sm:ml-3 pl-1.5 sm:pl-2 border-l-2 border-slate-200 flex flex-col gap-1.5 sm:gap-1">
+                        {!folded && (
+                          <label
+                            className="flex items-center gap-1 text-2xs font-bold text-slate-500 cursor-pointer select-none py-0.5"
+                            title={`${row.name}을(를) 고르면 하위 라벨 메모까지 함께 보기`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={withChildren}
+                              onChange={() => chooseFilter(toggleFilterChildren(labelFilter, row.name))}
+                              aria-label={`${row.name} 하위 라벨 포함`}
+                              className="w-3 h-3 accent-slate-700 cursor-pointer"
+                            />
+                            하위 포함
+                          </label>
+                        )}
+                        {shown.map((c) => chipOf(c.name, { included: withChildren }))}
+                      </div>
+                    )}
                   </div>
                 );
-              }
-              if (!row.hasChildren) return chip;
-              const folded = !!foldedParents[row.name];
-              return (
-                <div key={row.name} className="flex items-center gap-0.5 sm:gap-1">
-                  <input
-                    type="checkbox"
-                    checked={withChildren}
-                    onChange={() => chooseFilter(toggleFilterChildren(labelFilter, row.name))}
-                    aria-label={`${row.name} 하위 라벨 포함`}
-                    title={`${row.name}의 하위 라벨 메모까지 보기`}
-                    className="w-3.5 h-3.5 shrink-0 accent-slate-700 cursor-pointer"
-                  />
-                  <div className="flex-1 min-w-0">{chip}</div>
-                  <button
-                    type="button"
-                    onClick={() => setFoldedParents((prev) => ({ ...prev, [row.name]: !folded }))}
-                    aria-expanded={!folded}
-                    aria-label={`${row.name} 하위 라벨 ${folded ? '펼치기' : '접기'}`}
-                    title={`${row.name} 하위 라벨 ${folded ? '펼치기' : '접기'}`}
-                    className="w-5 h-5 shrink-0 flex items-center justify-center rounded text-2xs text-slate-500 hover:bg-slate-100 cursor-pointer"
-                  >
-                    {folded ? '▾' : '▴'}
-                  </button>
-                </div>
-              );
-            })}
+              })}
             {filterChip('전체', '전체 메모', undefined, 'bg-slate-800 text-white border-slate-800')}
           </nav>
         </div>

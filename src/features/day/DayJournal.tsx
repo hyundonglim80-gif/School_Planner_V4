@@ -283,60 +283,83 @@ export default function DayJournal({
                 >
                   전체
                 </button>
-                {/* 라벨은 눌러서 붙이고 떼며 여러 개 고른다. 상위 칩만 보이고, 하위가 있는 상위는
-                    ▾로 하위 칩을 펼친다 (고른 하위는 접어도 보인다). 상위 앞 체크는 '하위 포함'. */}
-                {treeRows.map((row) => {
-                  const parentName = row.parent || row.name;
-                  const open = !!openParents[parentName];
-                  const selected = labelFilter.labels.includes(row.name);
-                  const withChildren = labelFilter.withChildren.includes(parentName);
-                  if (row.depth === 1 && !open && !selected) return null;
-                  /** 고르지 않았지만 상위의 '하위 포함'으로 함께 걸러지는 하위 */
-                  const included = row.depth === 1 && !selected && withChildren;
-                  return (
-                    <span key={row.name} className="inline-flex items-center">
-                      {row.depth === 1 && <span className="text-slate-300 text-xs mr-0.5" aria-hidden>└</span>}
-                      {row.hasChildren && (
-                        <input
-                          type="checkbox"
-                          checked={withChildren}
-                          onChange={() => setLabelFilter((prev) => toggleFilterChildren(prev, row.name))}
-                          aria-label={`${row.name} 하위 라벨 포함`}
-                          title={`${row.name}의 하위 라벨 기록까지 보기`}
-                          className="w-3.5 h-3.5 mr-1 accent-blue-600 cursor-pointer"
-                        />
-                      )}
-                      <button
-                        onClick={(e) => clickLabel(row.name, e)}
-                        // Shift+누르기가 글자를 긁어 고르지 않게
-                        onMouseDown={(e) => e.shiftKey && e.preventDefault()}
-                        aria-pressed={selected}
-                        title={labelPath(row.name, journalParents)}
-                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm ${
-                          selected
-                            ? 'bg-blue-600 text-white'
-                            : included
-                            ? 'bg-blue-50 text-blue-700 border border-dashed border-blue-400'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                        }`}
+                {/* 라벨은 눌러서 붙이고 떼며 여러 개 고른다. 모양 (2026-09-30 다듬음):
+                    - 하위가 있는 상위는 상위와 하위를 한 묶음(테두리)으로 둔다 - 휴대폰에서 줄이 바뀌어도 떨어지지 않게.
+                    - 묶음 맨 앞 ▸/▾로 하위를 펼치고, 펼치면 '하위 포함' 토글과 하위 칩이 묶음 안에 보인다.
+                    - '하위 포함'을 켠 채 접으면 상위 칩에 +하위가 붙는다. 고른 하위는 접어도 보인다. */}
+                {treeRows
+                  .filter((row) => row.depth === 0)
+                  .map((row) => {
+                    const chip = (name: string, opts?: { included?: boolean; plus?: boolean }) => {
+                      const selected = labelFilter.labels.includes(name);
+                      /** 고르지 않았지만 상위의 '하위 포함'으로 함께 걸러지는 하위 */
+                      const included = !selected && !!opts?.included;
+                      return (
+                        <button
+                          key={name}
+                          onClick={(e) => clickLabel(name, e)}
+                          // Shift+누르기가 글자를 긁어 고르지 않게
+                          onMouseDown={(e) => e.shiftKey && e.preventDefault()}
+                          aria-pressed={selected}
+                          title={opts?.plus ? `${name} (하위 라벨 포함)` : labelPath(name, journalParents)}
+                          className={`px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm whitespace-nowrap ${
+                            selected
+                              ? 'bg-blue-600 text-white'
+                              : included
+                              ? 'bg-blue-50 text-blue-700 border border-dashed border-blue-400'
+                              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          {name}
+                          {opts?.plus && (
+                            <span aria-hidden className={`ml-1 px-1 rounded text-2xs ${selected ? 'bg-white/25' : 'bg-blue-100 text-blue-700'}`}>
+                              +하위
+                            </span>
+                          )}
+                        </button>
+                      );
+                    };
+                    if (!row.hasChildren) return chip(row.name);
+                    const open = !!openParents[row.name];
+                    const withChildren = labelFilter.withChildren.includes(row.name);
+                    const children = treeRows.filter((r) => r.parent === row.name);
+                    const shown = open ? children : children.filter((c) => labelFilter.labels.includes(c.name));
+                    return (
+                      <span
+                        key={row.name}
+                        className="inline-flex flex-wrap items-center gap-1 p-0.5 pr-1 rounded-full bg-slate-100/80 border border-slate-200"
                       >
-                        {row.name}
-                      </button>
-                      {row.hasChildren && (
                         <button
                           type="button"
                           onClick={() => setOpenParents((prev) => ({ ...prev, [row.name]: !open }))}
                           aria-expanded={open}
                           aria-label={`${row.name} 하위 라벨 ${open ? '접기' : '펼치기'}`}
                           title={`${row.name} 하위 라벨 ${open ? '접기' : '펼치기'}`}
-                          className="ml-0.5 w-5 h-5 flex items-center justify-center rounded-full text-2xs text-slate-500 hover:bg-slate-100"
+                          className="w-5 h-5 flex items-center justify-center rounded-full text-2xs text-slate-500 hover:bg-white"
                         >
-                          {open ? '▴' : '▾'}
+                          {open ? '▾' : '▸'}
                         </button>
-                      )}
-                    </span>
-                  );
-                })}
+                        {/* +하위 표시는 접었을 때만 (펼치면 옆의 '하위 포함' 체크가 보인다) */}
+                        {chip(row.name, { plus: withChildren && !open })}
+                        {open && (
+                          <label
+                            className="inline-flex items-center gap-1 px-1.5 text-2xs font-bold text-slate-500 cursor-pointer select-none"
+                            title={`${row.name}을(를) 고르면 하위 라벨 기록까지 함께 보기`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={withChildren}
+                              onChange={() => setLabelFilter((prev) => toggleFilterChildren(prev, row.name))}
+                              aria-label={`${row.name} 하위 라벨 포함`}
+                              className="w-3 h-3 accent-blue-600 cursor-pointer"
+                            />
+                            하위 포함
+                          </label>
+                        )}
+                        {shown.map((c) => chip(c.name, { included: withChildren }))}
+                      </span>
+                    );
+                  })}
               </div>
             )}
         </div>
