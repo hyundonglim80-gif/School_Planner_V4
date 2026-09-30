@@ -14,6 +14,8 @@ import { useLabels } from '../hooks/useLabels';
 import { formatDisplayDate } from '../lib/dateUtils';
 import { isLongEntry, previewLine } from '../lib/entryCollapse';
 import ModalShell from './ModalShell';
+import EntryTableView from './EntryTableView';
+import { TABLE_ONLY_CONTENT, normalizeTables } from '../lib/entryTable';
 
 // 기록 화면(DayJournal)이 쓰는 것과 같은 색 표다. 두 곳이 다르면 같은 라벨이
 // 화면마다 다른 색으로 보인다.
@@ -178,9 +180,17 @@ export default function JournalPeekModal({
                   </button>
                 </div>
               </div>
-              <p className="text-xs text-slate-700 whitespace-pre-wrap break-words mt-1 leading-relaxed">
-                {long && !open ? previewLine(j.content) : j.content}
-              </p>
+              {/* 표만 있는 기록의 '[표]'(V3가 빼지 않게 넣은 글) 대신 표를 보인다 */}
+              {!(j.content === TABLE_ONLY_CONTENT && normalizeTables(j.raw?.tables).length > 0) && (
+                <p className="text-xs text-slate-700 whitespace-pre-wrap break-words mt-1 leading-relaxed">
+                  {long && !open ? previewLine(j.content) : j.content}
+                </p>
+              )}
+              {normalizeTables(j.raw?.tables).map((t) => (
+                <div key={t.id} className="mt-1">
+                  <EntryTableView table={t} compact />
+                </div>
+              ))}
               {(j.attachments || []).length > 0 && (
                 <p className="text-2xs text-slate-400 mt-1">📎 첨부 {(j.attachments || []).length}개</p>
               )}

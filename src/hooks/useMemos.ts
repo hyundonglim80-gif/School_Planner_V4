@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { EntryTable } from '../lib/entryTable';
 import { collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { moveToTrash } from '../utils/trashHelper';
@@ -33,6 +34,8 @@ export interface Memo {
   groupId?: string;
   isShared?: boolean;
   linkedItems?: any[];
+  /** 붙인 표 (lib/entryTable). V3는 모르는 칸이지만 updateDoc이라 지우지 않는다 */
+  tables?: EntryTable[];
 }
 
 /** 상대 쪽에 넣을 '이 메모' 표시. 메모는 날짜가 없어서 제목에 '메모'라고 적는다. */
@@ -102,7 +105,7 @@ export function useMemos(groupId: string | null = null) {
     return () => unsubscribe();
   }, [groupId, auth.currentUser?.uid]);
 
-  const addMemo = async (data: { content: string; labels?: string[]; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[]; keepId?: string }) => {
+  const addMemo = async (data: { content: string; labels?: string[]; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[]; keepId?: string; tables?: EntryTable[] }) => {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
 
@@ -121,6 +124,8 @@ export function useMemos(groupId: string | null = null) {
       imageUrl: data.imageUrl || '',
       attachments: data.attachments || [],
       linkedItems: data.linkedItems || [],
+      // 표는 붙였을 때만 칸을 만든다
+      ...(data.tables && data.tables.length > 0 ? { tables: data.tables } : {}),
       authorId: user.uid,
       authorName: user.displayName || '이름 없음',
       sharedGroupIds: groupId ? [groupId] : [],
@@ -137,7 +142,7 @@ export function useMemos(groupId: string | null = null) {
     return ref;
   };
 
-  const updateMemo = async (firestoreId: string, data: { content?: string; labels?: string[]; completed?: boolean; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[]; keepId?: string; favorite?: boolean }) => {
+  const updateMemo = async (firestoreId: string, data: { content?: string; labels?: string[]; completed?: boolean; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[]; keepId?: string; favorite?: boolean; tables?: EntryTable[] }) => {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
 
@@ -157,6 +162,7 @@ export function useMemos(groupId: string | null = null) {
     if (data.linkedItems !== undefined) updateData.linkedItems = data.linkedItems;
     if (data.keepId !== undefined) updateData.keepId = data.keepId;
     if (data.favorite !== undefined) updateData.favorite = data.favorite;
+    if (data.tables !== undefined) updateData.tables = data.tables;
 
     const previous = memos.find((m) => m.firestoreId === firestoreId);
     const result = await updateDoc(docRef, updateData);

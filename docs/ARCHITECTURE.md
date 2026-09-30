@@ -62,6 +62,7 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
 | `users/{uid}/settings/timetable_v5` | 시간표 템플릿·방학 기간 | |
 | `users/{uid}/settings/rosters` | `{ classList, rosters }` (같은 값) | 명렬표 |
 | `users/{uid}/settings/v4_trash` | 휴지통 자동 비우기 기간 | |
+| (메모·기록 항목의) `tables` | 붙인 표 `[{ id, rows: [{ h?, cells: [{ v, cs?, rs?, x?, s? }] }], cols?, styles?, createdAt }]` | V4 전용 칸. `lib/entryTable` |
 | `users/{uid}/settings/v4_labelTree` | `{ memo, journal }` 각각 "하위 이름 → 상위 이름" | V4 전용. 메모·기록 라벨 상위/하위 |
 | `users/{uid}/trash/{id}` | `{ id, type, originalDateStr, fId, content, data, deletedAt }` | 휴지통. **V3와 같이 쓴다** |
 | `groups/{gid}` | `{ name, ownerId, members: uid[], inviteCode }` | 공유 그룹. 내 그룹은 `members array-contains uid`로 찾는다 |
@@ -144,6 +145,19 @@ Firestore는 캐시에 없는 문서를 "없다"고 답한다. 그대로 믿으�
   칩 누르기는 윈도우 탐색기처럼(`clickFilterLabel`): 그냥 = 하나만, Ctrl = 더하기·빼기, Shift = 기준부터 범위(보이는 차례).
   ESC는 고른 라벨을 모두 뗀다(각 화면이 듣는다. 오른쪽 칸·팝업은 Layout의 ESC가 닫는다).
 - 라벨 관리 창에서 기록·메모 라벨을 **더할 때 상위도 고른다**. 라벨은 더하는 즉시 저장되므로 트리도 곧바로 저장한다.
+
+---
+
+### 메모·기록의 표 (`lib/entryTable`, 2026-09-30)
+
+- 본문에 붙여넣은 HTML 표(엑셀·한셀·시트·웹)를 `parseClipboardTable`이 격자로 읽는다. 엑셀 서식은 `<style>`의 `.xl` 클래스,
+  시트는 칸 style에 있다. 색은 믿을 수 있는 값만(`safeColor`). 칸 3,000개·JSON 200KB까지.
+- **엑셀은 표와 함께 그림도 복사한다.** 쓰는 칸의 붙여넣기는 표를 먼저 보고, 표면 그림 올리기로 넘기지 않는다.
+- 저장 모양: 배열 안의 배열을 Firestore가 받지 않아 `rows[].cells[]`. 병합된 나머지 자리는 `{ v: '', x: 1 }`.
+  같은 서식은 `styles`에 한 번. 저장 전 `tableForSave`로 undefined를 뺀다.
+- V3는 `tables`를 모르지만 메모는 updateDoc, 기록은 항목째 들고 다녀 지우지 않는다. 단 V3는 **글·라벨·첨부가 없는 기록을
+  그날 저장할 때 뺀다**(viewDay.js 1662) - 그래서 표만 있는 기록은 글을 `[표]`(`TABLE_ONLY_CONTENT`)로 두고, V4는 이 글을 숨긴다.
+- 기록을 읽는 곳(`applyJournalData`, `JournalPeekModal`)은 칸을 골라 읽으므로 `tables`를 따로 넣어 두었다.
 
 ---
 

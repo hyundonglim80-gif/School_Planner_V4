@@ -14,6 +14,7 @@ import MoveEntryModal from './MoveEntryModal';
 import { useLabelTree } from '../lib/labelTree';
 import { isMovableJournal, moveJournalToMemo, moveMemoToJournal } from '../lib/moveEntry';
 import { findStudentTags } from '../lib/studentTag';
+import { TABLE_ONLY_CONTENT } from '../lib/entryTable';
 import { formatDateStr } from '../lib/dateUtils';
 import EntryDrawer, { type EntryDraft } from './EntryDrawer';
 import EventDrawer from './EventDrawer';
@@ -169,11 +170,14 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
   const drawerEntry = current
     ? (() => {
         const names = resolveLabelNames(current);
-        return { ...current, labels: names, labelIds: names, label: names[0] || '' };
+        const tableOnly = current.content === TABLE_ONLY_CONTENT && (current.tables || []).length > 0;
+        return { ...current, content: tableOnly ? '' : current.content, labels: names, labelIds: names, label: names[0] || '' };
       })()
     : null;
 
   const handleSave = async (draft: EntryDraft) => {
+    // 표만 있고 글이 없으면 '[표]'로 둔다. V3는 글·라벨·첨부가 없는 기록을 그날 저장할 때 빼 버린다.
+    const content = !draft.content.trim() && draft.tables.length > 0 ? TABLE_ONLY_CONTENT : draft.content;
     // 라벨을 고르지 않았으면 빈 값으로 둔다 ('일반'은 어떤 라벨에도 없는 이름이다)
     const mainLabel = draft.labels.length > 0 ? draft.labels[0] : '';
     // labelIds는 ID로 저장한다. V3는 기록 라벨을 ID로만 찾는다.
@@ -192,31 +196,34 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
 
     if (target.entryId) {
       await updateJournalEntry(target.entryId, {
-        content: draft.content,
+        content,
         label: mainLabel,
         labelIds,
         imageUrl: '', // 구버전 imageUrl은 첨부 목록으로 옮겨 담았다
         attachments,
         linkedItems: draft.linkedItems,
+        tables: draft.tables,
       });
       return;
     }
-    const newId = await addJournalEntry(draft.content, mainLabel, labelIds, undefined, {
+    const newId = await addJournalEntry(content, mainLabel, labelIds, undefined, {
       attachments,
       linkedItems: draft.linkedItems,
+      ...(draft.tables.length > 0 ? { tables: draft.tables } : {}),
     });
     if (typeof newId === 'string') {
       target.onCreated?.({ id: newId, type: 'journal', title: draft.content, date: dateStr, fId: target.groupId || 'personal' });
       // 이어서 저장하면 방금 만든 기록을 고친다 (새로 하나 더 생기지 않게)
       setEntryPanelId(newId, {
         id: newId,
-        content: draft.content,
+        content,
         createdAt: Date.now(),
         label: mainLabel,
         labelIds,
         imageUrl: '',
         attachments,
         linkedItems: draft.linkedItems,
+        tables: draft.tables,
       } as JournalEntry);
     }
   };
@@ -225,7 +232,7 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
     if (!current || !moveDraft) return;
     try {
       const { newId } = await moveJournalToMemo({
-        entry: { ...current, content: moveDraft.content, attachments: moveDraft.attachments as any, linkedItems: moveDraft.linkedItems },
+        entry: { ...current, content: moveDraft.content, attachments: moveDraft.attachments as any, linkedItems: moveDraft.linkedItems, tables: moveDraft.tables },
         groupId: target.groupId,
         dateStr,
         labelChoices,
@@ -315,6 +322,7 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
         imageUrl: draft.imageUrl,
         attachments: draft.attachments,
         linkedItems: draft.linkedItems,
+        tables: draft.tables,
       } as Memo);
     }
   };
@@ -323,7 +331,7 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
     if (!current || !moveDraft) return;
     try {
       const { newId } = await moveMemoToJournal({
-        memo: { ...current, content: moveDraft.content, attachments: moveDraft.attachments as any, linkedItems: moveDraft.linkedItems, imageUrl: moveDraft.imageUrl },
+        memo: { ...current, content: moveDraft.content, attachments: moveDraft.attachments as any, linkedItems: moveDraft.linkedItems, imageUrl: moveDraft.imageUrl, tables: moveDraft.tables },
         groupId: target.groupId,
         dateStr,
         labelChoices,

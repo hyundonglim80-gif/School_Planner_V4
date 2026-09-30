@@ -22,6 +22,8 @@ import {
 } from '../../lib/labelTree';
 import { showToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
+import { TABLE_ONLY_CONTENT, normalizeTables } from '../../lib/entryTable';
+import EntryTableView from '../../components/EntryTableView';
 import { useDayEvalCounts } from '../../hooks/useDayEvalCounts';
 
 interface DayJournalProps {
@@ -431,6 +433,11 @@ export default function DayJournal({
                                 📎 {getEntryFiles(entry).length}
                             </span>
                           )}
+                          {normalizeTables(entry.tables).length > 0 && (
+                            <span className="bg-emerald-50 text-emerald-700 text-xs px-1.5 py-0.5 rounded font-bold border border-emerald-200" title="붙인 표">
+                              ▦ {normalizeTables(entry.tables).length}
+                            </span>
+                          )}
                         </div>
 
                         {/* 파일/링크 추가는 수정 배너 안에 있으므로 수정/삭제만 노출한다 */}
@@ -469,9 +476,15 @@ export default function DayJournal({
                       {/* 항목이 접히지 않았을 때만 본문 및 첨부파일 표시 */}
                       {!isCollapsedItem && (
                         <div className="flex flex-col gap-3 mt-1">
-                          <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
-                            {entry.content}
-                          </p>
+                          {/* 표만 있는 기록의 '[표]'(V3가 빼지 않게 넣은 글)는 보이지 않는다 */}
+                          {!(entry.content === TABLE_ONLY_CONTENT && normalizeTables(entry.tables).length > 0) && (
+                            <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
+                              {entry.content}
+                            </p>
+                          )}
+                          {normalizeTables(entry.tables).map((t) => (
+                            <EntryTableView key={t.id} table={t} compact />
+                          ))}
                           {entry.imageUrl && (
                             <div
                               className="mt-1 rounded-lg overflow-hidden border border-slate-200/60 bg-slate-50 inline-block max-w-fit cursor-pointer"

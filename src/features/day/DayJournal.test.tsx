@@ -474,3 +474,20 @@ describe('기록 거르개 - 라벨 상위/하위', () => {
     expect(screen.getByRole('button', { name: '학급활동' })).toHaveAttribute('aria-pressed', 'false');
   });
 });
+
+// 표만 붙인 기록은 V3가 빼지 않게 글을 '[표]'로 둔다. 카드에서는 그 글 대신 표를 보인다.
+describe('기록 카드 - 붙인 표', () => {
+  it("표만 있는 기록은 '[표]' 대신 표가 보이고, ▦ 개수가 붙는다", () => {
+    renderJournal([
+      {
+        id: 'jr_t',
+        content: '[표]',
+        createdAt: 1,
+        tables: [{ id: 't1', createdAt: 1, rows: [{ cells: [{ v: '이름' }, { v: '점수' }] }] }],
+      },
+    ] as JournalEntry[]);
+    expect(screen.queryByText('[표]')).toBeNull();
+    expect(screen.getByText('이름').tagName).toBe('TD');
+    expect(screen.getByTitle('붙인 표')).toHaveTextContent('▦ 1');
+  });
+});

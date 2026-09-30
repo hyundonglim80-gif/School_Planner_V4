@@ -19,6 +19,8 @@ import StudentTagPicker from './StudentTagPicker';
 import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
 import { labelPath, orderByTree } from '../lib/labelTree';
 import { isTopSideItem } from './PopupFrame';
+import EntryTableView from './EntryTableView';
+import { isRealTable, normalizeTables, parseClipboardTable, tableForSave, tableSize, type EntryTable } from '../lib/entryTable';
 
 export type EntryKind = 'memo' | 'journal';
 
@@ -45,6 +47,8 @@ export interface EntrySource {
   imageUrl?: string;
   attachments?: unknown[];
   linkedItems?: any[];
+  /** 붙인 표 (lib/entryTable) */
+  tables?: unknown[];
 }
 
 /** 저장 버튼을 눌렀을 때 화면으로 돌려주는 값. */
@@ -54,6 +58,8 @@ export interface EntryDraft {
   attachments: EntryAttachment[];
   linkedItems: any[];
   imageUrl?: string;
+  /** 붙인 표. 엑셀에서 복사해 본문에 붙여넣으면 생긴다 */
+  tables: EntryTable[];
 }
 
 interface EntryDrawerProps {
@@ -179,6 +185,7 @@ export default function EntryDrawer({
   defaultLabelRef.current = defaultLabel;
   const [attachments, setAttachments] = useState<EntryAttachment[]>([]);
   const [linkedItems, setLinkedItems] = useState<any[]>([]);
+  const [tables, setTables] = useState<EntryTable[]>([]);
 
   const [saving, setSaving] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
@@ -194,8 +201,8 @@ export default function EntryDrawer({
    * 배경을 눌러 닫을 때 이것과 달라졌으면 저장한다. 첨부·링크·라벨까지 본다.
    */
   const snapshotRef = useRef('');
-  const formSnapshot = (c: string, l: string[], a: EntryAttachment[], k: any[]) =>
-    JSON.stringify([c.trim(), l, a.map((x) => x.url), k.map((x) => x?.id ?? x?.targetId ?? JSON.stringify(x))]);
+  const formSnapshot = (c: string, l: string[], a: EntryAttachment[], k: any[], t: EntryTable[] = []) =>
+    JSON.stringify([c.trim(), l, a.map((x) => x.url), k.map((x) => x?.id ?? x?.targetId ?? JSON.stringify(x)), t]);
 
   // ⚠️ 이 효과는 '수정 대상이 바뀔 때'만 돌아야 한다. entry 객체 자체를 의존성으로
   // 잡으면 안 된다. 기록 화면은 라벨을 이름으로 풀어 넘기느라 그릴 때마다 새 객체를
@@ -213,11 +220,13 @@ export default function EntryDrawer({
       const l = sourceLabels(source);
       const k = source.linkedItems || [];
       const a = normalizeAttachments(source.attachments, source.imageUrl);
+      const t = normalizeTables(source.tables);
       setContent(c);
       setSelectedLabels(l);
       setLinkedItems(k);
       setAttachments(a);
-      snapshotRef.current = formSnapshot(c, l, a, k);
+      setTables(t);
+      snapshotRef.current = formSnapshot(c, l, a, k, t);
       openedLabelsRef.current = JSON.stringify(l);
     } else {
       setContent('');
@@ -229,7 +238,8 @@ export default function EntryDrawer({
       setSelectedLabels(l);
       setAttachments([]);
       setLinkedItems([]);
-      snapshotRef.current = formSnapshot('', l, [], []);
+      setTables([]);
+      snapshotRef.current = formSnapshot('', l, [], [], []);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entryKey, isOpen]);
@@ -260,7 +270,7 @@ export default function EntryDrawer({
 
   useEffect(() => {
     handleSubmitRef.current = () => handleSubmit();
-  }, [content, selectedLabels, attachments, linkedItems]);
+  }, [content, selectedLabels, attachments, linkedItems, tables]);
 
   // 💡 Esc로 닫는 동작은 useModalLayer의 전역 규칙(열린 팝업 전부 닫기)에 맡긴다.
   useEffect(() => {
@@ -338,6 +348,28 @@ export default function EntryDrawer({
     ]);
   });
 
+  /**
+   * 엑셀·한셀·구글 시트·웹의 표를 붙여넣으면 표로 붙인다. 표로 처리했으면(또는 글자로 흘려보내야 하면) true.
+   * 엑셀은 표와 함께 그 범위의 그림도 복사하므로, 그림 올리기보다 먼저 본다.
+   */
+  const handleTablePaste = (e: React.ClipboardEvent): boolean => {
+    const html = e.clipboardData?.getData('text/html') || '';
+    const parsed = parseClipboardTable(html);
+    if (!parsed) return false;
+    if ('error' in parsed) {
+      e.preventDefault();
+      showErrorToast(parsed.error);
+      return true;
+    }
+    // 한 칸만 복사했으면 글자로 붙인다 (그림으로 올라가지 않게 여기서 멈춘다)
+    if (!isRealTable(parsed)) return true;
+    e.preventDefault();
+    setTables((prev) => [...prev, parsed]);
+    const { rows, cols } = tableSize(parsed);
+    showToast(`▦ 표를 붙였습니다 (${rows}줄 × ${cols}열)`);
+    return true;
+  };
+
   if (!isOpen) return null;
 
   const toggleLabel = (label: string) => {
@@ -413,7 +445,7 @@ export default function EntryDrawer({
   /** 저장한다. 저장했거나 저장할 것이 없으면 true, 실패했으면 false */
   const handleSubmit = async (e?: React.FormEvent): Promise<boolean> => {
     if (e) e.preventDefault();
-    if (!content.trim() && attachments.length === 0) return true;
+    if (!content.trim() && attachments.length === 0 && tables.length === 0) return true;
     // 앞선 저장이 아직 끝나지 않았다면 그냥 흘려보낸다.
     // 안 그러면 새 항목을 만드는 중에 또 만들어 같은 내용이 두 개가 된다.
     if (savingRef.current) return false;
@@ -427,10 +459,11 @@ export default function EntryDrawer({
         attachments,
         linkedItems,
         imageUrl: attachments.find(isImageAttachment)?.url,
+        tables: tables.map(tableForSave),
       });
       // 저장해도 배너는 닫지 않는다. 닫기 버튼이나 배경 클릭으로만 닫힌다.
       showToast(`✅ ${text.noun}을(를) 저장했습니다.`);
-      snapshotRef.current = formSnapshot(content, selectedLabels, attachments, linkedItems);
+      snapshotRef.current = formSnapshot(content, selectedLabels, attachments, linkedItems, tables);
       return true;
     } catch (error) {
       showErrorToast(`${text.noun} 저장에 실패했습니다.`, error);
@@ -448,11 +481,11 @@ export default function EntryDrawer({
   // 닫기 단추·✕·ESC는 지금처럼 '저장 없이 닫기'다.
   const saveIfChanged = async (): Promise<boolean> => {
     if (uploadingFiles || pasting) return false;
-    const changed = formSnapshot(content, selectedLabels, attachments, linkedItems) !== snapshotRef.current;
+    const changed = formSnapshot(content, selectedLabels, attachments, linkedItems, tables) !== snapshotRef.current;
     return changed ? handleSubmit() : true;
   };
   if (flushRef) flushRef.current = saveIfChanged;
-  if (unsavedRef) unsavedRef.current = () => formSnapshot(content, selectedLabels, attachments, linkedItems) !== snapshotRef.current;
+  if (unsavedRef) unsavedRef.current = () => formSnapshot(content, selectedLabels, attachments, linkedItems, tables) !== snapshotRef.current;
 
   // 배경을 누르면 이 칸만 닫는다. 칸이 여럿 쌓여 있을 때 아래 칸까지 적던 것째 닫히면 안 된다.
   backdropCloseRef.current = async () => {
@@ -490,10 +523,24 @@ export default function EntryDrawer({
               autoFocus
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              onPaste={handlePaste}
+              onPaste={(e) => {
+                if (handleTablePaste(e)) return;
+                handlePaste(e);
+              }}
               placeholder={text.placeholder}
               className="w-full min-h-[84px] p-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-slate-800 leading-relaxed placeholder-slate-400 text-sm"
             />
+            <p className="text-2xs text-slate-400">▦ 엑셀·한셀·구글 시트에서 복사해 여기에 붙여넣으면 서식째 표로 붙습니다.</p>
+            {/* 붙인 표 (lib/entryTable). 칸을 눌러 글자를 고치고, 줄·열을 더하고 뺀다 */}
+            {tables.map((t, i) => (
+              <EntryTableView
+                key={t.id}
+                table={t}
+                title={tables.length > 1 ? `표 ${i + 1}` : '표'}
+                onChange={(next) => setTables((prev) => prev.map((x) => (x.id === t.id ? next : x)))}
+                onRemove={() => setTables((prev) => prev.filter((x) => x.id !== t.id))}
+              />
+            ))}
             {/* 학생 태그 (#26040305). 붙여 두면 '학생 누가기록'에 모인다. */}
             {kind === 'journal' && (
               <div className="space-y-1.5">
@@ -730,6 +777,7 @@ export default function EntryDrawer({
                     attachments,
                     linkedItems,
                     imageUrl: attachments.find(isImageAttachment)?.url,
+                    tables: tables.map(tableForSave),
                   })
                 }
                 disabled={saving || uploadingFiles}
@@ -753,7 +801,7 @@ export default function EntryDrawer({
             <button
               type="button"
               onClick={() => handleSubmit()}
-              disabled={saving || uploadingFiles || (!content.trim() && attachments.length === 0)}
+              disabled={saving || uploadingFiles || (!content.trim() && attachments.length === 0 && tables.length === 0)}
               className="px-5 py-2 text-sm font-bold text-white bg-primary hover:bg-blue-600 rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
             >
               {saving ? (

@@ -1,5 +1,6 @@
 //src/hooks/useDayData.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
+import type { EntryTable } from '../lib/entryTable';
 import {
   doc, onSnapshot, setDoc, getDoc, getDocFromServer, runTransaction,
   collection, query, where, documentId, getDocs, getDocsFromServer, orderBy, limit,
@@ -84,6 +85,8 @@ export interface JournalEntry {
   linkedItems?: any[];
   imageUrl?: string;
   attachments?: Attachment[];
+  /** 붙인 표 (lib/entryTable). V3는 모르는 칸이지만 항목째 들고 다녀 지우지 않는다 */
+  tables?: EntryTable[];
 }
 
 // 일정 항목 하나를 Firestore에 저장할 형태로 정규화한다.
@@ -698,6 +701,8 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           imageUrl: j.imageUrl || '',
           // 💡 attachments를 읽어오지 않아, 저장은 되는데 다시 불러오면 사라지고 있었다.
           attachments: j.attachments || [],
+          // 붙인 표 (lib/entryTable). 여기서 빼면 저장은 되는데 화면에는 안 보인다 (첨부와 같은 실수)
+          ...(Array.isArray(j.tables) && j.tables.length > 0 ? { tables: j.tables } : {}),
         })).filter((j: JournalEntry) =>
           (j.content && j.content.trim().length > 0) || 
           !!j.imageUrl ||
@@ -1163,7 +1168,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     if (itemToDelete) await syncAutoSourceAndTell({ entry: itemToDelete, groupId, dateStr, content: null });
   }, [dateStr, groupId, journals, mutateJournals]);
 
-  const updateJournalEntry = useCallback(async (id: string, updates: { content?: string; label?: string; labelIds?: string[]; imageUrl?: string; attachments?: Attachment[]; linkedItems?: any[] }) => {
+  const updateJournalEntry = useCallback(async (id: string, updates: { content?: string; label?: string; labelIds?: string[]; imageUrl?: string; attachments?: Attachment[]; linkedItems?: any[]; tables?: EntryTable[] }) => {
     const user = auth.currentUser;
     if (!user || !dateStr) return;
     

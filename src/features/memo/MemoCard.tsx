@@ -11,6 +11,8 @@ import { isLongEntry, previewLine } from '../../lib/entryCollapse';
 import { attachmentImageSrc } from '../../lib/driveApi';
 import { isImageAttachment } from '../../lib/attachments';
 import { focusKey } from '../../lib/searchFocus';
+import { normalizeTables } from '../../lib/entryTable';
+import EntryTableView from '../../components/EntryTableView';
 
 interface MemoCardProps {
   memo: Memo;
@@ -97,6 +99,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavor
   // 직접 누르기 전에는 길이를 보고 정한다(긴 것은 접은 채로 시작).
   // 처음 값을 state에 담아 두면 내용이 바뀌어도 그 값이 그대로 남는다.
   const body = memo.content || memo.text || '';
+  const tables = normalizeTables(memo.tables);
   const [manualCollapsed, setManualCollapsed] = React.useState<boolean | null>(null);
   const isCollapsed = manualCollapsed ?? isLongEntry(body);
   const preview = previewLine(body);
@@ -233,7 +236,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavor
             펼치면 아래의 그림·파일·본문이 그대로 나온다. */}
         {isCollapsed && (
           <>
-            {(viewerImages.length > 0 || fileAttachments.length > 0) && (
+            {(viewerImages.length > 0 || fileAttachments.length > 0 || tables.length > 0) && (
               <div className="flex items-center gap-1.5 mb-2">
                 {viewerImages.length > 0 && (
                   <button
@@ -248,6 +251,11 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavor
                 {fileAttachments.length > 0 && (
                   <span className="bg-slate-100 text-slate-600 text-xs px-1.5 py-0.5 rounded font-bold border border-slate-200">
                     📎 {fileAttachments.length}
+                  </span>
+                )}
+                {tables.length > 0 && (
+                  <span className="bg-emerald-50 text-emerald-700 text-xs px-1.5 py-0.5 rounded font-bold border border-emerald-200" title="붙인 표">
+                    ▦ {tables.length}
                   </span>
                 )}
               </div>
@@ -335,6 +343,13 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavor
             {renderFormattedText(body)}
           </p>
         )}
+        {/* 붙인 표 - 작게 보기만 (고치기는 카드를 눌러 연 칸에서) */}
+        {!isCollapsed &&
+          tables.map((t) => (
+            <div key={t.id} className="mt-2">
+              <EntryTableView table={t} compact />
+            </div>
+          ))}
       </div>
 
       {/* 💡 하단 라벨 (필터링된 validLabels만 렌더링) */}

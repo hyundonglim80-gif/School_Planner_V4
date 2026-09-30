@@ -15,6 +15,7 @@
 // ⚠️ 기록은 하루치가 journals/{date} 한 배열이다. 캐시로 읽고 쓰면 그날 다른 기록이 사라질 수 있어
 //    서버에서 읽고, 서버가 답하지 않으면 옮기지 않는다(v4-cold-cache-overwrites-day).
 import { addDoc, collection, deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { TABLE_ONLY_CONTENT } from './entryTable';
 import { auth, db } from './firebase';
 import { getDocTrustingServer } from './firestoreSubscribe';
 import { autoSourceOf } from './autoJournalSync';
@@ -143,13 +144,15 @@ export async function moveMemoToJournal(opts: {
   const newId = 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5);
   const entry: JournalEntry = clean({
     id: newId,
-    content: (memo.content || memo.text || '').trim(),
+    // 글 없이 표만 있으면 '[표]' (V3가 빈 기록을 빼지 않게, lib/entryTable)
+    content: (memo.content || memo.text || '').trim() || ((memo.tables || []).length > 0 ? TABLE_ONLY_CONTENT : ''),
     createdAt: Date.now(),
     label: names[0] || '',
     labelIds,
     imageUrl: memo.imageUrl || '',
     attachments: (memo.attachments || []) as any,
     linkedItems: memo.linkedItems || [],
+    ...((memo.tables || []).length > 0 ? { tables: memo.tables } : {}),
   });
   await setDoc(ref, { entries: [...entries, entry], updatedAt: Date.now() }, { merge: true });
 
@@ -203,7 +206,9 @@ export async function moveJournalToMemo(opts: {
   if (!entries.some((j) => String(j.id) === String(entry.id))) throw new Error('옮길 기록을 찾지 못했습니다.');
 
   // ① 새 메모 (원래 날짜를 첫 줄에)
-  const content = `${journalDateLine(dateStr)}\n${(entry.content || '').trim()}`;
+  // 표만 있던 기록의 '[표]'는 메모로 옮기지 않는다
+  const body = entry.content === TABLE_ONLY_CONTENT && (entry.tables || []).length > 0 ? '' : (entry.content || '').trim();
+  const content = `${journalDateLine(dateStr)}\n${body}`;
   const now = Date.now();
   const newRef = await addDoc(
     col(uid, groupId, 'tasks'),
@@ -217,6 +222,7 @@ export async function moveJournalToMemo(opts: {
       imageUrl: entry.imageUrl || '',
       attachments: entry.attachments || [],
       linkedItems: entry.linkedItems || [],
+      ...((entry.tables || []).length > 0 ? { tables: entry.tables } : {}),
       authorId: user.uid,
       authorName: user.displayName || '이름 없음',
       sharedGroupIds: groupId ? [groupId] : [],
