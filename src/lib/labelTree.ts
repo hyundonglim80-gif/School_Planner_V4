@@ -112,6 +112,36 @@ export function toggleFilterLabel(filter: LabelFilter, name: string): LabelFilte
   return { labels: [...filter.labels, name], withChildren: filter.withChildren };
 }
 
+/**
+ * 라벨 칩을 윈도우 탐색기처럼 고른다 (2026-09-30 사용자가 정함).
+ *   - 그냥 누르기: 그 라벨 하나만 (다른 것은 뗀다)
+ *   - Ctrl(맥은 ⌘) + 누르기: 붙이고 떼기 (여러 개)
+ *   - Shift + 누르기: 기준(마지막으로 그냥·Ctrl로 누른 라벨)부터 여기까지 보이는 차례대로 (Ctrl+Shift는 더하기)
+ * order는 화면에 보이는 라벨 차례. '하위 포함'은 계속 골라져 있는 상위에만 남긴다.
+ */
+export type FilterClick = { ctrl: boolean; shift: boolean };
+
+export function clickFilterLabel(
+  filter: LabelFilter,
+  name: string,
+  click: FilterClick,
+  order: string[],
+  anchor: string | null
+): LabelFilter {
+  const keepWith = (labels: string[]) => ({
+    labels,
+    withChildren: filter.withChildren.filter((l) => labels.includes(l)),
+  });
+  if (click.shift && anchor && order.includes(anchor) && order.includes(name)) {
+    const [a, b] = [order.indexOf(anchor), order.indexOf(name)].sort((x, y) => x - y);
+    const range = order.slice(a, b + 1);
+    const labels = click.ctrl ? [...filter.labels, ...range.filter((l) => !filter.labels.includes(l))] : range;
+    return keepWith(labels);
+  }
+  if (click.ctrl) return toggleFilterLabel(filter, name);
+  return keepWith([name]);
+}
+
 /** '하위 포함' 체크. 켜면 그 상위도 함께 고른다. 끄면 상위만 남는다 */
 export function toggleFilterChildren(filter: LabelFilter, parent: string): LabelFilter {
   if (filter.withChildren.includes(parent)) {

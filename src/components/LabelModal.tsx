@@ -182,6 +182,47 @@ function moveSibling<T extends { id: string }>(list: T[], id: string, dir: 'up' 
 }
 
 /**
+ * 새 기록·메모 라벨을 더할 때 둘 상위 라벨. 후보는 맨 위 단계 라벨(상위가 없는 것)만 - 2단계까지.
+ * 고른 상위는 다음에 더할 때도 그대로 남는다 (같은 상위 밑에 여러 개를 잇달아 더하기 쉽게).
+ */
+function NewLabelParentSelect({
+  labels,
+  parentIds,
+  value,
+  onChange,
+  noun,
+}: {
+  labels: { id: string; name: string }[];
+  parentIds: Record<string, string>;
+  value: string;
+  onChange: (id: string) => void;
+  noun: string;
+}) {
+  const candidates = labels.filter((l) => !parentIds[l.id]);
+  // 고른 상위가 지워졌거나 하위가 되었으면 '없음'으로 보인다
+  const current = candidates.some((l) => l.id === value) ? value : '';
+  return (
+    <label className="flex items-center gap-1 text-2xs font-bold text-slate-500 shrink-0">
+      상위
+      <select
+        aria-label={`새 ${noun} 라벨의 상위 라벨`}
+        title="새 라벨을 어느 라벨 밑에 둘지 (없음이면 맨 위 단계)"
+        value={current}
+        onChange={(e) => onChange(e.target.value)}
+        className="px-1.5 py-2 border border-slate-200 rounded-lg text-2xs font-bold text-slate-700 bg-white max-w-28"
+      >
+        <option value="">없음</option>
+        {candidates.map((l) => (
+          <option key={l.id} value={l.id}>
+            {l.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/**
  * 기록·메모 라벨 목록. 상위 밑에 하위를 들여 써서 보여 주고, 줄마다 '상위 라벨'을 고른다(2단계).
  * 상위/하위는 id로 다루고, 저장할 때 이름으로 바꿔 둔다(lib/labelTree) - 이름을 고치는 중에도 끊기지 않게.
  */
@@ -337,6 +378,9 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   const treeTouchedRef = useRef(false);
   const [newJournalName, setNewJournalName] = useState('');
   const [newJournalColor, setNewJournalColor] = useState('green');
+  // 새 라벨을 더할 때 고르는 상위 라벨 (id, 없으면 '')
+  const [newJournalParent, setNewJournalParent] = useState('');
+  const [newMemoParent, setNewMemoParent] = useState('');
 
   const [saving, setSaving] = useState(false);
   // 이름이 바뀐 라벨을 기존 항목에 반영하는 중 (저장보다 오래 걸릴 수 있다)
@@ -506,6 +550,26 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     setEventLabels(updated);
   };
 
+  /** 상위/하위(id)를 지금 이름으로 바꿔 저장한다 (lib/labelTree) */
+  const saveTree = (
+    journalIds: Record<string, string>,
+    journalList: { id: string; name: string }[],
+    memoIds: Record<string, string>,
+    memoList: { id: string; name: string }[]
+  ) => {
+    const toNames = (parentIds: Record<string, string>, list: { id: string; name: string }[]) => {
+      const nameOf = (id: string) => list.find((l) => l.id === id)?.name?.trim();
+      const out: Record<string, string> = {};
+      for (const [c, pr] of Object.entries(parentIds)) {
+        const cn = nameOf(c);
+        const pn = nameOf(pr);
+        if (cn && pn && cn !== pn) out[cn] = pn;
+      }
+      return sanitizeParents(out);
+    };
+    return saveLabelTree({ journal: toNames(journalIds, journalList), memo: toNames(memoIds, memoList) });
+  };
+
   // --- 메모 라벨 핸들러 ---
   const handleAddMemoLabel = async () => {
     if (!newMemoName.trim()) return;
@@ -517,7 +581,23 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     const next = [...memoLabels, newLbl];
     setMemoLabels(next);
     setNewMemoName('');
+    // 상위를 골랐으면 그 밑에 둔다. 라벨은 더하는 즉시 저장되므로 상위/하위도 함께 저장한다
+    // (저장 단추를 안 누르고 닫아도 라벨만 남고 상위가 빠지지 않게).
+    const parent = memoLabels.some((l) => l.id === newMemoParent && !memoParentIds[l.id]) ? newMemoParent : '';
+    const nextParents = parent ? { ...memoParentIds, [newLbl.id]: parent } : memoParentIds;
+    if (parent) {
+      treeTouchedRef.current = true;
+      setMemoParentIds(nextParents);
+    }
     await saveLabelsToCloud(eventLabels, next, journalLabels);
+    if (parent) {
+      try {
+        await saveTree(journalParentIds, journalLabels, nextParents, next);
+      } catch (err) {
+        console.error('라벨 상위/하위 저장 실패:', err);
+        showErrorToast('상위 라벨을 저장하지 못했습니다. 저장 단추를 눌러 다시 저장해 주세요.');
+      }
+    }
   };
 
   const handleDeleteMemoLabel = (id: string) => {
@@ -537,7 +617,22 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     const next = [...journalLabels, newLbl];
     setJournalLabels(next);
     setNewJournalName('');
+    // 상위를 골랐으면 그 밑에 둔다 (메모 라벨 더하기와 같다)
+    const parent = journalLabels.some((l) => l.id === newJournalParent && !journalParentIds[l.id]) ? newJournalParent : '';
+    const nextParents = parent ? { ...journalParentIds, [newLbl.id]: parent } : journalParentIds;
+    if (parent) {
+      treeTouchedRef.current = true;
+      setJournalParentIds(nextParents);
+    }
     await saveLabelsToCloud(eventLabels, memoLabels, next);
+    if (parent) {
+      try {
+        await saveTree(nextParents, next, memoParentIds, memoLabels);
+      } catch (err) {
+        console.error('라벨 상위/하위 저장 실패:', err);
+        showErrorToast('상위 라벨을 저장하지 못했습니다. 저장 단추를 눌러 다시 저장해 주세요.');
+      }
+    }
   };
 
 
@@ -617,17 +712,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
       originalMemoLabelsRef.current = memoLabels;
 
       // 상위/하위도 함께 저장한다. id로 들고 있던 것을 지금 이름으로 바꿔 두므로 이름을 고친 것도 따라간다.
-      const toNames = (parentIds: Record<string, string>, list: { id: string; name: string }[]) => {
-        const nameOf = (id: string) => list.find((l) => l.id === id)?.name?.trim();
-        const out: Record<string, string> = {};
-        for (const [c, pr] of Object.entries(parentIds)) {
-          const cn = nameOf(c);
-          const pn = nameOf(pr);
-          if (cn && pn && cn !== pn) out[cn] = pn;
-        }
-        return sanitizeParents(out);
-      };
-      await saveLabelTree({ journal: toNames(journalParentIds, journalLabels), memo: toNames(memoParentIds, memoLabels) });
+      await saveTree(journalParentIds, journalLabels, memoParentIds, memoLabels);
       treeTouchedRef.current = false;
 
       const renameCount = renames.event.length + renames.journal.length + renames.memo.length;
@@ -1079,6 +1164,13 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                   color={newJournalColor}
                   onChange={setNewJournalColor}
                 />
+                <NewLabelParentSelect
+                  labels={journalLabels}
+                  parentIds={journalParentIds}
+                  value={newJournalParent}
+                  onChange={setNewJournalParent}
+                  noun="기록"
+                />
                 <button
                   onClick={handleAddJournalLabel}
                   className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
@@ -1129,6 +1221,13 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                   <ColorPickerDropdown
                     color={newMemoColor}
                     onChange={setNewMemoColor}
+                  />
+                  <NewLabelParentSelect
+                    labels={memoLabels}
+                    parentIds={memoParentIds}
+                    value={newMemoParent}
+                    onChange={setNewMemoParent}
+                    noun="메모"
                   />
                   <button
                     onClick={handleAddMemoLabel}

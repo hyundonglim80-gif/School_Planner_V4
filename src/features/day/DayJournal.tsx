@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { JournalEntry, Attachment } from '../../hooks/useDayData';
 import { useAppStore } from '../../store/useAppStore';
 import { focusKey } from '../../lib/searchFocus';
@@ -16,7 +16,7 @@ import {
   orderByTree,
   pruneFilter,
   toggleFilterChildren,
-  toggleFilterLabel,
+  clickFilterLabel,
   useLabelTree,
   type LabelFilter,
 } from '../../lib/labelTree';
@@ -169,6 +169,30 @@ export default function DayJournal({
   const journalParents = useLabelTree().journal;
   const [openParents, setOpenParents] = useState<Record<string, boolean>>({});
 
+  // 라벨 칩은 윈도우 탐색기처럼 고른다 (lib/labelTree의 clickFilterLabel):
+  // 그냥 누르면 하나만, Ctrl은 더하고 빼기, Shift는 기준부터 여기까지. ESC는 모두 뗀다.
+  const anchorRef = useRef<string | null>(null);
+  const treeRows = orderByTree(journalLabels.map((l) => l.name), journalParents);
+  /** 화면에 보이는 라벨 차례 (접힌 하위는 빼되, 고른 것은 보인다) - Shift 범위에 쓴다 */
+  const visibleLabelOrder = treeRows
+    .filter((r) => r.depth === 0 || !!openParents[r.parent!] || labelFilter.labels.includes(r.name))
+    .map((r) => r.name);
+  const clickLabel = (name: string, e: React.MouseEvent) => {
+    const click = { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey };
+    setLabelFilter(clickFilterLabel(labelFilter, name, click, visibleLabelOrder, anchorRef.current));
+    if (!click.shift) anchorRef.current = name;
+  };
+  // ESC: 라벨 고른 것을 모두 뗀다 (오른쪽 칸·팝업은 Layout의 ESC가 함께 닫는다)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      anchorRef.current = null;
+      setLabelFilter((prev) => (prev.labels.length === 0 ? prev : EMPTY_FILTER));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   // 필터 적용된 리스트
   const allowedLabels = filterLabelSet(labelFilter, journalParents);
   const filteredJournals = allowedLabels === null
@@ -259,7 +283,7 @@ export default function DayJournal({
                 </button>
                 {/* 라벨은 눌러서 붙이고 떼며 여러 개 고른다. 상위 칩만 보이고, 하위가 있는 상위는
                     ▾로 하위 칩을 펼친다 (고른 하위는 접어도 보인다). 상위 앞 체크는 '하위 포함'. */}
-                {orderByTree(journalLabels.map((l) => l.name), journalParents).map((row) => {
+                {treeRows.map((row) => {
                   const parentName = row.parent || row.name;
                   const open = !!openParents[parentName];
                   const selected = labelFilter.labels.includes(row.name);
@@ -281,7 +305,9 @@ export default function DayJournal({
                         />
                       )}
                       <button
-                        onClick={() => setLabelFilter((prev) => toggleFilterLabel(prev, row.name))}
+                        onClick={(e) => clickLabel(row.name, e)}
+                        // Shift+누르기가 글자를 긁어 고르지 않게
+                        onMouseDown={(e) => e.shiftKey && e.preventDefault()}
                         aria-pressed={selected}
                         title={labelPath(row.name, journalParents)}
                         className={`px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm ${

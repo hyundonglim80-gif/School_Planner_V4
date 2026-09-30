@@ -10,6 +10,7 @@ import {
   sanitizeParents,
   toggleFilterChildren,
   toggleFilterLabel,
+  clickFilterLabel,
 } from './labelTree';
 
 // 메모·기록 라벨 상위/하위 (2단계). 예: 학교 › A초·B초·C초
@@ -52,6 +53,24 @@ describe('라벨 트리', () => {
     expect(withKids).toEqual({ labels: ['학교'], withChildren: ['학교'] });
     expect(toggleFilterLabel(withKids, '학교')).toEqual(EMPTY_FILTER);
     expect(toggleFilterChildren(withKids, '학교')).toEqual({ labels: ['학교'], withChildren: [] });
+  });
+
+  it('탐색기처럼 고르기: 그냥 = 하나, Ctrl = 더하기·빼기, Shift = 범위, Ctrl+Shift = 범위 더하기', () => {
+    const order = ['업무', '학교', 'A초', 'B초', '개인'];
+    const plain = { ctrl: false, shift: false };
+    const f1 = clickFilterLabel({ labels: ['업무', '학교'], withChildren: ['학교'] }, 'A초', plain, order, null);
+    expect(f1).toEqual({ labels: ['A초'], withChildren: [] });
+    // 계속 골라져 있는 상위의 '하위 포함'은 남는다
+    expect(clickFilterLabel({ labels: ['학교'], withChildren: ['학교'] }, '학교', plain, order, null)).toEqual({ labels: ['학교'], withChildren: ['학교'] });
+    const f2 = clickFilterLabel(f1, '업무', { ctrl: true, shift: false }, order, 'A초');
+    expect(f2.labels).toEqual(['A초', '업무']);
+    expect(clickFilterLabel(f2, '업무', { ctrl: true, shift: false }, order, '업무').labels).toEqual(['A초']);
+    // 기준(업무)부터 B초까지, 거꾸로 눌러도 같다
+    expect(clickFilterLabel(EMPTY_FILTER, 'B초', { ctrl: false, shift: true }, order, '업무').labels).toEqual(['업무', '학교', 'A초', 'B초']);
+    expect(clickFilterLabel(EMPTY_FILTER, '업무', { ctrl: false, shift: true }, order, 'A초').labels).toEqual(['업무', '학교', 'A초']);
+    expect(clickFilterLabel({ labels: ['개인'], withChildren: [] }, 'B초', { ctrl: true, shift: true }, order, 'A초').labels).toEqual(['개인', 'A초', 'B초']);
+    // 기준이 없으면 Shift도 하나만
+    expect(clickFilterLabel(EMPTY_FILTER, '학교', { ctrl: false, shift: true }, order, null).labels).toEqual(['학교']);
   });
 
   it("'하위 포함'을 켜면 상위도 함께 골라진다", () => {

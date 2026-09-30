@@ -13,7 +13,7 @@ import {
   orderByTree,
   pruneFilter,
   toggleFilterChildren,
-  toggleFilterLabel,
+  clickFilterLabel,
   useLabelTree,
   type LabelFilter,
 } from '../../lib/labelTree';
@@ -107,6 +107,35 @@ export default function MemoScreen() {
   /** 접어 둔 상위 (하위 칩을 숨긴다). 처음에는 모두 펼쳐 둔다 */
   const [foldedParents, setFoldedParents] = useState<Record<string, boolean>>({});
   const allowedLabels = filterLabelSet(labelFilter, memoParents);
+
+  // 라벨 칩은 윈도우 탐색기처럼 고른다 (lib/labelTree의 clickFilterLabel):
+  // 그냥 누르면 하나만, Ctrl은 더하고 빼기, Shift는 기준부터 여기까지. ESC는 모두 뗀다.
+  const anchorRef = useRef<string | null>(null);
+  const treeRows = orderByTree(memoLabels, memoParents);
+  /** 화면에 보이는 라벨 차례 (접힌 하위는 빼되, 고른 것은 보인다) - Shift 범위에 쓴다 */
+  const visibleLabelOrder = treeRows
+    .filter((r) => r.depth === 0 || !foldedParents[r.parent!] || labelFilter.labels.includes(r.name))
+    .map((r) => r.name);
+  const clickLabel = (name: string, e: React.MouseEvent) => {
+    const click = { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey };
+    chooseFilter(clickFilterLabel(labelFilter, name, click, visibleLabelOrder, anchorRef.current));
+    if (!click.shift) anchorRef.current = name;
+  };
+  // ESC: 라벨 고른 것을 모두 뗀다 (오른쪽 칸·팝업은 Layout의 ESC가 함께 닫는다)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      anchorRef.current = null;
+      const f = useAppStore.getState().memoFilter;
+      const isLabel = typeof f === 'string' ? f !== '전체' && f !== FAVORITE_FILTER : !!f;
+      if (isLabel) {
+        setShowAllForFocus(false);
+        setMemoFilter('전체');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [setMemoFilter]);
 
   const matching =
     currentFilter === '전체'
@@ -220,7 +249,9 @@ export default function MemoScreen() {
       <button
         key={filter}
         type="button"
-        onClick={() => chooseFilter(label ? toggleFilterLabel(labelFilter, filter) : filter)}
+        onClick={(e) => (label ? clickLabel(filter, e) : chooseFilter(filter))}
+        // Shift+누르기가 글자를 긁어 고르지 않게
+        onMouseDown={(e) => e.shiftKey && e.preventDefault()}
         aria-pressed={isSelected}
         title={title ?? (typeof text === 'string' ? text : undefined)}
         className={`relative w-full flex items-center justify-between gap-1 px-1.5 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs text-left border transition-all cursor-pointer ${
@@ -287,7 +318,7 @@ export default function MemoScreen() {
             )}
             {/* 라벨은 여러 개 고른다. 상위 밑에 하위를 들여 쓰고, ▾/▴로 접고 편다.
                 상위 앞 체크('하위 포함')를 켜야 하위 라벨 메모까지 걸러진다. */}
-            {orderByTree(memoLabels, memoParents).map((row) => {
+            {treeRows.map((row) => {
               const color = getLabelColor(row.name);
               const parentName = row.parent || row.name;
               const withChildren = labelFilter.withChildren.includes(parentName);

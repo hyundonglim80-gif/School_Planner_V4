@@ -379,8 +379,10 @@ describe('메모 라벨 상위/하위', () => {
     expect(screen.getByText('업무 메모')).toBeInTheDocument();
     expect(screen.getByText('개인 메모')).toBeInTheDocument();
 
-    // 상위를 떼면 '하위 포함'도 꺼지고, 아무것도 안 골랐으니 전체
+    // Ctrl+누르기로 상위를 떼면 '하위 포함'도 꺼지고, 아무것도 안 골랐으니 전체
+    await user.keyboard('{Control>}');
     await user.click(within(nav).getByRole('button', { name: WORK_CHIP }));
+    await user.keyboard('{/Control}');
     expect(withChildren).not.toBeChecked();
     expect(within(nav).getByRole('button', { name: /전체 메모/ })).toHaveAttribute('aria-pressed', 'true');
   });
@@ -396,7 +398,8 @@ describe('메모 라벨 상위/하위', () => {
     expect(screen.getByText('개인 메모')).toBeInTheDocument();
   });
 
-  it('라벨을 여러 개 고를 수 있다 (하나라도 붙은 메모가 보인다)', async () => {
+  // 윈도우 탐색기처럼: 그냥 누르면 하나만, Ctrl은 더하기·빼기, Shift는 범위, ESC는 모두 떼기
+  it('그냥 누르면 그 라벨 하나만 골라진다', async () => {
     const user = userEvent.setup();
     render(<><MemoScreen /><EntryPanelHost /></>);
     const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
@@ -404,6 +407,39 @@ describe('메모 라벨 상위/하위', () => {
 
     await user.click(within(nav).getByRole('button', { name: WORK_CHIP }));
     await user.click(within(nav).getByRole('button', { name: /개인/ }));
+    expect(within(nav).getByRole('button', { name: WORK_CHIP })).toHaveAttribute('aria-pressed', 'false');
+    expect(within(nav).getByRole('button', { name: /개인/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByText('업무 메모')).toBeNull();
+  });
+
+  it('Shift+누르기는 기준부터 여기까지 골라지고, ESC는 모두 뗀다', async () => {
+    const user = userEvent.setup();
+    render(<><MemoScreen /><EntryPanelHost /></>);
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    await screen.findByText('업무 메모');
+
+    await user.click(within(nav).getByRole('button', { name: WORK_CHIP }));
+    await user.keyboard('{Shift>}');
+    await user.click(within(nav).getByRole('button', { name: /개인/ }));
+    await user.keyboard('{/Shift}');
+    expect(useAppStore.getState().memoFilter).toEqual({ labels: ['업무', '개인'], withChildren: [] });
+
+    await user.keyboard('{Escape}');
+    expect(within(nav).getByRole('button', { name: /전체 메모/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('업무 메모')).toBeInTheDocument();
+    expect(screen.getByText('개인 메모')).toBeInTheDocument();
+  });
+
+  it('Ctrl+누르기로 라벨을 여러 개 고를 수 있다 (하나라도 붙은 메모가 보인다)', async () => {
+    const user = userEvent.setup();
+    render(<><MemoScreen /><EntryPanelHost /></>);
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    await screen.findByText('업무 메모');
+
+    await user.click(within(nav).getByRole('button', { name: WORK_CHIP }));
+    await user.keyboard('{Control>}');
+    await user.click(within(nav).getByRole('button', { name: /개인/ }));
+    await user.keyboard('{/Control}');
     expect(within(nav).getByRole('button', { name: WORK_CHIP })).toHaveAttribute('aria-pressed', 'true');
     expect(within(nav).getByRole('button', { name: /개인/ })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('업무 메모')).toBeInTheDocument();

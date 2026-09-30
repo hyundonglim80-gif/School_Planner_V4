@@ -448,10 +448,25 @@ describe('기록 거르개 - 라벨 상위/하위', () => {
     expect(screen.getByText('상담 기록')).toBeInTheDocument();
     expect(screen.queryByText('업무 기록')).toBeNull();
 
-    // 여러 개: 업무전달도 더한다
+    // 여러 개: Ctrl+누르기로 업무전달도 더한다
+    await user.keyboard('{Control>}');
     await user.click(screen.getByRole('button', { name: '업무전달' }));
+    await user.keyboard('{/Control}');
     expect(screen.getByText('업무 기록')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '학급활동' })).toHaveAttribute('aria-pressed', 'true');
+
+    // ESC는 모두 뗀다
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('button', { name: '학급활동' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByText('업무 기록')).toBeInTheDocument();
+    expect(screen.getByText('상담 기록')).toBeInTheDocument();
+
+    // 그냥 누르면 하나만, 다른 것을 그냥 누르면 바뀐다
+    await user.click(screen.getByRole('button', { name: '학급활동' }));
+    await user.click(screen.getByRole('button', { name: '업무전달' }));
+    expect(screen.getByRole('button', { name: '학급활동' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByText('학급 기록')).toBeNull();
+    expect(screen.getByText('업무 기록')).toBeInTheDocument();
 
     // 전체를 누르면 모두 뗀다
     await user.click(screen.getByRole('button', { name: '전체' }));
