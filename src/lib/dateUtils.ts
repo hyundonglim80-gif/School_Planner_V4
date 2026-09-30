@@ -54,6 +54,14 @@ export function addDays(dateStr: string, days: number): string {
   return formatDateStr(date);
 }
 
+/** 두 날짜 사이의 날 수(toStr - fromStr). 같은 날이면 0, 앞날이면 음수. */
+export function daysBetween(fromStr: string, toStr: string): number {
+  const [fy, fm, fd] = fromStr.split('-').map(Number);
+  const [ty, tm, td] = toStr.split('-').map(Number);
+  // 서머타임이 있는 곳에서도 하루가 23·25시간이 되지 않게 UTC로 센다
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86400000);
+}
+
 export function isToday(dateStr: string): boolean {
   return dateStr === formatDateStr(new Date());
 }

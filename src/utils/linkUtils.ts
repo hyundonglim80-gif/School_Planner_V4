@@ -25,6 +25,13 @@ export interface ReverseLinkOptions {
    * 메모 -> 기록처럼 종류가 바뀌면 옛 메모 링크가 남아 끊어진 링크가 된다.
    */
   retargetFromIds?: string[];
+  /**
+   * 일정을 다른 날짜로 옮겼을 때, 옛 자리(옛 id·옛 날짜)를 가리키던 링크를 그 자리에서 새 날짜·제목으로 고친다.
+   * 옮기기는 id를 그대로 두므로(새 날짜에 같은 id가 있을 때만 바꾼다) 위의 방법들로는 날짜가 고쳐지지 않는다 -
+   * 같은 id가 이미 있으면 '이미 연결됨'으로 보고 아무것도 안 바꾼다. 날짜까지 보고 고르므로, 다른 날짜의
+   * 같은 id(V3가 id 없이 쓴 일정은 날마다 ev_0, ev_1 …)를 가리키는 링크는 건드리지 않는다.
+   */
+  movedFrom?: { id: string; date: string };
 }
 
 const linkIdOf = (l: any) => String(l?.targetId ?? l?.id ?? '');
@@ -63,6 +70,29 @@ export function applyReverseLink(
 
   const kept = list.filter((l) => !isStale(l));
   const removedSomething = kept.length !== list.length;
+
+  const movedFrom = options?.movedFrom;
+  if (movedFrom) {
+    const sameKind = (l: any) =>
+      String(l?.targetType) === String(sourceMeta?.targetType) && linkFIdOf(l) === linkFIdOf(sourceMeta);
+    const pointsTo = (l: any, id: string, date: string) =>
+      sameKind(l) && linkIdOf(l) === String(id) && String(l?.targetDate || '') === String(date);
+    const next: any[] = [];
+    let placed = false;
+    for (const l of kept) {
+      const old = pointsTo(l, movedFrom.id, movedFrom.date);
+      const already = pointsTo(l, newId, sourceMeta?.targetDate || '');
+      if (old || already) {
+        // 옛 자리는 새 자리(날짜·제목)로 고치고, 같은 것이 둘이면 하나만 남긴다 (자리는 처음 것 그대로)
+        if (!placed) next.push({ ...l, ...sourceMeta });
+        placed = true;
+        continue;
+      }
+      next.push(l);
+    }
+    if (!placed) next.push(sourceMeta);
+    return JSON.stringify(next) === JSON.stringify(list) ? null : next;
+  }
 
   if (kept.some((l) => linkIdOf(l) === newId)) {
     return removedSomething ? kept : null;
