@@ -91,12 +91,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     setMultiSelectMode,
     isTrashModalOpen,
     setTrashModalOpen,
-    isLinkViewerModalOpen,
-    linkViewerSourceType,
-    linkViewerSourceDateStr,
-    linkViewerSourceId,
-    linkViewerSourcePeriod,
-    linkViewerSourceFId,
+    linkViewers,
     closeLinkViewerModal,
     isDetailEditOpen,
     detailEditTarget,
@@ -1050,17 +1045,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           />
         )}
 
-        {isLinkViewerModalOpen && (
+        {/* 연결된 링크 배너 - 여러 개가 오른쪽 줄에 쌓인다 (나중에 연 것이 위) */}
+        {linkViewers.map((v) => (
           <LinkViewerModal
+            key={v.key}
             isOpen
-            onClose={closeLinkViewerModal}
-            sourceType={linkViewerSourceType}
-            sourceDateStr={linkViewerSourceDateStr || currentDate}
-            sourceId={linkViewerSourceId}
-            sourcePeriod={linkViewerSourcePeriod}
-            sourceFId={linkViewerSourceFId}
+            onClose={() => closeLinkViewerModal(v.key)}
+            raise={v.raisedAt}
+            sourceType={v.sourceType}
+            sourceDateStr={v.dateStr || currentDate}
+            sourceId={v.id}
+            sourcePeriod={v.period}
+            sourceFId={v.fId}
           />
-        )}
+        ))}
 
         {/* 연결된 링크에서 연 편집기. 링크는 다른 날짜·다른 공유 공간을 가리킬 수
             있으므로 대상을 통째로 넘겨받는다. */}

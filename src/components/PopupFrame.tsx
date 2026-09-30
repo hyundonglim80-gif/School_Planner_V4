@@ -117,6 +117,8 @@ export function sideSlotProps({ row, rows }: SideSlot): { className: string; sty
 interface PopupFrameProps {
   isOpen: boolean;
   onClose: () => void;
+  /** 바뀌면 오른쪽 줄의 맨 위로 올라간다 (이미 열린 배너를 다시 열 때) */
+  raise?: number;
   /** 가운데 팝업의 폭. 오른쪽 칸·휴대폰 배너는 폭이 모두 같다. */
   width?: ModalWidth;
   /** 배경을 눌렀을 때 할 일. 주지 않으면 열린 팝업을 모두 닫는다. (옆에 붙은 칸에는 배경이 없다) */
@@ -192,6 +194,7 @@ export default function PopupFrame({
   onBackdropClose,
   cardClassName = '',
   onSave,
+  raise,
   children,
 }: PopupFrameProps) {
   const cardRef = useRef<HTMLElement | null>(null);
@@ -203,9 +206,9 @@ export default function PopupFrame({
   // 옆에 붙은 칸은 왼쪽 화면과 함께 쓰므로 본문 스크롤을 잠그지 않는다
   useBodyScrollLock(isOpen && !docked);
   const vv = useVisualViewport(isOpen);
-  const zIndex = useModalLayer(isOpen, onClose);
+  const zIndex = useModalLayer(isOpen, onClose, raise);
   const backdrop = useBackdropClose(onBackdropClose);
-  const slot = useSideSlot(docked);
+  const slot = useSideSlot(docked, raise);
 
   if (!isOpen) return null;
 

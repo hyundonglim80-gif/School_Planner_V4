@@ -63,6 +63,29 @@ const samePanelTarget = (a: EntryPanelTarget, b: EntryPanelTarget) =>
   (a.groupId || null) === (b.groupId || null) &&
   (a.dateStr || '') === (b.dateStr || '');
 
+/** 열린 링크 배너 하나 - 어느 항목의 링크를 보는지 */
+export interface LinkViewerTarget {
+  key: string;
+  sourceType: 'schedule' | 'journal' | 'event' | 'memo';
+  dateStr: string;
+  id: string;
+  period?: number | string;
+  fId?: string;
+  /** 다시 열면 바뀐다 - 배너가 맨 위로 올라간다 (useSideSlot의 raise) */
+  raisedAt: number;
+}
+
+/** 같은 항목의 링크 배너를 알아보는 열쇠 */
+export function linkViewerKey(
+  sourceType: string,
+  dateStr: string,
+  id: string,
+  period?: number | string,
+  fId?: string
+): string {
+  return [fId || 'personal', sourceType, dateStr || '', id || '', period ?? ''].join('|');
+}
+
 interface AppState {
   scope: Scope;
   semesterFilter: 'all' | 1 | 2;
@@ -152,13 +175,12 @@ interface AppState {
   ) => void;
   closeLinkerModal: () => void;
 
-  // Link Viewer Modal State
+  // 연결된 링크 배너. 다른 칸처럼 오른쪽 줄에 쌓인다 (나중에 연 것이 위, 2026-09-30).
+  // 예전에는 한 개뿐이라 다른 링크를 열면 앞의 배너가 바뀌어 버렸다.
+  /** 열린 링크 배너들 (연 차례). 하나라도 있으면 isLinkViewerModalOpen */
+  linkViewers: LinkViewerTarget[];
   isLinkViewerModalOpen: boolean;
-  linkViewerSourceType: 'schedule' | 'journal' | 'event' | 'memo';
-  linkViewerSourceDateStr: string;
-  linkViewerSourceId: string;
-  linkViewerSourcePeriod?: number | string;
-  linkViewerSourceFId?: string;
+  /** 같은 항목의 배너가 이미 열려 있으면 새로 만들지 않고 맨 위로 올린다 */
   openLinkViewerModal: (
     sourceType: 'schedule' | 'journal' | 'event' | 'memo', 
     dateStr: string, 
@@ -166,7 +188,8 @@ interface AppState {
     period?: number | string,
     fId?: string
   ) => void;
-  closeLinkViewerModal: () => void;
+  /** key를 주면 그 배너만, 안 주면 모두 닫는다 (ESC) */
+  closeLinkViewerModal: (key?: string) => void;
 
   // 연결된 링크 팝업에서 여는 '제대로 된 편집기'.
   // 예전에는 거기서 글자만 고칠 수 있는 칸이 열려, 첨부·라벨·링크를 손댈 수 없었다.
@@ -511,27 +534,23 @@ export const useAppStore = create<AppState>()(
         linkerCallback: undefined
       }),
 
+      linkViewers: [],
       isLinkViewerModalOpen: false,
-      linkViewerSourceType: 'event',
-      linkViewerSourceDateStr: '',
-      linkViewerSourceId: '',
-      linkViewerSourcePeriod: undefined,
-      linkViewerSourceFId: undefined,
-      openLinkViewerModal: (sourceType, dateStr, id = '', period, fId) => set({
-        isLinkViewerModalOpen: true,
-        linkViewerSourceType: sourceType,
-        linkViewerSourceDateStr: dateStr,
-        linkViewerSourceId: id,
-        linkViewerSourcePeriod: period,
-        linkViewerSourceFId: fId,
-      }),
-      closeLinkViewerModal: () => set({
-        isLinkViewerModalOpen: false,
-        linkViewerSourceDateStr: '',
-        linkViewerSourceId: '',
-        linkViewerSourcePeriod: undefined,
-        linkViewerSourceFId: undefined,
-      }),
+      openLinkViewerModal: (sourceType, dateStr, id = '', period, fId) =>
+        set((s) => {
+          const key = linkViewerKey(sourceType, dateStr, id, period, fId);
+          const now = Date.now();
+          const exists = s.linkViewers.some((v) => v.key === key);
+          const linkViewers = exists
+            ? s.linkViewers.map((v) => (v.key === key ? { ...v, raisedAt: now } : v))
+            : [...s.linkViewers, { key, sourceType, dateStr, id, period, fId, raisedAt: now }];
+          return { linkViewers, isLinkViewerModalOpen: true };
+        }),
+      closeLinkViewerModal: (key) =>
+        set((s) => {
+          const linkViewers = key === undefined ? [] : s.linkViewers.filter((v) => v.key !== key);
+          return { linkViewers, isLinkViewerModalOpen: linkViewers.length > 0 };
+        }),
 
       isDetailEditOpen: false,
       detailEditTarget: null,

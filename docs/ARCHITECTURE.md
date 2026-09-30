@@ -201,6 +201,8 @@ Firestore는 캐시에 없는 문서를 "없다"고 답한다. 그대로 믿으�
   - 새 칸은 위에 쌓이고, 먼저 연 칸은 적던 글째 아래로 간다. 같은 항목을 다시 열면 그 칸을 맨 위로(`raisedAt`).
   - 새 항목을 저장하면 그 항목의 수정 칸이 된다(`onCreated`).
   - 칸의 틀은 `SidePanelFrame`: 넓은 화면(768px~)은 화면 옆에 붙고, 좁으면 덮는 배너.
+- **링크 배너**(`LinkViewerModal`): `useAppStore.linkViewers`(쌓임)에 넣고 Layout이 모두 그린다. 같은 항목을 다시 열면
+  새로 만들지 않고 `raisedAt`으로 맨 위로(`PopupFrame`의 `raise` → `useSideSlot`·`useModalLayer`). 예전에는 한 개뿐이라 교체됐다.
 - **팝업**: 모든 팝업은 `ModalShell` 또는 `PopupFrame`(`modalConventions.test.ts`가 지킨다).
   환경설정 > 팝업 모양이 side(기본)면 넓은 화면에서 쓰는 칸과 **같은 오른쪽 줄**(`getSideColumn`, `useSideSlot`)에 선다.
   center면 예전처럼 가운데.

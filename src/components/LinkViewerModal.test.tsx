@@ -135,3 +135,31 @@ describe('연결된 링크 - 붙인 표', () => {
     expect(box.className).toContain('overflow-y-hidden');
   });
 });
+
+// 링크 배너는 한 개뿐이라 다른 링크를 열면 앞의 배너가 바뀌어 버렸다. 이제 다른 칸처럼 쌓인다.
+describe('연결된 링크 배너 - 쌓기', () => {
+  it('다른 항목의 링크를 열면 쌓이고, 같은 항목을 다시 열면 새로 만들지 않고 맨 위로', () => {
+    useAppStore.setState({ linkViewers: [], isLinkViewerModalOpen: false });
+    const { openLinkViewerModal, closeLinkViewerModal } = useAppStore.getState();
+    openLinkViewerModal('event', '2026-09-16', 'ev_1');
+    openLinkViewerModal('memo', '', 'm_1');
+    let s = useAppStore.getState();
+    expect(s.linkViewers.map((v) => v.id)).toEqual(['ev_1', 'm_1']);
+    expect(s.isLinkViewerModalOpen).toBe(true);
+
+    const before = s.linkViewers[0].raisedAt;
+    vi.spyOn(Date, 'now').mockReturnValue(before + 1000);
+    openLinkViewerModal('event', '2026-09-16', 'ev_1');
+    s = useAppStore.getState();
+    expect(s.linkViewers).toHaveLength(2);
+    expect(s.linkViewers[0].raisedAt).toBe(before + 1000);
+    vi.restoreAllMocks();
+
+    // 하나만 닫기, 그다음 모두 닫기(ESC)
+    closeLinkViewerModal(s.linkViewers[1].key);
+    expect(useAppStore.getState().linkViewers.map((v) => v.id)).toEqual(['ev_1']);
+    closeLinkViewerModal();
+    expect(useAppStore.getState().linkViewers).toEqual([]);
+    expect(useAppStore.getState().isLinkViewerModalOpen).toBe(false);
+  });
+});

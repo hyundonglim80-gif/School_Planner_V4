@@ -15,6 +15,8 @@ import ImageViewerModal from './ImageViewerModal';
 interface LinkViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** 바뀌면 오른쪽 줄의 맨 위로 (같은 항목의 링크를 다시 열 때) */
+  raise?: number;
   sourceType: string;
   sourceDateStr: string;
   sourceId: string;
@@ -42,6 +44,7 @@ export interface NormalizedLink {
 export default function LinkViewerModal({
   isOpen,
   onClose,
+  raise,
   sourceType,
   sourceDateStr,
   sourceId,
@@ -429,7 +432,7 @@ export default function LinkViewerModal({
 
   return (
     <>
-<PopupFrame isOpen={isOpen} onClose={onClose} width="lg">
+<PopupFrame isOpen={isOpen} onClose={onClose} width="lg" raise={raise}>
         {/* 모달 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
