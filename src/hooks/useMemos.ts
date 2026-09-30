@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import type { EntryTable } from '../lib/entryTable';
 import { collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 import { db, auth } from '../lib/firebase';
 import { moveToTrash } from '../utils/trashHelper';
 import { syncReverseLinks } from '../utils/linkUtils';
-import { showErrorToast } from '../utils/toast';
+import { showErrorToast, failWithToast } from '../utils/toast';
 
 export interface MemoAttachment {
   name: string;
@@ -92,7 +93,7 @@ export function useMemos(groupId: string | null = null) {
           linkedItems: data.linkedItems || [],
         } as Memo);
       });
-      
+
       // V3(viewMemo)와 같은 차례: order가 작은 것이 앞. ▲▼로 바꾼 차례가 두 앱에 같게 보인다.
       newMemos.sort((a, b) => (a.order as number) - (b.order as number) || b.createdAt - a.createdAt);
       setMemos(newMemos);
@@ -109,7 +110,7 @@ export function useMemos(groupId: string | null = null) {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
 
-    const collectionRef = groupId 
+    const collectionRef = groupId
        ? collection(db, 'groups', groupId, 'tasks')
        : collection(db, 'users', user.uid, 'tasks');
 
@@ -146,7 +147,7 @@ export function useMemos(groupId: string | null = null) {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
 
-    const docRef = groupId 
+    const docRef = groupId
        ? doc(db, 'groups', groupId, 'tasks', firestoreId)
        : doc(db, 'users', user.uid, 'tasks', firestoreId);
 
@@ -181,7 +182,24 @@ export function useMemos(groupId: string | null = null) {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
 
-    const targetMemo = memos.find(m => m.firestoreId === firestoreId);
+    const docRef = groupId
+       ? doc(db, 'groups', groupId, 'tasks', firestoreId)
+       : doc(db, 'users', user.uid, 'tasks', firestoreId);
+
+    // 휴지통에 넣을 원본. 화면 목록에 없으면(아직 못 받았거나 링크로 연 칸) 서버에서 읽는다.
+    // ⚠️ 예전에는 목록에 없으면 휴지통을 건너뛰고, 휴지통에 못 넣어도 지워서 되돌릴 길 없이 사라졌다.
+    let targetMemo: Memo | undefined = memos.find(m => m.firestoreId === firestoreId);
+    if (!targetMemo) {
+      try {
+        const { snap } = await getDocTrustingServer(docRef);
+        if (snap.exists()) {
+          const d = snap.data() as any;
+          targetMemo = { firestoreId, ...d, content: d.text || d.content || '' } as Memo;
+        }
+      } catch (e) {
+        console.warn('지울 메모를 서버에서 읽지 못했습니다:', e);
+      }
+    }
     if (targetMemo) {
       try {
         await moveToTrash({
@@ -192,23 +210,28 @@ export function useMemos(groupId: string | null = null) {
           data: targetMemo,
         });
       } catch (e) {
-        console.error('Failed to move memo to trash:', e);
+        failWithToast('휴지통에 옮기지 못해 메모를 지우지 않았습니다. 네트워크를 확인해 주세요.', e);
       }
     }
-
-    const docRef = groupId 
-       ? doc(db, 'groups', groupId, 'tasks', firestoreId)
-       : doc(db, 'users', user.uid, 'tasks', firestoreId);
     return await deleteDoc(docRef);
   };
 
+  // 카드의 단추가 기다리지 않고 부른다. 실패하면 안내만 한다(예전엔 조용히 실패했다).
   const toggleComplete = async (memo: Memo) => {
-    return await updateMemo(memo.firestoreId, { completed: !memo.completed });
+    try {
+      return await updateMemo(memo.firestoreId, { completed: !memo.completed });
+    } catch (e) {
+      showErrorToast('메모 완료 표시를 저장하지 못했습니다.', e);
+    }
   };
 
   /** 즐겨찾기 켜고 끄기. 켠 메모는 목록 맨 위에 모인다. */
   const toggleFavorite = async (memo: Memo) => {
-    return await updateMemo(memo.firestoreId, { favorite: !memo.favorite });
+    try {
+      return await updateMemo(memo.firestoreId, { favorite: !memo.favorite });
+    } catch (e) {
+      showErrorToast('즐겨찾기를 저장하지 못했습니다.', e);
+    }
   };
 
   const deleteCompletedMemos = async (memosToDelete?: Memo[]) => {
@@ -218,6 +241,8 @@ export function useMemos(groupId: string | null = null) {
     const targets = memosToDelete || memos.filter(m => m.completed);
     if (targets.length === 0) return;
 
+    // 휴지통에 넣은 메모만 지운다. 못 넣은 것은 남기고 알린다(지우면 되돌릴 길이 없다).
+    let failed = 0;
     await Promise.all(
       targets.map(async (targetMemo) => {
         try {
@@ -230,14 +255,19 @@ export function useMemos(groupId: string | null = null) {
           });
         } catch (e) {
           console.error('Failed to move memo to trash:', e);
+          failed += 1;
+          return;
         }
-        
-        const docRef = groupId 
+
+        const docRef = groupId
            ? doc(db, 'groups', groupId, 'tasks', targetMemo.firestoreId)
            : doc(db, 'users', user.uid, 'tasks', targetMemo.firestoreId);
         return deleteDoc(docRef);
       })
     );
+    if (failed > 0) {
+      failWithToast(`메모 ${failed}개는 휴지통에 옮기지 못해 지우지 않았습니다. 네트워크를 확인해 주세요.`);
+    }
   };
 
   /**

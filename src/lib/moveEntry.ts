@@ -14,14 +14,14 @@
 //
 // ⚠️ 기록은 하루치가 journals/{date} 한 배열이다. 캐시로 읽고 쓰면 그날 다른 기록이 사라질 수 있어
 //    서버에서 읽고, 서버가 답하지 않으면 옮기지 않는다(v4-cold-cache-overwrites-day).
-import { addDoc, collection, deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, runTransaction } from 'firebase/firestore';
 import { TABLE_ONLY_CONTENT } from './entryTable';
 import { auth, db } from './firebase';
-import { getDocTrustingServer } from './firestoreSubscribe';
 import { autoSourceOf } from './autoJournalSync';
 import { moveToTrash } from '../utils/trashHelper';
 import { addReverseLink } from '../utils/linkUtils';
 import { parseDateStr } from './dateUtils';
+import { readJournalEntries } from './journalEntries';
 import type { JournalEntry } from '../hooks/useDayData';
 import type { Memo } from '../hooks/useMemos';
 import type { JournalLabel } from '../hooks/useLabels';
@@ -90,24 +90,27 @@ async function addLabels(kind: 'memo' | 'journal', names: string[], current: any
   const uid = uidOrThrow();
   const ref = doc(db, 'users', uid, 'settings', 'labels');
   const field = kind === 'memo' ? 'memoLabels' : 'journalLabels';
-  const { snap } = await getDocTrustingServer(ref);
-  const cloud = snap.exists() ? (snap.data() as any)?.[field] : null;
-  // 클라우드에 목록이 없으면(V3 localStorage에서 읽은 경우) 지금 화면이 쓰는 목록을 바탕으로 한다
-  const base: any[] = Array.isArray(cloud) && cloud.length > 0 ? cloud : current;
   const nameOf = (l: any) => (typeof l === 'string' ? l : l?.name);
-  const next = [...base];
   const now = Date.now();
-  names.forEach((name, i) => {
-    if (next.some((l) => nameOf(l) === name)) return;
-    if (kind === 'memo') {
-      // 메모 라벨은 옛 판(V3)처럼 이름만 들고 있을 수도 있다. 있던 모양을 따른다.
-      next.push(base.length > 0 && typeof base[0] === 'string' ? name : { id: `memo_${now + i}`, name, color: 'gray' });
-    } else {
-      next.push({ id: `j_${now + i}`, name, color: 'green' });
-    }
+  // V3와 같이 쓰는 문서다. 트랜잭션으로 서버의 지금 목록에 더한다 (읽고 쓰는 사이 V3가 고친 라벨을 덮지 않게)
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const cloud = snap.exists() ? (snap.data() as any)?.[field] : null;
+    // 클라우드에 목록이 없으면(V3 localStorage에서 읽은 경우) 지금 화면이 쓰는 목록을 바탕으로 한다
+    const base: any[] = Array.isArray(cloud) && cloud.length > 0 ? cloud : current;
+    const next = [...base];
+    names.forEach((name, i) => {
+      if (next.some((l) => nameOf(l) === name)) return;
+      if (kind === 'memo') {
+        // 메모 라벨은 옛 판(V3)처럼 이름만 들고 있을 수도 있다. 있던 모양을 따른다.
+        next.push(base.length > 0 && typeof base[0] === 'string' ? name : { id: `memo_${now + i}`, name, color: 'gray' });
+      } else {
+        next.push({ id: `j_${now + i}`, name, color: 'green' });
+      }
+    });
+    tx.set(ref, { [field]: next, updatedAt: Date.now() }, { merge: true });
+    return next;
   });
-  await setDoc(ref, { [field]: next, updatedAt: Date.now() }, { merge: true });
-  return next;
 }
 
 /** 링크로 이어진 상대 쪽의 '옛 항목' 역링크를 새 항목으로 갈아끼운다 */
@@ -136,11 +139,8 @@ export async function moveMemoToJournal(opts: {
     .map((n) => labels.find((l: any) => (typeof l === 'string' ? l : l.name) === n)?.id)
     .filter((id): id is string => !!id);
 
-  // ① 그날 기록 묶음을 서버에서 읽고 새 기록을 덧붙인다
+  // ① 그날 기록 묶음에 새 기록을 덧붙인다 (트랜잭션: 서버의 지금 목록에, 서버가 답하지 않으면 실패)
   const ref = dayRef(uid, groupId, 'journals', dateStr);
-  const { snap, fromServer } = await getDocTrustingServer(ref);
-  if (!fromServer) throw new Error('서버에 연결되지 않아 옮기지 못했습니다. 잠시 뒤 다시 해 주세요.');
-  const entries: any[] = snap.exists() ? (snap.data() as any)?.entries || [] : [];
   const newId = 'jr_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 5);
   const entry: JournalEntry = clean({
     id: newId,
@@ -154,7 +154,14 @@ export async function moveMemoToJournal(opts: {
     linkedItems: memo.linkedItems || [],
     ...((memo.tables || []).length > 0 ? { tables: memo.tables } : {}),
   });
-  await setDoc(ref, { entries: [...entries, entry], updatedAt: Date.now() }, { merge: true });
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const entries: any[] = snap.exists() ? readJournalEntries(snap.data()) : [];
+    if (entries.some((j) => String(j.id) === newId)) return;
+    tx.set(ref, { entries: [...entries, entry], updatedAt: Date.now() }, { merge: true });
+  }).catch(() => {
+    throw new Error('서버에 연결되지 않아 옮기지 못했습니다. 잠시 뒤 다시 해 주세요.');
+  });
 
   // ② 역링크 갈아끼우기
   await retargetLinks(
@@ -170,14 +177,19 @@ export async function moveMemoToJournal(opts: {
     groupId || 'personal'
   );
 
-  // ③ 원본 메모는 휴지통으로 (잘못 옮겼으면 되살릴 수 있게)
-  await moveToTrash({
-    id: memo.firestoreId,
-    type: 'memo',
-    fId: groupId || 'personal',
-    content: `(기록으로 옮김) ${memo.content || memo.text || ''}`,
-    data: memo,
-  }).catch((e) => console.warn('옮긴 메모를 휴지통에 넣지 못했습니다:', e));
+  // ③ 원본 메모는 휴지통으로 (잘못 옮겼으면 되살릴 수 있게). 휴지통에 못 넣으면 원본을 남겨 둔다.
+  try {
+    await moveToTrash({
+      id: memo.firestoreId,
+      type: 'memo',
+      fId: groupId || 'personal',
+      content: `(기록으로 옮김) ${memo.content || memo.text || ''}`,
+      data: memo,
+    });
+  } catch (e) {
+    console.warn('옮긴 메모를 휴지통에 넣지 못했습니다:', e);
+    throw new Error('기록은 만들었지만 원본 메모를 휴지통에 넣지 못해 그대로 두었습니다. 원본 메모를 직접 지워 주세요.');
+  }
   await deleteDoc(groupId ? doc(db, 'groups', groupId, 'tasks', memo.firestoreId) : doc(db, 'users', uid, 'tasks', memo.firestoreId));
 
   return { newId };
@@ -198,12 +210,17 @@ export async function moveJournalToMemo(opts: {
   const { names, toCreate } = resolveLabelNames(opts.labelChoices);
   if (toCreate.length > 0) await addLabels('memo', toCreate, opts.memoLabels);
 
-  // 지울 기록 묶음을 먼저 서버에서 확인한다. 서버가 답하지 않으면 아무것도 하지 않는다.
+  // 지울 기록 묶음을 먼저 서버에서 확인한다(트랜잭션 읽기는 늘 서버). 서버가 답하지 않으면 아무것도 하지 않는다.
+  // id 없는 옛 기록도 화면과 같은 이름(jr_차례)으로 찾는다 (예전엔 '찾지 못했습니다'로 옮길 수 없었다)
   const ref = dayRef(uid, groupId, 'journals', dateStr);
-  const { snap, fromServer } = await getDocTrustingServer(ref);
-  if (!fromServer) throw new Error('서버에 연결되지 않아 옮기지 못했습니다. 잠시 뒤 다시 해 주세요.');
-  const entries: any[] = snap.exists() ? (snap.data() as any)?.entries || [] : [];
-  if (!entries.some((j) => String(j.id) === String(entry.id))) throw new Error('옮길 기록을 찾지 못했습니다.');
+  const found = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const entries = snap.exists() ? readJournalEntries(snap.data()) : [];
+    return entries.some((j) => String(j.id) === String(entry.id));
+  }).catch(() => {
+    throw new Error('서버에 연결되지 않아 옮기지 못했습니다. 잠시 뒤 다시 해 주세요.');
+  });
+  if (!found) throw new Error('옮길 기록을 찾지 못했습니다.');
 
   // ① 새 메모 (원래 날짜를 첫 줄에)
   // 표만 있던 기록의 '[표]'는 메모로 옮기지 않는다
@@ -243,26 +260,33 @@ export async function moveJournalToMemo(opts: {
     groupId || 'personal'
   );
 
-  // ③ 원본 기록은 휴지통으로, 그날 묶음에서 뺀다
-  await moveToTrash({
-    id: String(entry.id),
-    type: 'journal',
-    originalDateStr: dateStr,
-    fId: groupId || 'personal',
-    content: `(메모로 옮김) ${entry.content || ''}`,
-    data: entry,
-  }).catch((e) => console.warn('옮긴 기록을 휴지통에 넣지 못했습니다:', e));
-  // 새 메모를 만드는 사이에 다른 기기가 그날 기록을 더했을 수 있다. 빼기 직전에 서버에서 다시 읽는다.
-  const latest = await getDocTrustingServer(ref);
-  if (!latest.fromServer) {
+  // ③ 원본 기록은 휴지통으로, 그날 묶음에서 뺀다. 휴지통에 못 넣으면 원본을 남겨 둔다.
+  try {
+    await moveToTrash({
+      id: String(entry.id),
+      type: 'journal',
+      originalDateStr: dateStr,
+      fId: groupId || 'personal',
+      content: `(메모로 옮김) ${entry.content || ''}`,
+      data: entry,
+    });
+  } catch (e) {
+    console.warn('옮긴 기록을 휴지통에 넣지 못했습니다:', e);
+    throw new Error('메모는 만들었지만 원본 기록을 휴지통에 넣지 못해 그대로 두었습니다. 원본 기록을 직접 지워 주세요.');
+  }
+  // 새 메모를 만드는 사이에 다른 기기가 그날 기록을 더했을 수 있다. 트랜잭션으로 서버의 지금 목록에서 그 기록만 뺀다.
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return;
+      const entries = readJournalEntries(snap.data());
+      const rest = entries.filter((j) => String(j.id) !== String(entry.id));
+      if (rest.length === entries.length) return;
+      tx.set(ref, { entries: rest, updatedAt: Date.now() }, { merge: true });
+    });
+  } catch {
     throw new Error('메모는 만들었지만 서버에 연결되지 않아 원본 기록을 지우지 못했습니다. 원본 기록을 직접 지워 주세요.');
   }
-  const latestEntries: any[] = latest.snap.exists() ? (latest.snap.data() as any)?.entries || [] : [];
-  await setDoc(
-    ref,
-    { entries: latestEntries.filter((j) => String(j.id) !== String(entry.id)), updatedAt: Date.now() },
-    { merge: true }
-  );
 
   return { newId: newRef.id };
 }

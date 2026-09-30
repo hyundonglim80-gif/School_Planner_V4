@@ -5,7 +5,7 @@ import type { Memo } from '../../hooks/useMemos';
 import { renderFormattedText } from '../../lib/textUtils';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
-import { showToast } from '../../utils/toast';
+import { showToast, showErrorToastOnce } from '../../utils/toast';
 import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
 import { isLongEntry, previewLine } from '../../lib/entryCollapse';
 import { attachmentImageSrc } from '../../lib/driveApi';
@@ -19,7 +19,7 @@ interface MemoCardProps {
   onEdit?: (memo: Memo) => void;
   onToggleComplete?: (memo: Memo) => void;
   onToggleFavorite?: (memo: Memo) => void;
-  onDelete?: (firestoreId: string) => void;
+  onDelete?: (firestoreId: string) => void | Promise<unknown>;
   /** 앞(▲)·뒤(▼)의 메모와 차례를 바꾼다. 바꿀 상대가 없으면 주지 않는다. */
   onMoveUp?: () => void;
   onMoveDown?: () => void;
@@ -218,9 +218,15 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavor
             {onDelete && (
               <button
                 type="button"
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.stopPropagation();
-                  onDelete(memo.firestoreId);
+                  // 지운 뒤에 알린다 (예전엔 지우기를 기다리지 않고 '삭제했습니다'부터 띄웠다)
+                  try {
+                    await onDelete(memo.firestoreId);
+                  } catch (err) {
+                    showErrorToastOnce('메모를 지우지 못했습니다.', err);
+                    return;
+                  }
                   showToast('🗑️ 메모를 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
                 }}
                 className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold transition-all cursor-pointer"

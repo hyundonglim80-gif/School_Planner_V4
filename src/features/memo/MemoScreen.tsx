@@ -17,7 +17,7 @@ import {
   useLabelTree,
   type LabelFilter,
 } from '../../lib/labelTree';
-import { showToast, showErrorToast } from '../../utils/toast';
+import { showToast, showErrorToast, showErrorToastOnce } from '../../utils/toast';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
 /** 라벨이 아닌 '즐겨찾기' 거르개. 라벨 이름과 겹치지 않게 별표를 붙여 둔다. */
@@ -198,7 +198,11 @@ export default function MemoScreen() {
         `완료된 메모 ${completedMemos.length}개를 삭제하시겠습니까?\n(삭제된 항목은 휴지통으로 이동합니다.)`
       )
     ) {
-      await deleteCompletedMemos(completedMemos);
+      try {
+        await deleteCompletedMemos(completedMemos);
+      } catch (e) {
+        showErrorToastOnce('완료된 메모를 지우지 못했습니다.', e);
+      }
     }
   };
 

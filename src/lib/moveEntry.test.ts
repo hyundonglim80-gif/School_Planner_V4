@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { addDoc, deleteDoc, getDocFromServer, setDoc } from 'firebase/firestore';
+import { addDoc, deleteDoc, doc, runTransaction, setDoc } from 'firebase/firestore';
 import {
   initialLabelChoices,
   isMovableJournal,
@@ -49,9 +49,35 @@ describe('기록 → 메모 첫 줄과 옮길 수 있는 기록', () => {
 const serverDay = (entries: any[]) =>
   ({ exists: () => true, data: () => ({ entries }) }) as any;
 
+/**
+ * 트랜잭션 흉내. 읽기는 늘 서버의 지금 모습(기록 묶음·라벨 문서), 쓰기는 txWrites에 담는다.
+ * 기록 묶음은 쓰면 바뀐다 (옮기기는 확인 → 새 항목 → 빼기로 여러 번 읽는다).
+ */
+const txWrites: any[] = [];
+function serverWith(entries: any[] | null, labels: any = null) {
+  let day = entries;
+  vi.mocked(doc).mockImplementation(((...args: any[]) => ({ path: args.slice(1).join('/') })) as any);
+  vi.mocked(runTransaction).mockImplementation((async (_db: any, fn: any) =>
+    fn({
+      get: async (ref: any) =>
+        /settings\/labels/.test(ref.path)
+          ? { exists: () => !!labels, data: () => labels }
+          : day === null
+            ? { exists: () => false, data: () => ({}) }
+            : serverDay(day),
+      set: (ref: any, data: any) => {
+        txWrites.push(data);
+        if (!/settings\/labels/.test(ref.path) && Array.isArray(data.entries)) day = data.entries;
+      },
+    })) as any);
+}
+beforeEach(() => {
+  txWrites.length = 0;
+});
+
 describe('메모 → 기록', () => {
   it('고른 날짜의 기록 묶음에 덧붙이고, 원본 메모는 휴지통에 넣고 지운다', async () => {
-    vi.mocked(getDocFromServer).mockResolvedValue(serverDay([{ id: 'jr_old', content: '그날 있던 기록' }]));
+    serverWith([{ id: 'jr_old', content: '그날 있던 기록' }]);
     const memo: any = { firestoreId: 'm1', content: '옮길 메모', labels: ['긴급'], attachments: [], linkedItems: [] };
 
     const { newId } = await moveMemoToJournal({
@@ -62,8 +88,8 @@ describe('메모 → 기록', () => {
       journalLabels: [{ id: 'j_3', name: '업무전달', color: 'blue' }],
     });
 
-    const dayWrite = vi.mocked(setDoc).mock.calls.find((c) => Array.isArray((c[1] as any).entries))!;
-    const entries = (dayWrite[1] as any).entries;
+    const dayWrite = txWrites.find((w) => Array.isArray(w.entries))!;
+    const entries = dayWrite.entries;
     // 그날 있던 기록은 남고 새 기록이 붙는다
     expect(entries.map((e: any) => e.id)).toEqual(['jr_old', newId]);
     expect(entries[1]).toMatchObject({ content: '옮길 메모', label: '업무전달', labelIds: ['j_3'] });
@@ -73,7 +99,7 @@ describe('메모 → 기록', () => {
   });
 
   it('서버가 답하지 않으면 아무것도 쓰지 않는다 (그날 다른 기록을 덮어쓰지 않게)', async () => {
-    vi.mocked(getDocFromServer).mockRejectedValue(new Error('offline'));
+    vi.mocked(runTransaction).mockRejectedValue(new Error('offline'));
     await expect(
       moveMemoToJournal({
         memo: { firestoreId: 'm1', content: 'x' } as any,
@@ -84,18 +110,17 @@ describe('메모 → 기록', () => {
       })
     ).rejects.toThrow(/서버에 연결되지 않아/);
     expect(setDoc).not.toHaveBeenCalled();
+    expect(txWrites).toEqual([]);
     expect(deleteDoc).not.toHaveBeenCalled();
   });
 });
 
 describe('기록 → 메모', () => {
   it('첫 줄에 날짜를 남긴 메모를 만들고, 원본은 그날 묶음에서 빼되 다른 기록은 남긴다', async () => {
-    vi.mocked(getDocFromServer).mockResolvedValue(
-      serverDay([
-        { id: 'jr_1', content: '옮길 기록' },
-        { id: 'jr_2', content: '남을 기록' },
-      ])
-    );
+    serverWith([
+      { id: 'jr_1', content: '옮길 기록' },
+      { id: 'jr_2', content: '남을 기록' },
+    ]);
     await moveJournalToMemo({
       entry: { id: 'jr_1', content: '옮길 기록', createdAt: 1, labelIds: [] } as any,
       groupId: null,
@@ -108,10 +133,38 @@ describe('기록 → 메모', () => {
     expect(memo.content).toBe('[2026-09-29 (화) 기록]\n옮길 기록');
     expect(memo.labels).toEqual(['학급활동']);
     // 메모 라벨 목록에 '학급활동'이 새로 생긴다 (있던 모양 - 이름만 - 을 따른다)
-    const labelWrite = vi.mocked(setDoc).mock.calls.find((c) => (c[1] as any).memoLabels)!;
-    expect((labelWrite[1] as any).memoLabels).toEqual(['업무', '학급활동']);
-    const dayWrite = vi.mocked(setDoc).mock.calls.find((c) => Array.isArray((c[1] as any).entries))!;
-    expect((dayWrite[1] as any).entries.map((e: any) => e.id)).toEqual(['jr_2']);
+    const labelWrite = txWrites.find((w) => w.memoLabels)!;
+    expect(labelWrite.memoLabels).toEqual(['업무', '학급활동']);
+    const dayWrite = txWrites.find((w) => Array.isArray(w.entries))!;
+    expect(dayWrite.entries.map((e: any) => e.id)).toEqual(['jr_2']);
+  });
+
+  it('id 없는 옛 기록도 화면과 같은 이름(jr_차례)으로 찾아 옮긴다', async () => {
+    serverWith([{ content: '다른 기록' }, { content: 'id 없는 옛 기록' }]);
+    await moveJournalToMemo({
+      entry: { id: 'jr_1', content: 'id 없는 옛 기록', createdAt: 1, labelIds: [] } as any,
+      groupId: null,
+      dateStr: '2026-09-29',
+      labelChoices: [],
+      memoLabels: [],
+    });
+    const dayWrite = txWrites.find((w) => Array.isArray(w.entries))!;
+    expect(dayWrite.entries.map((e: any) => e.content)).toEqual(['다른 기록']);
+  });
+
+  it('원본 기록을 휴지통에 넣지 못하면 원본을 남기고 알린다', async () => {
+    serverWith([{ id: 'jr_1', content: '옮길 기록' }]);
+    vi.mocked(setDoc).mockRejectedValueOnce(new Error('trash down')); // 휴지통 쓰기
+    await expect(
+      moveJournalToMemo({
+        entry: { id: 'jr_1', content: '옮길 기록', createdAt: 1, labelIds: [] } as any,
+        groupId: null,
+        dateStr: '2026-09-29',
+        labelChoices: [],
+        memoLabels: [],
+      })
+    ).rejects.toThrow(/그대로 두었습니다/);
+    expect(txWrites.some((w) => Array.isArray(w.entries))).toBe(false);
   });
 
   it('알림장·출석부 기록은 옮기지 않는다', async () => {
