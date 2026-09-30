@@ -106,3 +106,28 @@ describe('연결된 링크 - 수정 버튼', () => {
     expect(screen.queryByRole('button', { name: /수정 내용 반영/ })).toBeNull();
   });
 });
+
+// 링크 배너에서 연결된 메모·기록을 볼 때 붙인 표가 빠져 있었다 (글·사진·파일만 읽었다).
+describe('연결된 링크 - 붙인 표', () => {
+  it("연결된 기록의 표가 보이고, 표만 있는 기록의 '[표]' 글은 보이지 않는다", async () => {
+    (getDocMock as any).mockImplementation(async () => ({
+      exists: () => true,
+      data: () => ({
+        eventList: [{ id: 'src-1', content: '출발 일정', linkedItems: [journalLink] }],
+        entries: [
+          {
+            id: 'jr_1',
+            content: '[표]',
+            tables: [{ id: 't1', createdAt: 1, rows: [{ cells: [{ v: '이름' }, { v: '점수' }] }] }],
+          },
+        ],
+        periods: {},
+      }),
+    }));
+    render(<LinkViewerModal {...props} />);
+    const cell = await screen.findByText('점수');
+    expect(cell.tagName).toBe('TD');
+    expect(screen.queryByText('[표]')).toBeNull();
+    expect(screen.queryByText('(내용 없음)')).toBeNull();
+  });
+});

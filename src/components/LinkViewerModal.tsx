@@ -7,6 +7,8 @@ import { closeAllModals } from '../hooks/useModalLayer';
 import { showToast, showErrorToast } from '../utils/toast';
 import { attachmentImageSrc } from '../lib/driveApi';
 import { collectImages, collectFiles, type ViewerImage } from '../lib/attachments';
+import { TABLE_ONLY_CONTENT, normalizeTables, type EntryTable } from '../lib/entryTable';
+import EntryTableView from './EntryTableView';
 import PopupFrame from './PopupFrame';
 import ImageViewerModal from './ImageViewerModal';
 
@@ -30,6 +32,8 @@ export interface NormalizedLink {
   liveText?: string;
   /** 연결된 항목에 붙어 있는 파일들 (사진·캡처 포함) */
   liveAttachments?: any[];
+  /** 연결된 메모·기록에 붙인 표 (lib/entryTable) */
+  liveTables?: EntryTable[];
   /** 붙임 목록이 생기기 전에 쓰던 자리. 옛 자료에 남아 있다. */
   liveImageUrl?: string;
   loadingText?: boolean;
@@ -72,13 +76,18 @@ export default function LinkViewerModal({
     id: string,
     period: string | number | undefined,
     fId: string
-  ): Promise<{ text: string; attachments: any[]; imageUrl?: string }> => {
-    const empty = { text: '', attachments: [] as any[] };
-    const of = (item: any, text: string) => ({
-      text,
-      attachments: item?.attachments || [],
-      imageUrl: item?.imageUrl,
-    });
+  ): Promise<{ text: string; attachments: any[]; imageUrl?: string; tables: EntryTable[] }> => {
+    const empty = { text: '', attachments: [] as any[], tables: [] as EntryTable[] };
+    const of = (item: any, text: string) => {
+      // 표도 함께 들고 온다. 표만 있는 기록의 '[표]'(V3가 빼지 않게 넣은 글)는 글로 보이지 않는다.
+      const tables = normalizeTables(item?.tables);
+      return {
+        text: text === TABLE_ONLY_CONTENT && tables.length > 0 ? '' : text,
+        attachments: item?.attachments || [],
+        imageUrl: item?.imageUrl,
+        tables,
+      };
+    };
 
     try {
       if (type === 'event') {
@@ -210,8 +219,9 @@ export default function LinkViewerModal({
           );
           return {
             ...item,
-            liveText: live.text || item.title || '(내용 없음)',
+            liveText: live.text || (live.tables.length > 0 ? '' : item.title || '(내용 없음)'),
             liveAttachments: live.attachments,
+            liveTables: live.tables,
             liveImageUrl: live.imageUrl,
             loadingText: false,
           };
@@ -512,13 +522,23 @@ export default function LinkViewerModal({
                     </div>
                   </div>
 
-                  <div className="p-2.5 bg-slate-50/70 border border-slate-100 rounded-lg text-xs font-medium text-slate-800 whitespace-pre-wrap break-words leading-relaxed min-h-[36px]">
-                    {link.loadingText ? (
-                      <span className="text-slate-400">데이터를 불러오는 중...</span>
-                    ) : (
-                      link.liveText || <span className="text-slate-400">(내용 없음)</span>
-                    )}
-                  </div>
+                  {/* 글 없이 표만 있으면 글 칸은 비운다 */}
+                  {(link.loadingText || link.liveText || !(link.liveTables || []).length) && (
+                    <div className="p-2.5 bg-slate-50/70 border border-slate-100 rounded-lg text-xs font-medium text-slate-800 whitespace-pre-wrap break-words leading-relaxed min-h-[36px]">
+                      {link.loadingText ? (
+                        <span className="text-slate-400">데이터를 불러오는 중...</span>
+                      ) : (
+                        link.liveText || <span className="text-slate-400">(내용 없음)</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 붙인 표 - 보기만 (고치기는 ✏️ 수정으로 연 칸에서) */}
+                  {(link.liveTables || []).map((t) => (
+                    <div key={t.id} className="mt-1.5">
+                      <EntryTableView table={t} compact />
+                    </div>
+                  ))}
 
                   {/* 붙임. 사진은 눌러서 크게 보고, 그 밖의 파일은 새 창에서 연다.
                       글만 보이고 사진이 없으면 링크가 엉뚱한 곳을 가리키는 것처럼
