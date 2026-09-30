@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { doc, setDoc, writeBatch } from 'firebase/firestore';
+import { doc, runTransaction, type DocumentSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 import { showToast, showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { eventDocPayload, readEventList } from '../lib/eventText';
+import { useLabels } from '../hooks/useLabels';
+
+/** 한 트랜잭션에 담는 날짜 수 (Firestore는 트랜잭션 하나에 문서 500개까지) */
+const RECUR_CHUNK = 200;
 import ModalShell, { ModalCloseButton } from './ModalShell';
 
 interface RecurringModalProps {
@@ -15,19 +18,68 @@ interface RecurringModalProps {
   defaultStartDate?: string;
 }
 
-type RecurType = 'weekly' | 'biweekly' | 'monthly' | 'monthday';
+export type RecurType = 'weekly' | 'biweekly' | 'monthly' | 'monthday';
 
 function parseLocalDate(str: string): Date {
   const [y, m, d] = str.split('-').map(Number);
   return new Date(y, m - 1, d);
 }
 
+/** 그 주의 일요일 0시 */
+function sundayOf(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay());
+}
+
 function formatDate(d: Date): string {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
+/** 반복 조건으로 만들어질 날짜들 (YYYY-MM-DD). 화면과 떼어 두어 시험할 수 있게 했다. */
+export function computeRecurringDates(opts: {
+  startDate: string;
+  endDate: string;
+  recurType: RecurType;
+  selectedDays: number[];
+  selectedMonthDays: number[];
+}): string[] {
+  const { startDate, endDate, recurType, selectedDays, selectedMonthDays } = opts;
+  if (!startDate || !endDate) return [];
+  const start = parseLocalDate(startDate);
+  const end = parseLocalDate(endDate);
+  if (start > end) return [];
+  const dates: string[] = [];
+  const cur = new Date(start);
+
+  while (cur <= end) {
+    const dayOfWeek = cur.getDay();
+    const dayOfMonth = cur.getDate();
+
+    if (recurType === 'weekly' && selectedDays.includes(dayOfWeek)) {
+      dates.push(formatDate(cur));
+    } else if (recurType === 'biweekly') {
+      // 격주는 달력의 주(일요일 시작)로 센다 - V3(recurring.js)와 같다.
+      // 예전엔 시작일부터 7일씩 끊어서, 수요일에 시작해 '격주 월·금'을 고르면
+      // 이번 주 금요일과 다음 주 월요일이 한 묶음으로 들어갔다.
+      const weekDiff = Math.round((sundayOf(cur).getTime() - sundayOf(start).getTime()) / (7 * 24 * 60 * 60 * 1000));
+      if (weekDiff % 2 === 0 && selectedDays.includes(dayOfWeek)) {
+        dates.push(formatDate(cur));
+      }
+    } else if (recurType === 'monthly' && selectedDays.includes(dayOfWeek)) {
+      // 매월 첫째/셋째 등 특정 주차 요일
+      const weekInMonth = Math.ceil(dayOfMonth / 7);
+      if (weekInMonth === 1) dates.push(formatDate(cur));
+    } else if (recurType === 'monthday' && selectedMonthDays.includes(dayOfMonth)) {
+      dates.push(formatDate(cur));
+    }
+
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
 export default function RecurringModal({ isOpen, onClose, defaultContent = '', defaultLabelName = '', defaultStartDate }: RecurringModalProps) {
   const { selectedGroupId } = useAppStore();
+  const { eventLabels } = useLabels();
   const [content, setContent] = useState(defaultContent);
   const [labelName, setLabelName] = useState(defaultLabelName);
   const [recurType, setRecurType] = useState<RecurType>('weekly');
@@ -48,39 +100,8 @@ export default function RecurringModal({ isOpen, onClose, defaultContent = '', d
     setSelectedMonthDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
   };
 
-  const calculateDates = (): string[] => {
-    if (!startDate || !endDate) return [];
-    const start = parseLocalDate(startDate);
-    const end = parseLocalDate(endDate);
-    if (start > end) return [];
-    const dates: string[] = [];
-    const cur = new Date(start);
-    let weekCount = 0;
-    const startWeekDay = start.getDay();
-
-    while (cur <= end) {
-      const dayOfWeek = cur.getDay();
-      const dayOfMonth = cur.getDate();
-
-      if (recurType === 'weekly' && selectedDays.includes(dayOfWeek)) {
-        dates.push(formatDate(cur));
-      } else if (recurType === 'biweekly') {
-        const weeksSinceStart = Math.floor((cur.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000));
-        if (weeksSinceStart % 2 === 0 && selectedDays.includes(dayOfWeek)) {
-          dates.push(formatDate(cur));
-        }
-      } else if (recurType === 'monthly' && selectedDays.includes(dayOfWeek)) {
-        // 매월 첫째/셋째 등 특정 주차 요일
-        const weekInMonth = Math.ceil(dayOfMonth / 7);
-        if (weekInMonth === 1) dates.push(formatDate(cur));
-      } else if (recurType === 'monthday' && selectedMonthDays.includes(dayOfMonth)) {
-        dates.push(formatDate(cur));
-      }
-
-      cur.setDate(cur.getDate() + 1);
-    }
-    return dates;
-  };
+  const calculateDates = (): string[] =>
+    computeRecurringDates({ startDate, endDate, recurType, selectedDays, selectedMonthDays });
 
   const handlePreview = () => {
     const dates = calculateDates();
@@ -104,38 +125,45 @@ export default function RecurringModal({ isOpen, onClose, defaultContent = '', d
       // 지울 수 있는 것은 이 id가 있을 때뿐이다 (lib/eventGroups).
       const seriesId = `group_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 
-      const batch = writeBatch(db);
-      for (const dateStr of dates) {
-        const colPath = selectedGroupId && selectedGroupId !== 'personal'
-          ? `groups/${selectedGroupId}/events`
-          : `users/${uid}/events`;
-        const ref = doc(db, colPath, dateStr);
-        // ⚠️ getDoc(캐시 우선)을 믿으면 안 된다. 캐시가 비어 있을 때 "문서 없다"는
-        //    답을 믿고 목록을 다시 쓰면 그날 있던 일정이 통째로 지워진다.
-        const { snap, fromServer } = await getDocTrustingServer(ref);
-        if (!fromServer) {
-          throw new Error('서버와 연결이 확실하지 않습니다. 그냥 진행하면 그날 있던 일정을 지울 수 있어 멈췄습니다.');
-        }
-        const eventList = snap.exists() ? readEventList(snap.data()) : [];
+      const colPath = selectedGroupId && selectedGroupId !== 'personal'
+        ? `groups/${selectedGroupId}/events`
+        : `users/${uid}/events`;
+      // 적은 라벨 이름이 있는 라벨이면 id로 푼다. labelIds에는 id를 둔다(V3는 id로 찾는다 - 이름을 넣으면
+      // V3의 이월 판단이 그 라벨을 못 알아본다). 없는 이름이면 이름만 남긴다.
+      const wantedLabel = labelName.trim();
+      const matched = wantedLabel ? eventLabels.find((l) => l.name === wantedLabel) : undefined;
 
-        // 💡 예전에는 text만 쓰고 content를 빼먹어서, 읽기 쪽 필터(content가 비면 제외)에
-        // 걸려 반복 일정이 저장은 되지만 화면에 아예 나타나지 않았다.
-        eventList.push({
-          id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
-          content: content.trim(),
-          text: content.trim(),
-          label: labelName || '',
-          labelIds: labelName ? [labelName] : [],
-          completed: false,
-          groupId: seriesId,
-          recur: true,
-          createdAt: Date.now()
+      // ⚠️ 날짜마다 그날 목록을 읽어 새 일정을 얹어 다시 쓴다. 트랜잭션으로 서버의 지금 목록을 읽고 곧바로 쓴다.
+      //    예전에는 날짜를 하나씩 서버에서 읽은 뒤 맨 끝에 한꺼번에 써서, 읽는 동안(40주면 몇 초) 다른 곳에서
+      //    더한 일정을 덮을 수 있었다. 서버가 답하지 않으면 트랜잭션이 실패하고 그 묶음은 쓰지 않는다.
+      //    한 트랜잭션에 너무 많은 문서를 담지 않게 나눈다(Firestore 한도 500).
+      for (let i = 0; i < dates.length; i += RECUR_CHUNK) {
+        const chunk = dates.slice(i, i + RECUR_CHUNK);
+        await runTransaction(db, async (tx) => {
+          const refs = chunk.map((dateStr) => doc(db, colPath, dateStr));
+          const snaps: DocumentSnapshot[] = [];
+          for (const ref of refs) snaps.push(await tx.get(ref));
+          refs.forEach((ref, k) => {
+            const snap = snaps[k];
+            const eventList = snap.exists() ? readEventList(snap.data()) : [];
+            // 💡 예전에는 text만 쓰고 content를 빼먹어서, 읽기 쪽 필터(content가 비면 제외)에
+            // 걸려 반복 일정이 저장은 되지만 화면에 아예 나타나지 않았다.
+            eventList.push({
+              id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+              content: content.trim(),
+              text: content.trim(),
+              label: matched ? matched.name : wantedLabel,
+              labelIds: matched ? [matched.id] : [],
+              completed: false,
+              groupId: seriesId,
+              recur: true,
+              createdAt: Date.now()
+            });
+            tx.set(ref, eventDocPayload(eventList), { merge: true });
+          });
         });
-
-        batch.set(ref, eventDocPayload(eventList), { merge: true });
       }
 
-      await batch.commit();
       showToast(`✅ ${dates.length}개 날짜에 반복 일정이 생성되었습니다.`);
     } catch (e: any) {
       console.error(e);

@@ -5,8 +5,6 @@ import {
   collection,
   doc,
   onSnapshot,
-  getDoc,
-  setDoc,
   query,
   where,
   documentId,
@@ -18,9 +16,9 @@ import { db, auth } from '../lib/firebase';
 import { readEvalList } from '../lib/evalList';
 import { markFirestoreAlive } from '../lib/firestoreRecovery';
 import { type PeriodSchedule, type EventItem, runAutoForwarding } from './useDayData';
-import { eventDocPayload, readEventList } from '../lib/eventText';
+import { readEventList } from '../lib/eventText';
 import { showErrorToast, showToast } from '../utils/toast';
-import { moveToTrash } from '../utils/trashHelper';
+import { updateEventInDoc, deleteEventFromDoc, TrashFailedError } from '../lib/eventDocOps';
 
 export interface DaySummary {
   eventText?: string;
@@ -329,14 +327,8 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
       : doc(db, 'users', user.uid, 'events', dateStr);
 
     try {
-      const snap = await getDoc(eventDocRef);
-      if (snap.exists()) {
-        const list = readEventList(snap.data());
-        const updatedList = list.map((item: any) =>
-          item.id === eventId ? { ...item, completed: !item.completed } : item
-        );
-        await setDoc(eventDocRef, eventDocPayload(updatedList), { merge: true });
-      }
+      // 트랜잭션으로 서버의 지금 목록에서 그 일정만 뒤집는다 (lib/eventDocOps)
+      await updateEventInDoc(eventDocRef, eventId, (item) => ({ ...item, completed: !item.completed }));
     } catch (error) {
       showErrorToast('완료 표시를 저장하지 못했습니다.', error);
     }
@@ -352,29 +344,11 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
       : doc(db, 'users', user.uid, 'events', dateStr);
 
     try {
-      const snap = await getDoc(eventDocRef);
-      const list = snap.exists() ? readEventList(snap.data()) : [];
-      const removed = list.find((item: any) => String(item.id) === String(eventId)) || fallbackItem;
-      const kept = list.filter((item: any) => String(item.id) !== String(eventId));
-      await setDoc(eventDocRef, eventDocPayload(kept), { merge: true });
-
-      if (removed) {
-        try {
-          await moveToTrash({
-            id: String(eventId),
-            type: 'event',
-            originalDateStr: dateStr,
-            fId: groupId || 'personal',
-            content: (removed as any).content || '',
-            data: removed,
-          });
-        } catch (err) {
-          console.error('Failed to move to trash:', err);
-        }
-      }
+      // 휴지통에 먼저 넣고, 서버의 지금 목록에서 그 항목만 뺀다 (lib/eventDocOps)
+      await deleteEventFromDoc(eventDocRef, { dateStr, fId: groupId || 'personal', eventId, fallbackItem });
       showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
     } catch (error) {
-      showErrorToast('일정을 삭제하지 못했습니다.', error);
+      showErrorToast(error instanceof TrashFailedError ? '휴지통에 옮기지 못해 일정을 지우지 않았습니다. 네트워크를 확인해 주세요.' : '일정을 삭제하지 못했습니다.', error);
     }
   };
 

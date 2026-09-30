@@ -946,6 +946,35 @@ if (ONLY !== 'mobile') {
     assert(!mix.includes('다른 날로 만든 조사'), `연 날에 들어감: ${mix.join(' / ')}`);
   });
 
+  await check('미완료 일정 가져오기: 지난 이월 일정이 라벨 이름과 함께 뜨고, 🗑️로 지우면 그날에서 빠져 휴지통에 간다', async () => {
+    // 자동 이월이 먼저 옮겨 가지 않게, 미래 날짜를 보는 중에 3일 전 날짜에 심는다
+    await goDay(D.idless);
+    const past = localDate(new Date(Date.now() - 3 * 864e5));
+    const cur = await storedEvents(past);
+    const rest = cur.filter((e) => e.id !== 'fx_fm_1');
+    await setDoc(evRef(past), {
+      eventList: [...rest, { id: 'fx_fm_1', content: '가져오기 점검 일정', label: '', labelIds: ['ev_3'], completed: false, linkedItems: [], attachments: [] }],
+      eventText: '',
+      updatedAt: Date.now(),
+    }, { merge: true });
+    await page.getByTitle('더보기 메뉴').click();
+    await page.getByRole('button', { name: /미완료 일정 가져오기/ }).click();
+    const dlg = page.locator('[role=dialog]').last();
+    const row = dlg.locator('div.rounded-xl', { hasText: '가져오기 점검 일정' }).last();
+    await row.waitFor({ timeout: 10000 });
+    const chips = await row.getByTitle('클릭하면 완료 처리됩니다').allInnerTexts();
+    assert(chips.includes('이월') && !chips.some((c) => /^ev_/.test(c)), `라벨 칩: ${chips.join(', ') || '(없음)'}`);
+    await row.getByTitle('삭제 (휴지통으로)').click();
+    await wait(2000);
+    await closeAll();
+    const after = await storedEvents(past);
+    assert(!after.some((e) => e.id === 'fx_fm_1'), '지운 일정이 그날에 남음');
+    assert(after.length === rest.length, `곁의 일정 수가 바뀜: ${rest.length} → ${after.length}`);
+    const { getDocs, collection } = await import('firebase/firestore');
+    const trash = await getDocs(collection(db, 'users', uid, 'trash'));
+    assert(trash.docs.some((d) => d.data().data?.id === 'fx_fm_1'), '휴지통에 없음');
+  });
+
   await check('V3 옛 글만 있는 날에서 한 건을 다중 선택으로 완료해도 다른 일정이 남는다', async () => {
     await goDay(D.v3Bulk);
     await page.getByTitle('더보기 메뉴').click();

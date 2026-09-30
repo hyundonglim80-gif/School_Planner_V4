@@ -9,13 +9,13 @@
 //
 // 일정은 events/{날짜} 문서 안의 배열에 들어 있어서 서버에서 골라낼 수 없다.
 // 그래서 V3와 같이 날짜 문서를 훑어 배열 안을 직접 본다.
-import { collection, doc, getDocsFromServer, writeBatch, type CollectionReference } from 'firebase/firestore';
+import { collection, doc, getDocsFromServer, runTransaction, type CollectionReference } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { eventDocPayload, readEventList } from './eventText';
 import { moveToTrash } from '../utils/trashHelper';
 
-/** 한 번에 커밋할 문서 수. Firestore 일괄 쓰기 한도(500)보다 넉넉히 낮춘다. */
-const BATCH_CHUNK = 400;
+/** 날짜 문서를 한 번에 몇 개씩 고칠지 (날짜마다 트랜잭션 하나) */
+const PARALLEL_DATES = 8;
 
 /** 기간 일정 본문 뒤에 붙는 '(3/10)' 표시 */
 const NUMBER_SUFFIX = /\s*\(\d+\/\d+\)\s*$/;
@@ -88,6 +88,12 @@ export function countGroupItems(hits: GroupHit[]): number {
  *
  * 한 건 삭제와 같게 휴지통을 먼저 거친다. 여러 날을 한꺼번에 지우는 일이라
  * 되돌릴 길이 없으면 잘못 고른 한 번이 그대로 손해가 된다.
+ *
+ * ⚠️ 예전에는 창을 열 때 읽어 둔 그날 목록(hit.list)에서 묶음 일정을 뺀 것을 일괄로 덮어써서,
+ *    창을 연 채 고민하는 사이 그 날짜들에 더해진 일정(다른 기기·V3·다른 칸)이 사라졌다.
+ *    그리고 휴지통에 못 넣은 일정도 지워서 되돌릴 길이 없었다.
+ *    이제 휴지통에 넣은 것만, 날짜마다 트랜잭션으로 서버의 지금 목록에서 뺀다.
+ *    휴지통에 못 넣은 것이 있으면 그것은 남기고 오류를 던진다.
  */
 export async function deleteGroupEvents(
   fId: string | null | undefined,
@@ -96,6 +102,8 @@ export async function deleteGroupEvents(
   const col = eventsColRef(fId);
   if (!col || hits.length === 0) return 0;
 
+  const trashedByDate = new Map<string, Set<string>>();
+  let failed = 0;
   for (const hit of hits) {
     for (const item of hit.items) {
       try {
@@ -107,22 +115,37 @@ export async function deleteGroupEvents(
           content: String(item.content ?? ''),
           data: item,
         });
+        if (!trashedByDate.has(hit.dateStr)) trashedByDate.set(hit.dateStr, new Set());
+        trashedByDate.get(hit.dateStr)!.add(String(item.id));
       } catch (err) {
-        // 휴지통에 못 넣더라도 삭제 자체는 이어 간다. 여기서 멈추면 일부만 지워진 채로 남는다.
+        failed += 1;
         console.error('휴지통으로 옮기지 못했습니다:', err);
       }
     }
   }
 
-  for (let i = 0; i < hits.length; i += BATCH_CHUNK) {
-    const batch = writeBatch(db);
-    for (const hit of hits.slice(i, i + BATCH_CHUNK)) {
-      const ids = new Set(hit.items.map((it) => String(it.id)));
-      const rest = hit.list.filter((e: any) => !ids.has(String(e.id)));
-      batch.set(doc(col, hit.dateStr), eventDocPayload(rest), { merge: true });
-    }
-    await batch.commit();
+  let removed = 0;
+  const dates = [...trashedByDate.entries()];
+  for (let i = 0; i < dates.length; i += PARALLEL_DATES) {
+    const counts = await Promise.all(
+      dates.slice(i, i + PARALLEL_DATES).map(([dateStr, ids]) =>
+        runTransaction(db, async (tx) => {
+          const ref = doc(col, dateStr);
+          const snap = await tx.get(ref);
+          if (!snap.exists()) return 0;
+          const cur = readEventList(snap.data());
+          const rest = cur.filter((e: any) => !ids.has(String(e.id)));
+          if (rest.length === cur.length) return 0;
+          tx.set(ref, eventDocPayload(rest), { merge: true });
+          return cur.length - rest.length;
+        })
+      )
+    );
+    removed += counts.reduce((n, c) => n + c, 0);
   }
 
-  return countGroupItems(hits);
+  if (failed > 0) {
+    throw new Error(`${failed}건은 휴지통에 옮기지 못해 지우지 않았습니다 (${removed}건은 지웠습니다). 네트워크를 확인해 주세요.`);
+  }
+  return removed;
 }

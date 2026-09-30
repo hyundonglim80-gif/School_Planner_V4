@@ -16,6 +16,7 @@ import { readLegacyEventLabels } from '../lib/legacyLabels';
 import { useAppStore } from '../store/useAppStore';
 import { noteCacheLied, markFirestoreAlive, noteFirestoreError } from '../lib/firestoreRecovery';
 import { getDocTrustingServer } from '../lib/firestoreSubscribe';
+import { readJournalEntries } from '../lib/journalEntries';
 import { syncAutoSourceAndTell } from '../lib/autoJournalSync';
 
 // 기존 import 경로 호환을 위해 재수출한다 (직렬화 구현은 lib/eventText.ts로 이동).
@@ -473,11 +474,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
   // 콘솔을 뒤지게 하지 않으려는 것이다.
   const [readReport, setReadReport] = useState<EventReadReport | null>(null);
 
-  // 저장할 때 "내가 마지막으로 본 목록"을 기준선으로 삼아, 그 사이 다른 기기나
-  // V3에서 추가된 항목을 지우지 않도록 한다. state 대신 ref를 쓰는 이유는
-  // saveEventItems의 의존성이 목록이 바뀔 때마다 흔들리지 않게 하기 위함이다.
-  const eventBaselineRef = useRef<EventItem[]>([]);
-
   useEffect(() => {
     const user = auth.currentUser;
     if (!user || !dateStr) {
@@ -515,8 +511,6 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       if (!data) {
         setEventText('');
         setEventList([]);
-        // 문서가 없으면 기준선도 비운다. 앞 날짜의 기준선이 남으면 저장 병합이 엉뚱한 항목을 '내가 본 것'으로 안다
-        eventBaselineRef.current = [];
         return;
       }
         const rawText = data.eventText || '';
@@ -564,16 +558,13 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
             (e.linkedItems && e.linkedItems.length > 0)
           );
           setEventList(mapped);
-          eventBaselineRef.current = mapped;
         } else if (rawText) {
           const parsed = parseV3EventText(rawText).filter((e: any) =>
             (e.content && e.content.trim().length > 0) || e.label
           ) as EventItem[];
           setEventList(parsed);
-          eventBaselineRef.current = parsed;
         } else {
           setEventList([]);
-          eventBaselineRef.current = [];
         }
     };
 
@@ -776,7 +767,16 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     };
   }, [dateStr, groupId, auth.currentUser?.uid]);
 
-  const saveEventItems = useCallback(async (newList: EventItem[]) => {
+  /**
+   * @param newList 저장할 목록
+   * @param fromList newList를 만든 바탕 목록(부른 쪽이 들고 있던 eventList). 내가 고친 항목을 가려내는 기준이다.
+   *
+   * ⚠️ 예전에는 기준을 eventBaselineRef(스냅숏이 오는 즉시 바뀐다)에서 읽었다. 앞 저장의 스냅숏이 막 도착해
+   *    화면이 아직 새 목록을 그리기 전에 다음 저장이 불리면, 부른 쪽의 옛 객체가 기준(새 객체)과 달라 보여
+   *    '내가 고친 것'으로 잘못 알고 옛 모습으로 썼다. 일정 셋을 빠르게 완료하면 앞의 완료가 가끔 풀렸다.
+   *    newList를 만든 바로 그 목록과 견준다.
+   */
+  const saveEventItems = useCallback(async (newList: EventItem[], fromList: EventItem[]) => {
     const user = auth.currentUser;
     if (!user || !dateStr) return;
     const eventDocRef = groupId
@@ -791,7 +791,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     );
     // 예전에는 로컬 목록으로 문서를 통째로 덮어써서, 그 사이 다른 기기나 V3에서
     // 추가된 일정이 통째로 사라졌다. 쓰기 직전 최신 목록을 다시 읽어 병합한다.
-    const baselineIds = new Set(eventBaselineRef.current.map((i) => String(i.id)));
+    const baselineIds = new Set(fromList.map((i) => String(i.id)));
     const keptIds = new Set(validList.map((i) => String(i.id)));
     try {
       await runTransaction(db, async (tx) => {
@@ -805,7 +805,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         // 내가 손대지 않은 항목(기준선 그대로)은 서버의 지금 모습을 쓴다. 들고 있던 옛 모습으로
         // 쓰면, 그 사이 다른 기기(또는 방금 내 앞선 저장 - 트랜잭션은 화면에 바로 반영되지 않는다)가
         // 고친 완료 표시·글이 되돌아가고, 지운 항목이 되살아난다.
-        const baselineById = new Map(eventBaselineRef.current.map((i) => [String(i.id), i]));
+        const baselineById = new Map(fromList.map((i) => [String(i.id), i]));
         const freshById = new Map(fresh.map((f) => [String(f.id), f]));
         const mine = validList.flatMap((item) => {
           const base = baselineById.get(String(item.id));
@@ -858,7 +858,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       (item.linkedItems && item.linkedItems.length > 0)
     );
     
-    await saveEventItems(validList);
+    await saveEventItems(validList, eventList);
     
     if (newItem.linkedItems && newItem.linkedItems.length > 0) {
       const sourceMeta = {
@@ -887,7 +887,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const newList = eventList.map(item =>
       item.id === id ? { ...item, completed: !item.completed } : item
     );
-    await saveEventItems(newList);
+    await saveEventItems(newList, eventList);
   }, [eventList, saveEventItems]);
 
   const deleteEventItem = useCallback(async (id: string, fallbackItem?: Partial<EventItem>) => {
@@ -970,7 +970,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       await deleteEventItem(id);
       return;
     }
-    await saveEventItems(newList);
+    await saveEventItems(newList, eventList);
 
     // 💡 추가된 부분: 수정된 날짜가 오늘이 아니라면 즉시 이월 로직 실행
     const now = new Date();
@@ -1062,9 +1062,8 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       : doc(db, 'users', user.uid, 'journals', dateStr);
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(journalDocRef);
-      const raw: any[] = snap.exists() && Array.isArray(snap.data().entries) ? snap.data().entries : [];
       // id 없는 옛 항목은 화면과 같은 이름(jr_차례)으로 맞춘다 (applyJournalData 참고)
-      const fresh = raw.map((j, idx) => (j && j.id ? j : { ...j, id: 'jr_' + idx }));
+      const fresh = snap.exists() ? readJournalEntries(snap.data()) : [];
       tx.set(journalDocRef, { entries: mutate(fresh), updatedAt: Date.now() }, { merge: true });
     });
   }, [dateStr, groupId]);
@@ -1117,7 +1116,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const [moved] = newList.splice(sourceIndex, 1);
     newList.splice(targetIndex, 0, moved);
     
-    await saveEventItems(newList);
+    await saveEventItems(newList, eventList);
   }, [eventList, saveEventItems]);
 
   const reorderJournals = useCallback(async (sourceIndex: number, targetIndex: number) => {
@@ -1152,10 +1151,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           ? doc(db, 'groups', groupId, 'journals', dateStr)
           : doc(db, 'users', user.uid, 'journals', dateStr);
         const { snap } = await getDocTrustingServer(journalDocRef);
-        const raw: any[] = snap.exists() && Array.isArray(snap.data().entries) ? snap.data().entries : [];
-        itemToDelete = raw
-          .map((j, idx) => (j && j.id ? j : { ...j, id: 'jr_' + idx }))
-          .find((j) => j.id === id);
+        itemToDelete = (snap.exists() ? readJournalEntries(snap.data()) : []).find((j) => j.id === id);
       } catch (e) {
         console.warn('Failed to fetch remote journal list for deletion:', e);
       }

@@ -1,7 +1,7 @@
 //src/features/year/YearScreen.tsx
 
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
-import { collection, query, where, documentId, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, query, where, documentId, onSnapshot, doc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { readEvalList } from '../../lib/evalList';
 import { useAppStore } from '../../store/useAppStore';
@@ -9,10 +9,10 @@ import { useLabels } from '../../hooks/useLabels';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { getAcademicYear, getAcademicMonths, parseDateStr, formatDateStr } from '../../lib/dateUtils';
-import { parseV3EventText, formatV3EventText, runAutoForwarding } from '../../hooks/useDayData';
-import { eventDocPayload, readEventList } from '../../lib/eventText';
+import { runAutoForwarding } from '../../hooks/useDayData';
+import { readEventList } from '../../lib/eventText';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { moveToTrash } from '../../utils/trashHelper';
+import { updateEventInDoc, deleteEventFromDoc, TrashFailedError } from '../../lib/eventDocOps';
 import { showToast, showErrorToast } from '../../utils/toast';
 import { lazyWithReload } from '../../lib/lazyWithReload';
 import { openEntryPanel } from '../../components/EntryPanelHost';
@@ -108,8 +108,9 @@ export default function YearScreen() {
 
       snap.forEach(d => {
         const data = d.data();
-        let list = data.eventList || [];
-        if (list.length === 0 && data.eventText) list = parseV3EventText(data.eventText);
+        // readEventList: V3 옛 글도 읽고, id 없는 V3 항목에 저장 쪽과 같은 id(ev_차례)를 붙인다.
+        // 예전엔 eventList를 바로 읽어 id 없는 항목의 완료·삭제가 아무것도 찾지 못했다.
+        const list = readEventList(data);
         map[d.id] = list.filter((e: any) => e.content?.trim());
       });
 
@@ -240,24 +241,11 @@ export default function YearScreen() {
       : doc(db, 'users', user.uid, 'events', dateStr);
     
     try {
-      const snap = await getDoc(eventDocRef);
-      if (snap.exists()) {
-        const data = snap.data();
-        let list = data.eventList || [];
-        if (list.length === 0 && data.eventText) {
-          list = parseV3EventText(data.eventText);
-        }
-        const updatedList = list.map((item: any) => item.id === eventId ? { ...item, completed: !item.completed } : item);
-        const textToSave = formatV3EventText(updatedList);
-        
-        await setDoc(eventDocRef, {
-          eventList: updatedList,
-          eventText: textToSave,
-          updatedAt: Date.now()
-        }, { merge: true });
-      }
+      // 트랜잭션으로 서버의 지금 목록에서 그 일정만 뒤집는다 (lib/eventDocOps).
+      // 예전엔 캐시로 읽어 통째로 썼고, eventList를 바로 읽어 id 없는 V3 항목을 못 찾았다.
+      await updateEventInDoc(eventDocRef, eventId, (item) => ({ ...item, completed: !item.completed }));
     } catch (err) {
-      console.error('Toggle event error:', err);
+      showErrorToast('완료 표시를 저장하지 못했습니다.', err);
     }
   }, [selectedGroupId]);
 
@@ -269,29 +257,11 @@ export default function YearScreen() {
       : doc(db, 'users', user.uid, 'events', dateStr);
 
     try {
-      const snap = await getDoc(eventDocRef);
-      const list = snap.exists() ? readEventList(snap.data()) : [];
-      const removed = list.find((item: any) => String(item.id) === String(eventId)) || fallbackItem;
-      const kept = list.filter((item: any) => String(item.id) !== String(eventId));
-      await setDoc(eventDocRef, eventDocPayload(kept), { merge: true });
-
-      if (removed) {
-        try {
-          await moveToTrash({
-            id: String(eventId),
-            type: 'event',
-            originalDateStr: dateStr,
-            fId: selectedGroupId || 'personal',
-            content: removed.content || '',
-            data: removed,
-          });
-        } catch (err) {
-          console.error('Failed to move to trash:', err);
-        }
-      }
+      // 휴지통에 먼저 넣고, 서버의 지금 목록에서 그 항목만 뺀다 (lib/eventDocOps)
+      await deleteEventFromDoc(eventDocRef, { dateStr, fId: selectedGroupId || 'personal', eventId, fallbackItem });
       showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
     } catch (err) {
-      showErrorToast('일정을 삭제하지 못했습니다.', err);
+      showErrorToast(err instanceof TrashFailedError ? '휴지통에 옮기지 못해 일정을 지우지 않았습니다. 네트워크를 확인해 주세요.' : '일정을 삭제하지 못했습니다.', err);
     }
   }, [selectedGroupId]);
 

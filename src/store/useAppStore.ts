@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { formatV3EventText } from '../hooks/useDayData';
-import { readEventList } from '../lib/eventText';
+import { eventDocPayload, readEventList } from '../lib/eventText';
+import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 import { moveToTrash } from '../utils/trashHelper';
 import { formatDateStr } from '../lib/dateUtils';
 import { showErrorToast } from '../utils/toast';
@@ -413,34 +413,30 @@ export const useAppStore = create<AppState>()(
             ? doc(db, 'groups', selectedGroupId, 'events', dStr)
             : doc(db, 'users', user.uid, 'events', dStr);
 
-          const snap = await getDoc(eventDocRef);
-          if (!snap.exists()) return;
-          const data = snap.data();
-          // V3 옛 글(eventText)만 있는 날도 목록으로 읽는다. eventList만 보면 빈 목록을 써서 그날 일정이 사라진다.
-          const currentList: any[] = readEventList(data);
-
-          const updatedList = currentList.map((item) => {
-            if (ids.includes(item.id)) {
-              return {
-                ...item,
-                ...(updates.completed !== undefined ? { completed: updates.completed } : {}),
-                // 라벨을 바꿀 때는 labelIds도 새로 쓴다. label만 바꾸면 옛 라벨이 labelIds로
-                // 남아 칩이 둘 붙고(V3는 id로 찾으니 옛 라벨만 보인다), 이월 여부도 옛 라벨을 따른다.
-                // 이월을 일부러 켜고 끈 표시도 지워, 새 라벨의 기본을 따르게 한다.
-                ...(updates.label !== undefined
-                  ? { label: updates.label, labelIds: updates.labelIds ?? [], forward: false, forwardOptOut: false }
-                  : {}),
-              };
-            }
-            return item;
+          // 트랜잭션으로 서버의 지금 목록을 읽어 고른 일정만 고친다 (캐시로 읽어 통째로 쓰면 그 사이 바뀐 것이 되돌아간다)
+          const wanted = new Set(ids.map(String));
+          await runTransaction(db, async (tx) => {
+            const snap = await tx.get(eventDocRef);
+            if (!snap.exists()) return;
+            // V3 옛 글(eventText)만 있는 날도 목록으로 읽는다. eventList만 보면 빈 목록을 써서 그날 일정이 사라진다.
+            const currentList: any[] = readEventList(snap.data());
+            const updatedList = currentList.map((item) => {
+              if (wanted.has(String(item.id))) {
+                return {
+                  ...item,
+                  ...(updates.completed !== undefined ? { completed: updates.completed } : {}),
+                  // 라벨을 바꿀 때는 labelIds도 새로 쓴다. label만 바꾸면 옛 라벨이 labelIds로
+                  // 남아 칩이 둘 붙고(V3는 id로 찾으니 옛 라벨만 보인다), 이월 여부도 옛 라벨을 따른다.
+                  // 이월을 일부러 켜고 끈 표시도 지워, 새 라벨의 기본을 따르게 한다.
+                  ...(updates.label !== undefined
+                    ? { label: updates.label, labelIds: updates.labelIds ?? [], forward: false, forwardOptOut: false }
+                    : {}),
+                };
+              }
+              return item;
+            });
+            tx.set(eventDocRef, eventDocPayload(updatedList), { merge: true });
           });
-
-          const serializedText = formatV3EventText(updatedList);
-          await setDoc(eventDocRef, {
-            eventList: updatedList,
-            eventText: serializedText,
-            updatedAt: Date.now(),
-          }, { merge: true });
         });
 
         try {
@@ -470,13 +466,14 @@ export const useAppStore = create<AppState>()(
             ? doc(db, 'groups', selectedGroupId, 'events', dStr)
             : doc(db, 'users', user.uid, 'events', dStr);
 
-          const snap = await getDoc(eventDocRef);
+          // 휴지통에 넣을 원본은 서버에서 읽는다
+          const { snap } = await getDocTrustingServer(eventDocRef);
           if (!snap.exists()) return;
-          const data = snap.data();
           // V3 옛 글(eventText)만 있는 날도 목록으로 읽는다. eventList만 보면 빈 목록을 써서 그날 일정이 사라진다.
-          const currentList: any[] = readEventList(data);
-
-          const toDelete = currentList.filter((item) => ids.map(String).includes(String(item.id)));
+          const wanted = new Set(ids.map(String));
+          const toDelete = readEventList(snap.data()).filter((item: any) => wanted.has(String(item.id)));
+          // 휴지통에 넣은 것만 지운다. 못 넣은 것을 지우면 되돌릴 길 없이 사라진다.
+          const trashed = new Set<string>();
           for (const item of toDelete) {
             try {
               await moveToTrash({
@@ -487,18 +484,25 @@ export const useAppStore = create<AppState>()(
                 content: item.content,
                 data: item,
               });
+              trashed.add(String(item.id));
             } catch (e) {
               console.error('Failed to move bulk event to trash:', e);
             }
           }
-
-          const updatedList = currentList.filter((item) => !ids.map(String).includes(String(item.id)));
-          const serializedText = formatV3EventText(updatedList);
-          await setDoc(eventDocRef, {
-            eventList: updatedList,
-            eventText: serializedText,
-            updatedAt: Date.now(),
-          }, { merge: true });
+          if (trashed.size === 0) {
+            if (toDelete.length > 0) throw new Error('휴지통에 옮기지 못했습니다');
+            return;
+          }
+          // 서버의 지금 목록에서 휴지통에 넣은 것만 뺀다
+          await runTransaction(db, async (tx) => {
+            const fresh = await tx.get(eventDocRef);
+            if (!fresh.exists()) return;
+            const currentList: any[] = readEventList(fresh.data());
+            const updatedList = currentList.filter((item) => !trashed.has(String(item.id)));
+            if (updatedList.length === currentList.length) return;
+            tx.set(eventDocRef, eventDocPayload(updatedList), { merge: true });
+          });
+          if (trashed.size < toDelete.length) throw new Error('일부를 휴지통에 옮기지 못해 지우지 않았습니다');
         });
 
         try {

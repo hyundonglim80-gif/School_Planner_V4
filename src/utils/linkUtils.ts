@@ -2,6 +2,7 @@ import { doc, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import type { SelectedLinkItem } from '../components/LinkerModal';
 import { eventDocPayload, readEventList } from '../lib/eventText';
+import { readJournalEntries } from '../lib/journalEntries';
 
 export interface ReverseLinkOptions {
   /**
@@ -103,9 +104,8 @@ export const addReverseLink = async (
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(ref);
         if (!snap.exists()) return;
-        const raw: any[] = Array.isArray(snap.data().entries) ? snap.data().entries : [];
         // id 없는 옛 기록은 화면과 같은 이름(jr_차례)으로 찾는다
-        const list = raw.map((j: any, idx: number) => (j && j.id ? { ...j } : { ...j, id: 'jr_' + idx }));
+        const list = readJournalEntries(snap.data()).map((j: any) => ({ ...j }));
         const item = list.find((j: any) => String(j.id) === String(targetLink.targetId));
         if (!item) return;
         const next = applyReverseLink(item.linkedItems, sourceMeta, options);

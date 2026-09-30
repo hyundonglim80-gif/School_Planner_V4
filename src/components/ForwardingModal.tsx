@@ -1,13 +1,16 @@
 import React, { useState, useEffect, Suspense } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, collection, getDocs, query, where, documentId, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { showToast, showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 import { lazyWithReload } from '../lib/lazyWithReload';
-import { moveToTrash } from '../utils/trashHelper';
 import { eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
-import { pastDateStrings } from '../lib/forwarding';
+import { pastDateStrings, isForwardTarget } from '../lib/forwarding';
+import { useLabels } from '../hooks/useLabels';
+import { resolveEventLabelNames } from '../lib/eventLabels';
+import { addReverseLink } from '../utils/linkUtils';
+import { updateEventInDoc, deleteEventFromDoc, TrashFailedError } from '../lib/eventDocOps';
 
 // Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
 // 편집기가 첫 화면 묶음에 함께 실려 온다. 그래서 여기서도 필요할 때 불러온다.
@@ -33,6 +36,7 @@ function formatDate(d: Date): string {
 
 export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProps) {
   const { selectedGroupId, forwardLookbackDays } = useAppStore();
+  const { eventLabels, labelsLoaded } = useLabels();
   const [incompleteEvents, setIncompleteEvents] = useState<ForwardEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -51,9 +55,13 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
     return item.eventIdx < list.length ? item.eventIdx : -1;
   };
 
+  // 라벨을 다 읽은 뒤에 훑는다. 라벨을 모르는 채 판단하면 이월 대상을 놓친다(자동 이월과 같은 이유).
   useEffect(() => {
-    if (isOpen) scanIncompleteEvents();
-  }, [isOpen]);
+    if (isOpen && labelsLoaded) scanIncompleteEvents();
+  }, [isOpen, labelsLoaded]);
+
+  const spaceColPath = (uid: string) =>
+    selectedGroupId && selectedGroupId !== 'personal' ? `groups/${selectedGroupId}/events` : `users/${uid}/events`;
 
   const scanIncompleteEvents = async () => {
     setLoading(true);
@@ -62,31 +70,35 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
 
     const today = new Date();
     const incomplete: ForwardEvent[] = [];
-
     // 훑는 기간은 자동 이월과 같은 값을 쓴다 (환경설정 > 이월)
-    for (const dateStr of pastDateStrings(today, forwardLookbackDays)) {
-      try {
-        const colPath = selectedGroupId && selectedGroupId !== 'personal'
-          ? `groups/${selectedGroupId}/events`
-          : `users/${uid}/events`;
-        const snap = await getDoc(doc(db, colPath, dateStr));
-        if (snap.exists()) {
-          const eventList = readEventList(snap.data());
-          eventList.forEach((ev: any, idx: number) => {
-            // '전달' 또는 'forward' 라벨이 있고 미완료인 일정
-            const hasForwardLabel = (ev.labelIds || []).some((l: string) =>
-              ['전달', 'forward', '미완료'].includes(l.toLowerCase())
-            );
-            if (hasForwardLabel && !ev.completed) {
-              incomplete.push({ dateStr, event: ev, eventIdx: idx, eventId: ev.id ? String(ev.id) : null });
-            }
-          });
-        }
-      } catch (e) {
-        console.error(e);
-      }
+    const days = pastDateStrings(today, forwardLookbackDays);
+    const inWindow = new Set(days);
+    try {
+      // 날짜마다 따로 읽지 않고 한 번의 범위 조회로 읽는다 (60일이면 60번 읽던 것)
+      const snaps = await getDocs(
+        query(
+          collection(db, spaceColPath(uid)),
+          where(documentId(), '>=', days[days.length - 1]),
+          where(documentId(), '<', formatDate(today))
+        )
+      );
+      snaps.forEach((snap) => {
+        const dateStr = snap.id;
+        if (!inWindow.has(dateStr)) return;
+        readEventList(snap.data()).forEach((ev: any, idx: number) => {
+          // ⚠️ 예전에는 라벨 id가 '전달'·'forward'·'미완료'라는 글자인지를 봤다. 라벨 id는 ev_3 같은 값이라
+          //    거의 아무것도 못 찾았다. 설명서대로 자동 이월과 같은 판단(속성·라벨)으로 '이월 대상'을 고른다.
+          if (!ev.completed && eventContentOf(ev) && isForwardTarget(ev, eventLabels)) {
+            incomplete.push({ dateStr, event: ev, eventIdx: idx, eventId: ev.id ? String(ev.id) : null });
+          }
+        });
+      });
+    } catch (e) {
+      console.error(e);
+      showErrorToast('지난 일정을 읽지 못했습니다. 연결을 확인해 주세요.', e);
     }
 
+    incomplete.sort((x, y) => (x.dateStr < y.dateStr ? -1 : x.dateStr > y.dateStr ? 1 : x.eventIdx - y.eventIdx));
     setIncompleteEvents(incomplete);
     setLoading(false);
   };
@@ -101,44 +113,64 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
 
     try {
       const todayStr = formatDate(new Date());
-      const colPath = selectedGroupId && selectedGroupId !== 'personal'
-        ? `groups/${selectedGroupId}/events`
-        : `users/${uid}/events`;
+      const colPath = spaceColPath(uid);
+      const fId = selectedGroupId || 'personal';
+      const todayRef = doc(db, colPath, todayStr);
 
-      // 오늘 일정 로드
-      const todaySnap = await getDoc(doc(db, colPath, todayStr));
-      const todayEvents = todaySnap.exists() ? readEventList(todaySnap.data()) : [];
+      // 옮길 것마다 새 id를 미리 정해 둔다 (트랜잭션이 다시 돌아도 같은 id로)
+      const moves = incompleteEvents.map((item) => ({
+        item,
+        newId: 'fwd_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+      }));
 
-      // 목록에 잡힌 항목만 오늘로 복사하고, 제거 대상으로 날짜별로 묶어둔다
-      const byDate: Record<string, ForwardEvent[]> = {};
-      for (const item of incompleteEvents) {
-        todayEvents.push({
-          ...item.event,
-          id: 'fwd_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
-          forwardedFrom: item.dateStr,
-        });
-        if (!byDate[item.dateStr]) byDate[item.dateStr] = [];
-        byDate[item.dateStr].push(item);
-      }
+      // 1. 오늘 문서: 트랜잭션으로 서버의 지금 목록에 얹는다.
+      //    예전엔 캐시로 읽은 오늘 목록에 얹어 통째로 써서, 그 사이 오늘에 더한 일정을 덮을 수 있었다.
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(todayRef);
+        const todayEvents = snap.exists() ? readEventList(snap.data()) : [];
+        const have = new Set(todayEvents.map((e: any) => String(e.id)));
+        for (const { item, newId } of moves) {
+          if (have.has(newId)) continue;
+          todayEvents.push({ ...item.event, id: newId, forwardedFrom: item.dateStr });
+        }
+        tx.set(todayRef, eventDocPayload(todayEvents), { merge: true });
+      });
 
-      // 오늘 일정 저장 (eventText도 함께 갱신해야 읽기 폴백이 옛 내용을 되살리지 않는다)
-      await setDoc(doc(db, colPath, todayStr), eventDocPayload(todayEvents), { merge: true });
-
-      // 원본 날짜에서 제거.
+      // 2. 원본 날짜에서 옮긴 것만 뺀다 (날짜마다 트랜잭션).
       // 💡 예전에는 조건에 맞는 "모든" 항목을 다시 걸러서 지웠기 때문에, 스캔 이후에
       // 추가된 일정이 오늘로 옮겨지지도, 휴지통에 가지도 않고 그냥 사라졌다.
+      const byDate: Record<string, ForwardEvent[]> = {};
+      for (const { item } of moves) (byDate[item.dateStr] ||= []).push(item);
       for (const dateStr of Object.keys(byDate)) {
-        const snap = await getDoc(doc(db, colPath, dateStr));
-        if (!snap.exists()) continue;
-        const list = readEventList(snap.data());
-        const removeIdx = new Set<number>();
-        for (const item of byDate[dateStr]) {
-          const idx = findIndexFor(list, item);
-          if (idx >= 0) removeIdx.add(idx);
+        const ref = doc(db, colPath, dateStr);
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists()) return;
+          const list = readEventList(snap.data());
+          const removeIdx = new Set<number>();
+          for (const item of byDate[dateStr]) {
+            const idx = findIndexFor(list, item);
+            if (idx >= 0) removeIdx.add(idx);
+          }
+          if (removeIdx.size === 0) return;
+          tx.set(ref, eventDocPayload(list.filter((_: any, i: number) => !removeIdx.has(i))), { merge: true });
+        });
+      }
+
+      // 3. 연결된 기록·메모·수업 쪽 역링크를 새 id로 갈아끼운다 (자동 이월과 같다). 안 하면 끊어진 링크가 된다.
+      for (const { item, newId } of moves) {
+        const links: any[] = item.event?.linkedItems || [];
+        if (links.length === 0) continue;
+        const sourceMeta = {
+          targetType: 'event',
+          targetId: newId,
+          targetDate: todayStr,
+          title: `[${todayStr}] ${eventContentOf(item.event)}`,
+          targetFId: fId,
+        };
+        for (const link of links) {
+          await addReverseLink(link, sourceMeta as any, fId, { replaceIds: item.eventId ? [item.eventId] : [] });
         }
-        if (removeIdx.size === 0) continue;
-        const updated = list.filter((_: any, i: number) => !removeIdx.has(i));
-        await setDoc(doc(db, colPath, dateStr), eventDocPayload(updated), { merge: true });
       }
 
       showToast(`✅ ${incompleteEvents.length}개의 일정을 오늘(${todayStr})로 전달했습니다.`);
@@ -157,38 +189,27 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
     if (!uid) return;
 
     try {
-      const colPath = selectedGroupId && selectedGroupId !== 'personal'
-        ? `groups/${selectedGroupId}/events`
-        : `users/${uid}/events`;
-      const snap = await getDoc(doc(db, colPath, item.dateStr));
-      if (snap.exists()) {
-        const eventList = readEventList(snap.data());
-        const idx = findIndexFor(eventList, item);
-        if (idx < 0) {
-          showToast('이미 변경되었거나 삭제된 일정입니다. 목록을 다시 스캔합니다.');
-          await scanIncompleteEvents();
-          return;
-        }
-        const itemToDelete: any = eventList[idx];
-        try {
-          await moveToTrash({
-            id: String(itemToDelete.id ?? item.eventIdx),
-            type: 'event',
-            originalDateStr: item.dateStr,
-            fId: selectedGroupId || 'personal',
-            content: eventContentOf(itemToDelete) || eventContentOf(item.event),
-            data: itemToDelete,
-          });
-        } catch (trashErr) {
-          console.error('휴지통 이동 실패:', trashErr);
-        }
-        const updatedList = eventList.filter((_: any, i: number) => i !== idx);
-        await setDoc(doc(db, colPath, item.dateStr), eventDocPayload(updatedList), { merge: true });
+      if (!item.eventId) {
+        showToast('이미 변경되었거나 삭제된 일정입니다. 목록을 다시 스캔합니다.');
+        await scanIncompleteEvents();
+        return;
       }
+      // 휴지통에 먼저 넣고, 서버의 지금 목록에서 그 항목만 뺀다 (lib/eventDocOps).
+      // 예전엔 캐시로 읽어 통째로 썼고, 휴지통에 못 넣어도 지웠다.
+      await deleteEventFromDoc(doc(db, spaceColPath(uid), item.dateStr), {
+        dateStr: item.dateStr,
+        fId: selectedGroupId || 'personal',
+        eventId: item.eventId,
+      });
       setIncompleteEvents(prev => prev.filter(e => !isSameItem(e, item)));
       showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
     } catch (e: any) {
-      showErrorToast('삭제 중 오류: ' + e.message);
+      showErrorToast(
+        e instanceof TrashFailedError
+          ? '휴지통에 옮기지 못해 일정을 지우지 않았습니다. 네트워크를 확인해 주세요.'
+          : '삭제 중 오류: ' + e.message,
+        e
+      );
     }
   };
 
@@ -200,17 +221,9 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
     setCompletingKeys(prev => new Set(prev).add(key));
 
     try {
-      const colPath = selectedGroupId && selectedGroupId !== 'personal'
-        ? `groups/${selectedGroupId}/events`
-        : `users/${uid}/events`;
-      const snap = await getDoc(doc(db, colPath, item.dateStr));
-      if (snap.exists()) {
-        const eventList = readEventList(snap.data());
-        const idx = findIndexFor(eventList, item);
-        if (idx >= 0) {
-          eventList[idx] = { ...eventList[idx], completed: true };
-          await setDoc(doc(db, colPath, item.dateStr), eventDocPayload(eventList), { merge: true });
-        }
+      // 트랜잭션으로 서버의 지금 목록에서 그 일정만 완료로 (lib/eventDocOps)
+      if (item.eventId) {
+        await updateEventInDoc(doc(db, spaceColPath(uid), item.dateStr), item.eventId, (ev) => ({ ...ev, completed: true }));
       }
       setTimeout(() => {
         setIncompleteEvents(prev => prev.filter(e => !isSameItem(e, item)));
@@ -257,8 +270,8 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
       <div>
         <div className="px-5 py-3">
           <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-800">
-            <strong>안내:</strong> '전달' 라벨이 있는 미완료 일정을 오늘 날짜로 자동 이동합니다.<br />
-            지난 {forwardLookbackDays}일간의 미완료 일정을 스캔합니다.
+            <strong>안내:</strong> 이월 대상(이월 속성이 켜졌거나 이월 라벨이 붙은) 미완료 일정을 오늘 날짜로 옮깁니다.<br />
+            지난 {forwardLookbackDays}일간의 미완료 일정을 스캔합니다. 라벨을 누르면 완료, 🗑️는 휴지통으로.
           </div>
         </div>
 
@@ -294,28 +307,34 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
                       </p>
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         <span className="text-xs text-slate-400">{item.dateStr}</span>
-                        {(item.event.labelIds || []).map((labelId: string) => (
-                          <button
-                            key={labelId}
-                            type="button"
-                            title="클릭하면 완료 처리됩니다"
-                            disabled={isCompleting}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleComplete(item);
-                            }}
-                            className="text-xs px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-600 hover:bg-emerald-100 hover:text-emerald-700 font-bold transition-colors disabled:opacity-60 cursor-pointer"
-                          >
-                            {labelId}
-                          </button>
-                        ))}
+                        {/* 라벨 이름으로 보인다. 예전엔 labelIds(ev_3 같은 id)를 그대로 보여 줬고, 라벨 없이 이월 속성만
+                            켠 일정은 누를 칩이 없어 완료할 수 없었다 */}
+                        {(() => {
+                          const names = resolveEventLabelNames(item.event, eventLabels);
+                          return (names.length > 0 ? names : ['완료']).map((name) => (
+                            <button
+                              key={name}
+                              type="button"
+                              title="클릭하면 완료 처리됩니다"
+                              disabled={isCompleting}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleComplete(item);
+                              }}
+                              className="text-xs px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-600 hover:bg-emerald-100 hover:text-emerald-700 font-bold transition-colors disabled:opacity-60 cursor-pointer"
+                            >
+                              {name}
+                            </button>
+                          ));
+                        })()}
                       </div>
                     </div>
                     <button
                       onClick={() => handleDeleteForwarded(item)}
+                      title="삭제 (휴지통으로)"
                       className="text-slate-300 hover:text-red-500 text-xs font-bold p-1 shrink-0"
                     >
-                      ✕
+                      🗑️
                     </button>
                   </div>
                 );

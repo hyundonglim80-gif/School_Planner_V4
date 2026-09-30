@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { eventDocPayload } from '../lib/eventText';
+import { eventDocPayload, readEventList } from '../lib/eventText';
+import { readJournalEntries } from '../lib/journalEntries';
 import { useAppStore } from '../store/useAppStore';
 import { closeAllModals } from '../hooks/useModalLayer';
 import { showToast, showErrorToast } from '../utils/toast';
@@ -96,14 +97,15 @@ export default function LinkViewerModal({
       if (type === 'event') {
         const snap = await getDoc(doc(db, getColPath('events', fId), dateStr));
         if (snap.exists()) {
-          const list = snap.data().eventList || [];
+          // readEventList: V3 옛 글만 있는 날, id 없는 V3 항목도 저장 쪽과 같은 id로 찾는다
+          const list = readEventList(snap.data());
           const item = list.find((e: any) => String(e.id) === String(id));
           if (item) return of(item, item.content || item.text || '');
         }
       } else if (type === 'journal') {
         const snap = await getDoc(doc(db, getColPath('journals', fId), dateStr));
         if (snap.exists()) {
-          const entries = snap.data().entries || [];
+          const entries = readJournalEntries(snap.data());
           const item = entries.find((e: any) => String(e.id) === String(id));
           if (item) return of(item, item.content || '');
         }
@@ -147,7 +149,7 @@ export default function LinkViewerModal({
       if (sourceType === 'event') {
         const snap = await getDoc(doc(db, getColPath('events', activeFId), sourceDateStr));
         if (snap.exists()) {
-          const ev = (snap.data().eventList || []).find((e: any) => String(e.id) === String(sourceId));
+          const ev = readEventList(snap.data()).find((e: any) => String(e.id) === String(sourceId));
           if (ev?.linkedItems) foundRawLinks = [...ev.linkedItems];
           if (snap.data().links?.[`event_${sourceId}`]) {
             foundRawLinks = [...foundRawLinks, ...snap.data().links[`event_${sourceId}`]];
@@ -156,7 +158,7 @@ export default function LinkViewerModal({
       } else if (sourceType === 'journal') {
         const snap = await getDoc(doc(db, getColPath('journals', activeFId), sourceDateStr));
         if (snap.exists()) {
-          const j = (snap.data().entries || []).find((e: any) => String(e.id) === String(sourceId));
+          const j = readJournalEntries(snap.data()).find((e: any) => String(e.id) === String(sourceId));
           if (j?.linkedItems) foundRawLinks = [...j.linkedItems];
           if (snap.data().links?.[`journal_${sourceId}`]) {
             foundRawLinks = [...foundRawLinks, ...snap.data().links[`journal_${sourceId}`]];
@@ -339,57 +341,52 @@ export default function LinkViewerModal({
       fId
     );
 
+    // ⚠️ 한쪽 문서를 트랜잭션으로 서버에서 읽고 그 항목의 링크만 뺀다. 예전에는 캐시(getDoc)로 읽어 그날 목록·
+    //    교시 전체를 통째로 써서 그 사이 바뀐 것을 되돌렸고, 일정은 eventList만 봐서 V3 옛 글만 있는 날·id 없는
+    //    V3 항목에서는 링크를 못 찾아 한쪽에만 남았다.
+    const dropLink = (links: any[] | undefined) =>
+      (links || []).filter((l: any) => String(l.targetId || l.id) !== String(targetIdToRemove));
     try {
       if (type === 'event') {
         const ref = doc(db, colPath, dateStr);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const list = snap.data().eventList || [];
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists()) return;
+          const list = readEventList(snap.data()).map((e: any) => ({ ...e }));
           const item = list.find((e: any) => String(e.id) === String(id));
-          if (item && item.linkedItems) {
-            item.linkedItems = item.linkedItems.filter(
-              (l: any) => String(l.targetId || l.id) !== String(targetIdToRemove)
-            );
-            await setDoc(ref, eventDocPayload(list), { merge: true });
-          }
-        }
+          if (!item || !item.linkedItems) return;
+          item.linkedItems = dropLink(item.linkedItems);
+          tx.set(ref, eventDocPayload(list), { merge: true });
+        });
       } else if (type === 'journal') {
         const ref = doc(db, colPath, dateStr);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const list = snap.data().entries || [];
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists()) return;
+          const list = readJournalEntries(snap.data()).map((e: any) => ({ ...e }));
           const item = list.find((e: any) => String(e.id) === String(id));
-          if (item && item.linkedItems) {
-            item.linkedItems = item.linkedItems.filter(
-              (l: any) => String(l.targetId || l.id) !== String(targetIdToRemove)
-            );
-            await setDoc(ref, { entries: list, updatedAt: Date.now() }, { merge: true });
-          }
-        }
+          if (!item || !item.linkedItems) return;
+          item.linkedItems = dropLink(item.linkedItems);
+          tx.set(ref, { entries: list, updatedAt: Date.now() }, { merge: true });
+        });
       } else if (type === 'schedule' || type === 'schedule_header') {
         const ref = doc(db, colPath, dateStr);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const periods = snap.data().periods || {};
-          const pKey = period ? String(period) : String(id).replace(/.*_/, '');
-          const item = periods[pKey];
-          if (item && item.linkedItems) {
-            item.linkedItems = item.linkedItems.filter(
-              (l: any) => String(l.targetId || l.id) !== String(targetIdToRemove)
-            );
-            await setDoc(ref, { periods, updatedAt: Date.now() }, { merge: true });
-          }
-        }
+        const pKey = period ? String(period) : String(id).replace(/.*_/, '');
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists()) return;
+          const item = (snap.data().periods || {})[pKey];
+          if (!item || typeof item !== 'object' || !item.linkedItems) return;
+          // 그 교시의 링크만 쓴다 (merge라 다른 교시·다른 칸은 서버에 있는 그대로)
+          tx.set(ref, { periods: { [pKey]: { linkedItems: dropLink(item.linkedItems) } }, updatedAt: Date.now() }, { merge: true });
+        });
       } else if (type === 'memo') {
         const ref = doc(db, colPath, id);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const linkedItems = snap.data().linkedItems || [];
-          const filtered = linkedItems.filter(
-            (l: any) => String(l.targetId || l.id) !== String(targetIdToRemove)
-          );
-          await setDoc(ref, { linkedItems: filtered, updatedAt: Date.now() }, { merge: true });
-        }
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists()) return;
+          tx.set(ref, { linkedItems: dropLink(snap.data().linkedItems), updatedAt: Date.now() }, { merge: true });
+        });
       }
     } catch (err) {
       console.error('removeLinkFromSide error:', err);

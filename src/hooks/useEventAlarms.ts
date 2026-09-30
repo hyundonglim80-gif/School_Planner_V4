@@ -56,7 +56,8 @@ export function useEventAlarms() {
       unsub = onSnapshot(eventDocRefFor(ds), (snap) => {
         if (cancelled) return;
         const data = snap.exists() ? snap.data() : null;
-        eventListRef.current = data && Array.isArray(data.eventList) ? data.eventList : [];
+        // readEventList: id 없는 V3 항목에도 저장 쪽과 같은 id(ev_차례)가 붙어야 '울림' 표시를 제자리에 쓴다
+        eventListRef.current = data ? readEventList(data) : [];
       });
     };
     subscribe();
@@ -93,7 +94,7 @@ export function useEventAlarms() {
           const list: any[] = readEventList(snap.data());
           let changed = false;
           const updated = list.map((item) => {
-            if (toTrigger.some((t) => t.id === item.id)) {
+            if (toTrigger.some((t) => String(t.id) === String(item.id))) {
               changed = true;
               return { ...item, alarmTriggered: true };
             }

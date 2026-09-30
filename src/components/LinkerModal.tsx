@@ -5,6 +5,7 @@ import { doc, getDoc, setDoc, getDocs, collection, query, where, documentId, run
 import { db, auth } from '../lib/firebase';
 import { showToast, showErrorToast } from '../utils/toast';
 import { eventDocPayload, readEventList } from '../lib/eventText';
+import { readJournalEntries } from '../lib/journalEntries';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
 import { resolveEventLabelNames } from '../lib/eventLabels';
@@ -500,9 +501,8 @@ export default function LinkerModal({
         sourceUpdated = await runTransaction(db, async (tx) => {
           const snap = await tx.get(ref);
           if (!snap.exists()) return false;
-          const raw: any[] = Array.isArray(snap.data().entries) ? snap.data().entries : [];
           // id 없는 옛 기록은 화면과 같은 이름(jr_차례)으로 찾는다
-          const list = raw.map((j: any, idx: number) => (j && j.id ? { ...j } : { ...j, id: 'jr_' + idx }));
+          const list = readJournalEntries(snap.data()).map((j: any) => ({ ...j }));
           const item = list.find((j: any) => String(j.id) === String(sourceId));
           if (!item) return false;
           item.linkedItems = [...(item.linkedItems || [])];

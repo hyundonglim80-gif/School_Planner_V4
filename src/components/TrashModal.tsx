@@ -5,6 +5,7 @@ import { db, auth } from '../lib/firebase';
 import { completeRestoreFromTrash, deleteFromTrash, type TrashItem } from '../utils/trashHelper';
 import { collectUploadUrls, deleteUnreferencedUploads } from '../utils/storageCleanup';
 import { eventDocPayload, readEventList } from '../lib/eventText';
+import { readJournalEntries } from '../lib/journalEntries';
 import { readEvalList, evalDocPayload } from '../lib/evalList';
 import { syncAutoSourceAndTell } from '../lib/autoJournalSync';
 import PopupFrame from './PopupFrame';
@@ -161,9 +162,8 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
           if (!list.some((e: any) => String(e?.id) === String(data?.id))) list.push(data);
           tx.set(targetRef, eventDocPayload(list), { merge: true });
         } else {
-          const raw: any[] = Array.isArray(currentData.entries) ? currentData.entries : [];
           // id 없는 옛 기록은 화면과 같은 이름(jr_차례)으로 맞춘다
-          const entries = raw.map((j: any, idx: number) => (j && j.id ? j : { ...j, id: 'jr_' + idx }));
+          const entries = readJournalEntries(currentData);
           if (!entries.some((e: any) => String(e?.id) === String(data?.id))) entries.push(data);
           tx.set(targetRef, { entries, updatedAt: Date.now() }, { merge: true });
         }

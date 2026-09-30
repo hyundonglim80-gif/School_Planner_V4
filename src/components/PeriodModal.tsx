@@ -7,7 +7,7 @@
 // period: true가 붙을 뿐 여러 날에 걸친 일정이 만들어지지 않아, 선생님 눈에는 '체크했는데
 // 아무 일도 안 일어나는' 칸이었다.
 import { useEffect, useMemo, useState } from 'react';
-import { doc, writeBatch } from 'firebase/firestore';
+import { doc, runTransaction, type DocumentSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 import { showToast, showErrorToast } from '../utils/toast';
@@ -167,77 +167,74 @@ export default function PeriodModal({
 
       const refs = new Map(writeDates.map((dateStr) => [dateStr, doc(db, colPath, dateStr)]));
 
-      // ⚠️ 그냥 getDoc을 쓰면 안 된다. 기기 캐시가 비어 있으면 (인터넷 사용 기록을
-      //    지운 직후가 바로 그렇다) 서버에 멀쩡히 있는 문서를 "없다"고 답한다.
-      //    그 답을 믿고 목록을 통째로 다시 쓰면 그날 있던 일정이 전부 지워진다.
-      //    휴지통에도 남지 않는다. 서버가 답하지 않으면 아예 쓰지 않는다.
-      const reads = await Promise.all(
-        writeDates.map((dateStr) => getDocTrustingServer(refs.get(dateStr)!))
-      );
-      if (reads.some((r) => !r.fromServer)) {
-        return showErrorToast(
-          '서버와 연결이 확실하지 않아 등록을 멈췄습니다. 그냥 진행하면 그날 있던 일정을 지울 수 있습니다. 연결을 확인하고 다시 해 주세요.'
-        );
+      // 기간으로 바뀌면서 치울 한 건은 먼저 휴지통에 넣는다. 붙어 있던 링크나 첨부는
+      // 새 묶음으로 옮겨가지 않으므로, 되찾을 길은 있어야 한다. 못 넣으면 등록을 멈춘다.
+      if (replace) {
+        const { snap } = await getDocTrustingServer(refs.get(replace.dateStr)!);
+        const found = snap.exists()
+          ? readEventList(snap.data()).find((e: any) => String(e.id) === String(replace.id))
+          : null;
+        if (found) {
+          try {
+            await moveToTrash({
+              id: String(found.id),
+              type: 'event',
+              originalDateStr: replace.dateStr,
+              fId: selectedGroupId || 'personal',
+              content: String(found.content || ''),
+              data: found,
+            });
+          } catch (err) {
+            return showErrorToast('바꿀 일정을 휴지통에 옮기지 못해 등록을 멈췄습니다. 연결을 확인하고 다시 해 주세요.', err);
+          }
+        }
       }
 
-      const lists = new Map<string, any[]>();
-      let replaced: any = null;
-      writeDates.forEach((dateStr, i) => {
-        const snap = reads[i].snap;
-        let list = snap.exists() ? readEventList(snap.data()) : [];
-        if (replace && dateStr === replace.dateStr) {
-          replaced = list.find((e: any) => String(e.id) === String(replace.id)) || null;
-          list = list.filter((e: any) => String(e.id) !== String(replace.id));
-        }
-        lists.set(dateStr, list);
-      });
-
-      dates.forEach((dateStr, i) => {
-        const list = lists.get(dateStr)!;
-        // 며칠째인지 본문에 남긴다 (V3와 같다). '여름방학 (3/10)'처럼 보인다.
-        const numbered = `${text} (${i + 1}/${dates.length})`;
-        list.push({
-          id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
-          content: numbered,
-          text: numbered, // V3 및 백업 내보내기 호환
-          label: labelStr,
-          labelIds: labels,
-          completed: false,
-          authorId: uid,
-          date: dateStr,
-          groupId,
-          period: true,
-          ...(attrs?.calendar !== undefined ? { calendar: attrs.calendar } : {}),
-          // 💡 forward: false는 적지 않는다. 이월 라벨이 붙은 일정에 이 값이 굳으면
-          // 그 일정은 영영 이월되지 않는다 (DayEvents의 forwardFieldsFor 주석 참고).
-          ...(attrs?.forward ? { forward: true } : {}),
-          ...(attrs?.skip !== undefined ? { skip: attrs.skip } : {}),
-          createdAt: Date.now(),
+      // ⚠️ 날짜마다 그날 목록을 읽어 새 일정을 얹어 다시 쓴다. 한 트랜잭션으로 묶어 서버의 지금 목록을 읽고
+      //    한꺼번에 쓴다. 예전에는 서버에서 읽은 뒤 따로 일괄 쓰기를 해서, 그 틈에 다른 곳에서 더한 일정을
+      //    덮을 수 있었다. (그냥 getDoc은 더 나쁘다 - 캐시가 비면 '없다'고 답해 그날 일정이 전부 지워진다)
+      //    서버가 답하지 않으면 트랜잭션이 실패하고 아무것도 쓰지 않는다.
+      await runTransaction(db, async (tx) => {
+        const snaps: DocumentSnapshot[] = [];
+        for (const dateStr of writeDates) snaps.push(await tx.get(refs.get(dateStr)!));
+        const lists = new Map<string, any[]>();
+        writeDates.forEach((dateStr, i) => {
+          const snap = snaps[i];
+          let list = snap.exists() ? readEventList(snap.data()) : [];
+          if (replace && dateStr === replace.dateStr) {
+            list = list.filter((e: any) => String(e.id) !== String(replace.id));
+          }
+          lists.set(dateStr, list);
         });
-      });
 
-      const batch = writeBatch(db);
-      for (const [dateStr, list] of lists) {
-        batch.set(refs.get(dateStr)!, eventDocPayload(list), { merge: true });
-      }
-      await batch.commit();
-
-      // 기간으로 바뀌면서 치운 한 건은 휴지통에 남긴다. 붙어 있던 링크나
-      // 첨부는 새 묶음으로 옮겨가지 않으므로, 되찾을 길은 있어야 한다.
-      if (replaced) {
-        try {
-          await moveToTrash({
-            id: String(replaced.id),
-            type: 'event',
-            originalDateStr: replace!.dateStr,
-            fId: selectedGroupId || 'personal',
-            content: String(replaced.content || ''),
-            data: replaced,
+        dates.forEach((dateStr, i) => {
+          const list = lists.get(dateStr)!;
+          // 며칠째인지 본문에 남긴다 (V3와 같다). '여름방학 (3/10)'처럼 보인다.
+          const numbered = `${text} (${i + 1}/${dates.length})`;
+          list.push({
+            id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+            content: numbered,
+            text: numbered, // V3 및 백업 내보내기 호환
+            label: labelStr,
+            labelIds: labels,
+            completed: false,
+            authorId: uid,
+            date: dateStr,
+            groupId,
+            period: true,
+            ...(attrs?.calendar !== undefined ? { calendar: attrs.calendar } : {}),
+            // 💡 forward: false는 적지 않는다. 이월 라벨이 붙은 일정에 이 값이 굳으면
+            // 그 일정은 영영 이월되지 않는다 (DayEvents의 forwardFieldsFor 주석 참고).
+            ...(attrs?.forward ? { forward: true } : {}),
+            ...(attrs?.skip !== undefined ? { skip: attrs.skip } : {}),
+            createdAt: Date.now(),
           });
-        } catch (err) {
-          console.error('휴지통으로 옮기지 못했습니다:', err);
+        });
+
+        for (const [dateStr, list] of lists) {
+          tx.set(refs.get(dateStr)!, eventDocPayload(list), { merge: true });
         }
-      }
+      });
 
       showToast(`✅ ${dates.length}개 날짜에 기간 일정을 등록했습니다.`);
       onRegistered?.(dates.length);

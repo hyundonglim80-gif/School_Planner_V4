@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { getDocFromServer, writeBatch } from 'firebase/firestore';
+import { getDocFromServer, runTransaction } from 'firebase/firestore';
 import PeriodModal from './PeriodModal';
 
 // 공휴일은 Firestore에서 읽어온다. 여기서는 표만 갈아 끼운다.
@@ -95,7 +95,7 @@ describe('PeriodModal - 공휴일', () => {
 describe('PeriodModal - 있는 일정을 기간으로 바꾸기', () => {
   // 예전에는 등록한 뒤에 원래 한 건을 따로 지웠다. 그 지우기가 화면이 들고 있던
   // 옛 목록을 통째로 덮어써서, 방금 만든 첫날 일정까지 같이 사라졌다.
-  // 이제는 같은 일괄 쓰기 안에서 뺀다.
+  // 이제는 같은 트랜잭션 안에서 뺀다(원래 한 건은 먼저 휴지통에).
   const written: any[] = [];
 
   beforeEach(() => {
@@ -106,11 +106,16 @@ describe('PeriodModal - 있는 일정을 기간으로 바꾸기', () => {
       exists: () => true,
       data: () => ({ eventList: [{ id: 'ev_old', content: '여름방학' }] }),
     } as any);
-    vi.mocked(writeBatch).mockReturnValue({
-      set: (_ref: any, data: any) => written.push(data),
-      delete: vi.fn(),
-      commit: async () => {},
-    } as any);
+    // 한 트랜잭션 안에서 서버의 지금 목록을 읽고 날짜마다 다시 쓴다
+    vi.mocked(runTransaction).mockImplementation(async (_db: any, fn: any) =>
+      fn({
+        get: async () => ({
+          exists: () => true,
+          data: () => ({ eventList: [{ id: 'ev_old', content: '여름방학' }] }),
+        }),
+        set: (_ref: any, data: any) => written.push(data),
+      })
+    );
   });
 
   afterEach(() => {
@@ -143,6 +148,8 @@ describe('PeriodModal - 있는 일정을 기간으로 바꾸기', () => {
   it('서버가 답하지 않으면 한 글자도 쓰지 않는다', async () => {
     const user = userEvent.setup();
     vi.mocked(getDocFromServer).mockRejectedValue(new Error('offline'));
+    // 서버가 답하지 않으면 트랜잭션도 실패한다
+    vi.mocked(runTransaction).mockRejectedValue(new Error('offline'));
 
     render(
       <PeriodModal
