@@ -614,6 +614,51 @@ if (ONLY !== 'mobile') {
     assert(n === 1, `${n}건 생김`);
   });
 
+  await check('저장이 실패하면(연결 끊김) 일정·기록 칸이 적은 글째 남고, 성공 안내가 뜨지 않으며, ESC가 묻는다', async () => {
+    // 앱의 서비스 워커가 요청을 대신 보내면 가로챌 수 없어 막아 둔 탭을 따로 연다
+    const other = await openApp({ width: 1400, height: 950 }, { serviceWorkers: 'block' });
+    const main = page;
+    page = other.p;
+    const asked = [];
+    page.on('dialog', (d) => asked.push(d.message()));
+    const toasts = () => page.locator('#sp4-toast-container').innerText().catch(() => '');
+    const block = (url) => /documents:(commit|batchGet|beginTransaction|rollback)/.test(url.href);
+    try {
+      await goDay(D.weekend);
+      // 일정
+      await addEventBtn().click();
+      await wait(500);
+      await eventPanel().getByPlaceholder(EVENT_PH).fill('실패할 일정 저장');
+      await page.route(block, (r) => r.abort());
+      await eventPanel().getByPlaceholder(EVENT_PH).press('Control+s');
+      await until(async () => /실패|못했/.test(await toasts()), 30000, 300);
+      const t1 = await toasts();
+      const title = await eventPanel().locator('h3').first().innerText();
+      const kept = await eventPanel().locator('textarea').first().inputValue();
+      assert(!/추가했습니다|저장했습니다/.test(t1), `실패했는데 성공 안내: ${t1.replace(/\n/g, ' | ')}`);
+      assert(title === '새 일정' && kept === '실패할 일정 저장', `칸: ${title} / ${kept}`);
+      // 기록
+      await addJournalBtn().click();
+      await wait(600);
+      const jbox = journalPanel().getByPlaceholder(/오늘 있었던 일을 기록해보세요/);
+      await jbox.fill('실패할 기록 저장');
+      await jbox.press('Control+s');
+      await until(async () => (await toasts()).split('\n').filter((l) => /실패|못했/.test(l)).length >= 2, 30000, 300);
+      const t2 = await toasts();
+      assert(!/기록을\(를\) 저장했습니다/.test(t2), `실패했는데 성공 안내: ${t2.replace(/\n/g, ' | ')}`);
+      assert((await jbox.inputValue()) === '실패할 기록 저장', '기록 칸의 글이 사라짐');
+      await page.unrouteAll({ behavior: 'ignoreErrors' });
+      // ESC: 저장 안 한 글이 있으니 묻는다 (점검은 '확인'으로 답해 닫는다)
+      await page.keyboard.press('Escape');
+      await wait(800);
+      assert(asked.some((m) => /저장하지 않은/.test(m)), `ESC가 묻지 않음 (${asked.join(' / ') || '물음 없음'})`);
+      assert((await storedEvents(D.weekend)).every((e) => e.content !== '실패할 일정 저장'), '막았는데 저장됨(점검이 잘못됨)');
+    } finally {
+      page = main;
+      await other.ctx.close();
+    }
+  });
+
   await check('두 탭(두 기기)에서 같은 날 동시에 일정을 넣어도 둘 다 남는다', async () => {
     const other = await openApp({ width: 1400, height: 950 });
     const pages = [page, other.p];

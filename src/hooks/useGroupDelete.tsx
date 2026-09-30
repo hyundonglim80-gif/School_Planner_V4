@@ -8,6 +8,7 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { groupIdOf } from '../lib/eventGroups';
 import GroupDeleteModal from '../components/GroupDeleteModal';
+import { showErrorToastOnce } from '../utils/toast';
 
 interface Target {
   dateStr: string;
@@ -39,7 +40,7 @@ export function useGroupDelete({ fId, deleteOne, onDeleted }: UseGroupDeleteOpti
         setTarget({ dateStr, id, item });
         return;
       }
-      void deleteOne(dateStr, id, item);
+      Promise.resolve(deleteOne(dateStr, id, item)).catch((e) => showErrorToastOnce('일정을 지우지 못했습니다.', e));
     },
     [deleteOne]
   );

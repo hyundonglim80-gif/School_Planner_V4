@@ -20,7 +20,7 @@ import {
   useLabelTree,
   type LabelFilter,
 } from '../../lib/labelTree';
-import { showToast } from '../../utils/toast';
+import { showToast, showErrorToastOnce } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
 import { TABLE_ONLY_CONTENT, normalizeTables } from '../../lib/entryTable';
 import EntryTableView from '../../components/EntryTableView';
@@ -477,7 +477,12 @@ export default function DayJournal({
                             type="button"
                             onClick={async (e) => {
                               e.stopPropagation();
-                              await onDeleteJournal(entry.id);
+                              try {
+                                await onDeleteJournal(entry.id);
+                              } catch (err) {
+                                showErrorToastOnce('기록을 지우지 못했습니다.', err);
+                                return;
+                              }
                               showToast('🗑️ 기록을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
                             }}
                             className="text-slate-400 hover:text-red-500 p-1 rounded-md text-xs transition-colors cursor-pointer"

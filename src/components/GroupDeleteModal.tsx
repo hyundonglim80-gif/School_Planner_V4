@@ -6,7 +6,7 @@
 // 이 팝업 자체가 확인 단계다. 고를 때 몇 건이 지워지는지 숫자로 보여 주고,
 // 지운 것은 휴지통에서 되살릴 수 있으므로 확인창을 한 번 더 띄우지 않는다.
 import { useEffect, useState } from 'react';
-import { showToast, showErrorToast } from '../utils/toast';
+import { showToast, showErrorToast, showErrorToastOnce } from '../utils/toast';
 import {
   findGroupEvents,
   hitsFrom,
@@ -84,7 +84,7 @@ export default function GroupDeleteModal({
       onClose();
     } catch (err) {
       console.error(err);
-      showErrorToast('삭제하지 못했습니다.', err);
+      showErrorToastOnce('삭제하지 못했습니다.', err);
     } finally {
       setBusy(null);
     }

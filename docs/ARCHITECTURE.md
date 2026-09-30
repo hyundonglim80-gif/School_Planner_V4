@@ -127,6 +127,13 @@ Firestore는 캐시에 없는 문서를 "없다"고 답한다. 그대로 믿으�
 새 일정을 V3 글 형식으로 읽어 **여러 줄이면 첫 줄만** 남았다(2026-09-29 `dc8a3ad`에서 고침).
 옛 `[라벨] 본문`은 **화면에서만** 나눈다 — `eventDisplayContent(item, eventLabels)`는 등록된 라벨일 때만 뗀다.
 
+### 4-5-1. 저장 함수는 실패를 삼키지 않는다
+`useDayData`의 저장·지우기(`saveEventItems`·`addEventItem`·`updateEventItem`·`deleteEventItem`·`savePeriod`·
+`add/update/deleteJournalEntry`)는 실패하면 안내(토스트)를 띄운 뒤 `ShownError`(`utils/toast`)를 **던진다**.
+예전에는 안내만 하고 삼켜서, 쓰는 칸이 성공으로 알고 '✅ 저장했습니다'를 띄우고 적던 글을 저장된 것으로 여겨
+ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 수정 칸이 되어 글이 화면에서 사라졌다, 2026-10-01 재현).
+부르는 쪽은 실패하면 칸을 닫지 않고, 안내는 `showErrorToastOnce`로 한 번만 띄운다.
+
 ### 4-6. 공간을 붙들고 저장한다
 오른쪽 쓰는 칸은 **칸을 연 순간의 날짜와 공간**(`EntryPanelTarget.dateStr/groupId`)에 저장한다. 칸을 연 채
 다른 날짜·다른 공간으로 옮겨도 그렇다. 새로 만드는 저장 코드도 "지금 보는 공간(`selectedGroupId`)"이 아니라
@@ -288,4 +295,5 @@ Firestore는 캐시에 없는 문서를 "없다"고 답한다. 그대로 믿으�
 6. **라벨을 풀어야 하나?** `resolveEventLabelNames` / `eventDisplayContent(item, eventLabels)`만 쓴다.
 7. **팝업을 새로 만드나?** `ModalShell`·`PopupFrame`, 쓰는 칸이면 `openEntryPanel`.
 8. **단축키나 동작을 바꿨나?** 사용 설명서(`helpTopics.ts`)를 같은 커밋에서 고친다. 키 조합은 글로 적지 않는다.
-9. **확인**: 단위 테스트 → 빌드 → 바뀐 부분만 크롬으로(1~2분) → 커밋·푸시.
+9. **저장이 실패하면?** 저장 함수는 삼키지 말고 던진다(`failWithToast`). 칸은 실패하면 닫지 않는다.
+10. **확인**: 단위 테스트 → 빌드 → 바뀐 부분만 크롬으로(1~2분) → 커밋·푸시.

@@ -15,7 +15,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useGroupDelete } from '../hooks/useGroupDelete';
 import { resolveEventLabelNames, eventDisplayContent } from '../lib/eventLabels';
 import { baseContentOf } from '../lib/eventGroups';
-import { showToast } from '../utils/toast';
+import { showToast, showErrorToastOnce } from '../utils/toast';
 import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
 import { isTopSideItem } from './PopupFrame';
 import EventAlarmModal from './EventAlarmModal';
@@ -279,6 +279,10 @@ export default function EventDrawer({
         }
       }
       return true;
+    } catch (e) {
+      // 저장이 안 됐다. 적은 것은 칸에 그대로 두고, '저장된 것'으로 여기지 않는다(ESC가 묻는다)
+      showErrorToastOnce('일정을 저장하지 못했습니다. 적은 내용은 칸에 남아 있습니다.', e);
+      return false;
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -327,7 +331,13 @@ export default function EventDrawer({
   const { requestDelete, groupDeleteModal } = useGroupDelete({
     fId,
     deleteOne: async (_d, id, item) => {
-      await deleteEventItem(id, item);
+      try {
+        await deleteEventItem(id, item);
+      } catch (e) {
+        // 지우지 못했으면 칸을 닫지 않는다
+        showErrorToastOnce('일정을 지우지 못했습니다.', e);
+        return;
+      }
       showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
       onClose();
     },

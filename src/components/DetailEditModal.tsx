@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { showToast, showErrorToast } from '../utils/toast';
+import { showToast, showErrorToastOnce } from '../utils/toast';
 import { useDayData, type EventItem } from '../hooks/useDayData';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
@@ -252,7 +252,7 @@ export default function DetailEditModal({
       touchedRef.current = false;
       return true;
     } catch (err) {
-      showErrorToast('저장하지 못했습니다. 창을 닫지 않았으니 다시 저장해 주세요.', err);
+      showErrorToastOnce('저장하지 못했습니다. 창을 닫지 않았으니 다시 저장해 주세요.', err);
       return false;
     } finally {
       setSaving(false);
@@ -295,7 +295,7 @@ export default function DetailEditModal({
       }
       onClose();
     } catch (err) {
-      showErrorToast('삭제에 실패했습니다.', err);
+      showErrorToastOnce('삭제에 실패했습니다.', err);
     } finally {
       setSaving(false);
     }

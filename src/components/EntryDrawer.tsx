@@ -2,7 +2,7 @@
 // 메모와 기록이 같은 오른쪽 배너(드로어)를 쓴다. 두 화면이 각자 입력 폼을 들고
 // 있으면 단축키·첨부·라벨 동작이 조금씩 어긋나므로 한 곳에서만 만든다.
 import React, { useState, useEffect, useRef } from 'react';
-import { showToast, showErrorToast } from '../utils/toast';
+import { showToast, showErrorToast, showErrorToastOnce } from '../utils/toast';
 import { auth } from '../lib/firebase';
 import { uploadToDrive, attachmentImageSrc, driveUrlToStore } from '../lib/driveApi';
 import { useAppStore } from '../store/useAppStore';
@@ -466,7 +466,8 @@ export default function EntryDrawer({
       snapshotRef.current = formSnapshot(content, selectedLabels, attachments, linkedItems, tables);
       return true;
     } catch (error) {
-      showErrorToast(`${text.noun} 저장에 실패했습니다.`, error);
+      // 저장 함수가 이미 안내했으면(ShownError) 또 띄우지 않는다
+      showErrorToastOnce(`${text.noun} 저장에 실패했습니다. 적은 내용은 칸에 남아 있습니다.`, error);
       return false;
     } finally {
       savingRef.current = false;
@@ -759,7 +760,13 @@ export default function EntryDrawer({
               <button
                 type="button"
                 onClick={async () => {
-                  await onDelete();
+                  try {
+                    await onDelete();
+                  } catch (e) {
+                    // 지우지 못했으면 칸을 닫지 않는다
+                    showErrorToastOnce(`${text.noun}을(를) 지우지 못했습니다.`, e);
+                    return;
+                  }
                   onClose();
                 }}
                 className="px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-100 rounded-xl transition-colors cursor-pointer"

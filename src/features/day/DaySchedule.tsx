@@ -5,7 +5,7 @@ import { focusKey } from '../../lib/searchFocus';
 import AutoTextarea from '../../components/AutoTextarea';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import { useDayEvalCounts } from '../../hooks/useDayEvalCounts';
-import { showToast } from '../../utils/toast';
+import { showToast, showErrorToastOnce } from '../../utils/toast';
 import { openEntryPanel } from '../../components/EntryPanelHost';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
 
@@ -78,6 +78,9 @@ export default function DaySchedule({
       });
       setEditingPeriod(null);
       showToast(`✅ ${period}교시 수업 내용을 저장했습니다.`);
+    } catch (e) {
+      // 저장이 안 됐으면 고치던 칸을 그대로 둔다
+      showErrorToastOnce('수업 내용을 저장하지 못했습니다.', e);
     } finally {
       setSaving(false);
     }

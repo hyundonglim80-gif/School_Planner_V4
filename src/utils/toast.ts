@@ -53,6 +53,35 @@ export function showErrorToast(message: string, error?: unknown) {
   showToast(marked, 4000, 'error');
 }
 
+/**
+ * 이미 사용자에게 알린 실패. 부르는 쪽은 '실패했다'만 알면 되고 안내를 또 띄우지 않는다.
+ *
+ * ⚠️ 저장 함수(useDayData 등)가 실패를 안내만 하고 삼키면, 쓰는 칸은 성공으로 알고 '✅ 저장했습니다'를 띄우고
+ *    적던 글을 저장된 것으로 여겨 ESC·배경 누르기에 묻지도 않고 닫았다. 새 일정은 없는 일정의 수정 칸이 되어
+ *    적던 글이 화면에서 사라졌다. 안내한 뒤 이것을 던져 부르는 쪽이 멈추게 한다.
+ */
+export class ShownError extends Error {
+  readonly shown = true;
+  readonly original?: unknown;
+  constructor(message: string, original?: unknown) {
+    super(message);
+    this.name = 'ShownError';
+    this.original = original;
+  }
+}
+
+/** 실패를 안내하고 ShownError로 던진다 */
+export function failWithToast(message: string, error?: unknown): never {
+  showErrorToast(message, error);
+  throw new ShownError(message, error);
+}
+
+/** 아직 안내하지 않은 실패만 안내한다 (ShownError는 이미 안내했다) */
+export function showErrorToastOnce(message: string, error?: unknown) {
+  if (error instanceof ShownError) return;
+  showErrorToast(message, error);
+}
+
 const AFTER_RELOAD_KEY = 'sp4_toast_after_reload';
 
 /**

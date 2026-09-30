@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { showToast } from '../utils/toast';
+import { showToast, showErrorToastOnce } from '../utils/toast';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 
 export interface EventAlarmModalProps {
@@ -46,7 +46,13 @@ export default function EventAlarmModal({
       setError('시간을 "1430" 또는 "14:30" 형식으로 입력해주세요.');
       return;
     }
-    await onSave(`${dVal || dateStr}T${normalized}`);
+    try {
+      await onSave(`${dVal || dateStr}T${normalized}`);
+    } catch (e) {
+      // 저장이 안 됐으면 창을 닫지 않는다
+      showErrorToastOnce('알림을 저장하지 못했습니다.', e);
+      return;
+    }
     showToast('✅ 알림이 설정되었습니다.');
     // ⚠️ 저장하고 나면 닫아야 한다. '알림 끄기'는 닫는데 '저장'만 안 닫고 있었다.
     //    설정됐다는 알림은 뜨는데 창은 그대로 있으니 안 된 줄 알고 또 누르게 된다.
@@ -56,7 +62,12 @@ export default function EventAlarmModal({
   };
 
   const handleTurnOff = async () => {
-    await onTurnOff();
+    try {
+      await onTurnOff();
+    } catch (e) {
+      showErrorToastOnce('알림을 끄지 못했습니다.', e);
+      return;
+    }
     onClose();
   };
 

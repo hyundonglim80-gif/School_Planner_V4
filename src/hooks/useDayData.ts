@@ -9,7 +9,7 @@ import { db, auth } from '../lib/firebase';
 import { addReverseLink, syncReverseLinks } from '../utils/linkUtils';
 import { moveToTrash } from '../utils/trashHelper';
 import { DEFAULT_EVENT_LABELS, normalizeEventLabel } from './useLabels';
-import { showErrorToast } from '../utils/toast';
+import { showErrorToast, failWithToast, ShownError } from '../utils/toast';
 import { parseV3EventText, formatV3EventText, eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
 import { pastDateStrings, isForwardTarget, chooseForwardingLabels } from '../lib/forwarding';
 import { readLegacyEventLabels } from '../lib/legacyLabels';
@@ -819,7 +819,8 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         tx.set(eventDocRef, eventDocPayload(merged), { merge: true });
       });
     } catch (err) {
-      showErrorToast('일정 저장에 실패했습니다. 네트워크를 확인해 주세요.', err);
+      // 안내하고 던진다. 삼키면 쓰는 칸이 성공으로 알고 적던 글을 저장된 것으로 여긴다
+      failWithToast('일정 저장에 실패했습니다. 네트워크를 확인해 주세요.', err);
     }
   }, [dateStr, groupId]);
 
@@ -887,7 +888,11 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const newList = eventList.map(item =>
       item.id === id ? { ...item, completed: !item.completed } : item
     );
-    await saveEventItems(newList, eventList);
+    try {
+      await saveEventItems(newList, eventList);
+    } catch (err) {
+      if (!(err instanceof ShownError)) throw err; // 안내는 이미 띄웠다
+    }
   }, [eventList, saveEventItems]);
 
   const deleteEventItem = useCallback(async (id: string, fallbackItem?: Partial<EventItem>) => {
@@ -934,8 +939,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         });
       } catch (err) {
         // 휴지통에 못 넣었으면 지우지 않는다. 지우면 되돌릴 길 없이 사라진다.
-        showErrorToast('휴지통에 옮기지 못해 일정을 지우지 않았습니다. 네트워크를 확인해 주세요.', err);
-        return;
+        failWithToast('휴지통에 옮기지 못해 일정을 지우지 않았습니다. 네트워크를 확인해 주세요.', err);
       }
     }
 
@@ -950,7 +954,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         tx.set(eventDocRef, eventDocPayload(next.map((item, idx) => normalizeEventForWrite(item, idx, user))), { merge: true });
       });
     } catch (err) {
-      showErrorToast('일정 삭제에 실패했습니다. 네트워크를 확인해 주세요.', err);
+      failWithToast('일정 삭제에 실패했습니다. 네트워크를 확인해 주세요.', err);
     }
   }, [eventList, dateStr, groupId]);
 
@@ -1004,7 +1008,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         updatedAt: Date.now()
       }, { merge: true });
     } catch (err) {
-      showErrorToast('수업 저장에 실패했습니다. 네트워크를 확인해 주세요.', err);
+      failWithToast('수업 저장에 실패했습니다. 네트워크를 확인해 주세요.', err);
     }
   }, [dateStr, groupId, schedules]);
 
@@ -1087,8 +1091,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     try {
       await mutateJournals((fresh) => [...fresh.filter((j) => j.id !== newId), newEntry]);
     } catch (err) {
-      showErrorToast('기록 저장에 실패했습니다. 네트워크를 확인해 주세요.', err);
-      return;
+      failWithToast('기록 저장에 실패했습니다. 네트워크를 확인해 주세요.', err);
     }
 
     if (newEntry.linkedItems && newEntry.linkedItems.length > 0) {
@@ -1116,7 +1119,11 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const [moved] = newList.splice(sourceIndex, 1);
     newList.splice(targetIndex, 0, moved);
     
-    await saveEventItems(newList, eventList);
+    try {
+      await saveEventItems(newList, eventList);
+    } catch (err) {
+      if (!(err instanceof ShownError)) throw err; // 안내는 이미 띄웠다
+    }
   }, [eventList, saveEventItems]);
 
   const reorderJournals = useCallback(async (sourceIndex: number, targetIndex: number) => {
@@ -1168,16 +1175,14 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         });
       } catch (err) {
         // 휴지통에 못 넣었으면 지우지 않는다
-        showErrorToast('휴지통에 옮기지 못해 기록을 지우지 않았습니다. 네트워크를 확인해 주세요.', err);
-        return;
+        failWithToast('휴지통에 옮기지 못해 기록을 지우지 않았습니다. 네트워크를 확인해 주세요.', err);
       }
     }
 
     try {
       await mutateJournals((fresh) => fresh.filter((j) => j.id !== id));
     } catch (err) {
-      showErrorToast('기록 삭제에 실패했습니다.', err);
-      return;
+      failWithToast('기록 삭제에 실패했습니다.', err);
     }
 
     // 알림장·출결 자동 항목이면 원본(알림장·출석부)도 비운다
@@ -1227,8 +1232,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           : [...fresh, edited]
       );
     } catch (err) {
-      showErrorToast('기록 수정에 실패했습니다.', err);
-      return;
+      failWithToast('기록 수정에 실패했습니다. 네트워크를 확인해 주세요.', err);
     }
 
     // 알림장·출결 자동 항목의 글을 고쳤으면 원본(알림장·출석부)도 고친다
