@@ -56,6 +56,7 @@ const D = {
   idless: '2026-12-02', // V3가 id 없이 쓴 일정 (완료·지우기)
   evalMix: '2026-12-03', // V4가 맞춰 쓴 뒤 V3가 evalList만 고친 조사표
   evalOther: '2026-12-04', // 날짜를 바꿔 만든 조사표가 들어갈 날
+  periodMove: '2026-12-07', // 교시 차례 바꾸기 (월요일)
 };
 const pad2 = (n) => String(n).padStart(2, '0');
 const localDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -145,6 +146,14 @@ async function plantFixtures() {
   await setDoc(evRefOf(D.evalOther), {
     list: [evalItem('fx_eval_c', '다른 날 조사', D.evalOther)],
     evalList: [evalItem('fx_eval_c', '다른 날 조사', D.evalOther)],
+    updatedAt: Date.now(),
+  });
+  // 교시 차례 바꾸기: V4가 모르는 칸(V3 등)도 교시와 함께 옮겨 가야 한다
+  await setDoc(doc(db, 'users', uid, 'schedules', D.periodMove), {
+    periods: {
+      1: { subject: '국어', content: '', memo: '1교시 메모', supplies: '', linkedItems: [], v3Extra: '1교시 것' },
+      2: { subject: '수학', content: '', memo: '2교시 메모', supplies: '', linkedItems: [], v3Extra: '2교시 것' },
+    },
     updatedAt: Date.now(),
   });
   await setDoc(evRef(D.quick), {
@@ -1018,6 +1027,17 @@ if (ONLY !== 'mobile') {
     const { getDocs, collection } = await import('firebase/firestore');
     const trash = await getDocs(collection(db, 'users', uid, 'trash'));
     assert(trash.docs.some((d) => d.data().data?.id === 'fx_fm_1'), '휴지통에 없음');
+  });
+
+  await check('교시 차례를 바꾸면 그 교시의 모든 칸(앱이 모르는 칸까지)이 함께 옮겨 간다', async () => {
+    await goDay(D.periodMove);
+    await page.locator('[data-focus-key^="period"]').first().locator('button', { hasText: '▼' }).click();
+    await wait(2000);
+    const periods = (await getDoc(doc(db, 'users', uid, 'schedules', D.periodMove))).data()?.periods || {};
+    const p1 = periods['1'] || {};
+    const p2 = periods['2'] || {};
+    assert(p1.subject === '수학' && p1.memo === '2교시 메모' && p1.v3Extra === '2교시 것', `1교시: ${JSON.stringify(p1)}`);
+    assert(p2.subject === '국어' && p2.memo === '1교시 메모' && p2.v3Extra === '1교시 것', `2교시: ${JSON.stringify(p2)}`);
   });
 
   await check('V3 옛 글만 있는 날에서 한 건을 다중 선택으로 완료해도 다른 일정이 남는다', async () => {

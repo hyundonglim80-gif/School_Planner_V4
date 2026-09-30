@@ -984,70 +984,83 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     }
   }, [eventList, saveEventItems, deleteEventItem, dateStr, groupId]);
 
+  /**
+   * 한 교시를 저장한다.
+   *
+   * ⚠️ 예전에는 화면이 들고 있는 모든 교시(schedules)를 다시 써서, 그 사이 다른 기기·V3·다른 칸에서 고친
+   *    다른 교시가 옛 모습으로 돌아갔다. 또 링크를 화면이 든 옛 목록으로 덮어, 그 사이 걸린 링크가 빠졌다.
+   *    이제 트랜잭션으로 그 교시만 쓰고, 사용자가 링크를 바꾸지 않았으면 서버의 지금 링크를 그대로 둔다.
+   *    (merge라 그 교시의 모르는 칸·다른 교시는 서버에 있는 그대로)
+   */
   const savePeriod = useCallback(async (period: number, data: PeriodSchedule) => {
     const user = auth.currentUser;
     if (!user || !dateStr) return;
     const scheduleDocRef = groupId
       ? doc(db, 'groups', groupId, 'schedules', dateStr)
       : doc(db, 'users', user.uid, 'schedules', dateStr);
-    
-    const newSchedules = {
-      ...schedules,
-      [period]: {
-        subject: data.subject,
-        content: data.content,
-        memo: data.memo || '',
-        supplies: data.supplies || '',
-        linkedItems: data.linkedItems || [],
-      }
-    };
+    const seenLinks = JSON.stringify(schedules[period]?.linkedItems || []);
+    const linksChanged = JSON.stringify(data.linkedItems || []) !== seenLinks;
 
     try {
-      await setDoc(scheduleDocRef, {
-        periods: newSchedules,
-        updatedAt: Date.now()
-      }, { merge: true });
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(scheduleDocRef);
+        const raw = snap.exists() ? (snap.data().periods || {})[period] : undefined;
+        const freshLinks = raw && typeof raw === 'object' && Array.isArray(raw.linkedItems) ? raw.linkedItems : [];
+        tx.set(scheduleDocRef, {
+          periods: {
+            [period]: {
+              subject: data.subject,
+              content: data.content,
+              memo: data.memo || '',
+              supplies: data.supplies || '',
+              linkedItems: linksChanged ? (data.linkedItems || []) : freshLinks,
+            },
+          },
+          updatedAt: Date.now(),
+        }, { merge: true });
+      });
     } catch (err) {
       failWithToast('수업 저장에 실패했습니다. 네트워크를 확인해 주세요.', err);
     }
   }, [dateStr, groupId, schedules]);
 
-  const reorderPeriods = useCallback(async (sourcePeriod: number, targetPeriod: number, maxPeriods: number = 6) => {
+  /**
+   * 교시 차례를 바꾼다 (source 교시를 target 자리로, 사이 교시는 한 칸씩 민다).
+   *
+   * ⚠️ 예전에는 화면이 든 교시(과목·내용·메모·준비물·링크만 추린 것)로 다시 써서, 그 교시의 다른 칸
+   *    (V3가 쓰는 것, 첨부 등)은 옮겨 가지 않고 원래 자리에 남아 다른 교시와 섞였다. 그 사이 다른 곳에서
+   *    고친 교시도 옛 모습으로 돌아갔다. 트랜잭션으로 서버의 교시를 통째로 옮긴다.
+   */
+  const reorderPeriods = useCallback(async (sourcePeriod: number, targetPeriod: number) => {
     const user = auth.currentUser;
     if (!user || !dateStr || sourcePeriod === targetPeriod) return;
 
     const scheduleDocRef = groupId
       ? doc(db, 'groups', groupId, 'schedules', dateStr)
       : doc(db, 'users', user.uid, 'schedules', dateStr);
+    const emptyPeriod = () => ({ subject: '', content: '', memo: '', supplies: '', linkedItems: [] });
+    const asObject = (v: any) =>
+      v == null ? emptyPeriod() : typeof v === 'string' ? { ...emptyPeriod(), subject: v } : v;
 
-    const newSchedules = { ...schedules };
-    const sourceData = newSchedules[sourcePeriod] ? { ...newSchedules[sourcePeriod] } : null;
-    const emptyPeriod = { subject: '', content: '', memo: '', supplies: '', linkedItems: [] };
-
-    if (sourcePeriod < targetPeriod) {
-      for (let i = sourcePeriod; i < targetPeriod; i++) {
-        if (newSchedules[i + 1]) newSchedules[i] = { ...newSchedules[i + 1] };
-        else newSchedules[i] = { ...emptyPeriod };
-      }
-    } else {
-      for (let i = sourcePeriod; i > targetPeriod; i--) {
-        if (newSchedules[i - 1]) newSchedules[i] = { ...newSchedules[i - 1] };
-        else newSchedules[i] = { ...emptyPeriod };
-      }
-    }
-    
-    if (sourceData) newSchedules[targetPeriod] = sourceData;
-    else newSchedules[targetPeriod] = { ...emptyPeriod };
-    
     try {
-      await setDoc(scheduleDocRef, {
-        periods: newSchedules,
-        updatedAt: Date.now()
-      }, { merge: true });
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(scheduleDocRef);
+        const raw: Record<string, any> = snap.exists() ? { ...(snap.data().periods || {}) } : {};
+        const next: Record<string, any> = { ...raw };
+        const moved = raw[sourcePeriod];
+        if (sourcePeriod < targetPeriod) {
+          for (let i = sourcePeriod; i < targetPeriod; i++) next[i] = asObject(raw[i + 1]);
+        } else {
+          for (let i = sourcePeriod; i > targetPeriod; i--) next[i] = asObject(raw[i - 1]);
+        }
+        next[targetPeriod] = asObject(moved);
+        // periods 칸 전체를 바꾼다(교시 안의 칸까지 섞이지 않게). 손대지 않은 교시는 서버 값 그대로다.
+        tx.set(scheduleDocRef, { periods: next, updatedAt: Date.now() }, { mergeFields: ['periods', 'updatedAt'] });
+      });
     } catch (err) {
       showErrorToast('교시 순서 변경에 실패했습니다.', err);
     }
-  }, [dateStr, groupId, schedules]);
+  }, [dateStr, groupId]);
 
   /**
    * 그날 기록 문서를 서버에서 읽어, 바꿀 항목만 바꿔 쓴다.

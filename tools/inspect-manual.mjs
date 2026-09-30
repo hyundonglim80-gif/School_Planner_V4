@@ -378,8 +378,10 @@ if (ONLY !== 'mobile') {
 
   await check('[수업 칸] ▼ 로 1교시와 2교시를 맞바꿈, ▲ 로 되돌림', async () => {
     const subj = async () =>
-      page.$$eval('[data-focus-key^="period"]', (els) => els.slice(0, 2).map((e) => e.querySelector('span.font-bold.text-sm')?.textContent));
+      // 과목 글자 (2026-09-30 글꼴이 바뀐 뒤 옛 선택자는 아무것도 못 찾아 빈 값끼리 견주며 늘 통과했다)
+      page.$$eval('[data-focus-key^="period"]', (els) => els.slice(0, 2).map((e) => e.querySelector('[data-subject]')?.textContent?.trim() || ''));
     const a = await subj();
+    assert(a[0] && a[1], `과목 글자를 못 읽음: ${a}`);
     await page.locator('[data-focus-key^="period"]').first().locator('button', { hasText: '▼' }).click();
     await wait(1500);
     const b = await subj();
