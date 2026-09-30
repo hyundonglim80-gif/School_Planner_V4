@@ -9,7 +9,17 @@ import { isImageAttachment as isImageAtt } from '../../lib/attachments';
 import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
 import { openEntryPanel } from '../../components/EntryPanelHost';
 import { useMainWidth } from '../../hooks/useMainWidth';
-import { expandLabel, labelPath, orderByTree, useLabelTree } from '../../lib/labelTree';
+import {
+  EMPTY_FILTER,
+  filterLabelSet,
+  labelPath,
+  orderByTree,
+  pruneFilter,
+  toggleFilterChildren,
+  toggleFilterLabel,
+  useLabelTree,
+  type LabelFilter,
+} from '../../lib/labelTree';
 import { showToast } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
 import { useDayEvalCounts } from '../../hooks/useDayEvalCounts';
@@ -52,7 +62,10 @@ export default function DayJournal({
     setCollapsedIds(prev => ({ ...prev, [id]: !current }));
   };
 
-  const [currentFilter, setCurrentFilter] = useState('전체');
+  /** 라벨 거르개 (여러 개). 아무것도 안 골랐으면 전체 */
+  const [rawLabelFilter, setLabelFilter] = useState<LabelFilter>(EMPTY_FILTER);
+  // 고른 라벨이 그새 지워지거나 이름이 바뀌었으면 뺀다 (보이지 않는 칩으로 걸러 두지 않게)
+  const labelFilter = pruneFilter(rawLabelFilter, journalLabels.map((l) => l.name));
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   // 검색에서 이 칸의 항목으로 '이동'해 오면 접혀 있던 칸을 펼친다.
@@ -141,7 +154,7 @@ export default function DayJournal({
       kind: 'journal',
       groupId: selectedGroupId,
       dateStr,
-      defaultLabel: currentFilter !== '전체' ? currentFilter : journalLabels[0]?.name,
+      defaultLabel: labelFilter.labels[0] ?? journalLabels[0]?.name,
     });
 
   const openEdit = (entry: JournalEntry) =>
@@ -152,15 +165,15 @@ export default function DayJournal({
   // 휴대폰에서도 2열 (일정 칸과 같게). 넓으면 3·4열.
   const columnsCount = mainWidth >= 980 ? 4 : mainWidth >= 720 ? 3 : 2;
 
-  // 라벨 상위/하위 (lib/labelTree). 상위를 고르면 하위 라벨이 붙은 기록까지 보인다.
+  // 라벨 상위/하위 (lib/labelTree). 라벨은 여러 개 고르고, 상위 앞 '하위 포함' 체크를 켜야 하위까지 거른다.
   const journalParents = useLabelTree().journal;
   const [openParents, setOpenParents] = useState<Record<string, boolean>>({});
 
   // 필터 적용된 리스트
-  const allowedLabels = currentFilter === '전체' ? null : expandLabel(currentFilter, journalParents);
+  const allowedLabels = filterLabelSet(labelFilter, journalParents);
   const filteredJournals = allowedLabels === null
     ? journals
-    : journals.filter((entry) => allowedLabels.includes(getLabelName(entry)));
+    : journals.filter((entry) => allowedLabels.has(getLabelName(entry)));
 
   const distributeJournals = (items: JournalEntry[]) => {
     const columns = Array.from({ length: columnsCount }, () => [] as { entry: JournalEntry; idx: number }[]);
@@ -234,28 +247,48 @@ export default function DayJournal({
             {!isCollapsed && journals.length > 0 && (
               <div className="order-3 sm:order-2 w-full sm:w-auto sm:flex-1 flex flex-wrap items-center gap-1.5">
                 <button
-                  onClick={() => setCurrentFilter('전체')}
+                  onClick={() => setLabelFilter(EMPTY_FILTER)}
+                  aria-pressed={labelFilter.labels.length === 0}
                   className={`px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm ${
-                    currentFilter === '전체'
+                    labelFilter.labels.length === 0
                       ? 'bg-slate-800 text-white'
                       : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                   }`}
                 >
                   전체
                 </button>
-                {/* 상위 칩만 보이고, 하위가 있는 상위는 ▾로 하위 칩을 펼친다 (고른 것이 하위면 펼쳐 둔다) */}
+                {/* 라벨은 눌러서 붙이고 떼며 여러 개 고른다. 상위 칩만 보이고, 하위가 있는 상위는
+                    ▾로 하위 칩을 펼친다 (고른 하위는 접어도 보인다). 상위 앞 체크는 '하위 포함'. */}
                 {orderByTree(journalLabels.map((l) => l.name), journalParents).map((row) => {
-                  const open = !!openParents[row.parent || row.name] || journalParents[currentFilter] === (row.parent || row.name);
-                  if (row.depth === 1 && !open) return null;
+                  const parentName = row.parent || row.name;
+                  const open = !!openParents[parentName];
+                  const selected = labelFilter.labels.includes(row.name);
+                  const withChildren = labelFilter.withChildren.includes(parentName);
+                  if (row.depth === 1 && !open && !selected) return null;
+                  /** 고르지 않았지만 상위의 '하위 포함'으로 함께 걸러지는 하위 */
+                  const included = row.depth === 1 && !selected && withChildren;
                   return (
                     <span key={row.name} className="inline-flex items-center">
                       {row.depth === 1 && <span className="text-slate-300 text-xs mr-0.5" aria-hidden>└</span>}
+                      {row.hasChildren && (
+                        <input
+                          type="checkbox"
+                          checked={withChildren}
+                          onChange={() => setLabelFilter((prev) => toggleFilterChildren(prev, row.name))}
+                          aria-label={`${row.name} 하위 라벨 포함`}
+                          title={`${row.name}의 하위 라벨 기록까지 보기`}
+                          className="w-3.5 h-3.5 mr-1 accent-blue-600 cursor-pointer"
+                        />
+                      )}
                       <button
-                        onClick={() => setCurrentFilter(row.name)}
-                        title={row.hasChildren ? `${row.name} (하위 라벨 포함)` : labelPath(row.name, journalParents)}
+                        onClick={() => setLabelFilter((prev) => toggleFilterLabel(prev, row.name))}
+                        aria-pressed={selected}
+                        title={labelPath(row.name, journalParents)}
                         className={`px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm ${
-                          currentFilter === row.name
+                          selected
                             ? 'bg-blue-600 text-white'
+                            : included
+                            ? 'bg-blue-50 text-blue-700 border border-dashed border-blue-400'
                             : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                         }`}
                       >
@@ -462,7 +495,9 @@ export default function DayJournal({
         ) : (
           <div className="w-full text-center py-10 bg-white/60 rounded-2xl border border-dashed border-slate-300 p-6 shadow-xs">
             <p className="text-slate-500 font-bold text-sm">
-              {currentFilter === '전체' ? '등록된 기록이 없습니다.' : `'${currentFilter}' 라벨에 해당하는 기록이 없습니다.`}
+              {labelFilter.labels.length === 0
+                ? '등록된 기록이 없습니다.'
+                : `'${labelFilter.labels.join(', ')}' 라벨에 해당하는 기록이 없습니다.`}
             </p>
           </div>
         )

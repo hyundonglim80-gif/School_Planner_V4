@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { expandLabel, labelPath, orderByTree, parentCandidates, sanitizeParents } from './labelTree';
+import {
+  EMPTY_FILTER,
+  expandLabel,
+  filterLabelSet,
+  labelPath,
+  orderByTree,
+  parentCandidates,
+  pruneFilter,
+  sanitizeParents,
+  toggleFilterChildren,
+  toggleFilterLabel,
+} from './labelTree';
 
 // 메모·기록 라벨 상위/하위 (2단계). 예: 학교 › A초·B초·C초
 
@@ -19,9 +30,36 @@ describe('라벨 트리', () => {
     expect(orderByTree(names, parents).find((r) => r.name === '학교')?.hasChildren).toBe(true);
   });
 
-  it('상위를 고르면 하위까지 (거르개)', () => {
+  it('상위와 그 하위 (expandLabel)', () => {
     expect(expandLabel('학교', parents).sort()).toEqual(['A초', 'B초', 'C초', '학교'].sort());
     expect(expandLabel('A초', parents)).toEqual(['A초']);
+  });
+
+  it('거르개: 아무것도 안 고르면 전체, 상위만 고르면 하위는 빠진다', () => {
+    expect(filterLabelSet(EMPTY_FILTER, parents)).toBeNull();
+    expect([...filterLabelSet({ labels: ['학교'], withChildren: [] }, parents)!]).toEqual(['학교']);
+  });
+
+  it("거르개: '하위 포함'을 켠 상위만 하위까지, 여러 개는 합친다", () => {
+    const set = filterLabelSet({ labels: ['학교', '업무'], withChildren: ['학교'] }, parents)!;
+    expect([...set].sort()).toEqual(['A초', 'B초', 'C초', '업무', '학교'].sort());
+  });
+
+  it('거르개 칩 누르기: 붙이고 떼기, 뗀 상위는 하위 포함도 꺼진다', () => {
+    const one = toggleFilterLabel(EMPTY_FILTER, '학교');
+    expect(one).toEqual({ labels: ['학교'], withChildren: [] });
+    const withKids = toggleFilterChildren(one, '학교');
+    expect(withKids).toEqual({ labels: ['학교'], withChildren: ['학교'] });
+    expect(toggleFilterLabel(withKids, '학교')).toEqual(EMPTY_FILTER);
+    expect(toggleFilterChildren(withKids, '학교')).toEqual({ labels: ['학교'], withChildren: [] });
+  });
+
+  it("'하위 포함'을 켜면 상위도 함께 골라진다", () => {
+    expect(toggleFilterChildren(EMPTY_FILTER, '학교')).toEqual({ labels: ['학교'], withChildren: ['학교'] });
+  });
+
+  it('지워진 라벨은 거르개에서 뺀다', () => {
+    expect(pruneFilter({ labels: ['학교', '없음'], withChildren: ['없음'] }, names)).toEqual({ labels: ['학교'], withChildren: [] });
   });
 
   it("하위 칩에 마우스를 올리면 '상위 › 하위'", () => {

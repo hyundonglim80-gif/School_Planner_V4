@@ -424,7 +424,8 @@ describe('기록 거르개 - 라벨 상위/하위', () => {
     journalParents = {};
   });
 
-  it('하위 칩은 ▾로 펼치고, 상위를 고르면 하위 라벨의 기록까지 보인다', async () => {
+  // 2026-09-30: 라벨은 여러 개 고르고, 상위만 고르면 하위는 빠진다. 상위 앞 '하위 포함' 체크로 하위까지.
+  it('하위 칩은 ▾로 펼치고, 상위만 고르면 하위 기록은 빠지며, 하위 포함 체크로 들어간다', async () => {
     const user = userEvent.setup();
     renderJournal([
       { id: 'jr_a', content: '학급 기록', createdAt: 1, label: '학급활동', labelIds: ['j_1'] },
@@ -439,7 +440,22 @@ describe('기록 거르개 - 라벨 상위/하위', () => {
 
     await user.click(screen.getByRole('button', { name: '학급활동' }));
     expect(screen.getByText('학급 기록')).toBeInTheDocument();
+    expect(screen.queryByText('상담 기록')).toBeNull();
+    expect(screen.queryByText('업무 기록')).toBeNull();
+
+    await user.click(screen.getByRole('checkbox', { name: '학급활동 하위 라벨 포함' }));
+    expect(screen.getByText('학급 기록')).toBeInTheDocument();
     expect(screen.getByText('상담 기록')).toBeInTheDocument();
     expect(screen.queryByText('업무 기록')).toBeNull();
+
+    // 여러 개: 업무전달도 더한다
+    await user.click(screen.getByRole('button', { name: '업무전달' }));
+    expect(screen.getByText('업무 기록')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '학급활동' })).toHaveAttribute('aria-pressed', 'true');
+
+    // 전체를 누르면 모두 뗀다
+    await user.click(screen.getByRole('button', { name: '전체' }));
+    expect(screen.getByRole('checkbox', { name: '학급활동 하위 라벨 포함' })).not.toBeChecked();
+    expect(screen.getByRole('button', { name: '학급활동' })).toHaveAttribute('aria-pressed', 'false');
   });
 });

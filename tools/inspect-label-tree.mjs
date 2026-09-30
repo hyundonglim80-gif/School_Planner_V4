@@ -45,7 +45,11 @@ await page.waitForTimeout(1800);
 // 하루 화면 기록 거르개
 const chipCount = async () => page.locator('[data-focus-key^="journal"]').count();
 // 기록을 두 개 만든다 (학급활동, 학생상담)
-for (const [lbl, txt] of [['학급활동', '트리 상위 기록'], ['학생상담', '트리 하위 기록']]) {
+// 다시 돌려도 겹치지 않게 글마다 이번 실행의 표시를 붙인다
+const RUN = Date.now().toString(36);
+const UP = `트리 상위 기록 ${RUN}`;
+const DOWN = `트리 하위 기록 ${RUN}`;
+for (const [lbl, txt] of [['학급활동', UP], ['학생상담', DOWN]]) {
   await page.getByRole('button', { name: '기록 추가' }).click();
   await page.waitForTimeout(600);
   const pn = page.locator('#side-column aside[aria-label="기록 쓰기"]').first();
@@ -65,14 +69,22 @@ const shown = (await page.locator('main').getByRole('button', { name: '학생상
 console.log(`하루 기록 거르개: 하위는 접혀 있다가 ▾로 펼쳐진다: ${ok(hidden && shown)}`);
 await page.getByRole('button', { name: '학급활동', exact: true }).click();
 await page.waitForTimeout(500);
-const both = (await page.locator('[data-focus-key^="journal"]', { hasText: '트리 상위 기록' }).count()) === 1
-  && (await page.locator('[data-focus-key^="journal"]', { hasText: '트리 하위 기록' }).count()) === 1;
-console.log(`상위(학급활동)를 고르면 하위(학생상담) 기록까지 보인다: ${ok(both)}`);
+const jCount = (txt) => page.locator('[data-focus-key^="journal"]', { hasText: txt }).count();
+const parentOnly = (await jCount(UP)) === 1 && (await jCount(DOWN)) === 0;
+console.log(`상위(학급활동)만 고르면 하위(학생상담) 기록은 빠진다: ${ok(parentOnly)}`);
+await page.getByRole('checkbox', { name: '학급활동 하위 라벨 포함' }).click();
+await page.waitForTimeout(500);
+const both = (await jCount(UP)) === 1 && (await jCount(DOWN)) === 1;
+console.log(`  '하위 포함' 체크를 켜면 하위 기록까지: ${ok(both)}`);
+await page.getByRole('checkbox', { name: '학급활동 하위 라벨 포함' }).click();
 await page.getByRole('button', { name: '학생상담', exact: true }).click();
 await page.waitForTimeout(500);
-const onlyChild = (await page.locator('[data-focus-key^="journal"]', { hasText: '트리 상위 기록' }).count()) === 0
-  && (await page.locator('[data-focus-key^="journal"]', { hasText: '트리 하위 기록' }).count()) === 1;
-console.log(`하위를 고르면 하위만: ${ok(onlyChild)}`);
+const multi = (await jCount(UP)) === 1 && (await jCount(DOWN)) === 1;
+console.log(`  여러 개 고르기 (학급활동 + 학생상담): ${ok(multi)}`);
+await page.getByRole('button', { name: '학급활동', exact: true }).click();
+await page.waitForTimeout(500);
+const onlyChild = (await jCount(UP)) === 0 && (await jCount(DOWN)) === 1;
+console.log(`  학급활동을 다시 눌러 빼면 하위만: ${ok(onlyChild)}`);
 await page.screenshot({ path: 'tools/report/label-tree-day.png', clip: { x: 0, y: 740, width: 1400, height: 210 } });
 
 // 메모 화면 왼쪽 거르개
@@ -83,8 +95,18 @@ const nav = page.getByRole('navigation', { name: '메모 라벨 거르개' });
 const childBtn = nav.getByRole('button', { name: new RegExp(mChild) });
 console.log(`메모 거르개: 하위는 들여 쓰이고 마우스를 올리면 '${mParent} › ${mChild}': ${ok((await childBtn.getAttribute('title')) === `${mParent} › ${mChild}`)}`);
 const cnt = (btn) => btn.evaluate((e) => Number(e.textContent.match(/(\d+)\s*$/)?.[1] || 0));
-const parentCount = await cnt(nav.getByRole('button', { name: new RegExp(`^(✓)?${mParent}`) }).first());
-const childCount = await cnt(childBtn.first());
-console.log(`  상위 개수에 하위 메모도 들어간다 (${mParent} ${parentCount} ≥ ${mChild} ${childCount}): ${ok(parentCount >= childCount && childCount > 0)}`);
+const parentBtn = nav.getByRole('button', { name: new RegExp(`^(✓\\s*)?${mParent}\\s*\\d*$`) }).first();
+const cards = () => page.locator('section [data-focus-key^="memo"]').count();
+await parentBtn.click();
+await page.waitForTimeout(500);
+const parentOnlyCards = await cards();
+await nav.getByRole('checkbox', { name: `${mParent} 하위 라벨 포함` }).click();
+await page.waitForTimeout(500);
+const withKidsCards = await cards();
+console.log(`  상위만 ${parentOnlyCards}장 → 하위 포함 ${withKidsCards}장 (늘어난다): ${ok(withKidsCards > parentOnlyCards)}`);
+await nav.getByRole('button', { name: `${mParent} 하위 라벨 접기` }).click();
+await page.waitForTimeout(300);
+console.log(`  트리를 접으면 하위 칩이 숨는다: ${ok((await childBtn.count()) === 0)}`);
+await nav.getByRole('button', { name: `${mParent} 하위 라벨 펼치기` }).click();
 await page.screenshot({ path: 'tools/report/label-tree-memo.png', clip: { x: 0, y: 90, width: 320, height: 500 } });
 await b.close();

@@ -338,6 +338,8 @@ describe('메모 즐겨찾기', () => {
 });
 
 describe('메모 라벨 상위/하위', () => {
+  // '업무' 칩만 (옆의 '업무 하위 라벨 접기' 단추는 빼고). 이름에는 ✓와 개수가 붙는다.
+  const WORK_CHIP = /^(✓\s*)?업무\s*\d*$/;
   // '개인'을 '업무' 밑에 둔다
   const docs = [
     { id: 'a', data: () => ({ text: '업무 메모', labels: ['업무'], createdAt: 3 }) },
@@ -355,22 +357,78 @@ describe('메모 라벨 상위/하위', () => {
     vi.mocked(onSnapshotMock).mockImplementation((() => () => {}) as any);
   });
 
-  it('상위를 고르면 하위 라벨이 붙은 메모까지 보이고, 개수도 함께 센다', async () => {
+  // 2026-09-30: 상위만 골라도 하위는 들어가지 않는다. 상위 앞 '하위 포함' 체크를 켜야 하위까지.
+  // 라벨은 여러 개 고를 수 있고, 트리는 ▴/▾로 접고 편다.
+  it('상위만 고르면 하위 메모는 빠지고, 하위 포함 체크를 켜면 들어간다', async () => {
     const user = userEvent.setup();
     render(<><MemoScreen /><EntryPanelHost /></>);
     const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
     await screen.findByText('업무 메모');
 
-    expect(within(nav).getByRole('button', { name: /업무/ })).toHaveTextContent(/2$/);
-    // 하위는 들여 쓰여 보이고, 마우스를 올리면 '상위 › 하위'
+    // 개수는 그 라벨이 붙은 것만 센다
+    expect(within(nav).getByRole('button', { name: WORK_CHIP })).toHaveTextContent(/1$/);
     expect(within(nav).getByRole('button', { name: /개인/ })).toHaveAttribute('title', '업무 › 개인');
 
-    await user.click(within(nav).getByRole('button', { name: /업무/ }));
+    await user.click(within(nav).getByRole('button', { name: WORK_CHIP }));
+    expect(screen.getByText('업무 메모')).toBeInTheDocument();
+    expect(screen.queryByText('개인 메모')).toBeNull();
+
+    const withChildren = within(nav).getByRole('checkbox', { name: '업무 하위 라벨 포함' });
+    await user.click(withChildren);
+    expect(withChildren).toBeChecked();
     expect(screen.getByText('업무 메모')).toBeInTheDocument();
     expect(screen.getByText('개인 메모')).toBeInTheDocument();
 
-    await user.click(within(nav).getByRole('button', { name: /개인/ }));
-    expect(screen.queryByText('업무 메모')).toBeNull();
+    // 상위를 떼면 '하위 포함'도 꺼지고, 아무것도 안 골랐으니 전체
+    await user.click(within(nav).getByRole('button', { name: WORK_CHIP }));
+    expect(withChildren).not.toBeChecked();
+    expect(within(nav).getByRole('button', { name: /전체 메모/ })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('하위 포함 체크만 켜도 상위가 함께 골라진다', async () => {
+    const user = userEvent.setup();
+    render(<><MemoScreen /><EntryPanelHost /></>);
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    await screen.findByText('업무 메모');
+
+    await user.click(within(nav).getByRole('checkbox', { name: '업무 하위 라벨 포함' }));
+    expect(within(nav).getByRole('button', { name: WORK_CHIP })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('개인 메모')).toBeInTheDocument();
+  });
+
+  it('라벨을 여러 개 고를 수 있다 (하나라도 붙은 메모가 보인다)', async () => {
+    const user = userEvent.setup();
+    render(<><MemoScreen /><EntryPanelHost /></>);
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    await screen.findByText('업무 메모');
+
+    await user.click(within(nav).getByRole('button', { name: WORK_CHIP }));
+    await user.click(within(nav).getByRole('button', { name: /개인/ }));
+    expect(within(nav).getByRole('button', { name: WORK_CHIP })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(nav).getByRole('button', { name: /개인/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('업무 메모')).toBeInTheDocument();
+    expect(screen.getByText('개인 메모')).toBeInTheDocument();
+    expect(useAppStore.getState().memoFilter).toEqual({ labels: ['업무', '개인'], withChildren: [] });
+  });
+
+  it('트리를 접으면 하위 칩이 숨고, 펴면 다시 보인다', async () => {
+    const user = userEvent.setup();
+    render(<><MemoScreen /><EntryPanelHost /></>);
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    await screen.findByText('업무 메모');
+
+    await user.click(within(nav).getByRole('button', { name: '업무 하위 라벨 접기' }));
+    expect(within(nav).queryByRole('button', { name: /개인/ })).toBeNull();
+    await user.click(within(nav).getByRole('button', { name: '업무 하위 라벨 펼치기' }));
+    expect(within(nav).getByRole('button', { name: /개인/ })).toBeInTheDocument();
+  });
+
+  it('예전처럼 라벨 하나를 글자로 기억한 것도 읽는다', async () => {
+    useAppStore.setState({ memoFilter: '개인' });
+    render(<><MemoScreen /><EntryPanelHost /></>);
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    await screen.findByText('개인 메모');
+    expect(within(nav).getByRole('button', { name: /개인/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByText('업무 메모')).toBeNull();
   });
 });

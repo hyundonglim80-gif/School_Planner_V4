@@ -72,9 +72,62 @@ export function orderByTree(names: string[], parents: ParentMap): TreeRow[] {
   return rows;
 }
 
-/** 거르개: 상위를 고르면 하위까지 (자기 자신 포함) */
+/** 상위 하나와 그 하위 (자기 자신 포함) */
 export function expandLabel(name: string, parents: ParentMap): string[] {
   return [name, ...Object.keys(parents).filter((c) => parents[c] === name)];
+}
+
+/**
+ * 라벨 거르개 (여러 개 고르기). 2026-09-30 사용자가 정함:
+ *   - 라벨은 여러 개 고를 수 있고, 고른 라벨 중 하나라도 붙은 항목이 보인다.
+ *   - 상위를 골라도 하위는 들어가지 않는다. 상위 앞 '하위 포함' 체크를 켠 상위만 하위까지 넣는다.
+ */
+export interface LabelFilter {
+  labels: string[];
+  /** '하위 포함'을 켠 상위 (labels에 든 것만 뜻이 있다) */
+  withChildren: string[];
+}
+
+export const EMPTY_FILTER: LabelFilter = { labels: [], withChildren: [] };
+
+/** 거르개가 보여 줄 라벨 이름. 아무것도 안 골랐으면 null (= 전체) */
+export function filterLabelSet(filter: LabelFilter, parents: ParentMap): Set<string> | null {
+  if (filter.labels.length === 0) return null;
+  const out = new Set<string>();
+  for (const name of filter.labels) {
+    if (filter.withChildren.includes(name)) expandLabel(name, parents).forEach((n) => out.add(n));
+    else out.add(name);
+  }
+  return out;
+}
+
+/** 라벨 칩을 눌렀을 때. 고른 것을 다시 누르면 빠지고, 빠진 상위의 '하위 포함'도 끈다 */
+export function toggleFilterLabel(filter: LabelFilter, name: string): LabelFilter {
+  if (filter.labels.includes(name)) {
+    return {
+      labels: filter.labels.filter((l) => l !== name),
+      withChildren: filter.withChildren.filter((l) => l !== name),
+    };
+  }
+  return { labels: [...filter.labels, name], withChildren: filter.withChildren };
+}
+
+/** '하위 포함' 체크. 켜면 그 상위도 함께 고른다. 끄면 상위만 남는다 */
+export function toggleFilterChildren(filter: LabelFilter, parent: string): LabelFilter {
+  if (filter.withChildren.includes(parent)) {
+    return { labels: filter.labels, withChildren: filter.withChildren.filter((l) => l !== parent) };
+  }
+  return {
+    labels: filter.labels.includes(parent) ? filter.labels : [...filter.labels, parent],
+    withChildren: [...filter.withChildren, parent],
+  };
+}
+
+/** 지금 있는 라벨만 남긴다 (지워진 라벨을 기억한 채로 두지 않는다) */
+export function pruneFilter(filter: LabelFilter, names: string[]): LabelFilter {
+  const known = new Set(names);
+  const labels = filter.labels.filter((l) => known.has(l));
+  return { labels, withChildren: filter.withChildren.filter((l) => labels.includes(l)) };
 }
 
 /** 칩에 마우스를 올렸을 때 보일 이름. 하위면 '상위 › 하위' */

@@ -6,7 +6,17 @@ import { useLabels } from '../../hooks/useLabels';
 import MemoCard from './MemoCard';
 import MemoMasonry from './MemoMasonry';
 import { openEntryPanel } from '../../components/EntryPanelHost';
-import { expandLabel, labelPath, orderByTree, useLabelTree } from '../../lib/labelTree';
+import {
+  EMPTY_FILTER,
+  filterLabelSet,
+  labelPath,
+  orderByTree,
+  pruneFilter,
+  toggleFilterChildren,
+  toggleFilterLabel,
+  useLabelTree,
+  type LabelFilter,
+} from '../../lib/labelTree';
 import { showToast, showErrorToast } from '../../utils/toast';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
@@ -71,34 +81,39 @@ export default function MemoScreen() {
     }
   }, [focusSection]);
 
-  const currentFilter = (() => {
+  // 거르개는 셋 중 하나: '전체', '⭐ 즐겨찾기', 라벨 여러 개(lib/labelTree의 LabelFilter).
+  // 라벨은 여러 개 고를 수 있고, 상위는 앞의 '하위 포함' 체크를 켰을 때만 하위까지 거른다.
+  const currentFilter: string | LabelFilter = (() => {
     if (showAllForFocus) return '전체';
     const f = rememberedFilter || FAVORITE_FILTER;
     if (f === '전체' || f === FAVORITE_FILTER) return f;
+    // 예전에는 라벨 하나를 글자로 기억했다
+    const asFilter: LabelFilter = typeof f === 'string' ? { labels: [f], withChildren: [] } : f;
     // 라벨 목록을 아직 못 읽었으면 판단을 미룬다 (기본값만 보고 '없는 라벨'로 단정하지 않는다)
-    if (!labelsLoaded || memoLabels.includes(f)) return f;
-    return FAVORITE_FILTER;
+    if (!labelsLoaded) return asFilter;
+    const pruned = pruneFilter(asFilter, memoLabels);
+    return pruned.labels.length > 0 ? pruned : FAVORITE_FILTER;
   })();
 
-  const isLabelFilter = currentFilter !== '전체' && currentFilter !== FAVORITE_FILTER;
-  const chooseFilter = (filter: string) => {
+  const labelFilter: LabelFilter = typeof currentFilter === 'string' ? EMPTY_FILTER : currentFilter;
+  const chooseFilter = (filter: string | LabelFilter) => {
     setShowAllForFocus(false);
-    setMemoFilter(filter);
+    // 라벨을 모두 떼면 전체로
+    setMemoFilter(typeof filter !== 'string' && filter.labels.length === 0 ? '전체' : filter);
   };
 
-  // 라벨 상위/하위 (lib/labelTree). 상위를 고르면 하위 라벨이 붙은 메모까지 보인다.
+  // 라벨 상위/하위 (lib/labelTree)
   const memoParents = useLabelTree().memo;
-  const hasLabelIn = (memo: { labels?: string[] }, filter: string) => {
-    const allowed = expandLabel(filter, memoParents);
-    return (memo.labels || []).some((l) => allowed.includes(l));
-  };
+  /** 접어 둔 상위 (하위 칩을 숨긴다). 처음에는 모두 펼쳐 둔다 */
+  const [foldedParents, setFoldedParents] = useState<Record<string, boolean>>({});
+  const allowedLabels = filterLabelSet(labelFilter, memoParents);
 
   const matching =
     currentFilter === '전체'
       ? memos
       : currentFilter === FAVORITE_FILTER
       ? memos.filter((memo) => memo.favorite)
-      : memos.filter((memo) => hasLabelIn(memo, currentFilter));
+      : memos.filter((memo) => (memo.labels || []).some((l) => allowedLabels?.has(l)));
 
   // 즐겨찾기를 맨 위로 올린다. 정렬은 안정적이므로 그 안에서는
   // 원래 차례(나중에 만든 것이 앞)가 그대로 남는다.
@@ -116,7 +131,7 @@ export default function MemoScreen() {
       ? allActive.length
       : filter === FAVORITE_FILTER
       ? allActive.filter(m => m.favorite).length
-      : allActive.filter((m) => hasLabelIn(m, filter)).length;
+      : allActive.filter((m) => m.labels?.includes(filter)).length;
 
   // 새로 쓰기·고치기는 오른쪽 칸(Layout의 EntryPanelHost)에서 한다. 칸은 이 화면보다
   // 오래 살아서, 다른 화면으로 옮겨도 쓰던 것이 남는다.
@@ -124,7 +139,7 @@ export default function MemoScreen() {
     openEntryPanel({
       kind: 'memo',
       groupId: selectedGroupId,
-      defaultLabel: isLabelFilter ? currentFilter : memoLabels[0],
+      defaultLabel: labelFilter.labels[0] ?? memoLabels[0],
     });
 
   const handleOpenEdit = (memo: Memo) =>
@@ -194,19 +209,25 @@ export default function MemoScreen() {
     text: React.ReactNode,
     selectedStyle: React.CSSProperties | undefined,
     selectedClass: string,
-    title?: string
+    title?: string,
+    label?: { included: boolean }
   ) => {
-    const isSelected = currentFilter === filter;
+    // 라벨 칩은 여러 개 고르기(눌러서 붙이고 떼기), 즐겨찾기·전체는 하나만
+    const isSelected = label ? labelFilter.labels.includes(filter) : currentFilter === filter;
+    /** 고르지 않았지만 상위의 '하위 포함'으로 함께 걸러지는 하위 */
+    const isIncluded = !isSelected && !!label?.included;
     return (
       <button
         key={filter}
         type="button"
-        onClick={() => chooseFilter(filter)}
+        onClick={() => chooseFilter(label ? toggleFilterLabel(labelFilter, filter) : filter)}
         aria-pressed={isSelected}
         title={title ?? (typeof text === 'string' ? text : undefined)}
         className={`relative w-full flex items-center justify-between gap-1 px-1.5 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs text-left border transition-all cursor-pointer ${
           isSelected
             ? `font-black ring-2 ring-slate-900/70 ring-offset-1 shadow-sm ${selectedClass}`
+            : isIncluded
+            ? 'font-bold bg-slate-50 text-slate-700 border-dashed border-slate-500'
             : 'font-bold bg-slate-50 text-slate-600 border-slate-200 opacity-60 hover:opacity-100'
         }`}
         style={isSelected ? selectedStyle : undefined}
@@ -264,23 +285,54 @@ export default function MemoScreen() {
               'bg-amber-100 text-amber-900 border-amber-300',
               '즐겨찾기한 메모만 보기'
             )}
-            {/* 상위 밑에 하위를 들여 쓴다. 상위를 고르면 하위가 붙은 메모까지 보인다. */}
+            {/* 라벨은 여러 개 고른다. 상위 밑에 하위를 들여 쓰고, ▾/▴로 접고 편다.
+                상위 앞 체크('하위 포함')를 켜야 하위 라벨 메모까지 걸러진다. */}
             {orderByTree(memoLabels, memoParents).map((row) => {
               const color = getLabelColor(row.name);
+              const parentName = row.parent || row.name;
+              const withChildren = labelFilter.withChildren.includes(parentName);
               const chip = filterChip(
                 row.name,
                 row.name,
                 { backgroundColor: color.bg, color: color.text, borderColor: color.border },
                 '',
-                row.hasChildren ? `${row.name} (하위 라벨 포함)` : labelPath(row.name, memoParents)
+                labelPath(row.name, memoParents),
+                { included: row.depth === 1 && withChildren }
               );
-              return row.depth === 1 ? (
-                <div key={row.name} className="flex items-center gap-0.5 pl-2 sm:pl-3">
-                  <span className="text-slate-300 text-xs shrink-0" aria-hidden>└</span>
+              if (row.depth === 1) {
+                // 접은 상위의 하위라도, 고른 것은 숨기지 않는다 (무엇으로 거르는지 보여야 한다)
+                if (foldedParents[parentName] && !labelFilter.labels.includes(row.name)) return null;
+                return (
+                  <div key={row.name} className="flex items-center gap-0.5 pl-4 sm:pl-6">
+                    <span className="text-slate-300 text-xs shrink-0" aria-hidden>└</span>
+                    <div className="flex-1 min-w-0">{chip}</div>
+                  </div>
+                );
+              }
+              if (!row.hasChildren) return chip;
+              const folded = !!foldedParents[row.name];
+              return (
+                <div key={row.name} className="flex items-center gap-0.5 sm:gap-1">
+                  <input
+                    type="checkbox"
+                    checked={withChildren}
+                    onChange={() => chooseFilter(toggleFilterChildren(labelFilter, row.name))}
+                    aria-label={`${row.name} 하위 라벨 포함`}
+                    title={`${row.name}의 하위 라벨 메모까지 보기`}
+                    className="w-3.5 h-3.5 shrink-0 accent-slate-700 cursor-pointer"
+                  />
                   <div className="flex-1 min-w-0">{chip}</div>
+                  <button
+                    type="button"
+                    onClick={() => setFoldedParents((prev) => ({ ...prev, [row.name]: !folded }))}
+                    aria-expanded={!folded}
+                    aria-label={`${row.name} 하위 라벨 ${folded ? '펼치기' : '접기'}`}
+                    title={`${row.name} 하위 라벨 ${folded ? '펼치기' : '접기'}`}
+                    className="w-5 h-5 shrink-0 flex items-center justify-center rounded text-2xs text-slate-500 hover:bg-slate-100 cursor-pointer"
+                  >
+                    {folded ? '▾' : '▴'}
+                  </button>
                 </div>
-              ) : (
-                chip
               );
             })}
             {filterChip('전체', '전체 메모', undefined, 'bg-slate-800 text-white border-slate-800')}

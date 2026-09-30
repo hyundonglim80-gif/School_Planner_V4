@@ -66,9 +66,13 @@ const samePanelTarget = (a: EntryPanelTarget, b: EntryPanelTarget) =>
 interface AppState {
   scope: Scope;
   semesterFilter: 'all' | 1 | 2;
-  /** 메모 화면에서 마지막에 고른 라벨 거르개. 없으면 즐겨찾기로 연다. */
-  memoFilter: string | null;
-  setMemoFilter: (filter: string | null) => void;
+  /**
+   * 메모 화면에서 마지막에 고른 거르개. 없으면 즐겨찾기로 연다.
+   * '전체'·'⭐ 즐겨찾기'는 글자로, 라벨(여러 개)은 { labels, withChildren }로 둔다.
+   * 예전에는 라벨 하나를 글자로 두었다 - 읽는 쪽(MemoScreen)이 둘 다 읽는다.
+   */
+  memoFilter: string | { labels: string[]; withChildren: string[] } | null;
+  setMemoFilter: (filter: string | { labels: string[]; withChildren: string[] } | null) => void;
   showWeekend: boolean;
   showClass: boolean;
   showEvents: boolean;
