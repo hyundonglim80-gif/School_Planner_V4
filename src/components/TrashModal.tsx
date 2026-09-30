@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
-import { collection, query, getDocs, orderBy, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, doc, getDoc, setDoc, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { completeRestoreFromTrash, deleteFromTrash, type TrashItem } from '../utils/trashHelper';
 import { collectUploadUrls, deleteUnreferencedUploads } from '../utils/storageCleanup';
-import { formatV3EventText } from '../hooks/useDayData';
-import { readEventList } from '../lib/eventText';
+import { eventDocPayload, readEventList } from '../lib/eventText';
+import { readEvalList, evalDocPayload } from '../lib/evalList';
 import { syncAutoSourceAndTell } from '../lib/autoJournalSync';
 import PopupFrame from './PopupFrame';
 import { deleteClipTrash, listClipTrash, restoreClipFromTrash } from '../lib/clipboardHistory';
@@ -147,21 +147,28 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
         ? doc(db, 'groups', fId, col, originalDateStr)
         : doc(db, 'users', user.uid, col, originalDateStr);
 
-      const snap = await getDoc(targetRef);
-      const currentData = snap.exists() ? snap.data() : {};
-
-      if (type === 'event') {
-        // V3 옛 글(eventText)만 있는 날이면 그것을 목록으로 읽는다. eventList만 보면 빈 목록 위에
-        // 되살린 한 건만 써서, 그날 V3 일정이 모두 사라진다.
-        const list = readEventList(currentData);
-        // 이미 돌아와 있으면(두 번 누름·다른 기기에서 먼저 복원) 또 넣지 않는다
-        if (!list.some((e: any) => String(e?.id) === String(data?.id))) list.push(data);
-        const serializedText = formatV3EventText(list);
-        await setDoc(targetRef, { eventList: list, eventText: serializedText, updatedAt: Date.now() }, { merge: true });
-      } else {
-        const entries = currentData.entries || [];
-        if (!entries.some((e: any) => String(e?.id) === String(data?.id))) entries.push(data);
-        await setDoc(targetRef, { entries, updatedAt: Date.now() }, { merge: true });
+      // ⚠️ 그날 배열은 트랜잭션으로 서버의 지금 목록을 읽고 되살릴 한 건만 더한다.
+      //    예전에는 getDoc(캐시)으로 읽어 통째로 써서, 캐시가 '없다'고 하면 되살린 한 건만 든 배열로
+      //    그날 다른 일정·기록을 덮을 수 있었다(2026-09-22 하루치가 사라진 사고와 같은 모양).
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(targetRef);
+        const currentData = snap.exists() ? snap.data() : {};
+        if (type === 'event') {
+          // V3 옛 글(eventText)만 있는 날이면 그것을 목록으로 읽는다. eventList만 보면 빈 목록 위에
+          // 되살린 한 건만 써서, 그날 V3 일정이 모두 사라진다.
+          const list = readEventList(currentData);
+          // 이미 돌아와 있으면(두 번 누름·다른 기기에서 먼저 복원) 또 넣지 않는다
+          if (!list.some((e: any) => String(e?.id) === String(data?.id))) list.push(data);
+          tx.set(targetRef, eventDocPayload(list), { merge: true });
+        } else {
+          const raw: any[] = Array.isArray(currentData.entries) ? currentData.entries : [];
+          // id 없는 옛 기록은 화면과 같은 이름(jr_차례)으로 맞춘다
+          const entries = raw.map((j: any, idx: number) => (j && j.id ? j : { ...j, id: 'jr_' + idx }));
+          if (!entries.some((e: any) => String(e?.id) === String(data?.id))) entries.push(data);
+          tx.set(targetRef, { entries, updatedAt: Date.now() }, { merge: true });
+        }
+      });
+      if (type === 'journal') {
         // 알림장·출결 자동 항목이면 지울 때 비웠던 알림장·출석부도 되살린다
         await syncAutoSourceAndTell({
           entry: data,
@@ -176,16 +183,23 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
       const targetRef = isGroup
         ? doc(db, 'groups', fId, 'evaluations', originalDateStr)
         : doc(db, 'users', user.uid, 'evaluations', originalDateStr);
-      const snap = await getDoc(targetRef);
-      const list = snap.exists() ? (snap.data().list || []) : [];
-      if (!list.some((e: any) => e.id === data.id)) list.push(data);
-      await setDoc(targetRef, { list, updatedAt: Date.now() }, { merge: true });
+      // V3는 evalList만 읽는다. list만 쓰던 탓에 되살린 조사표가 V3에 안 보였고, V3가 쓴 조사표가 있는 날은
+      // 옛 list 위에 더해 V3 것이 가려졌다. 두 이름을 가려 읽고(readEvalList) 두 이름에 함께 쓴다.
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(targetRef);
+        const list = snap.exists() ? [...readEvalList(snap.data())] : [];
+        if (!list.some((e: any) => e.id === data.id)) list.push(data);
+        tx.set(targetRef, evalDocPayload(list), { merge: true });
+      });
     } else if (type === 'dday') {
       const prefRef = doc(db, 'users', user.uid, 'settings', 'preferences');
-      const snap = await getDoc(prefRef);
-      const dDayList = snap.exists() ? (snap.data().dDayList || []) : [];
-      if (!dDayList.some((d: any) => d.id === data.id)) dDayList.push(data);
-      await setDoc(prefRef, { dDayList }, { merge: true });
+      // V3의 설정 문서다. 트랜잭션으로 서버의 지금 목록에 한 건만 더한다
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(prefRef);
+        const dDayList = snap.exists() && Array.isArray(snap.data().dDayList) ? [...snap.data().dDayList] : [];
+        if (!dDayList.some((d: any) => d.id === data.id)) dDayList.push(data);
+        tx.set(prefRef, { dDayList }, { merge: true });
+      });
     } else if (type === 'roster') {
       const rosterRef = doc(db, 'users', user.uid, 'settings', 'rosters');
       const snap = await getDoc(rosterRef);

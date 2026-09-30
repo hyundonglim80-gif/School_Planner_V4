@@ -15,6 +15,7 @@ import {
   type DocumentData,
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { readEvalList } from '../lib/evalList';
 import { markFirestoreAlive } from '../lib/firestoreRecovery';
 import { type PeriodSchedule, type EventItem, runAutoForwarding } from './useDayData';
 import { eventDocPayload, readEventList } from '../lib/eventText';
@@ -201,7 +202,7 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
         if (!wanted.has(d.id)) return;
         // V3는 evalList, V4는 list라는 이름으로 같은 목록을 담는다
         const data = d.data();
-        const list = (data.list || data.evalList || []) as any[];
+        const list = readEvalList(data);
         const count = list.filter((ev) => ev && ev.id).length;
         if (count > 0) next[d.id] = count;
       });

@@ -53,7 +53,7 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
 | `{sp}/schedules/{date}` | `{ periods: { "1": {subject, memo, content, supplies, linkedItems}, … } }` | 수업(교시). 옛 자료는 값이 문자열일 수 있다 |
 | `{sp}/journals/{date}` | `{ entries: JournalEntry[] }` | 기록. **하루치가 배열 하나** |
 | `{sp}/tasks/{id}` | `{ text, content, labels: string[](이름), completed, favorite, order, attachments, linkedItems, createdAt, keepId? }` | 메모. 문서 하나에 메모 하나 |
-| `{sp}/evaluations/{date}` | `{ list, evalList }` | 조사표. V3는 `evalList`로 읽어서 둘 다 쓴다 |
+| `{sp}/evaluations/{date}` | `{ list, evalList }` | 조사표. V3는 `evalList`만 읽고 쓴다. V4는 둘 다 쓰고(`evalDocPayload`), 읽기는 `lib/evalList.readEvalList`(둘 다 있으면 `evalList`가 최신) |
 | `{sp}/notices/{date}` | `{ date, lines: string[] }` | 알림장 |
 | `users/{uid}/attendance/{학급키}_{date}` | `{ classKey, year, grade, classNum, date, records: {번호: {kind, reason, periods?, note?, name, num}} }` | 출석부. 출석한 학생은 없다(기본이 출석) |
 | `users/{uid}/settings/labels` | `{ eventLabels, journalLabels, memoLabels, labels(=eventLabels, V3용) }` | 라벨. **V3와 한 문서를 같이 쓴다** |
@@ -93,6 +93,9 @@ forwardChainId/originalDate(이월 사슬), linkedItems, authorId/authorName`.
   예전에는 화면이 든 목록으로 통째로 덮어써서, 화면이 아직 못 받은 기록과 V4가 모르는 필드(V3 것)가 지워질 수 있었다.
 - 일정 지우기(`deleteEventItem`)도 트랜잭션에서 서버 목록의 **그 항목만** 뺀다. 휴지통에 넣지 못하면 지우지 않는다(기록도 같다).
 - 다중 선택 라벨 바꾸기는 `label`과 함께 `labelIds`도 새로 쓴다. label만 바꾸면 옛 라벨이 id로 남아 칩이 둘이 된다.
+- 조사표(`useEvaluation.upsertEvaluation/removeEvaluation`)도 트랜잭션으로 그 조사표 하나만 넣고·바꾸고·뺀다.
+  예전엔 팝업을 열 때 읽은 목록으로 통째로 써서, 날짜를 바꿔 만든 조사표가 그 날 조사표를 덮었다(2026-10-01).
+- 링크 역방향(`linkUtils.addReverseLink`)·휴지통 되살리기(`TrashModal.restoreItem`)도 트랜잭션으로 그 항목 하나만 고친다.
 - 출석부는 바뀐 학생만 `mergeFields`로 고쳐 쓴다(통째로 덮지 않는다). 자동 기록(`lib/autoJournal`)도 트랜잭션.
 
 ### 4-2. "없다"는 답을 의심한다

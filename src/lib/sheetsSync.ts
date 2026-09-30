@@ -19,6 +19,7 @@
 //     줄이다. 조사표가 무엇인지(제목·유형·학생 명단)는 '일정기록' 시트의
 //     조사표 칸에 JSON으로 들어 있고, 이 탭에는 학생별 결과만 담긴다. 사람이
 //     손으로 고치는 자리가 이 표다.
+import { readEvalList } from './evalList';
 import { doc, getDoc, setDoc, getDocs, collection, query, where, documentId } from 'firebase/firestore';
 import { db } from './firebase';
 import { googleFetch } from './googleApi';
@@ -296,12 +297,8 @@ const COL_REASON = '미평가사유(메모)';
 const COL_CHECK = '체크결과';
 const COL_MEMO = '메모내용';
 
-/** V3는 evalList, V4는 list라는 이름으로 같은 목록을 담는다 */
-export function readEvalList(data: any): any[] {
-  if (!data) return [];
-  const list = data.list || data.evalList || [];
-  return Array.isArray(list) ? list : [];
-}
+// 조사표 목록 읽기는 lib/evalList 한 곳에서 (V3·V4가 쓰는 두 이름을 가린다)
+export { readEvalList };
 
 /** 일정기록 시트의 조사표 칸(JSON 한 덩이)을 목록으로 되돌린다 */
 export function readEvalJson(cell: string): any[] {

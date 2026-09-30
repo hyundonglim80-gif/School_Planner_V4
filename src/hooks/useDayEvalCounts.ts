@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { doc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { readEvalList } from '../lib/evalList';
 import { subscribeDocWithServerFallback } from '../lib/firestoreSubscribe';
 
 export interface DayEvalCounts {
@@ -33,7 +34,7 @@ export function useDayEvalCounts(dateStr: string, groupId: string | null = null)
 
     const unsubscribe = subscribeDocWithServerFallback(ref, (data) => {
       // V3는 evalList, V4는 list라는 이름으로 같은 목록을 담는다
-      const list = (data?.list || data?.evalList || []) as any[];
+      const list = readEvalList(data);
       const byPeriod: Record<string, number> = {};
       let total = 0;
 

@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { readEvalList, evalDocPayload } from '../lib/evalList';
 import { moveToTrash } from '../utils/trashHelper';
 
 export interface EvalRecord {
@@ -53,7 +54,7 @@ export function useEvaluation(groupId?: string | null) {
         // 💡 V3는 같은 문서를 evalList 라는 이름으로 읽고 쓴다. V4가 list만 보던 탓에
         // V3에서 만든 조사표가 V4에 하나도 안 보였다(그 반대도 마찬가지).
         const data = snap.data();
-        return data.list || data.evalList || [];
+        return readEvalList(data);
       }
       return [];
     } catch (e) {
@@ -64,17 +65,42 @@ export function useEvaluation(groupId?: string | null) {
     }
   }, [getDocRef]);
 
-  const saveEvaluations = useCallback(async (dateStr: string, list: EvaluationItem[]) => {
+  /**
+   * 그날 조사표 목록을 서버에서 읽어 바꿀 것만 바꿔 쓴다. 바꾼 뒤의 목록을 돌려준다.
+   *
+   * ⚠️ 예전에는 팝업을 열 때 읽은 목록을 고쳐 통째로 썼다. 그 사이 V3·다른 기기에서 더한 조사표가 지워졌고,
+   *    새 조사표의 날짜를 바꿔 만들면 '연 날'의 목록에 새 것을 붙여 '바꾼 날' 문서를 덮어서
+   *    그날 원래 있던 조사표가 사라지고 연 날의 조사표가 복사됐다.
+   */
+  const mutateEvaluations = useCallback(async (
+    dateStr: string,
+    mutate: (fresh: EvaluationItem[]) => EvaluationItem[]
+  ): Promise<EvaluationItem[]> => {
     const ref = getDocRef(dateStr);
-    if (!ref) return;
-    try {
-      // 두 이름에 같이 쓴다. 한쪽만 쓰면 다른 앱이 옛 목록을 계속 보게 된다.
-      await setDoc(ref, { list, evalList: list, updatedAt: Date.now() }, { merge: true });
-    } catch (e) {
-      console.error('saveEvaluations error:', e);
-      throw e;
-    }
+    if (!ref) return [];
+    return runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      const fresh = (snap.exists() ? readEvalList(snap.data()) : []) as EvaluationItem[];
+      const next = mutate(fresh);
+      tx.set(ref, evalDocPayload(next), { merge: true });
+      return next;
+    });
   }, [getDocRef]);
+
+  /** 조사표 하나를 넣거나(없으면) 바꾼다(있으면). 그날의 나머지는 서버에 있는 그대로 둔다. */
+  const upsertEvaluation = useCallback(
+    (dateStr: string, item: EvaluationItem) =>
+      mutateEvaluations(dateStr, (fresh) =>
+        fresh.some((e) => e.id === item.id) ? fresh.map((e) => (e.id === item.id ? item : e)) : [...fresh, item]
+      ),
+    [mutateEvaluations]
+  );
+
+  /** 조사표 하나를 그날 목록에서 뺀다 (휴지통은 거치지 않는다 - 옮길 때 쓴다) */
+  const removeEvaluation = useCallback(
+    (dateStr: string, evalId: string) => mutateEvaluations(dateStr, (fresh) => fresh.filter((e) => e.id !== evalId)),
+    [mutateEvaluations]
+  );
 
   const deleteEvaluation = useCallback(async (dateStr: string, evalId: string) => {
     const list = await loadEvaluations(dateStr);
@@ -90,13 +116,13 @@ export function useEvaluation(groupId?: string | null) {
           data: target,
         });
       } catch (err) {
+        // 휴지통에 못 넣었으면 지우지 않는다
         console.error('조사표 휴지통 이동 실패:', err);
+        throw err;
       }
     }
-    const filtered = list.filter(e => e.id !== evalId);
-    await saveEvaluations(dateStr, filtered);
-    return filtered;
-  }, [loadEvaluations, saveEvaluations, groupId]);
+    return removeEvaluation(dateStr, evalId);
+  }, [loadEvaluations, removeEvaluation, groupId]);
 
-  return { loading, loadEvaluations, saveEvaluations, deleteEvaluation };
+  return { loading, loadEvaluations, upsertEvaluation, removeEvaluation, deleteEvaluation };
 }

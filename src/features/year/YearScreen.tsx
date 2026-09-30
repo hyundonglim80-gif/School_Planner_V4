@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 import { collection, query, where, documentId, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
+import { readEvalList } from '../../lib/evalList';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
@@ -160,7 +161,7 @@ export default function YearScreen() {
         snap.forEach(d => {
           // V3는 evalList, V4는 list라는 이름으로 같은 목록을 담는다
           const data = d.data();
-          const count = ((data.list || data.evalList || []) as any[]).filter((ev) => ev && ev.id).length;
+          const count = readEvalList(data).filter((ev) => ev && ev.id).length;
           if (count > 0) map[d.id] = count;
         });
         setEvalCountMap(map);

@@ -54,6 +54,8 @@ const D = {
   v3Trash: '2026-11-30', // V3 옛 글만 있는 날로 휴지통 되살리기
   quick: '2026-12-01', // 일정 둘을 빠르게 연달아 완료
   idless: '2026-12-02', // V3가 id 없이 쓴 일정 (완료·지우기)
+  evalMix: '2026-12-03', // V4가 맞춰 쓴 뒤 V3가 evalList만 고친 조사표
+  evalOther: '2026-12-04', // 날짜를 바꿔 만든 조사표가 들어갈 날
 };
 const pad2 = (n) => String(n).padStart(2, '0');
 const localDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -114,6 +116,35 @@ async function plantFixtures() {
   await setDoc(evRef(D.idless), {
     eventList: ['id없는 하나', 'id없는 둘', 'id없는 셋'].map((c) => ({ content: c, label: '이월', labelIds: ['ev_3'], completed: false })),
     eventText: ['id없는 하나', 'id없는 둘', 'id없는 셋'].join(String.fromCharCode(10)),
+    updatedAt: Date.now(),
+  });
+  // 조사표: V4가 list·evalList를 맞춰 쓴 뒤 V3가 evalList에만 하나 더한 날 / 조사표가 하나 있는 다른 날
+  const evalItem = (id, title, date) => ({
+    id, title, subject: '', type: 'check', methodObj: { indiv: true, group: false }, steps: [], groups: [],
+    dateStr: date, periodStr: 1, context: { source: 'schedule', period: 1 },
+    rosterMeta: { year: 2026, grade: '0', classNum: '0' }, studentsSnapshot: [], records: {},
+  });
+  const evRefOf = (date) => doc(db, 'users', uid, 'evaluations', date);
+  // 조사표는 명렬표가 있어야 만든다. 없으면 한 학급을 심는다 (있으면 그대로)
+  const rosterRef = doc(db, 'users', uid, 'settings', 'rosters');
+  const rosterNow = (await getDoc(rosterRef)).data();
+  // 출석부 점검(inspect-manual)이 첫 학급에서 학생 둘 이상을 찾으므로 셋을 둔다
+  const students = ['점검학생', '둘째학생', '셋째학생'].map((name, i) => ({ num: i + 1, name, gender: '', isActive: true }));
+  const classes = rosterNow?.classList || [];
+  const oursIdx = classes.findIndex((c) => (c.students || []).some((st) => st.name === '점검학생'));
+  if (classes.length === 0 || (oursIdx >= 0 && classes[oursIdx].students.length < 3)) {
+    const cls = { year: 2026, grade: '1', classNum: '1', students };
+    const next = classes.length === 0 ? [cls] : classes.map((c, i) => (i === oursIdx ? { ...c, students } : c));
+    await setDoc(rosterRef, { classList: next, rosters: next, updatedAt: Date.now() }, { merge: true });
+  }
+  await setDoc(evRefOf(D.evalMix), {
+    list: [evalItem('fx_eval_a', 'V4가 만든 조사', D.evalMix)],
+    evalList: [evalItem('fx_eval_a', 'V4가 만든 조사', D.evalMix), evalItem('fx_eval_b', 'V3에서 더한 조사', D.evalMix)],
+    updatedAt: Date.now(),
+  });
+  await setDoc(evRefOf(D.evalOther), {
+    list: [evalItem('fx_eval_c', '다른 날 조사', D.evalOther)],
+    evalList: [evalItem('fx_eval_c', '다른 날 조사', D.evalOther)],
     updatedAt: Date.now(),
   });
   await setDoc(evRef(D.quick), {
@@ -871,6 +902,48 @@ if (ONLY !== 'mobile') {
     await closeAll();
     const s2 = await storedEvents(D.idless);
     assert(s2.length === 2 && !s2.some((e) => e.content === 'id없는 셋'), `지운 뒤: ${s2.map((e) => e.content).join(' / ')}`);
+  });
+
+  await check('조사표: V3가 evalList에만 더한 조사표도 보이고, V4에서 새로 만들어도 지워지지 않는다', async () => {
+    await goDay(D.evalMix);
+    const period1 = page.locator('[data-focus-key^="period"]').first();
+    const badge = await until(async () => (await period1.getByTitle(/조사표 \d+건/).first().getAttribute('title')) || '', 8000);
+    assert(/조사표 2건/.test(badge), `1교시 조사표 표시: ${badge || '(없음)'}`);
+    await period1.hover();
+    await period1.getByTitle(/조사표/).first().click();
+    await wait(1500);
+    const listed = await page.locator('[role=dialog]').getByText('V3에서 더한 조사').count();
+    assert(listed > 0, '조사표 목록에 V3에서 더한 조사가 없음');
+    await page.getByRole('button', { name: '+ 새 조사표' }).click();
+    await wait(600);
+    await page.getByPlaceholder(/1단원 평가/).fill('V4에서 더한 조사');
+    await page.getByRole('button', { name: '생성', exact: true }).click();
+    await wait(2000);
+    await closeAll();
+    const snap = await getDoc(doc(db, 'users', uid, 'evaluations', D.evalMix));
+    const titles = (snap.data()?.evalList || []).map((e) => e.title);
+    const titles4 = (snap.data()?.list || []).map((e) => e.title);
+    assert(titles.length === 3 && titles.includes('V3에서 더한 조사') && titles.includes('V4에서 더한 조사'), `evalList: ${titles.join(' / ')}`);
+    assert(JSON.stringify(titles) === JSON.stringify(titles4), `list와 evalList가 다름: ${titles4.join(' / ')}`);
+  });
+
+  await check('조사표: 새 조사표의 날짜를 바꿔 만들어도 그 날에 있던 조사표가 남고, 연 날의 조사표가 복사되지 않는다', async () => {
+    await goDay(D.evalMix);
+    const period1 = page.locator('[data-focus-key^="period"]').first();
+    await period1.hover();
+    await period1.getByTitle(/조사표/).first().click();
+    await wait(1500);
+    await page.getByRole('button', { name: '+ 새 조사표' }).click();
+    await wait(600);
+    await page.getByPlaceholder(/1단원 평가/).fill('다른 날로 만든 조사');
+    await page.locator('[role=dialog] input[type=date]').first().fill(D.evalOther);
+    await page.getByRole('button', { name: '생성', exact: true }).click();
+    await wait(2000);
+    await closeAll();
+    const other = ((await getDoc(doc(db, 'users', uid, 'evaluations', D.evalOther))).data()?.evalList || []).map((e) => e.title);
+    const mix = ((await getDoc(doc(db, 'users', uid, 'evaluations', D.evalMix))).data()?.evalList || []).map((e) => e.title);
+    assert(other.length === 2 && other.includes('다른 날 조사') && other.includes('다른 날로 만든 조사'), `바꾼 날: ${other.join(' / ')}`);
+    assert(!mix.includes('다른 날로 만든 조사'), `연 날에 들어감: ${mix.join(' / ')}`);
   });
 
   await check('V3 옛 글만 있는 날에서 한 건을 다중 선택으로 완료해도 다른 일정이 남는다', async () => {

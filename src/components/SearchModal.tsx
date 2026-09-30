@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { showErrorToast } from '../utils/toast';
 import { collection, getDocs, query, where, documentId } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { readEvalList } from '../lib/evalList';
 import { useAppStore } from '../store/useAppStore';
 import { parseDateStr, formatDateStr } from '../lib/dateUtils';
 import { parseV3EventText } from '../hooks/useDayData';
@@ -451,9 +452,10 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
         } else if (type === 'evaluations') {
           snap.forEach((d: any) => {
             const dateStr = d.id;
-            const list = d.data().list || [];
+            // V3가 쓴 조사표(evalList)도 찾는다. 예전엔 list만 봐서 V3 조사표는 검색에 안 나왔다
+            const list = readEvalList(d.data());
             list.forEach((item: any, idx: number) => {
-              if (checkMatch(item.title)) {
+              if (checkMatch(item?.title)) {
                  searchResults.push({ id: `evl_${dateStr}_${idx}`, type: 'eval', dateStr, title: `조사표 (${dateStr})`, snippet: item.title, detail: { text: item.title } });
               }
             });

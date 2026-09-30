@@ -27,7 +27,7 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
   const { selectedGroupId, openEvaluationModal } = useAppStore();
   const { templates, currentTemplateName } = useTimetableTemplate();
   const periodNames = templates[currentTemplateName]?.names || ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'];
-  const { loadEvaluations, saveEvaluations, deleteEvaluation } = useEvaluation(selectedGroupId);
+  const { loadEvaluations, upsertEvaluation, removeEvaluation, deleteEvaluation } = useEvaluation(selectedGroupId);
   const { rosterList: rosters } = useRoster();
 
   // 모드: 'create' | 'view'
@@ -82,9 +82,9 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
     if (!changed) return;
 
     setCurrentEval(next);
-    const updatedList = evalList.map((e) => (e.id === next.id ? next : e));
-    setEvalList(updatedList);
-    saveEvaluations(next.dateStr, updatedList).catch((e) =>
+    setEvalList(evalList.map((e) => (e.id === next.id ? next : e)));
+    // 그 조사표 하나만 서버 목록에 고쳐 쓴다 (그 사이 더해진 다른 조사표를 지우지 않게)
+    upsertEvaluation(next.dateStr, next).catch((e) =>
       console.error('명렬표 동기화 저장 실패:', e)
     );
   }, [rosters, viewMode, currentEval?.id]);
@@ -193,9 +193,9 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
       records: {}
     };
 
-    const updatedList = [...evalList, newEval];
-    await saveEvaluations(evalDate, updatedList);
-    setEvalList(updatedList);
+    // ⚠️ 연 날의 목록에 붙여 통째로 쓰지 않는다. 날짜를 바꿔 만들면 바꾼 날 문서를 연 날의 목록으로 덮었다.
+    const saved = await upsertEvaluation(evalDate, newEval);
+    setEvalList(evalDate === dateStr ? saved : [...evalList, newEval]);
     setTitle('');
     void openViewer(newEval);
   };
@@ -261,10 +261,9 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
     const { next, changed } = syncSnapshotWithRoster(ev);
 
     if (changed) {
-      const updatedList = source.map((e) => (e.id === next.id ? next : e));
-      setEvalList(updatedList);
+      setEvalList(source.map((e) => (e.id === next.id ? next : e)));
       try {
-        await saveEvaluations(next.dateStr, updatedList);
+        await upsertEvaluation(next.dateStr, next);
       } catch (e) {
         console.error('명렬표 동기화 저장 실패:', e);
       }
@@ -337,12 +336,9 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
 
     try {
       if (moved && currentEval.dateStr !== metaDate) {
-        // 옛 날짜에서 빼고
-        const remaining = evalList.filter((e) => e.id !== currentEval.id);
-        await saveEvaluations(currentEval.dateStr, remaining);
-        // 새 날짜에 넣는다
-        const targetList = await loadEvaluations(metaDate);
-        await saveEvaluations(metaDate, [...targetList.filter((e) => e.id !== next.id), next]);
+        // 새 날짜에 먼저 넣고(실패해도 잃지 않게), 옛 날짜에서 뺀다. 둘 다 그 조사표 하나만 건드린다
+        await upsertEvaluation(metaDate, next);
+        await removeEvaluation(currentEval.dateStr, currentEval.id);
 
         setCurrentEval(next);
         showToast('✅ 조사표를 옮겼습니다.');
@@ -351,9 +347,8 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
         return;
       }
 
-      const updatedList = evalList.map((e) => (e.id === next.id ? next : e));
-      await saveEvaluations(next.dateStr, updatedList);
-      setEvalList(updatedList);
+      const saved = await upsertEvaluation(next.dateStr, next);
+      setEvalList(saved);
       setCurrentEval(next);
       showToast(moved ? '✅ 위치와 기본 정보를 바꿨습니다.' : '✅ 기본 정보를 바꿨습니다.');
     } catch (e) {
@@ -364,16 +359,26 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
   const handleSaveRecords = async () => {
     if (!currentEval) return;
     const updatedEval = { ...currentEval, records };
-    const updatedList = evalList.map(e => e.id === currentEval.id ? updatedEval : e);
-    await saveEvaluations(currentEval.dateStr, updatedList);
-    setEvalList(updatedList);
+    try {
+      const saved = await upsertEvaluation(currentEval.dateStr, updatedEval);
+      setEvalList(saved);
+    } catch (e) {
+      showErrorToast('조사표를 저장하지 못했습니다. 네트워크를 확인해 주세요.', e);
+      return;
+    }
     setCurrentEval(updatedEval);
     showToast('✅ 조사표를 저장했습니다.');
   };
 
   const handleDelete = async () => {
     if (!currentEval) return;
-    const remaining = await deleteEvaluation(currentEval.dateStr, currentEval.id);
+    let remaining: EvaluationItem[];
+    try {
+      remaining = await deleteEvaluation(currentEval.dateStr, currentEval.id);
+    } catch (e) {
+      showErrorToast('조사표를 지우지 못했습니다(휴지통에 옮기지 못함). 네트워크를 확인해 주세요.', e);
+      return;
+    }
     setEvalList(remaining);
     showToast('🗑️ 조사표를 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
 

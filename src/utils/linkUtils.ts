@@ -1,8 +1,7 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import type { SelectedLinkItem } from '../components/LinkerModal';
 import { eventDocPayload, readEventList } from '../lib/eventText';
-import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 
 export interface ReverseLinkOptions {
   /**
@@ -80,70 +79,71 @@ export const addReverseLink = async (
   const colPath = (col: string) =>
     tFId === 'personal' || !tFId ? `users/${auth.currentUser?.uid}/${col}` : `groups/${tFId}/${col}`;
 
+  // ⚠️ 상대 쪽 문서는 모두 트랜잭션으로 서버의 지금 모습을 읽고 그 항목 하나만 고친다.
+  //    예전에는 일정·기록은 서버에서 읽되 트랜잭션이 아니어서 읽고 쓰는 사이의 변경(다른 기기의 완료·새 일정)을
+  //    덮었고, 수업·메모는 캐시(getDoc)로 읽어 통째로 써서 캐시가 옛것이면 그 옛 모습으로 되돌렸다.
+  //    서버가 답하지 않으면 트랜잭션이 실패하고 역링크만 빠진다(그쪽이 훨씬 가볍다).
   try {
     if (targetLink.targetType === 'event') {
       const ref = doc(db, colPath('events'), targetLink.targetDate);
-      // 하루치를 한 배열로 다시 쓴다. 캐시(빈 기기)로 읽고 쓰면 그날 다른 일정이 사라진다.
-      // 서버가 답하지 않으면 역링크를 걸지 않는다(링크 하나가 빠지는 쪽이 훨씬 가볍다).
-      const { snap, fromServer } = await getDocTrustingServer(ref);
-      if (fromServer && snap.exists()) {
-        const list = readEventList(snap.data());
-        if (list) {
-          const item = list.find((e: any) => String(e.id) === String(targetLink.targetId));
-          if (item) {
-            const next = applyReverseLink(item.linkedItems, sourceMeta, options);
-            if (next) {
-              item.linkedItems = next;
-              await setDoc(ref, eventDocPayload(list), { merge: true });
-            }
-          }
-        }
-      }
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists()) return;
+        // readEventList: id 없는 V3 항목도 화면과 같은 id(ev_차례)로 찾는다
+        const list = readEventList(snap.data()).map((e: any) => ({ ...e }));
+        const item = list.find((e: any) => String(e.id) === String(targetLink.targetId));
+        if (!item) return;
+        const next = applyReverseLink(item.linkedItems, sourceMeta, options);
+        if (!next) return;
+        item.linkedItems = next;
+        tx.set(ref, eventDocPayload(list), { merge: true });
+      });
     } else if (targetLink.targetType === 'journal') {
       const ref = doc(db, colPath('journals'), targetLink.targetDate);
-      // 일정과 같은 이유로 서버에서 읽고, 답이 없으면 쓰지 않는다
-      const { snap, fromServer } = await getDocTrustingServer(ref);
-      if (fromServer && snap.exists()) {
-        const list = snap.data().entries || [];
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists()) return;
+        const raw: any[] = Array.isArray(snap.data().entries) ? snap.data().entries : [];
+        // id 없는 옛 기록은 화면과 같은 이름(jr_차례)으로 찾는다
+        const list = raw.map((j: any, idx: number) => (j && j.id ? { ...j } : { ...j, id: 'jr_' + idx }));
         const item = list.find((j: any) => String(j.id) === String(targetLink.targetId));
-        if (item) {
-          const next = applyReverseLink(item.linkedItems, sourceMeta, options);
-          if (next) {
-            item.linkedItems = next;
-            await setDoc(ref, { entries: list, updatedAt: Date.now() }, { merge: true });
-          }
-        }
-      }
+        if (!item) return;
+        const next = applyReverseLink(item.linkedItems, sourceMeta, options);
+        if (!next) return;
+        item.linkedItems = next;
+        tx.set(ref, { entries: list, updatedAt: Date.now() }, { merge: true });
+      });
     } else if (targetLink.targetType === 'schedule') {
       const ref = doc(db, colPath('schedules'), targetLink.targetDate);
-      const snap = await getDoc(ref);
-      const periods = snap.exists() ? (snap.data().periods || {}) : {};
       const pKey = targetLink.targetPeriod
         ? String(targetLink.targetPeriod)
         : String(targetLink.targetId).replace(/.*_/, '');
-
-      let item = periods[pKey];
-      if (!item) {
-        item = { subject: '', content: '', memo: '', supplies: '', linkedItems: [] };
-      } else if (typeof item === 'string') {
-        item = { subject: item, content: '', memo: '', supplies: '', linkedItems: [] };
-      }
-
-      const next = applyReverseLink(item.linkedItems, sourceMeta, options);
-      if (next) {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const periods = snap.exists() ? (snap.data().periods || {}) : {};
+        let item = periods[pKey];
+        if (!item) {
+          item = { subject: '', content: '', memo: '', supplies: '', linkedItems: [] };
+        } else if (typeof item === 'string') {
+          item = { subject: item, content: '', memo: '', supplies: '', linkedItems: [] };
+        } else {
+          item = { ...item };
+        }
+        const next = applyReverseLink(item.linkedItems, sourceMeta, options);
+        if (!next) return;
         item.linkedItems = next;
-        periods[pKey] = item;
-        await setDoc(ref, { periods, updatedAt: Date.now() }, { merge: true });
-      }
+        // 그 교시 하나만 쓴다 (merge라 다른 교시는 서버에 있는 그대로)
+        tx.set(ref, { periods: { [pKey]: item }, updatedAt: Date.now() }, { merge: true });
+      });
     } else if (targetLink.targetType === 'memo') {
       const ref = doc(db, colPath('tasks'), targetLink.targetId);
-      const snap = await getDoc(ref);
-      if (snap.exists()) {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists()) return;
         const next = applyReverseLink(snap.data().linkedItems, sourceMeta, options);
-        if (next) {
-          await setDoc(ref, { linkedItems: next, updatedAt: Date.now() }, { merge: true });
-        }
-      }
+        if (!next) return;
+        tx.set(ref, { linkedItems: next, updatedAt: Date.now() }, { merge: true });
+      });
     }
   } catch (err) {
     console.warn('addReverseLink error:', err);
