@@ -93,7 +93,9 @@ describe('휴지통 창', () => {
     await removeClip(useClipboardHistory.getState().items[0].id);
     render(<TrashModal isOpen onClose={vi.fn()} />);
     expect(await screen.findByText('휴지통 속 클립')).toBeInTheDocument();
-    expect(screen.getByText('클립보드')).toBeInTheDocument();
+    // 항목의 종류 표시와 위쪽 '클립보드' 탭 (개수 1)
+    expect(screen.getAllByText('클립보드')).toHaveLength(2);
+    expect(screen.getByRole('tab', { name: /^클립보드/ })).toHaveTextContent('클립보드1');
     expect(screen.getByText('이 기기')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '복원' }));

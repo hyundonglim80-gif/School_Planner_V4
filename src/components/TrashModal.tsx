@@ -30,6 +30,23 @@ const TYPE_LABELS: Record<string, string> = {
   clip: '클립보드',
 };
 
+/**
+ * 위쪽 탭 (2026-09-30 사용자 요청). 기타 = 일정·기록·메모·클립보드를 뺀 모든 것
+ * (수업·D-Day·조사표·명단·라벨·시간표, 그리고 앞으로 생길 다른 종류도).
+ */
+export type TrashTab = 'all' | 'event' | 'journal' | 'memo' | 'clip' | 'etc';
+export const TRASH_TABS: { key: TrashTab; label: string }[] = [
+  { key: 'all', label: '전체' },
+  { key: 'event', label: '일정' },
+  { key: 'journal', label: '기록' },
+  { key: 'memo', label: '메모' },
+  { key: 'clip', label: '클립보드' },
+  { key: 'etc', label: '기타' },
+];
+export function trashTabOf(type: string): Exclude<TrashTab, 'all'> {
+  return type === 'event' || type === 'journal' || type === 'memo' || type === 'clip' ? type : 'etc';
+}
+
 /** 클립보드 휴지통 항목은 계정 휴지통과 id가 겹치지 않게 앞에 붙인다 */
 const CLIP_PREFIX = 'clip:';
 const isClip = (item: TrashItem) => item.type === 'clip';
@@ -49,6 +66,16 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
   const [bulkProcessing, setBulkProcessing] = useState(false);
   /** 자동 비우기 기간(일). 0이면 꺼짐. 환경설정에서 정한다. */
   const [retentionDays, setRetentionDays] = useState(0);
+  const [tab, setTab] = useState<TrashTab>('all');
+  /** 지금 탭에 보이는 항목. 선택·일괄 처리·비우기는 이것만 대상으로 한다 */
+  const visibleItems = tab === 'all' ? trashItems : trashItems.filter((t) => trashTabOf(t.type) === tab);
+  const tabCount = (key: TrashTab) => (key === 'all' ? trashItems.length : trashItems.filter((t) => trashTabOf(t.type) === key).length);
+  const tabLabel = TRASH_TABS.find((t) => t.key === tab)!.label;
+  const chooseTab = (key: TrashTab) => {
+    setTab(key);
+    // 안 보이는 항목을 고른 채로 일괄 처리하지 않게 선택을 푼다
+    setSelectedIds(new Set());
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -261,9 +288,9 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
     });
   };
 
-  const isAllSelected = trashItems.length > 0 && selectedIds.size === trashItems.length;
+  const isAllSelected = visibleItems.length > 0 && visibleItems.every((t) => selectedIds.has(t.id));
   const toggleSelectAll = () => {
-    setSelectedIds(isAllSelected ? new Set() : new Set(trashItems.map(t => t.id)));
+    setSelectedIds(isAllSelected ? new Set() : new Set(visibleItems.map(t => t.id)));
   };
 
   // 일괄 복원/삭제: 같은 날짜 문서를 여러 항목이 동시에 건드릴 수 있어 순차 처리한다(동시 처리 시 서로 덮어쓰는 경쟁 조건 방지)
@@ -328,15 +355,18 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
     showToast(`${deletedIds.length}개 항목을 영구 삭제했습니다.`);
   };
 
-  // 휴지통 비우기: 지금 들어 있는 것을 모두 영구 삭제한다 (기간을 기다리지 않고 바로)
+  // 휴지통 비우기: 지금 들어 있는 것을 모두 영구 삭제한다 (기간을 기다리지 않고 바로).
+  // 탭을 골라 두었으면 그 탭의 항목만.
   const handleEmptyTrash = async () => {
-    if (trashItems.length === 0 || bulkProcessing) return;
-    if (!window.confirm(`휴지통의 ${trashItems.length}개 항목을 모두 영구 삭제하시겠습니까? 복구할 수 없습니다.`)) return;
+    const targets = visibleItems;
+    if (targets.length === 0 || bulkProcessing) return;
+    const where = tab === 'all' ? '휴지통의' : `휴지통 '${tabLabel}' 탭의`;
+    if (!window.confirm(`${where} ${targets.length}개 항목을 모두 영구 삭제하시겠습니까? 복구할 수 없습니다.`)) return;
 
     setBulkProcessing(true);
     const uploadUrls: string[] = [];
     const deletedIds: string[] = [];
-    for (const item of trashItems) {
+    for (const item of targets) {
       try {
         uploadUrls.push(...collectUploadUrls(item.data));
         await deleteTrashItem(item);
@@ -352,7 +382,7 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
     setTrashItems(prev => prev.filter(t => !deletedIds.includes(t.id)));
     setSelectedIds(new Set());
     setBulkProcessing(false);
-    showToast(`휴지통을 비웠습니다 (${deletedIds.length}개 영구 삭제).`);
+    showToast(tab === 'all' ? `휴지통을 비웠습니다 (${deletedIds.length}개 영구 삭제).` : `'${tabLabel}' 탭을 비웠습니다 (${deletedIds.length}개 영구 삭제).`);
   };
 
   if (!isOpen) return null;
@@ -369,6 +399,29 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
           </button>
         </div>
 
+        {/* 종류별 탭 - 지운 것을 나눠 본다 */}
+        <div role="tablist" aria-label="휴지통 종류" className="px-1 sm:px-3 pt-2 border-b bg-white flex sm:gap-1 overflow-x-auto shrink-0">
+          {TRASH_TABS.map((t) => {
+            const active = tab === t.key;
+            const n = tabCount(t.key);
+            return (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => chooseTab(t.key)}
+                className={`px-1.5 sm:px-3 py-2 -mb-px border-b-2 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                  active ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {t.label}
+                <span className={`ml-0.5 sm:ml-1 px-1 sm:px-1.5 rounded-full text-2xs ${active ? 'bg-primary/10' : 'bg-slate-100 text-slate-400'}`}>{n}</span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* 자동 비우기 안내와 지금 비우기 */}
         <div className="px-4 py-2 border-b bg-amber-50/60 flex items-center justify-between gap-2 flex-wrap text-xs">
           <span className="text-slate-600">
@@ -379,18 +432,18 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
             )}
             <span className="text-slate-400"> (환경설정에서 바꿈)</span>
           </span>
-          {trashItems.length > 0 && (
+          {visibleItems.length > 0 && (
             <button
               onClick={handleEmptyTrash}
               disabled={bulkProcessing}
               className="px-3 py-1.5 bg-red-600 text-white hover:bg-red-700 font-bold text-xs rounded-lg transition-colors disabled:opacity-40"
             >
-              휴지통 비우기
+              {tab === 'all' ? '휴지통 비우기' : `${tabLabel} 비우기`}
             </button>
           )}
         </div>
 
-        {trashItems.length > 0 && (
+        {visibleItems.length > 0 && (
           <div className="px-4 py-2.5 border-b bg-white flex items-center justify-between gap-2 flex-wrap">
             <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none">
               <input
@@ -426,14 +479,14 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
         <div className="p-4 overflow-y-auto overscroll-contain flex-1 min-h-0 bg-slate-50/50" data-scroll-lock>
           {loading ? (
             <div className="text-center py-8 text-slate-500">불러오는 중...</div>
-          ) : trashItems.length === 0 ? (
+          ) : visibleItems.length === 0 ? (
             <div className="text-center py-12 text-slate-400 flex flex-col items-center gap-2">
               <span className="text-4xl opacity-50">🍃</span>
-              <p>휴지통이 비어 있습니다.</p>
+              <p>{tab === 'all' ? '휴지통이 비어 있습니다.' : `지운 ${tabLabel} 항목이 없습니다.`}</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {trashItems.map((item) => (
+              {visibleItems.map((item) => (
                 <div key={item.id} className="bg-white border rounded-xl p-3 flex items-center gap-3 shadow-sm hover:border-slate-300 transition-colors">
                   <input
                     type="checkbox"
@@ -443,7 +496,7 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
                   />
                   <div className="flex-1 min-w-0 pr-4">
                     <div className="flex items-center gap-2 mb-1 text-xs text-slate-500">
-                      <span className="font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                      <span className="font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 whitespace-nowrap shrink-0">
                         {TYPE_LABELS[item.type] || item.type}
                       </span>
                       <span>{isClip(item) ? '이 기기' : item.originalDateStr || (item as any).dateStr || '날짜 없음'}</span>
