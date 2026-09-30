@@ -91,6 +91,7 @@ forwardChainId/originalDate(이월 사슬), linkedItems, authorId/authorName`.
   (`eventBaselineRef`에 없던 id)을 살려 둔다. 그래서 두 탭·두 기기가 동시에 넣어도 둘 다 남는다.
 - 기록(`useDayData.mutateJournals`)도 트랜잭션 안에서 서버의 `entries`를 읽어 **항목 하나만** 더하고·고치고·지운다.
   예전에는 화면이 든 목록으로 통째로 덮어써서, 화면이 아직 못 받은 기록과 V4가 모르는 필드(V3 것)가 지워질 수 있었다.
+- 일정 지우기(`deleteEventItem`)도 트랜잭션에서 서버 목록의 **그 항목만** 뺀다. 휴지통에 넣지 못하면 지우지 않는다(기록도 같다).
 - 다중 선택 라벨 바꾸기는 `label`과 함께 `labelIds`도 새로 쓴다. label만 바꾸면 옛 라벨이 id로 남아 칩이 둘이 된다.
 - 출석부는 바뀐 학생만 `mergeFields`로 고쳐 쓴다(통째로 덮지 않는다). 자동 기록(`lib/autoJournal`)도 트랜잭션.
 
@@ -109,7 +110,8 @@ Firestore는 캐시에 없는 문서를 "없다"고 답한다. 그대로 믿으�
 ### 4-4. 일정은 두 필드에 같이 쓴다
 `events/{date}`의 `eventList`(배열)와 `eventText`(V3 글)는 **반드시 `eventDocPayload()`로 함께** 쓴다.
 한쪽만 쓰면 읽기 폴백(`readEventList`: eventList가 비면 eventText를 읽는다)이 지운 일정을 되살리고, 그것이 다시 이월되어 불어났다.
-읽을 때도 **`data.eventList || []`로 읽지 말고 `readEventList(data)`**. V3 글만 있는 날에서 eventList만 보면 빈 목록 위에
+읽을 때도 **`data.eventList || []`로 읽지 말고 `readEventList(data)`**. `readEventList`는 id 없는 항목(V3 옛 버전·글만 있는 날의
+완료 표시가 쓴 것)에 화면과 같은 `ev_차례` id를 붙인다. 이것 없이 id로 짝을 맞추면 저장 한 번에 일정이 두 벌이 된다(2026-10-01). V3 글만 있는 날에서 eventList만 보면 빈 목록 위에
 고쳐 써서 그날 일정이 모두 사라졌다(다중 선택 완료·라벨·삭제, 휴지통 되살리기 - 2026-09-29 고침).
 
 ### 4-5. 본문을 읽기·저장 경로에서 바꾸지 않는다

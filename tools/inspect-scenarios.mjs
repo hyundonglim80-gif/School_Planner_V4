@@ -53,6 +53,7 @@ const D = {
   v3Bulk: '2026-11-27', // V3 옛 글만 있는 날에서 다중 선택 완료
   v3Trash: '2026-11-30', // V3 옛 글만 있는 날로 휴지통 되살리기
   quick: '2026-12-01', // 일정 둘을 빠르게 연달아 완료
+  idless: '2026-12-02', // V3가 id 없이 쓴 일정 (완료·지우기)
 };
 const pad2 = (n) => String(n).padStart(2, '0');
 const localDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -108,6 +109,12 @@ async function plantFixtures() {
     id: 'fx_trash_v3', type: 'event', originalDateStr: D.v3Trash, dateStr: D.v3Trash, fId: 'personal',
     content: 'V3날로 되살릴 일정', deletedAt: Date.now(),
     data: { id: 'fx_v3_back', content: 'V3날로 되살릴 일정', label: '달력', labelIds: ['ev_1'], completed: false, linkedItems: [], attachments: [] },
+  });
+  // V3 옛 버전·글만 있는 날의 완료 표시는 id 없이 eventList를 쓴다
+  await setDoc(evRef(D.idless), {
+    eventList: ['id없는 하나', 'id없는 둘', 'id없는 셋'].map((c) => ({ content: c, label: '이월', labelIds: ['ev_3'], completed: false })),
+    eventText: ['id없는 하나', 'id없는 둘', 'id없는 셋'].join(String.fromCharCode(10)),
+    updatedAt: Date.now(),
   });
   await setDoc(evRef(D.quick), {
     eventList: ['빠른완료 하나', '빠른완료 둘', '빠른완료 셋'].map((c, i) => ({ id: `fx_q_${i}`, content: c, label: '달력', labelIds: ['ev_1'], completed: false, linkedItems: [], attachments: [] })),
@@ -847,6 +854,23 @@ if (ONLY !== 'mobile') {
     const stored = await storedEvents(D.quick);
     const done = stored.filter((e) => e.completed).map((e) => e.content);
     assert(done.length === 3, `완료로 남은 것: ${done.join(' / ') || '(없음)'}`);
+  });
+
+  await check('V3가 id 없이 쓴 일정: 한 건을 완료해도 두 벌이 되지 않고, 지우면 그날에서 빠진다', async () => {
+    await goDay(D.idless);
+    await eventRows().filter({ hasText: 'id없는 둘' }).getByTitle(/클릭하여 완료 처리/).first().click();
+    await wait(2500);
+    const s1 = await storedEvents(D.idless);
+    const names1 = s1.map((e) => `${e.content}${e.completed ? '(완료)' : ''}`);
+    assert(s1.length === 3, `완료 뒤 저장된 일정 ${s1.length}건: ${names1.join(' / ')}`);
+    assert(s1.find((e) => e.content === 'id없는 둘')?.completed === true, `완료가 저장되지 않음: ${names1.join(' / ')}`);
+    const row = eventRows().filter({ hasText: 'id없는 셋' });
+    await row.hover();
+    await row.getByTitle('일정 삭제').click();
+    await wait(2500);
+    await closeAll();
+    const s2 = await storedEvents(D.idless);
+    assert(s2.length === 2 && !s2.some((e) => e.content === 'id없는 셋'), `지운 뒤: ${s2.map((e) => e.content).join(' / ')}`);
   });
 
   await check('V3 옛 글만 있는 날에서 한 건을 다중 선택으로 완료해도 다른 일정이 남는다', async () => {

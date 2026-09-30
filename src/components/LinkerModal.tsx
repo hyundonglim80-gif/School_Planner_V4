@@ -1,12 +1,11 @@
 //src/components/LinkerModal.tsx
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { doc, getDoc, setDoc, getDocs, collection, query, where, documentId } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, collection, query, where, documentId, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { showToast, showErrorToast } from '../utils/toast';
-import { eventDocPayload } from '../lib/eventText';
+import { eventDocPayload, readEventList } from '../lib/eventText';
 import { useAppStore } from '../store/useAppStore';
-import { parseV3EventText } from '../hooks/useDayData';
 import { useLabels } from '../hooks/useLabels';
 import { resolveEventLabelNames } from '../lib/eventLabels';
 import { addReverseLink } from '../utils/linkUtils';
@@ -257,16 +256,14 @@ export default function LinkerModal({
       evSnaps.forEach((docSnap) => {
         const dStr = docSnap.id;
         const data = docSnap.data();
-        let list = data.eventList;
-        if (!list || list.length === 0) {
-          if (data.eventText) list = parseV3EventText(data.eventText);
-        }
-        if (!list) return;
-        list.forEach((e: any, idx: number) => {
+        // readEventList: id 없는 V3 항목에 화면·저장과 같은 id(ev_차례)를 붙인다.
+        // 예전엔 여기서만 ev_날짜_차례를 붙여, 그렇게 걸린 링크는 저장할 때 짝을 못 찾았다
+        const list = readEventList(data);
+        list.forEach((e: any) => {
           const content = e.content || e.text || '';
           if (!content.trim()) return;
           events.push({
-            id: e.id || `ev_${dStr}_${idx}`,
+            id: String(e.id),
             type: 'event',
             title: content,
             date: dStr,
@@ -467,54 +464,52 @@ export default function LinkerModal({
       if (sourceType === 'schedule_header' || sourceType === 'schedule') {
         const sp = String(selectedSourcePeriod || sourcePeriod || 1);
         const ref = doc(db, colPath('schedules'), sDateStr);
-        const snap = await getDoc(ref);
-        const periods = (snap.exists() ? snap.data().periods : {}) || {};
-        
-        let item = periods[sp];
-        if (!item) {
-          item = { subject: '', memo: '', supplies: '', linkedItems: [] };
-        } else if (typeof item === 'string') {
-          item = { subject: item, memo: '', supplies: '', linkedItems: [] };
-        }
-        
-        item.linkedItems = item.linkedItems || [];
-        updateTargetArray(item.linkedItems);
-        periods[sp] = item;
-        
-        await setDoc(ref, { periods, updatedAt: Date.now() }, { merge: true });
+        // 그 교시 하나만 서버에서 읽어 고친다 (다른 교시를 캐시의 옛 모습으로 덮지 않게)
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(ref);
+          const periods = (snap.exists() ? snap.data().periods : {}) || {};
+          let item = periods[sp];
+          if (!item) {
+            item = { subject: '', memo: '', supplies: '', linkedItems: [] };
+          } else if (typeof item === 'string') {
+            item = { subject: item, memo: '', supplies: '', linkedItems: [] };
+          } else {
+            item = { ...item };
+          }
+          item.linkedItems = [...(item.linkedItems || [])];
+          updateTargetArray(item.linkedItems);
+          tx.set(ref, { periods: { [sp]: item }, updatedAt: Date.now() }, { merge: true });
+        });
         sourceUpdated = true;
       } else if (sourceType === 'event') {
+        // ⚠️ 하루치 배열은 서버에서 읽고 그 항목 하나만 고친다(캐시로 읽어 통째로 쓰면 그날 다른 일정이 사라질 수 있다)
         const ref = doc(db, colPath('events'), sDateStr);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const data = snap.data();
-          let list = data.eventList;
-          if (!list || list.length === 0) {
-            if (data.eventText) list = parseV3EventText(data.eventText);
-          }
-          if (list) {
-            const item = list.find((e: any) => String(e.id) === String(sourceId));
-            if (item) {
-              item.linkedItems = item.linkedItems || [];
-              updateTargetArray(item.linkedItems);
-              await setDoc(ref, eventDocPayload(list), { merge: true });
-              sourceUpdated = true;
-            }
-          }
-        }
+        sourceUpdated = await runTransaction(db, async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists()) return false;
+          const list = readEventList(snap.data()).map((e: any) => ({ ...e }));
+          const item = list.find((e: any) => String(e.id) === String(sourceId));
+          if (!item) return false;
+          item.linkedItems = [...(item.linkedItems || [])];
+          updateTargetArray(item.linkedItems);
+          tx.set(ref, eventDocPayload(list), { merge: true });
+          return true;
+        });
       } else if (sourceType === 'journal') {
         const ref = doc(db, colPath('journals'), sDateStr);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const list = snap.data().entries || [];
+        sourceUpdated = await runTransaction(db, async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists()) return false;
+          const raw: any[] = Array.isArray(snap.data().entries) ? snap.data().entries : [];
+          // id 없는 옛 기록은 화면과 같은 이름(jr_차례)으로 찾는다
+          const list = raw.map((j: any, idx: number) => (j && j.id ? { ...j } : { ...j, id: 'jr_' + idx }));
           const item = list.find((j: any) => String(j.id) === String(sourceId));
-          if (item) {
-            item.linkedItems = item.linkedItems || [];
-            updateTargetArray(item.linkedItems);
-            await setDoc(ref, { entries: list, updatedAt: Date.now() }, { merge: true });
-            sourceUpdated = true;
-          }
-        }
+          if (!item) return false;
+          item.linkedItems = [...(item.linkedItems || [])];
+          updateTargetArray(item.linkedItems);
+          tx.set(ref, { entries: list, updatedAt: Date.now() }, { merge: true });
+          return true;
+        });
       } else if (sourceType === 'memo') {
         const ref = doc(db, colPath('tasks'), sourceId || '');
         const snap = await getDoc(ref);

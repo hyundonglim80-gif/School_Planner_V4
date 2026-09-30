@@ -129,4 +129,18 @@ describe('readEventList', () => {
     expect(readEventList({})).toEqual([]);
     expect(readEventList(null)).toEqual([]);
   });
+
+  it('V3가 id 없이 쓴 항목에는 화면과 같은 ev_차례 id를 붙인다 (저장 때 두 벌이 되던 것)', () => {
+    const list = readEventList({
+      eventList: [{ content: '회의', completed: false }, { id: 'ev_x', content: '청소' }, { content: '숙제', labelIds: ['a'] }],
+    });
+    expect(list.map((e) => e.id)).toEqual(['ev_0', 'ev_x', 'ev_2']);
+    // 다른 필드는 그대로
+    expect(list[2]).toEqual({ id: 'ev_2', content: '숙제', labelIds: ['a'] });
+  });
+
+  it('id가 있는 항목은 같은 객체를 그대로 돌려준다', () => {
+    const item = { id: 'ev_a', content: '회의', forwardChainId: 'c1' };
+    expect(readEventList({ eventList: [item] })[0]).toBe(item);
+  });
 });

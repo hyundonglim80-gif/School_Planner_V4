@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { EntryTable } from '../lib/entryTable';
 import {
-  doc, onSnapshot, setDoc, getDoc, getDocFromServer, runTransaction,
+  doc, onSnapshot, setDoc, getDocFromServer, runTransaction,
   collection, query, where, documentId, getDocs, getDocsFromServer, orderBy, limit,
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -281,7 +281,8 @@ async function doAutoForwarding(groupId: string | null) {
     const remainingItems: EventItem[] = [];
 
     for (const it of items) {
-      if (it.completed || !it.content.trim()) {
+      // content 없이 text만 있는 옛 항목도 있다. it.content.trim()은 거기서 멈춰 이월 전체가 멈췄다
+      if (it.completed || !eventContentOf(it)) {
         remainingItems.push(it);
         continue;
       }
@@ -332,7 +333,7 @@ async function doAutoForwarding(groupId: string | null) {
           id: newId,
           forwardChainId: chainId,
           originalDate,
-          content: it.content,
+          content: it.content ?? it.text ?? '',
           completed: false,
           label: it.label,
           labelIds: it.labelIds,
@@ -488,6 +489,11 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       return;
     }
     setLoading(true);
+    // ⚠️ 날짜·공간을 옮긴 뒤에도 앞 날짜의 서버 재확인·직접 받아 오기가 늦게 도착한다.
+    //    그 답을 그대로 넣으면 새 날짜 화면에 앞 날짜의 일정·수업·기록이 보이고,
+    //    그 상태로 무엇이든 저장하면 앞 날짜 항목이 이 날짜 문서에 들어간다.
+    //    구독을 걷을 때 alive를 끄고, 모든 답은 alive일 때만 받는다.
+    let alive = true;
     const fallbackTimeout = setTimeout(() => {
       setLoading(false);
     }, 3000);
@@ -505,15 +511,19 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     // 통째로 가려져 일정이 사라진 것처럼 보인다. 매핑을 함수로 빼서, 캐시 결과와
     // 서버 재확인 결과 양쪽에서 같은 로직을 쓴다.
     const applyEventData = (data: any | null) => {
+      if (!alive) return;
       if (!data) {
         setEventText('');
         setEventList([]);
+        // 문서가 없으면 기준선도 비운다. 앞 날짜의 기준선이 남으면 저장 병합이 엉뚱한 항목을 '내가 본 것'으로 안다
+        eventBaselineRef.current = [];
         return;
       }
         const rawText = data.eventText || '';
         setEventText(rawText);
         if (Array.isArray(data.eventList) && data.eventList.length > 0) {
-          const mapped: EventItem[] = data.eventList.map((e: any, idx: number) => {
+          // readEventList가 id 없는 V3 항목에 저장 트랜잭션과 같은 id(ev_차례)를 붙인다
+          const mapped: EventItem[] = readEventList(data).map((e: any, idx: number) => {
             const label = e.label || (e.labels && e.labels[0]);
             // ⚠️ 본문 앞의 '[무엇]'을 여기서 떼지 않는다. 예전에는 라벨이 따로 있는 일정까지
             //    '[v] 숙제 확인'을 '숙제 확인'으로 바꿔 들고 있다가, 그날 무엇이든 저장하면
@@ -576,7 +586,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
 
     const basePath = eventDocRef.path;
     const report = (patch: Partial<EventReadReport>) =>
-      setReadReport((prev) => ({
+      alive && setReadReport((prev) => ({
         path: basePath,
         uid: user.uid,
         email: user.email ?? null,
@@ -648,6 +658,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     });
 
     const applyScheduleData = (data: any | null) => {
+      if (!alive) return;
       if (!data) {
         setSchedules({});
         return;
@@ -684,6 +695,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     });
 
     const applyJournalData = (data: any | null) => {
+      if (!alive) return;
       if (!data) {
         setJournals([]);
         setLoading(false);
@@ -755,6 +767,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     }, 4000);
 
     return () => {
+      alive = false;
       clearTimeout(fallbackTimeout);
       clearTimeout(rescue);
       unsubEvent();
@@ -884,43 +897,20 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       ? doc(db, 'groups', groupId, 'events', dateStr)
       : doc(db, 'users', user.uid, 'events', dateStr);
     
-    let currentList = [...eventList];
-    if (currentList.length === 0) {
+    // 휴지통에 넣을 원본. 화면 목록에 없으면(아직 못 받았거나 다른 화면에서 지울 때) 서버에서 찾는다.
+    // ⚠️ 예전에는 여기서 캐시(getDoc)로 읽고 eventList만 봤다. 그리고 화면 목록으로 저장을 돌려서,
+    //    화면 목록이 빈 채로 지우면 지울 항목이 '남이 넣은 것'으로 살아남아 휴지통과 그날에 둘 다 남았다.
+    let itemToDelete: EventItem | undefined = eventList.find(item => String(item.id) === String(id));
+    if (!itemToDelete) {
       try {
-        const snap = await getDoc(eventDocRef);
+        const { snap } = await getDocTrustingServer(eventDocRef);
         if (snap.exists()) {
-          const data = snap.data();
-          if (Array.isArray(data.eventList) && data.eventList.length > 0) {
-            currentList = data.eventList.map((e: any, idx: number) => ({
-              id: String(e.id || 'ev_' + idx),
-              content: e.content || '',
-              completed: !!e.completed,
-              label: e.label || undefined,
-              labelIds: e.labelIds,
-              linkedItems: e.linkedItems || [],
-              imageUrl: e.imageUrl,
-              calendar: e.calendar,
-              forward: e.forward,
-              period: e.period,
-              recur: e.recur,
-              skip: e.skip,
-              time: e.time || undefined,
-              alarmTriggered: !!e.alarmTriggered,
-              attachments: e.attachments || [],
-              authorId: e.authorId,
-              authorName: e.authorName,
-              createdAt: e.createdAt,
-            }));
-          } else if (data.eventText) {
-            currentList = parseV3EventText(data.eventText);
-          }
+          itemToDelete = (readEventList(snap.data()) as EventItem[]).find(item => String(item.id) === String(id));
         }
       } catch (e) {
         console.warn('Failed to fetch remote event list for deletion:', e);
       }
     }
-
-    let itemToDelete = currentList.find(item => String(item.id) === String(id));
     if (!itemToDelete && fallbackItem && fallbackItem.content) {
       itemToDelete = {
         id: String(id),
@@ -943,13 +933,26 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           data: itemToDelete
         });
       } catch (err) {
-        console.error('Failed to move to trash:', err);
+        // 휴지통에 못 넣었으면 지우지 않는다. 지우면 되돌릴 길 없이 사라진다.
+        showErrorToast('휴지통에 옮기지 못해 일정을 지우지 않았습니다. 네트워크를 확인해 주세요.', err);
+        return;
       }
     }
 
-    const newList = currentList.filter(item => String(item.id) !== String(id));
-    await saveEventItems(newList);
-  }, [eventList, saveEventItems, dateStr, groupId]);
+    // 서버의 지금 목록에서 이 항목 하나만 뺀다. 나머지는 서버에 있는 그대로 둔다.
+    try {
+      await runTransaction(db, async (tx) => {
+        const freshSnap = await tx.get(eventDocRef);
+        if (!freshSnap.exists()) return;
+        const fresh = readEventList(freshSnap.data()) as EventItem[];
+        const next = fresh.filter((item) => String(item.id) !== String(id));
+        if (next.length === fresh.length) return;
+        tx.set(eventDocRef, eventDocPayload(next.map((item, idx) => normalizeEventForWrite(item, idx, user))), { merge: true });
+      });
+    } catch (err) {
+      showErrorToast('일정 삭제에 실패했습니다. 네트워크를 확인해 주세요.', err);
+    }
+  }, [eventList, dateStr, groupId]);
 
   const updateEventItem = useCallback(async (id: string, updates: Partial<EventItem>) => {
     const newList = eventList
@@ -1141,7 +1144,22 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     const user = auth.currentUser;
     if (!user || !dateStr) return;
 
-    const itemToDelete = journals.find(j => j.id === id);
+    // 휴지통에 넣을 원본. 화면 목록에 없으면 서버에서 찾는다 - 없으면 휴지통도 거치지 않고 사라진다.
+    let itemToDelete: JournalEntry | undefined = journals.find(j => j.id === id);
+    if (!itemToDelete) {
+      try {
+        const journalDocRef = groupId
+          ? doc(db, 'groups', groupId, 'journals', dateStr)
+          : doc(db, 'users', user.uid, 'journals', dateStr);
+        const { snap } = await getDocTrustingServer(journalDocRef);
+        const raw: any[] = snap.exists() && Array.isArray(snap.data().entries) ? snap.data().entries : [];
+        itemToDelete = raw
+          .map((j, idx) => (j && j.id ? j : { ...j, id: 'jr_' + idx }))
+          .find((j) => j.id === id);
+      } catch (e) {
+        console.warn('Failed to fetch remote journal list for deletion:', e);
+      }
+    }
     if (itemToDelete) {
       try {
         await moveToTrash({
@@ -1153,7 +1171,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           data: itemToDelete
         });
       } catch (err) {
-        console.error('Failed to move to trash:', err);
+        // 휴지통에 못 넣었으면 지우지 않는다
+        showErrorToast('휴지통에 옮기지 못해 기록을 지우지 않았습니다. 네트워크를 확인해 주세요.', err);
+        return;
       }
     }
 

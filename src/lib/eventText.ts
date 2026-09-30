@@ -79,10 +79,22 @@ export function eventDocPayload(list: any[]) {
 /**
  * 문서에서 일정 목록을 읽는 표준 경로.
  * eventList가 비어 있을 때만 레거시 eventText를 파싱한다(데이터 보존 우선).
+ *
+ * ⚠️ id 없는 항목에는 화면(useDayData·useCalendarData)과 같은 이름 `ev_차례`를 붙인다.
+ *    V3의 옛 버전과 일부 경로(글만 있는 날의 완료 표시 등)는 id 없이 eventList를 쓴다.
+ *    화면은 그 항목을 `ev_0`으로 들고 있는데 저장 트랜잭션은 서버의 id 없는 원본과 id로
+ *    짝을 맞춰서, 짝을 못 찾은 원본을 '남이 넣은 것'으로 알고 살려 두었다. 그래서 그날
+ *    완료 표시 하나에 일정이 두 벌이 되고, 지운 일정은 휴지통에 가고도 그대로 남았다.
  */
 export function readEventList(data: any): V3EventLike[] {
   const list = data?.eventList;
-  if (Array.isArray(list) && list.length > 0) return list as V3EventLike[];
+  if (Array.isArray(list) && list.length > 0) {
+    return list.map((item: any, idx: number) =>
+      item && item.id !== undefined && item.id !== null && item.id !== ''
+        ? item
+        : { ...(item && typeof item === 'object' ? item : {}), id: 'ev_' + idx }
+    ) as V3EventLike[];
+  }
   if (data?.eventText) return parseV3EventText(data.eventText);
   return [];
 }
