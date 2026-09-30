@@ -26,6 +26,16 @@ const PERIOD_COLORS = [
   'bg-indigo-50 text-indigo-700 border-indigo-200',
   'bg-slate-50 text-slate-700 border-slate-200',
 ];
+/** 과목이 있는 교시 카드 왼쪽의 굵은 막대. 교시 칩과 같은 색 (차례도 PERIOD_COLORS와 같다) */
+const PERIOD_ACCENTS = [
+  'border-l-blue-400',
+  'border-l-emerald-400',
+  'border-l-amber-400',
+  'border-l-purple-400',
+  'border-l-rose-400',
+  'border-l-indigo-400',
+  'border-l-slate-400',
+];
 
 export default function DaySchedule({
   schedules,
@@ -156,6 +166,7 @@ export default function DaySchedule({
           const item = schedules[period] || { subject: '', content: '' };
           const isEditing = editingPeriod === period;
           const colorClass = PERIOD_COLORS[(period - 1) % PERIOD_COLORS.length];
+          const accentClass = PERIOD_ACCENTS[(period - 1) % PERIOD_ACCENTS.length];
           const linkCount = (item.linkedItems || []).length;
 
           if (isEditing) {
@@ -262,7 +273,10 @@ export default function DaySchedule({
               data-focus-key={dateStr ? focusKey.period(dateStr, period) : undefined}
               onClick={() => startEdit(period)}
               title="클릭하여 수정"
-              className="group p-3.5 rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[40px] hover:border-primary/50 hover:bg-slate-50/50 cursor-pointer"
+              // 과목이 눈에 띄게 (2026-09-30 사용자 요청): 과목이 있는 교시는 왼쪽에 교시 색 막대
+              className={`group p-3.5 rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[40px] hover:border-primary/50 hover:bg-slate-50/50 cursor-pointer ${
+                item.subject ? `border-l-4 ${accentClass}` : ''
+              }`}
             >
               <div className="flex gap-3 h-full items-stretch">
                 <div className="flex flex-col items-center justify-center gap-1 shrink-0 px-1">
@@ -291,7 +305,12 @@ export default function DaySchedule({
                       <span className={`px-2 py-0.5 shrink-0 rounded-lg text-xs font-bold border ${colorClass}`}>
                         {period}교시
                       </span>
-                      <span className="font-bold text-sm text-slate-800 truncate">
+                      <span
+                        data-subject
+                        className={`truncate leading-tight ${
+                          item.subject ? 'font-black text-base sm:text-lg text-slate-900' : 'text-sm'
+                        }`}
+                      >
                         {item.subject || <span className="text-slate-300 font-normal">과목 미등록</span>}
                       </span>
                       {linkCount > 0 && (
