@@ -2,7 +2,7 @@
 //
 // 메모·기록에 붙이는 표 (2026-09-30 사용자와 정함).
 //   - 엑셀·한셀·구글 시트에서 복사해 본문에 붙여넣으면 서식째 표로 붙는다.
-//     살리는 것: 보이는 값, 병합, 배경색, 글자색·굵게·기울임·밑줄·크기, 정렬, 테두리, 열 너비, 줄 높이.
+//     살리는 것: 보이는 값, 병합, 배경색, 글자색·굵게·기울임·밑줄·크기, 정렬, 테두리, 대각선, 열 너비, 줄 높이.
 //     못 살리는 것: 수식(계산된 값만 온다), 차트·그림, 메모(주석), 데이터 유효성.
 //   - 붙인 뒤에는 칸 글자만 고치고, 줄·열을 더하고 뺀다. 서식을 크게 바꿀 때는 다시 붙여넣는다.
 //   - 본문 아래 첨부처럼 둔다(항목의 tables 칸). V3는 이 칸을 모르고, 보여 주지 않지만 지우지도 않는다
@@ -31,6 +31,9 @@ export interface TableCellStyle {
   br?: string;
   bb?: string;
   bl?: string;
+  /** 대각선 ↘(왼쪽 위 → 오른쪽 아래)·↗(왼쪽 아래 → 오른쪽 위). 테두리와 같은 모양. 엑셀의 mso-diagonal-down/up */
+  dd?: string;
+  du?: string;
 }
 
 export interface TableCell {
@@ -209,21 +212,31 @@ function styleFromDecls(d: Decls, attrs: { align?: string | null; valign?: strin
   if (br) s.br = br;
   if (bb) s.bb = bb;
   if (bl) s.bl = bl;
+  // 대각선: 엑셀은 mso-diagonal-down/up으로 준다 (구글 시트에는 대각선이 없다)
+  const dd = parseBorder(d['mso-diagonal-down']);
+  const du = parseBorder(d['mso-diagonal-up']);
+  if (dd) s.dd = dd;
+  if (du) s.du = du;
   return s;
 }
 
-/** 칸의 보이는 글. <br>은 줄 바꿈, 연속 공백은 하나로 (엑셀의 줄 바꿈 칸은 <br>로 온다) */
+/**
+ * 칸의 보이는 글.
+ *   - <br>만 줄 바꿈이다. HTML 안의 줄 바꿈·들여쓰기(엑셀은 긴 칸을 여러 줄로 적는다)는 공백 하나.
+ *   - &nbsp;(엑셀이 앞에 넣은 공백을 보내는 모양)는 그대로 살린다. 대각선 머리칸의 "    요일 / 교시"처럼
+ *     공백으로 글자 자리를 맞춘 것이 흐트러지지 않게.
+ *   - 공백뿐인 칸은 빈 칸.
+ */
 function cellText(el: Element): string {
+  const BR = '\u2028';
   const clone = el.cloneNode(true) as Element;
-  clone.querySelectorAll('br').forEach((br) => br.replaceWith('\n'));
+  clone.querySelectorAll('br').forEach((br) => br.replaceWith(BR));
   // 엑셀은 숨긴 글(mso-hide)이나 <style>을 칸 안에 두지 않지만, 웹에서 복사한 표는 그럴 수 있다
   clone.querySelectorAll('style,script').forEach((n) => n.remove());
-  const text = (clone.textContent || '').replace(/ /g, ' ');
-  return text
-    .split('\n')
-    .map((line) => line.replace(/[ \t\r\f\v]+/g, ' ').trim())
-    .join('\n')
-    .replace(/^\n+|\n+$/g, '');
+  const text = (clone.textContent || '').replace(/[ \t\r\n\f\v]+/g, ' ');
+  const lines = text.split(BR).map((line) => line.replace(/^ +| +$/g, '').replace(/\u00a0/g, ' '));
+  const joined = lines.join('\n').replace(/^\n+|\n+$/g, '');
+  return joined.trim() === '' ? '' : joined;
 }
 
 function styleKey(s: TableCellStyle): string {
@@ -457,6 +470,24 @@ export function normalizeTables(raw: unknown): EntryTable[] {
   );
 }
 
+/**
+ * 대각선을 칸 배경으로 그린다. 칸 크기에 맞춰 늘어나는 SVG 선이라, 굵기는 그대로 두고
+ * 점선·파선도 그린다. 색은 safeColor를 거친 #rrggbb 뿐이라 URL에 그대로 넣어도 안전하다.
+ */
+function diagonalImage(spec: string, down: boolean): string | undefined {
+  const m = /^(\d)px (solid|dashed|dotted|double) (#[0-9a-f]{3,6})$/.exec(spec);
+  if (!m) return undefined;
+  const width = m[2] === 'double' ? 1 : Number(m[1]);
+  const dash = m[2] === 'dashed' ? " stroke-dasharray='6 3'" : m[2] === 'dotted' ? " stroke-dasharray='1 2'" : '';
+  const [y1, y2] = down ? [0, 100] : [100, 0];
+  const line = (offset: number) =>
+    `<line x1='0' y1='${y1 + offset}' x2='100' y2='${y2 + offset}' stroke='${m[3]}' stroke-width='${width}' vector-effect='non-scaling-stroke'${dash}/>`;
+  // 이중선은 가는 선 두 줄
+  const lines = m[2] === 'double' ? line(-1.5) + line(1.5) : line(0);
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'>${lines}</svg>`;
+  return `url("data:image/svg+xml,${svg.replace(/#/g, '%23').replace(/</g, '%3C').replace(/>/g, '%3E')}")`;
+}
+
 /** 칸 서식 → 화면 스타일 */
 export function cellCss(s?: TableCellStyle): Record<string, string | number> {
   if (!s) return {};
@@ -473,5 +504,11 @@ export function cellCss(s?: TableCellStyle): Record<string, string | number> {
   if (s.br) css.borderRight = s.br;
   if (s.bb) css.borderBottom = s.bb;
   if (s.bl) css.borderLeft = s.bl;
+  const diagonals = [s.dd && diagonalImage(s.dd, true), s.du && diagonalImage(s.du, false)].filter(Boolean);
+  if (diagonals.length) {
+    css.backgroundImage = diagonals.join(', ');
+    css.backgroundSize = '100% 100%';
+    css.backgroundRepeat = 'no-repeat';
+  }
   return css;
 }

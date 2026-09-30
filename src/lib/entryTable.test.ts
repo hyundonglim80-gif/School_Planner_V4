@@ -22,6 +22,7 @@ td {padding-top:1px; color:black; font-size:11.0pt; font-weight:400; font-style:
 .xl65 {font-weight:700; text-align:center; background:#FFFF00; border:.5pt solid windowtext;}
 .xl66 {color:red; border-top:.5pt solid windowtext; border-bottom:1.5pt solid windowtext;}
 .xl67 {white-space:normal; vertical-align:top; font-size:14.0pt;}
+.xl68 {mso-diagonal-down:.5pt solid windowtext; mso-diagonal-up:1.0pt dashed red;}
 -->
 </style></head><body>
 <table border=0 cellpadding=0 cellspacing=0 width=216>
@@ -73,6 +74,27 @@ describe('붙여넣은 표 읽기 - 엑셀', () => {
     expect(styleOf(t, 0, 2)).toMatchObject({ c: '#ff0000', bt: '1px solid #000000', bb: '2px solid #000000' });
     // 줄 바꿈·위 맞춤·14pt
     expect(styleOf(t, 1, 0)).toMatchObject({ wrap: 1, va: 'top', fs: 14 });
+  });
+
+  it('대각선 (엑셀의 mso-diagonal-down/up)', () => {
+    const d = asTable(parseClipboardTable(EXCEL.replace('<td>&nbsp;</td>', '<td class=xl68>&nbsp;</td>')));
+    expect(styleOf(d, 1, 2)).toMatchObject({ dd: '1px solid #000000', du: '2px dashed #ff0000' });
+    const css = cellCss(styleOf(d, 1, 2));
+    // ↘ 는 왼쪽 위(0,0) → 오른쪽 아래(100,100), ↗ 는 왼쪽 아래 → 오른쪽 위, 점선
+    expect(css.backgroundImage).toContain("x1='0' y1='0' x2='100' y2='100'");
+    expect(css.backgroundImage).toContain("x1='0' y1='100' x2='100' y2='0'");
+    expect(css.backgroundImage).toContain('stroke-dasharray');
+    expect(css.backgroundImage).toContain('%23ff0000');
+    expect(css.backgroundImage).not.toMatch(/[<>#]/);
+    expect(css.backgroundSize).toBe('100% 100%');
+  });
+
+  it('칸 글: <br>만 줄 바꿈, HTML 줄 바꿈은 공백, 앞의 &nbsp; 공백은 살린다(대각선 머리칸)', () => {
+    const d = asTable(
+      parseClipboardTable(`<table><tr><td>&nbsp;&nbsp;&nbsp;&nbsp;요일<br>교시</td><td>긴 글이
+        이어짐</td><td>&nbsp;</td></tr></table>`)
+    );
+    expect(d.rows[0].cells.map((c) => c.v)).toEqual(['    요일\n교시', '긴 글이 이어짐', '']);
   });
 
   it("숫자 칸은 엑셀 '일반' 맞춤처럼 오른쪽", () => {

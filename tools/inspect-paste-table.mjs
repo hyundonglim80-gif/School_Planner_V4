@@ -17,11 +17,13 @@ const EXCEL = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><sty
 td {font-size:11.0pt; text-align:general; vertical-align:bottom; border:none; white-space:nowrap;}
 .xl65 {font-weight:700; text-align:center; background:#FFFF00; border:.5pt solid windowtext;}
 .xl66 {color:red; border:.5pt solid windowtext;}
+.xl67 {border:.5pt solid windowtext; mso-diagonal-down:.5pt solid windowtext;}
 </style></head><body><table>
 <col width=90><col width=70><col width=70>
 <tr height=24><td colspan=3 class=xl65>표점검 ${RUN}</td></tr>
 <tr><td class=xl66>이름</td><td class=xl66>국어</td><td class=xl66>수학</td></tr>
 <tr><td>김하나</td><td x:num>95</td><td x:num>88</td></tr>
+<tr><td class=xl67>대각선</td><td></td><td></td></tr>
 </table></body></html>`;
 
 /** 엑셀처럼 표 HTML + 글자 + 그림을 함께 붙여넣는다 */
@@ -58,6 +60,8 @@ const red = await memoPanel.locator('td', { hasText: '국어' }).evaluate((e) =>
 console.log(`  빨간 글자: ${ok(red === 'rgb(255, 0, 0)')}`);
 const num = await memoPanel.locator('td', { hasText: '95' }).evaluate((e) => getComputedStyle(e).textAlign);
 console.log(`  숫자는 오른쪽: ${ok(num === 'right')}`);
+const diag = await memoPanel.locator('td', { hasText: '대각선' }).evaluate((e) => getComputedStyle(e).backgroundImage);
+console.log(`  대각선(↘)을 칸 배경에 그린다: ${ok(diag.includes('svg') && diag.includes("y2='100'"))}`);
 const noImage = (await memoPanel.getByText(/붙여넣은_이미지|업로드 중/).count()) === 0;
 console.log(`  그림으로 올리지 않았다: ${ok(noImage)}`);
 // 칸 고치기
