@@ -499,7 +499,7 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
                       <span className="font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 whitespace-nowrap shrink-0">
                         {TYPE_LABELS[item.type] || item.type}
                       </span>
-                      <span>{isClip(item) ? '이 기기' : item.originalDateStr || (item as any).dateStr || '날짜 없음'}</span>
+                      <span className="whitespace-nowrap">{isClip(item) ? '이 기기' : item.originalDateStr || (item as any).dateStr || '날짜 없음'}</span>
                       <span>•</span>
                       <span>{new Date(item.deletedAt).toLocaleString()} 삭제됨</span>
                     </div>

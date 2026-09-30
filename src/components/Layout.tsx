@@ -37,6 +37,7 @@ import MiniCalendarPicker from './MiniCalendarPicker';
 import MobileTabBar from './MobileTabBar';
 import EntryPanelHost, { DOCK_MIN_WIDTH, openEntryPanel, closeAllEntryPanels } from './EntryPanelHost';
 import { useSidePopups, RIGHT_COLUMN_CSS_WIDTH } from './PopupFrame';
+import { closeAllModals } from '../hooks/useModalLayer';
 import ClipboardPanel, { useClipboardCapture, LEFT_COLUMN_CSS_WIDTH } from './ClipboardPanel';
 import ColumnResizer from './ColumnResizer';
 import { purgeExpiredTrashDaily } from '../lib/trashRetention';
@@ -974,6 +975,25 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <EntryPanelHost />
       <ClipboardPanel />
       {rightOpen && <ColumnResizer side="right" width={RIGHT_COLUMN_CSS_WIDTH} />}
+      {/* 오른쪽 줄을 닫는 작은 단추 - 왼쪽 클립보드의 📋 단추와 짝 (2026-09-30).
+          열린 팝업과 쓰는 칸을 모두 닫는다(ESC와 같다. 저장 안 한 글이 있으면 먼저 묻는다).
+          ESC와 달리 라벨 거르개 같은 화면의 고른 것은 그대로 둔다. */}
+      {rightOpen && (
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            closeAllModals();
+            closeAllEntryPanels();
+          }}
+          title="오른쪽 칸 닫기 (ESC와 같음)"
+          aria-label="오른쪽 칸 닫기"
+          className="fixed top-1/2 -translate-y-1/2 z-[46] w-6 h-14 flex items-center justify-center rounded-l-xl bg-white/90 border border-r-0 border-slate-200 shadow-md text-xs text-slate-500 hover:bg-primary/10 hover:w-7 transition-all cursor-pointer"
+          style={{ right: RIGHT_COLUMN_CSS_WIDTH }}
+        >
+          ▶
+        </button>
+      )}
       {leftOpen && <ColumnResizer side="left" width={LEFT_COLUMN_CSS_WIDTH} />}
 
       {/* 모달 모음 - 열려 있을 때만 그려서 필요한 시점에 내려받는다 */}
