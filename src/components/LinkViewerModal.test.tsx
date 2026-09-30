@@ -129,5 +129,9 @@ describe('연결된 링크 - 붙인 표', () => {
     expect(cell.tagName).toBe('TD');
     expect(screen.queryByText('[표]')).toBeNull();
     expect(screen.queryByText('(내용 없음)')).toBeNull();
+    // 항목 안에서 따로 스크롤되지 않게 표를 다 펼친다 (스크롤은 배너 전체 하나)
+    const box = cell.closest('[data-entry-table]')!;
+    expect(box.className).not.toContain('max-h');
+    expect(box.className).toContain('overflow-y-hidden');
   });
 });

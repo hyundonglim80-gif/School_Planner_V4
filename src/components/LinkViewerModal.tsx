@@ -533,10 +533,11 @@ export default function LinkViewerModal({
                     </div>
                   )}
 
-                  {/* 붙인 표 - 보기만 (고치기는 ✏️ 수정으로 연 칸에서) */}
+                  {/* 붙인 표 - 보기만 (고치기는 ✏️ 수정으로 연 칸에서).
+                      항목 안에서 따로 스크롤되지 않게 다 펼친다 - 스크롤은 배너 전체 하나 */}
                   {(link.liveTables || []).map((t) => (
                     <div key={t.id} className="mt-1.5">
-                      <EntryTableView table={t} compact />
+                      <EntryTableView table={t} compact fullHeight />
                     </div>
                   ))}
 

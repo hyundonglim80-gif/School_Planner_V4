@@ -26,11 +26,16 @@ interface Props {
   onRemove?: () => void;
   /** 카드에 넣는 작은 보기 */
   compact?: boolean;
+  /**
+   * compact에서 높이를 자르지 않고 표 전체를 펼친다 (세로 스크롤은 바깥 칸 하나만).
+   * 링크 배너처럼 칸 전체가 스크롤되는 곳에서 쓴다. 넓은 표는 가로로만 스크롤한다.
+   */
+  fullHeight?: boolean;
   /** 제목 줄에 보일 이름 (예: '표 1') */
   title?: string;
 }
 
-export default function EntryTableView({ table, onChange, onRemove, compact, title }: Props) {
+export default function EntryTableView({ table, onChange, onRemove, compact, fullHeight, title }: Props) {
   const editable = !!onChange && !compact;
   const { rows: nRows, cols: nCols } = tableSize(table);
   /** 고른 칸 (줄·열 더하기/빼기의 기준) */
@@ -193,7 +198,7 @@ export default function EntryTableView({ table, onChange, onRemove, compact, tit
     // 카드에서는 작게 보기만. 넘치는 것은 칸 안에서만 스크롤.
     return (
       <div
-        className="max-h-48 overflow-auto overscroll-contain rounded-md border border-slate-200 bg-white"
+        className={`${fullHeight ? 'overflow-x-auto overflow-y-hidden' : 'max-h-48 overflow-auto overscroll-contain'} rounded-md border border-slate-200 bg-white`}
         style={{ zoom: 0.8 }}
         data-entry-table
       >
