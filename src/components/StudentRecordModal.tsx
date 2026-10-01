@@ -5,6 +5,7 @@
 //
 // 학생 카드(ROADMAP 9-1): 위에 사진·특이사항·출결 누계·기록·평가 수, 아래 '기록·출결'과 '평가' 두 갈래.
 // 평가는 그 학년도에 이 학급으로 만든 조사표 중 이 학생이 명단에 있는 것(lib/evalArchive, 값은 lib/evalSummary).
+// 관찰 한 줄·관찰 문구 단추(ROADMAP 10-2): 개인 공간 오늘 기록에 학생 태그를 붙여 한 줄(자리표 학생 칸과 같은 저장 길).
 import React, { useEffect, useMemo, useState } from 'react';
 import { collection, documentId, getDocs, query, where } from 'firebase/firestore';
 import ModalShell, { ModalCloseButton } from './ModalShell';
@@ -23,6 +24,11 @@ import { evalHasStudent } from '../lib/classHub';
 import { EVAL_TYPE_LABEL, evalCellText, isEmptyCell, sortEvals, studentEvalCell } from '../lib/evalSummary';
 import { useStudentPhotos } from '../hooks/useStudentPhotos';
 import StudentPhoto from './roster/StudentPhoto';
+import ObservationPhrases from './ObservationPhrases';
+import { observationContent } from '../lib/classHub';
+import { addJournalLine, removeJournalLine } from '../lib/classHubStore';
+import { formatDateStr } from '../lib/dateUtils';
+import { showUndoToast } from '../lib/undoToast';
 import { showToast, showErrorToast } from '../utils/toast';
 
 interface StudentRecordModalProps {
@@ -114,6 +120,10 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
   const [classEvals, setClassEvals] = useState<ArchivedEval[] | null>(null);
   const [tab, setTab] = useState<'timeline' | 'evals'>('timeline');
   const [photosOn] = useState(photosWanted);
+  /** 관찰 한 줄을 남기면 늘려 누가기록을 다시 모은다 */
+  const [reloadTick, setReloadTick] = useState(0);
+  const [obs, setObs] = useState('');
+  const [obsBusy, setObsBusy] = useState(false);
   const photoState = useStudentPhotos(isOpen && photosOn ? cls : null, cls?.students || [], photosOn);
 
   useEffect(() => {
@@ -179,7 +189,7 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
     };
     // tag는 cls·num에서 나온다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, classKey, num, selectedGroupId]);
+  }, [isOpen, classKey, num, selectedGroupId, reloadTick]);
 
   useEffect(() => {
     const uid = auth.currentUser?.uid;
@@ -231,6 +241,30 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
   };
 
   const tally = useMemo(() => (num === null ? null : tallyByStudent(attendanceDays)[String(num)] || null), [attendanceDays, num]);
+
+  /** 관찰 한 줄 → 개인 공간 오늘 기록 (적은 글 또는 누른 관찰 문구) */
+  const addObservation = async (text: string = obs) => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || !tag || obsBusy) return;
+    const content = observationContent(text, makeStudentTag(tag));
+    if (!content) return;
+    const date = formatDateStr(new Date());
+    setObsBusy(true);
+    try {
+      const id = await addJournalLine(uid, date, content);
+      if (text === obs) setObs('');
+      setReloadTick((n) => n + 1);
+      showUndoToast(`📝 오늘 기록에 남겼습니다: ${content}`, async () => {
+        const removed = await removeJournalLine(uid, date, id, content);
+        setReloadTick((n) => n + 1);
+        return removed ? '↩️ 기록에서 뺐습니다.' : '그 사이 고친 기록이라 빼지 않았습니다. 하루 화면에서 지워 주세요.';
+      });
+    } catch (e) {
+      showErrorToast('기록에 남기지 못했습니다. 네트워크를 확인해 주세요.', e);
+    } finally {
+      setObsBusy(false);
+    }
+  };
 
   const tagText = tag ? makeStudentTag(tag) : '';
 
@@ -414,6 +448,35 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
                       📋 전체 복사
                     </button>
                   </div>
+                </div>
+
+                <div className="p-3 border border-amber-200 bg-amber-50/40 rounded-xl" data-student-observe>
+                  <div className="text-2xs font-black text-slate-400 mb-1">관찰 한 줄 → 오늘 기록 (개인)</div>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={obs}
+                      onChange={(e) => setObs(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                          e.preventDefault();
+                          void addObservation();
+                        }
+                      }}
+                      placeholder="예: 모둠 활동에서 친구를 잘 도움"
+                      aria-label="관찰 한 줄"
+                      className="flex-1 min-w-0 px-2 py-1 border border-slate-200 rounded-lg bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void addObservation()}
+                      disabled={!obs.trim() || obsBusy}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 text-white font-bold disabled:opacity-40"
+                    >
+                      기록에 남기기
+                    </button>
+                  </div>
+                  <ObservationPhrases onPick={(p) => void addObservation(p)} disabled={obsBusy} />
                 </div>
 
                 <div className="flex items-center gap-1" role="tablist" aria-label="누가기록 갈래">

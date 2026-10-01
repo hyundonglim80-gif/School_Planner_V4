@@ -4,8 +4,10 @@
 //   - 오늘 출결: 출석부와 같은 저장(그날 기록의 '출결' 항목도 맞춘다). 누를 때마다 바로 저장
 //   - 오늘 조사표: 지금 보는 공간의 오늘 조사표 중 이 학급 것 - 이 학생 값만 고친다
 //   - 관찰 한 줄: 개인 공간 오늘 기록에 학생 태그(#26040305)를 붙여 한 줄 - 학생 누가기록이 모은다
+//     관찰 문구 단추(ROADMAP 10-2, ObservationPhrases)를 누르면 그 문구로 곧바로 한 줄
 // 저장은 lib/classHubStore, 셈은 lib/classHub. 저장은 하나씩 차례로 한다(빨리 여러 번 눌러도 앞의 것을 덮지 않게).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ObservationPhrases from './ObservationPhrases';
 import type { ClassRoster, Student } from '../hooks/useRoster';
 import type { EvaluationItem } from '../hooks/useEvaluation';
 import { useAppStore } from '../store/useAppStore';
@@ -172,10 +174,11 @@ export default function SeatStudentCard({
   );
   const todayLines = entriesForStudent(journal, tag);
   const [obs, setObs] = useState('');
-  const addObservation = () => {
-    const content = observationContent(obs, tagText);
+  /** 적은 글(또는 누른 관찰 문구)로 한 줄 */
+  const addObservation = (text: string = obs) => {
+    const content = observationContent(text, tagText);
     if (!content) return;
-    setObs('');
+    if (text === obs) setObs('');
     enqueue('기록에 남기지 못했습니다. 네트워크를 확인해 주세요.', async () => {
       const id = await addJournalLine(uid, date, content);
       showUndoToast(`📝 오늘 기록에 남겼습니다: ${content}`, async () => {
@@ -411,13 +414,14 @@ export default function SeatStudentCard({
               />
               <button
                 type="button"
-                onClick={addObservation}
+                onClick={() => addObservation()}
                 disabled={!obs.trim()}
                 className="px-2.5 py-1 rounded-lg bg-slate-800 text-white font-bold disabled:opacity-40"
               >
                 기록에 남기기
               </button>
             </div>
+            <ObservationPhrases onPick={(p) => addObservation(p)} />
             {todayLines.length > 0 && (
               <ul className="mt-1.5 flex flex-col gap-0.5 text-slate-600" data-seat-student-lines>
                 {todayLines.map((e) => (

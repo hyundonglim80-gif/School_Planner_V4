@@ -16,6 +16,8 @@ import ImageViewerModal, { type ViewerImage } from './ImageViewerModal';
 import { isImageAttachment } from '../lib/attachments';
 import AutoTextarea from './AutoTextarea';
 import StudentTagPicker from './StudentTagPicker';
+import StudentMentionList from './StudentMentionList';
+import { applyMention, findMention, type Mention, type MentionCandidate } from '../lib/mention';
 import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
 import { labelPath, orderByTree } from '../lib/labelTree';
 import { isTopSideItem } from './PopupFrame';
@@ -196,6 +198,51 @@ export default function EntryDrawer({
   const [uploadingFiles, setUploadingFiles] = useState(false);
   /** 학생 태그 고르는 칸 (기록에만) */
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  /**
+   * '@이름'으로 학생 태그 넣기 (기록에만, ROADMAP 10-1). 목록은 StudentMentionList가 그리고,
+   * 키보드는 글 칸이 받는다(목록으로 초점을 옮기면 한글 조합이 끊긴다).
+   */
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+  const [mention, setMention] = useState<Mention | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionCandidates = useRef<MentionCandidate[]>([]);
+  const updateMention = (el: HTMLTextAreaElement) => {
+    if (kind !== 'journal') return;
+    const next = findMention(el.value, el.selectionStart ?? el.value.length);
+    if (!next || next.query !== mention?.query || next.start !== mention?.start) setMentionIndex(0);
+    setMention(next);
+  };
+  const pickMention = (c: MentionCandidate) => {
+    const el = contentRef.current;
+    if (!mention || !el) return;
+    const r = applyMention(el.value, mention, c.tag);
+    setContent(r.text);
+    setMention(null);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(r.caret, r.caret);
+    });
+  };
+  const onMentionKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!mention || e.nativeEvent.isComposing) return;
+    if (e.key === 'Escape') {
+      // 목록만 닫는다. 쓰는 칸 전체가 닫히면(전역 ESC) 적던 것이 사라진다
+      e.preventDefault();
+      e.stopPropagation();
+      setMention(null);
+      return;
+    }
+    const list = mentionCandidates.current;
+    if (list.length === 0) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      setMentionIndex((i) => (i + step + list.length) % list.length);
+    } else if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      pickMention(list[Math.min(mentionIndex, list.length - 1)]);
+    }
+  };
   // saving 상태는 다음 그림에서야 반영되므로, 연달아 들어온 저장을 막는 데는 쓸 수 없다.
   const savingRef = useRef(false);
 
@@ -538,18 +585,41 @@ export default function EntryDrawer({
             <label className="block text-xs font-semibold text-slate-600">
               {text.contentLabel} <span className="text-red-500">*</span>
             </label>
-            <AutoTextarea
-              autoFocus
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              onPaste={(e) => {
-                if (handleTablePaste(e)) return;
-                handlePaste(e);
-              }}
-              placeholder={text.placeholder}
-              className="w-full min-h-[84px] p-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-slate-800 leading-relaxed placeholder-slate-400 text-sm"
-            />
-            <p className="text-2xs text-slate-400">▦ 엑셀·한셀·구글 시트에서 복사해 여기에 붙여넣으면 서식째 표로 붙습니다.</p>
+            <div className="relative">
+              <AutoTextarea
+                ref={contentRef}
+                autoFocus
+                value={content}
+                onChange={(e) => {
+                  setContent(e.target.value);
+                  updateMention(e.target);
+                }}
+                onKeyDown={onMentionKeyDown}
+                // 커서만 옮겨도(누르기·화살표) '@' 밖으로 나가면 목록을 닫는다
+                onSelect={(e) => mention && updateMention(e.currentTarget)}
+                onBlur={() => setMention(null)}
+                onPaste={(e) => {
+                  if (handleTablePaste(e)) return;
+                  handlePaste(e);
+                }}
+                placeholder={text.placeholder}
+                className="w-full min-h-[84px] p-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-slate-800 leading-relaxed placeholder-slate-400 text-sm"
+              />
+              {kind === 'journal' && mention && (
+                <StudentMentionList
+                  query={mention.query}
+                  activeIndex={mentionIndex}
+                  onCandidates={(list) => {
+                    mentionCandidates.current = list;
+                  }}
+                  onPick={pickMention}
+                />
+              )}
+            </div>
+            <p className="text-2xs text-slate-400">
+              ▦ 엑셀·한셀·구글 시트에서 복사해 여기에 붙여넣으면 서식째 표로 붙습니다.
+              {kind === 'journal' ? ' @이름을 치면 학생 태그를 고릅니다.' : ''}
+            </p>
             {/* 붙인 표 (lib/entryTable). 칸을 눌러 글자를 고치고, 줄·열을 더하고 뺀다 */}
             {tables.map((t, i) => (
               <EntryTableView
