@@ -105,3 +105,59 @@
 #side-column * {
   overscroll-behavior: auto;
 }
+
+/* ── 인쇄 (ROADMAP 12, lib/print) ──────────────────────────────────────
+   찍을 부분을 복제해 body 바로 아래 #sp4-print-root에 넣고, 인쇄할 때는 그것만 보인다.
+   스크롤 상자·높이 제한·붙박이(sticky)는 펼쳐서 잘리지 않게 한다. 색은 그대로 찍는다(라벨 칩·교시 색). */
+#sp4-print-root {
+  display: none;
+}
+@media print {
+  body[data-printing] > *:not(#sp4-print-root) {
+    display: none !important;
+  }
+  body[data-printing] {
+    background: #fff !important;
+  }
+  #sp4-print-root {
+    display: block;
+    container-type: inline-size;
+    color: #0f172a;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #sp4-print-root,
+  #sp4-print-root * {
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    animation: none !important;
+  }
+  #sp4-print-root .sticky {
+    position: static !important;
+  }
+  #sp4-print-root .sp4-print-title {
+    font-size: 15pt;
+    font-weight: 900;
+    margin: 0 0 1mm;
+  }
+  #sp4-print-root .sp4-print-subtitle {
+    font-size: 8.5pt;
+    color: #64748b;
+    margin: 0 0 3mm;
+  }
+  /* 주간 화면: 용지 폭과 상관없이 요일마다 한 열 (화면은 칸 폭에 따라 3~5열로 바뀐다) */
+  #sp4-print-root [data-week-grid] {
+    grid-template-columns: repeat(var(--week-cols, 5), minmax(0, 1fr)) !important;
+    gap: 2mm !important;
+  }
+  #sp4-print-root [data-week-grid] > * {
+    break-inside: avoid;
+  }
+  #sp4-print-root table {
+    break-inside: auto;
+  }
+  #sp4-print-root tr {
+    break-inside: avoid;
+  }
+}

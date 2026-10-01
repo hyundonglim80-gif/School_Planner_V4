@@ -137,7 +137,12 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
         모니터 절반(약 940~1050px)에서 한 줄로 서면 카드가 좁고 길어져 아래가
         텅 빈다. 그 폭에서는 두세 줄로 접는다 (7일: 3칸 → 4칸, 5일: 3칸).
         창 폭이 아니라 본문 폭(@container)으로 재므로, 오른쪽 메모·기록 칸이 열리면 그만큼 접는다. */}
-    <div className={"grid grid-cols-2 @min-[720px]:grid-cols-3 " + (days.length === 5 ? "@min-[1200px]:grid-cols-5" : "@min-[980px]:grid-cols-4 @min-[1200px]:grid-cols-7") + " gap-2 sm:gap-3"}>
+    <div
+      data-week-grid
+      // 인쇄할 때는 요일마다 한 열 (index.css의 @media print가 이 수로 열을 나눈다)
+      style={{ ['--week-cols' as string]: days.length } as React.CSSProperties}
+      className={"grid grid-cols-2 @min-[720px]:grid-cols-3 " + (days.length === 5 ? "@min-[1200px]:grid-cols-5" : "@min-[980px]:grid-cols-4 @min-[1200px]:grid-cols-7") + " gap-2 sm:gap-3"}
+    >
       {days.map((day) => {
         const summary = dataMap[day.dateStr] || {};
         const rawEvents = summary.eventList || [];
@@ -313,6 +318,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                       </span>
                     )}
                     <button
+                      data-print-hide
                       onClick={(e) => { e.stopPropagation(); onQuickAdd(day.dateStr); }}
                       className="ml-1 w-5 h-5 rounded hover:bg-slate-200 text-slate-400 hover:text-primary flex items-center justify-center transition-colors text-xs font-bold leading-none"
                       title="일정 빠른 추가"

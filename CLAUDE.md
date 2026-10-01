@@ -60,7 +60,8 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
 
 - 로드맵 17개 중 **1~11번 끝**(일정 날짜 옮기기·수업 칸 압축·드라이브 자동 백업·나이스·진도 관리·작은 것 묶음 7가지·작년 이맘때·자리표 허브·
   학생 카드와 평가 모아 보기·관찰 빨리 적기·빠른 입력과 기한). wip 브랜치 없음. 설명서 전체 점검은 9번 끝에 했다(결과는 ROADMAP 9번) - 다음은 12번을 끝낼 때.
-- **다음은 12번 인쇄·주간학습안내** - 단계를 나눠 ROADMAP 12번에 적고 시작한다. 12번을 끝내면 설명서 전체 점검(`df -h /c` 먼저).
+- **12번 인쇄·주간학습안내 하는 중** - 12-1 인쇄 틀(`lib/print.printNode` - 복제해 `#sp4-print-root`, `@media print`)·주간 A4 가로 끝,
+  다음은 **12-2 주간학습안내**. 찍지 않을 단추에는 `data-print-hide`. 12번을 끝내면 설명서 전체 점검(`df -h /c` 먼저). 크롬 `tools/inspect-print.mjs`.
 - 11번 빠른 입력·기한(2026-10-02 끝): 빠른 입력 칩(`lib/quickInput`·`QuickInputChips`, 새 일정 칸만, 누를 때만 넣고 그 말을 뺀다). 기한은 일정 칸 `due`
   + 이월 사슬마다 `settings/v4_eventDue` - **V3 이월(`forwarding.js`)과 V4 이월(`doAutoForwarding`)·`addEventItem`·주간 요약(`mapEvents`)은 정해진 칸만
   옮긴다**: 일정에 새 칸을 더하면 이 셋을 고치고, V3가 빼먹는 칸은 `forwardChainId`로 찾게 한다. 크롬 `inspect-quick-input`(20)·`inspect-due`(17).

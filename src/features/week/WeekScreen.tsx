@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { getWeekDays, parseDateStr, addDays, formatDateStr } from '../../lib/dateUtils';
 import { useCalendarData } from '../../hooks/useCalendarData';
@@ -21,6 +21,7 @@ import { eventContentOf } from '../../lib/eventText';
 import { showUndoToast } from '../../lib/undoToast';
 import { showToast, showErrorToastOnce } from '../../utils/toast';
 import { runAutoForwarding } from '../../hooks/useDayData';
+import { printNode } from '../../lib/print';
 
 export default function WeekScreen() {
   const { currentDate, setCurrentDate, setScope, selectedGroupId, showWeekend, showEvents, showLastYear, setShowLastYear } = useAppStore();
@@ -72,6 +73,8 @@ export default function WeekScreen() {
     setPicked(next);
   };
   const [importing, setImporting] = useState(false);
+  /** 인쇄할 이번 주 칸 (ROADMAP 12-1 - A4 가로) */
+  const printRef = useRef<HTMLDivElement>(null);
 
   const rangeLabel = useMemo(() => {
     if (weekDays.length === 0) return '';
@@ -232,6 +235,25 @@ export default function WeekScreen() {
         )}
         <button
           type="button"
+          data-week-print
+          onClick={() => {
+            if (!printRef.current || displayWeekDays.length === 0) return;
+            const first = displayWeekDays[0].dateStr;
+            const last = displayWeekDays[displayWeekDays.length - 1].dateStr;
+            const md = (s: string) => `${Number(s.slice(5, 7))}.${Number(s.slice(8, 10))}`;
+            printNode(printRef.current, {
+              title: `${first.slice(0, 4)}년 ${md(first)} ~ ${md(last)} 주간`,
+              subtitle: `인쇄 ${formatDateStr(new Date())}`,
+              landscape: true,
+            });
+          }}
+          title="이번 주 칸을 A4 가로로 인쇄합니다 (인쇄 창에서 'PDF로 저장'도 됩니다)"
+          className="px-2.5 py-1 rounded-lg text-xs font-bold border bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700 whitespace-nowrap"
+        >
+          🖨️ 인쇄
+        </button>
+        <button
+          type="button"
           data-last-year-toggle
           aria-pressed={showLastYear}
           onClick={() => setShowLastYear(!showLastYear)}
@@ -252,6 +274,7 @@ export default function WeekScreen() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
+          <div ref={printRef}>
           <WeekGrid
             onQuickAdd={openQuickAdd}
             days={displayWeekDays}
@@ -272,6 +295,7 @@ export default function WeekScreen() {
                 : undefined
             }
           />
+          </div>
           {showNextWeek && (
             <section aria-label="다음 주">
               <div className="flex items-center gap-2 mb-2 px-1">
