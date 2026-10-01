@@ -37,6 +37,9 @@ async function sizes(tab) {
 }
 
 const month = await sizes('월간');
+// 년간은 처음에 학사력(ROADMAP 14) - 잴 것(날짜 '12일 (수)'·수업 칩)은 '자세히'에 있다
+await page.getByRole('button', { name: '년간', exact: true }).click().catch(() => {});
+await page.locator('[data-year-view="detail"]').click().catch(() => {});
 const year = await sizes('년간');
 const week = await sizes('주간');
 console.log('\n화면별 글자 크기(px)');

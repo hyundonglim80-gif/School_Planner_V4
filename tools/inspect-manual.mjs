@@ -1291,7 +1291,8 @@ if (ONLY !== 'mobile') {
   const openCalendarEvent = async (scopeKey) => {
     await page.keyboard.press(`Shift+Digit${scopeKey}`);
     await wait(3000);
-    const ev = page.locator('[title="클릭하여 상세 보기"], [title^="누르면 고치기"]').first();
+    // 년간은 처음에 학사력(ROADMAP 14) - 달 아래 목록의 일정을 누른다
+    const ev = page.locator('[title="클릭하여 상세 보기"], [title^="누르면 고치기"], [data-sheet-item="event"]').first();
     assert((await ev.count()) > 0, '누를 일정이 없음');
     const box = await ev.boundingBox();
     await ev.click({ position: { x: box.width - 3, y: box.height / 2 } });

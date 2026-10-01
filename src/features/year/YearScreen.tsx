@@ -21,6 +21,10 @@ import { useGroupDelete } from '../../hooks/useGroupDelete';
 import YearMonthCard from './YearMonthCard';
 import { useEventDropMove } from '../../hooks/useEventDrag';
 import { showDeletedToast } from '../../lib/undoToast';
+import YearSheetMonth from './YearSheet';
+import { useDDay } from '../../hooks/useDDay';
+import { printNode } from '../../lib/print';
+import type { NeisScheduleItem } from '../../lib/neis';
 
 // Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
 // 편집기가 첫 화면 묶음에 함께 실려 온다. 그래서 여기서도 필요할 때 불러온다.
@@ -36,6 +40,17 @@ const DetailEditModal = lazyWithReload(() => import('../../components/DetailEdit
  */
 const MONTHS_PER_FRAME = 3;
 
+/** 년간 보기: 학사력 한 장(ROADMAP 14) / 자세히(예전 모양). 이 기기에 남긴다. */
+type YearView = 'sheet' | 'detail';
+const YEAR_VIEW_KEY = 'sp4_yearView';
+function loadYearView(): YearView {
+  try {
+    return localStorage.getItem(YEAR_VIEW_KEY) === 'detail' ? 'detail' : 'sheet';
+  } catch {
+    return 'sheet';
+  }
+}
+
 export default function YearScreen() {
   const { currentDate, setCurrentDate, setScope, semesterFilter, showWeekend, showClass, showEvents, selectedGroupId, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal } = useAppStore();
   const [eventsMap, setEventsMap] = useState<Record<string, any[]>>({});
@@ -46,6 +61,18 @@ export default function YearScreen() {
   const [evalCountMap, setEvalCountMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const isMobile = useIsMobile();
+  const [yearView, setYearViewState] = useState<YearView>(loadYearView);
+  const setYearView = (v: YearView) => {
+    setYearViewState(v);
+    try {
+      localStorage.setItem(YEAR_VIEW_KEY, v);
+    } catch {
+      /* 저장하지 못해도 이번에는 바뀐다 */
+    }
+  };
+  const { dDayList } = useDDay();
+  const openSchoolEventPeek = useAppStore((st) => st.openSchoolEventPeek);
+  const sheetRef = useRef<HTMLDivElement>(null);
   // 휴대폰에서 월 카드 접기/펼치기. 기본값은 "이번 달만 펼침"이라 값이 없으면
   // 이번 달인지로 판단하고, 사용자가 누른 달만 여기에 기록한다.
   const [collapsedMonths, setCollapsedMonths] = useState<Record<string, boolean>>({});
@@ -98,12 +125,12 @@ export default function YearScreen() {
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
-    
+
     const startStr = `${defaultAcademicYear}-03-01`;
     const endStr = `${defaultAcademicYear + 1}-02-29`;
-    
+
     const colPath = (col: string) => selectedGroupId && selectedGroupId !== 'personal' ? `groups/${selectedGroupId}/${col}` : `users/${user.uid}/${col}`;
-    
+
     setLoading(true);
 
     const unsubEvents = onSnapshot(query(collection(db, colPath('events')), where(documentId(), '>=', startStr), where(documentId(), '<=', endStr)), (snap) => {
@@ -220,6 +247,15 @@ export default function YearScreen() {
     setCurrentDate(parseDateStr(dateStr));
     setScope('day');
   }, [setCurrentDate, setScope]);
+  // 학사력: 달 이름을 누르면 그 달 월간, 일정을 누르면 오른쪽 칸, 학사일정은 학사일정 창
+  const handleMonthClick = useCallback((year: number, month: number) => {
+    setCurrentDate(new Date(year, month - 1, 1));
+    setScope('month');
+  }, [setCurrentDate, setScope]);
+  const handleOpenSheetEvent = useCallback((dateStr: string, ev: any) => {
+    void openEntryPanel({ kind: 'event', groupId: selectedGroupId, dateStr, entryId: String(ev.id), initial: ev });
+  }, [selectedGroupId]);
+  const handleOpenSchool = useCallback((dateStr: string, items: NeisScheduleItem[]) => openSchoolEventPeek(dateStr, items), [openSchoolEventPeek]);
 
   // 날짜 칸의 + 는 그날의 새 일정을 오른쪽 칸에 연다
   const handleQuickAdd = useCallback(
@@ -245,7 +281,7 @@ export default function YearScreen() {
     const eventDocRef = selectedGroupId
       ? doc(db, 'groups', selectedGroupId, 'events', dateStr)
       : doc(db, 'users', user.uid, 'events', dateStr);
-    
+
     try {
       // 트랜잭션으로 서버의 지금 목록에서 그 일정만 뒤집는다 (lib/eventDocOps).
       // 예전엔 캐시로 읽어 통째로 썼고, eventList를 바로 읽어 id 없는 V3 항목을 못 찾았다.
@@ -293,6 +329,77 @@ export default function YearScreen() {
           쌓여, 훑는 데 뜻이 있는 화면인데도 끝없이 스크롤해야 했다.
           펼친 달은 좁으면 읽기 어려우므로 두 칸을 다 쓴다(YearMonthCard 참고).
         */
+        <>
+        {/* 학사력 / 자세히 전환과 인쇄 (ROADMAP 14) */}
+        <div className="flex flex-wrap items-center gap-2 mb-3" data-print-hide>
+          <div className="inline-flex bg-slate-100 p-0.5 rounded-xl gap-0.5" role="group" aria-label="년간 보기">
+            {([['sheet', '📅 학사력', '열두 달을 작은 달력 한 장으로 (공휴일·D-Day·학사일정·달력 일정)'], ['detail', '📋 자세히', '날마다 수업과 일정을 모두 (고치기·끌어 옮기기·여러 개 고르기)']] as const).map(([v, label, hint]) => (
+              <button
+                key={v}
+                type="button"
+                data-year-view={v}
+                aria-pressed={yearView === v}
+                onClick={() => setYearView(v)}
+                title={hint}
+                className={`px-2.5 py-1 text-xs rounded-lg font-bold whitespace-nowrap transition-all ${yearView === v ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {yearView === 'sheet' && (
+            <>
+              <span className="hidden sm:flex items-center gap-2.5 text-2xs font-bold text-slate-500">
+                <span className="flex items-center gap-1"><span className="w-[6px] h-[6px] rounded-full bg-red-500" />공휴일</span>
+                <span className="flex items-center gap-1"><span className="w-[10px] h-[10px] rounded-full ring-[1.5px] ring-amber-400" />D-Day</span>
+                <span className="flex items-center gap-1"><span className="w-[6px] h-[6px] rounded-full bg-teal-500" />학사일정</span>
+                <span className="flex items-center gap-1"><span className="w-[6px] h-[6px] rounded-full bg-blue-400" />달력 일정(라벨 빛깔)</span>
+                <span className="flex items-center gap-1"><span className="w-[14px] h-[3px] rounded-full bg-blue-400" />기간 일정</span>
+              </span>
+              <button
+                type="button"
+                data-year-print
+                onClick={() => {
+                  if (!sheetRef.current) return;
+                  const semLabel = semesterFilter === 'all' ? '' : ` (${semesterFilter}학기)`;
+                  printNode(sheetRef.current, { title: `${defaultAcademicYear}학년도 학사력${semLabel}`, landscape: true });
+                }}
+                title="학사력을 A4 가로로 인쇄합니다 (PDF로 저장도)"
+                className="ml-auto px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-xs font-bold"
+              >
+                🖨️ 인쇄
+              </button>
+            </>
+          )}
+        </div>
+        {yearView === 'sheet' ? (
+          <div ref={sheetRef} data-year-sheet className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3 items-start">
+            {months.slice(0, shownMonths).map((mInfo) => {
+              const now = new Date();
+              return (
+                <YearSheetMonth
+                  key={`${mInfo.year}-${mInfo.month}`}
+                  mInfo={mInfo}
+                  eventsMap={eventsMap}
+                  holidays={holidays}
+                  schoolEvents={schoolEvents}
+                  ddays={dDayList}
+                  eventLabels={eventLabels}
+                  labelsLoaded={labelsLoaded}
+                  labelColorOf={labelColorOf}
+                  showWeekend={showWeekend}
+                  showEvents={showEvents}
+                  isCurrentMonthCard={mInfo.year === now.getFullYear() && mInfo.month === now.getMonth() + 1}
+                  realTodayStr={realTodayStr}
+                  onDateClick={handleDateClick}
+                  onMonthClick={handleMonthClick}
+                  onOpenEvent={handleOpenSheetEvent}
+                  onOpenSchool={handleOpenSchool}
+                />
+              );
+            })}
+          </div>
+        ) : (
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4">
           {months.slice(0, shownMonths).map((mInfo) => {
             const monthKey = `${mInfo.year}-${mInfo.month}`;
@@ -343,6 +450,8 @@ export default function YearScreen() {
             );
           })}
         </div>
+        )}
+        </>
       )}
 
       {detailModal && (
@@ -357,7 +466,7 @@ export default function YearScreen() {
           />
         </Suspense>
       )}
-      
+
       {groupDeleteModal}
       {drop.groupMoveModal}
 

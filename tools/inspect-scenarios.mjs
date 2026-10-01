@@ -282,6 +282,11 @@ const scopeTitle = () => page.locator('header span.font-extrabold').first().inne
 async function goScope(k) {
   await page.keyboard.press(`Shift+Digit${k}`);
   await wait(1500);
+  // 년간은 처음에 학사력(ROADMAP 14) - 날마다 일정을 고치는 것은 '자세히'
+  if (k === 4) {
+    await page.locator('[data-year-view="detail"]').click();
+    await wait(1200);
+  }
 }
 /** 작은 달력의 '직접 선택'으로 그 날짜로 간다 */
 async function goDate(date) {

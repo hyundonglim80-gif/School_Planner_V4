@@ -15,6 +15,11 @@ for (const [key, name] of [['Shift+Digit2', '주간'], ['Shift+Digit3', '월간'
   await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press(key);
   await page.waitForTimeout(2000);
+  // 년간은 처음에 학사력(ROADMAP 14) - 기록 표식은 '자세히'에
+  if (name === '년간') {
+    await page.locator('[data-year-view="detail"]').click();
+    await page.waitForTimeout(1500);
+  }
   // 고치기
   await page.getByTitle(/기록 \d+건 보기/).first().click();
   await page.waitForTimeout(1200);

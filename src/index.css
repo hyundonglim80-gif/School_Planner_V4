@@ -160,6 +160,17 @@
   #sp4-print-root tr {
     break-inside: avoid;
   }
+  /* 년간 학사력(ROADMAP 14): 용지 폭과 상관없이 넉 달씩, 화면에서 접어 둔 목록 줄도 찍는다 */
+  #sp4-print-root [data-year-sheet] {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 2mm !important;
+  }
+  #sp4-print-root [data-sheet-month] {
+    break-inside: avoid;
+  }
+  #sp4-print-root [data-sheet-extra] {
+    display: list-item !important;
+  }
   /* 출결 누계·조사표·평가 모아 보기 표는 화면에서 칸 선이 옅다 - 종이에는 칸마다 선 (주간학습안내 표는 제 선이 있다) */
   #sp4-print-root table:not([data-guide-table]) {
     border-collapse: collapse !important;

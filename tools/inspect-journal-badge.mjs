@@ -12,6 +12,8 @@ await page.waitForTimeout(3500);
 
 async function check(tab) {
   await page.getByRole('button', { name: tab, exact: true }).click();
+  // 년간은 처음에 학사력(ROADMAP 14) - 기록 표식은 '자세히'에
+  if (tab === '년간') await page.locator('[data-year-view="detail"]').click();
   await page.waitForTimeout(6000);
   const badges = page.getByRole('button', { name: /기록 \d+건 보기/ });
   const n = await badges.count();

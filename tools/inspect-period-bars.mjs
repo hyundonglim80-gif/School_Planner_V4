@@ -149,6 +149,8 @@ try {
 
   // ── 년간 ──
   await page.getByRole('button', { name: '년간', exact: true }).first().click();
+  // 년간은 처음에 학사력(ROADMAP 14, inspect-year-sheet가 본다) - 날마다 늘어놓는 묶기는 '자세히'
+  await page.locator('[data-year-view="detail"]').click();
   const monthLabel = `${t0.getMonth() + 1}월`;
   const groupA = page.locator('[data-period-group="group_pb_a"]');
   await groupA.first().waitFor({ timeout: 15000 });

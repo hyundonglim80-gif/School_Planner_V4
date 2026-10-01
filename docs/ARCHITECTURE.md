@@ -221,6 +221,11 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 묶어 보인다(`collapsePeriods`). 달력 요약(`useCalendarData.mapEvents`)은 정해진 칸만 옮기므로 `groupId`를 넣었다 - 빠져 있어
 월간·년간에서 끌기·지우기가 묶음 범위를 묻지 못했다.
 
+### 년간 학사력 (`lib/yearSheet`, `features/year/YearSheet`, ROADMAP 14)
+년간은 '📅 학사력'(처음)과 '📋 자세히'(예전 `YearMonthCard`) 두 모양이고 고른 것은 이 기기(`sp4_yearView`)에 남는다. 학사력은 읽기 전용에
+가깝다: 날짜 칸은 점·막대만(공휴일·D-Day·학사일정·'달력' 일정), 달 아래 목록을 누르면 오른쪽 일정 칸. 수업·기록 표식·끌기·여러 개 고르기는
+자세히에만 있다 - **년간에서 날마다의 것을 보는 점검은 `[data-year-view="detail"]`을 먼저 누른다.**
+
 ### 일정 옮기기 (`hooks/useEventMove`, `lib/eventDocOps`)
 쓰는 칸의 날짜 칸·끌어 놓기·다중 선택이 모두 `useEventMove().requestMove`를 부른다. 묶음(`groupId`)이면 `GroupMoveModal`이
 "이 날만 / 이 날부터 / 전부"를 묻고 고른 것을 **같은 날 수만큼** 옮긴다(`moveGroupEvents`: 고치던 일정을 먼저, 나머지는 하나씩 -
