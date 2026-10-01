@@ -16,6 +16,12 @@ interface RecurringModalProps {
   defaultContent?: string;
   defaultLabelName?: string;
   defaultStartDate?: string;
+  /** 처음 고른 요일 (0=일 … 6=토). 새 일정 빠른 입력의 '매주 화'에서 연다 */
+  defaultDays?: number[];
+  /** 처음 반복 방식 (격주 등) */
+  defaultType?: RecurType;
+  /** 만들고 나서 (몇 날짜에 만들었나) - 부른 쪽이 칸을 닫는다 */
+  onRegistered?: (count: number) => void;
 }
 
 export type RecurType = 'weekly' | 'biweekly' | 'monthly' | 'monthday';
@@ -77,13 +83,22 @@ export function computeRecurringDates(opts: {
   return dates;
 }
 
-export default function RecurringModal({ isOpen, onClose, defaultContent = '', defaultLabelName = '', defaultStartDate }: RecurringModalProps) {
+export default function RecurringModal({
+  isOpen,
+  onClose,
+  defaultContent = '',
+  defaultLabelName = '',
+  defaultStartDate,
+  defaultDays,
+  defaultType,
+  onRegistered,
+}: RecurringModalProps) {
   const { selectedGroupId } = useAppStore();
   const { eventLabels } = useLabels();
   const [content, setContent] = useState(defaultContent);
   const [labelName, setLabelName] = useState(defaultLabelName);
-  const [recurType, setRecurType] = useState<RecurType>('weekly');
-  const [selectedDays, setSelectedDays] = useState<number[]>([1]); // 0=일, 1=월, ...
+  const [recurType, setRecurType] = useState<RecurType>(defaultType || 'weekly');
+  const [selectedDays, setSelectedDays] = useState<number[]>(defaultDays?.length ? defaultDays : [1]); // 0=일, 1=월, ...
   const [selectedMonthDays, setSelectedMonthDays] = useState<number[]>([]);
   const [startDate, setStartDate] = useState(defaultStartDate || formatDate(new Date()));
   const [endDate, setEndDate] = useState('');
@@ -165,6 +180,7 @@ export default function RecurringModal({ isOpen, onClose, defaultContent = '', d
       }
 
       showToast(`✅ ${dates.length}개 날짜에 반복 일정이 생성되었습니다.`);
+      onRegistered?.(dates.length);
     } catch (e: any) {
       console.error(e);
       showErrorToast('반복 일정 생성 중 오류가 발생했습니다: ' + e.message);

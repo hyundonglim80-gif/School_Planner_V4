@@ -10,6 +10,9 @@
 // 저장은 열 때의 날짜·공간에 한다. 칸이 열린 채 다른 날짜·화면으로 옮겨 다녀도 그렇다.
 // 날짜를 바꾸려면 칸 맨 위의 날짜 칸에서 고른다: 새 일정은 저장할 날짜가 바뀌고, 고치던 일정은
 // 저장할 때 그 날짜로 옮긴다(hooks/useEventMove - 기간·반복 묶음이면 어디까지 옮길지 묻는다). 옮긴 뒤 칸은 새 날짜의 수정 칸이 된다.
+//
+// 빠른 입력(ROADMAP 11-1, 새 일정만): 적는 대로 날짜·시각·#라벨·매주 요일을 알아보고(lib/quickInput) 칩으로 보인다.
+// 칩을 누를 때만 칸에 넣고 그 말을 글에서 뺀다(시각은 글에 둔다) - 저장·읽기 경로에서는 본문을 바꾸지 않는다.
 import React, { useEffect, useRef, useState } from 'react';
 import { useDayData, type EventItem } from '../hooks/useDayData';
 import { useLabels } from '../hooks/useLabels';
@@ -27,6 +30,9 @@ import EventAlarmModal from './EventAlarmModal';
 import PeriodModal from './PeriodModal';
 import AutoTextarea from './AutoTextarea';
 import { showDeletedToast, showMovedToast } from '../lib/undoToast';
+import QuickInputChips, { quickLabels, type QuickChip } from './QuickInputChips';
+import RecurringModal from './RecurringModal';
+import { parseQuickInput, stripMatch, type QuickMatch } from '../lib/quickInput';
 
 interface EventDrawerProps {
   /** 어느 날짜의 일정인가 (YYYY-MM-DD) */
@@ -130,6 +136,8 @@ export default function EventDrawer({
   };
   const [alarmModalOpen, setAlarmModalOpen] = useState(false);
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
+  /** 빠른 입력 '매주 화'로 여는 반복 일정 등록 창의 처음 값 */
+  const [recurDraft, setRecurDraft] = useState<{ content: string; label: string; days: number[]; biweekly: boolean } | null>(null);
 
   const panelRef = useRef<HTMLElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -254,6 +262,96 @@ export default function EventDrawer({
       if (def.period) setPeriodModalOpen(true);
     }
   };
+
+  // ─── 빠른 입력 (새 일정만) ───────────────────────────────────────
+  const quick = !isEditing && text.trim() ? parseQuickInput(text, shownDate, eventLabels.map((l) => l.name)) : null;
+
+  /** 고른 칩을 칸에 넣는다. 날짜·라벨은 그 말을 글에서 빼고, 시각은 알림으로 넣고 글에는 둔다 */
+  const applyQuick = (keys: string[]) => {
+    if (!quick) return;
+    const strips: QuickMatch[] = [];
+    let date = shownDate;
+    if (keys.includes('date') && quick.date) {
+      date = quick.date.date;
+      strips.push(quick.date.match);
+    }
+    if (keys.includes('time') && quick.time) {
+      setAlarmTime(`${date}T${quick.time.hhmm}`);
+      setAlarmDirty(true);
+    } else if (date !== shownDate && alarmTime.startsWith(shownDate)) {
+      // 날짜를 옮기면 그날에 맞춰 둔 알림도 같이 옮긴다
+      setAlarmTime(date + alarmTime.slice(shownDate.length));
+      setAlarmDirty(true);
+    }
+    const addLabels = quick.labels.filter((l) => keys.includes(`label:${l.name}`));
+    if (addLabels.length > 0) {
+      strips.push(...addLabels.map((l) => l.match));
+      const fresh = addLabels.map((l) => l.name).filter((n) => !labels.includes(n));
+      if (fresh.length > 0) {
+        setLabels((prev) => [...prev, ...fresh.filter((n) => !prev.includes(n))]);
+        // 라벨을 고르면 그 라벨의 속성을 따른다 (toggleLabel과 같다)
+        const def = labelDef(fresh[fresh.length - 1]);
+        if (def) {
+          setAttrs(attrsOfLabel(def));
+          if (def.period) setPeriodModalOpen(true);
+        }
+      }
+    }
+    let next = text;
+    for (const m of [...strips].sort((a, b) => b.start - a.start)) next = stripMatch(next, m);
+    if (next !== text) setText(next);
+    if (date !== shownDate) pickDate(date);
+    textRef.current?.focus();
+  };
+
+  const openRecurFromQuick = () => {
+    if (!quick?.recur) return;
+    let content = text;
+    const drop = [quick.recur.match, ...quick.labels.map((l) => l.match), ...(quick.date ? [quick.date.match] : [])];
+    for (const m of drop.sort((a, b) => b.start - a.start)) content = stripMatch(content, m);
+    const label = quick.labels.find((l) => eventLabels.some((d) => d.name === l.name))?.name || labels[0] || '';
+    setRecurDraft({ content, label, days: quick.recur.days, biweekly: quick.recur.biweekly });
+  };
+
+  const quickChips: QuickChip[] = [];
+  if (quick?.date && quick.date.date !== shownDate) {
+    quickChips.push({
+      key: 'date',
+      icon: '📅',
+      label: quickLabels.date(quick.date.date),
+      title: `저장할 날짜를 ${quick.date.date}로 바꾸고 글에서 '${quick.date.match.text}'를 뺍니다`,
+      apply: () => applyQuick(['date']),
+    });
+  }
+  const quickDate = quick?.date?.date || shownDate;
+  if (quick?.time && alarmTime !== `${quickDate}T${quick.time.hhmm}` && alarmTime !== `${shownDate}T${quick.time.hhmm}`) {
+    quickChips.push({
+      key: 'time',
+      icon: '⏰',
+      label: quickLabels.time(quick.time.hhmm),
+      title: `그날 ${quick.time.hhmm}에 알림을 맞춥니다 (글은 그대로)`,
+      apply: () => applyQuick(['time']),
+    });
+  }
+  for (const l of quick?.labels || []) {
+    quickChips.push({
+      key: `label:${l.name}`,
+      icon: '🏷️',
+      label: l.name,
+      title: `라벨 '${l.name}'을(를) 고르고 글에서 '${l.match.text}'를 뺍니다`,
+      apply: () => applyQuick([`label:${l.name}`]),
+    });
+  }
+  if (quick?.recur) {
+    quickChips.push({
+      key: 'recur',
+      icon: '🔁',
+      label: quickLabels.recur(quick.recur),
+      title: '반복 일정 등록 창을 이 요일로 엽니다 (끝나는 날을 정해 만듭니다)',
+      apply: openRecurFromQuick,
+    });
+  }
+  const applyAllQuick = () => applyQuick(quickChips.filter((c) => c.key !== 'recur').map((c) => c.key));
 
   // ─── 저장 ──────────────────────────────────────────────────────
   /** 저장한다. 저장했거나 저장할 것이 없으면 true */
@@ -448,6 +546,14 @@ export default function EventDrawer({
               placeholder="새로운 일정을 입력하세요..."
               className="w-full min-h-[84px] px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder-slate-400"
             />
+            {!isEditing &&
+              (quickChips.length > 0 ? (
+                <QuickInputChips chips={quickChips} onApplyAll={applyAllQuick} />
+              ) : (
+                <p className="mt-1 text-2xs text-slate-400">
+                  날짜(내일·다음 주 화·10/15)·시각(15:00)·#라벨·매주 요일을 적으면 칩으로 넣을 수 있습니다.
+                </p>
+              ))}
           </div>
 
           {/* 날짜: 새 일정은 저장할 날짜가 곧바로 바뀌고, 고치던 일정은 저장할 때 그 날짜로 옮긴다 */}
@@ -708,6 +814,23 @@ export default function EventDrawer({
             // 고치던 한 건은 묶음으로 바뀌어 사라졌다. 새 일정이면 이어 쓰게 비운다.
             if (entryId) onClose();
             else fill(null);
+          }}
+        />
+      )}
+
+      {/* 빠른 입력 '매주 화' - 반복 일정 등록 창을 그 요일로. 만들면 이 새 일정 칸은 닫는다(날마다 일정이 생겼다) */}
+      {recurDraft && (
+        <RecurringModal
+          isOpen
+          onClose={() => setRecurDraft(null)}
+          defaultContent={recurDraft.content}
+          defaultLabelName={recurDraft.label}
+          defaultStartDate={shownDate}
+          defaultDays={recurDraft.days}
+          defaultType={recurDraft.biweekly ? 'biweekly' : 'weekly'}
+          onRegistered={() => {
+            setRecurDraft(null);
+            onClose();
           }}
         />
       )}

@@ -60,7 +60,9 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
 
 - 로드맵 17개 중 **1~10번 끝**(일정 날짜 옮기기·수업 칸 압축·드라이브 자동 백업·나이스·진도 관리·작은 것 묶음 7가지·작년 이맘때·자리표 허브·
   학생 카드와 평가 모아 보기·관찰 빨리 적기). wip 브랜치 없음. 설명서 전체 점검은 9번 끝에 했다(결과는 ROADMAP 9번) - 다음은 12번을 끝낼 때.
-- **다음은 11번 빠른 입력(자연어) + 기한** - 단계를 나눠 ROADMAP 11번에 적고 시작한다. V3가 일정 객체를 통째로 다시 쓰는 경로를 먼저 본다.
+- **11번 빠른 입력 + 기한 하는 중** - 11-1 빠른 입력 칩 끝(`lib/quickInput`·`QuickInputChips`, 새 일정 칸만, 누를 때만 넣고 그 말을 뺀다),
+  다음은 **11-2 기한**. 주의: V3 이월(`School_Planner_V3/js/modules/forwarding.js`)과 V4 이월(`useDayData.doAutoForwarding`)은 정해진 칸만 새 일정에
+  옮긴다 - 새 칸(due)을 더하면 V4 이월 목록에 넣고, V3가 옮긴 것을 위해 `forwardChainId`로 찾는 V4 전용 문서를 둔다. 크롬 `tools/inspect-quick-input.mjs` 20항목.
 - 10번 관찰 빨리 적기(2026-10-02 끝): 기록 칸 `@이름` → 태그(`lib/mention`·`StudentMentionList`, 키보드는 글 칸이 받고 Esc는 목록만),
   관찰 문구 단추(`ObservationPhrases`, 문구 `settings/v4_observationPhrases`). 크롬 `tools/inspect-observe.mjs` 22항목.
 - 9번 학생 카드·평가 모아 보기(2026-10-02 끝): 읽기는 `lib/evalArchive.loadClassEvals`(학년도 범위, rosterMeta로 그 학급), 칸 값·학기·CSV 셈은
