@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { draftLinesFrom, nextClassDay, numberedNotice, splitNoticeLines } from './notices';
+import { draftLinesFrom, mealNoticeLines, nextClassDay, numberedNotice, splitNoticeLines } from './notices';
 
 describe('알림장', () => {
   it('줄 앞의 번호·글머리표는 떼고 빈 줄은 뺀다', () => {
@@ -35,5 +35,24 @@ describe('알림장', () => {
       ],
     };
     expect(draftLinesFrom(schedules, events)).toEqual(['미술 준비물: 색연필', '음악 준비물: 리코더', '현장체험학습 동의서 제출']);
+  });
+});
+
+describe('알림장 급식 줄 (나이스, 4-3)', () => {
+  const dish = (name: string, allergies: number[] = []) => ({ name, allergies });
+  it('그날 급식을 한 줄로, 알레르기 번호는 뺀다', () => {
+    const meals = [
+      { date: '2026-10-01', kind: '중식', dishes: [dish('흑미밥')] },
+      { date: '2026-10-02', kind: '중식', dishes: [dish('현미밥'), dish('꽃게된장국', [5, 6, 8])] },
+    ];
+    expect(mealNoticeLines(meals, '2026-10-02')).toEqual(['10/2(금) 급식: 현미밥, 꽃게된장국']);
+  });
+  it('조식·석식이 있으면 끼니를 붙이고, 급식이 없으면 빈 목록', () => {
+    const meals = [
+      { date: '2026-10-02', kind: '조식', dishes: [dish('토스트')] },
+      { date: '2026-10-02', kind: '중식', dishes: [dish('비빔밥')] },
+    ];
+    expect(mealNoticeLines(meals, '2026-10-02')).toEqual(['10/2(금) 조식: 토스트', '10/2(금) 중식: 비빔밥']);
+    expect(mealNoticeLines(meals, '2026-10-03')).toEqual([]);
   });
 });

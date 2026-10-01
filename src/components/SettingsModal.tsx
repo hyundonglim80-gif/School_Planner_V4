@@ -25,6 +25,7 @@ import { SHORTCUT_ACTIONS, resolveBindings, formatActionBinding, type ShortcutId
 import ShortcutModal from './ShortcutModal';
 import { loadAdminConfig, saveAdminGovApiKey } from '../lib/adminConfig';
 import { clearNeisCache, loadNeisKey, saveNeisKey, testNeisKey } from '../lib/neis';
+import SchoolSettingPanel from './SchoolSettingPanel';
 import { loadSharedHolidays, saveSharedHolidays } from '../lib/holidays';
 import { fetchHolidaysFromGovApi } from '../lib/govApi';
 import { clearHolidayCache } from '../hooks/useGovHolidays';
@@ -827,6 +828,13 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               )}
             </div>
           </div>
+        </Section>
+
+        <Section
+          title="우리 학교 (급식)"
+          desc="학교를 고르면 나이스(교육정보 개방 포털)에서 그 학교의 급식을 불러와 하루 화면 수업 칸 아래에 보여 줍니다. 고르는 즉시 저장되고 PC·휴대폰이 같은 학교를 씁니다."
+        >
+          <SchoolSettingPanel />
         </Section>
 
         <Section title="시작 화면" desc="앱을 열었을 때 처음 보여줄 화면입니다.">

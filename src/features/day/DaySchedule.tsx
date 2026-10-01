@@ -11,6 +11,7 @@ import { usePeriodTimes } from '../../hooks/usePeriodTimes';
 import { useClock } from '../../hooks/useClock';
 import { periodStateAt, periodRangeLabel } from '../../lib/periodTimes';
 import { formatDateStr } from '../../lib/dateUtils';
+import DayMeals from './DayMeals';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
 
 interface DayScheduleProps {
@@ -442,6 +443,9 @@ export default function DaySchedule({
         })}
       </div>
       )}
+
+      {/* 그날 급식 (환경설정 '우리 학교'를 골랐을 때만) */}
+      {!isCollapsed && <DayMeals dateStr={dateStr} />}
 
       {isTemplateModalOpen && (
         <Suspense fallback={null}>

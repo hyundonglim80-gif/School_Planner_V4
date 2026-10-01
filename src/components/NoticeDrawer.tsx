@@ -18,6 +18,7 @@ import {
   listNotices,
   loadDraftLines,
   loadNotice,
+  mealNoticeLines,
   nextClassDay,
   numberedNotice,
   saveNotice,
@@ -27,6 +28,8 @@ import {
 } from '../lib/notices';
 import { SOURCE_CHANGED_EVENT, type SourceChangedDetail } from '../lib/autoJournalSync';
 import { showToast, showErrorToast } from '../utils/toast';
+import { useSchool } from '../hooks/useSchool';
+import { loadMonthMeals } from '../lib/neis';
 
 type Tab = 'write' | 'list';
 type ListRange = 'month' | '30days' | 'year';
@@ -75,6 +78,8 @@ export default function NoticeDrawer({
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  // 우리 학교를 골랐으면 '🍚 급식'으로 다음 수업일 급식을 한 줄 더한다 (나이스, ROADMAP 4-3)
+  const { school } = useSchool();
   /** 불러왔을 때(또는 마지막으로 저장했을 때)의 글. 바뀌었는지 가른다. */
   const [savedText, setSavedText] = useState('');
   /** 다시 읽기 신호 (기록 쪽에서 이 알림장을 고쳤을 때) */
@@ -168,12 +173,46 @@ export default function NoticeDrawer({
     return () => window.removeEventListener('keydown', onKey);
   }, [docked]);
 
+  /** 다음 수업일 (주말·공휴일·방학은 건너뜀). 2주 안에 없으면 null */
+  const findNextClassDay = async () => {
+    const y = parseDateStr(date).getFullYear();
+    const holidays = await loadHolidayYears([y, y + 1]).catch(() => ({} as Record<string, string>));
+    return nextClassDay(date, (d) => !!holidays[d] || isVacationDay(d, semesterConfig));
+  };
+
+  const handleMeal = async () => {
+    if (!school) return;
+    setDrafting(true);
+    try {
+      const target = await findNextClassDay();
+      if (!target) {
+        showToast('2주 안에 수업일이 없습니다.');
+        return;
+      }
+      const lines = mealNoticeLines(await loadMonthMeals(school, target.slice(0, 7)), target);
+      if (lines.length === 0) {
+        showToast(`${shortDateLabel(target)} 급식이 나이스에 아직 없습니다.`);
+        return;
+      }
+      const current = splitNoticeLines(text);
+      const fresh = lines.filter((l) => !current.includes(l));
+      if (fresh.length === 0) {
+        showToast('이미 적혀 있습니다.');
+        return;
+      }
+      setText([...current, ...fresh].join('\n'));
+      showToast(`🍚 ${shortDateLabel(target)} 급식을 넣었습니다.`);
+    } catch (err) {
+      showErrorToast('급식을 불러오지 못했습니다.', err);
+    } finally {
+      setDrafting(false);
+    }
+  };
+
   const handleDraft = async () => {
     setDrafting(true);
     try {
-      const y = parseDateStr(date).getFullYear();
-      const holidays = await loadHolidayYears([y, y + 1]).catch(() => ({} as Record<string, string>));
-      const target = nextClassDay(date, (d) => !!holidays[d] || isVacationDay(d, semesterConfig));
+      const target = await findNextClassDay();
       if (!target) {
         showToast('2주 안에 수업일이 없습니다.');
         return;
@@ -316,6 +355,17 @@ export default function NoticeDrawer({
               >
                 {drafting ? '불러오는 중...' : '📥 다음 수업일 불러오기'}
               </button>
+              {school && (
+                <button
+                  type="button"
+                  onClick={handleMeal}
+                  disabled={drafting || !loaded}
+                  title="다음 수업일 급식을 한 줄로 더합니다 (나이스 - 환경설정 '우리 학교')"
+                  className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200 rounded-xl font-bold disabled:opacity-50"
+                >
+                  🍚 급식
+                </button>
+              )}
             </div>
 
             <div>

@@ -13,6 +13,7 @@ import { readEventList } from './eventText';
 import { isHolidayEvent } from './holiday';
 import { addDays, parseDateStr } from './dateUtils';
 import { autoJournalId, upsertAutoJournal } from './autoJournal';
+import type { NeisMeal } from './neis';
 
 export interface NoticeDoc {
   date: string;
@@ -121,6 +122,17 @@ export function draftLinesFrom(schedulesData: any, eventsData: any): string[] {
     if (text) lines.push(text);
   }
   return lines;
+}
+
+/**
+ * 알림장에 넣을 급식 줄 (나이스, 4-3). 알레르기 번호는 뺀다 - 번호표 없이는 읽을 수 없다(하루 화면에는 보인다).
+ *   '10/2(금) 급식: 현미밥, 꽃게된장국, 삼겹살편육'
+ * 조식·석식이 있는 학교는 끼니를 붙인다: '10/2(금) 중식: …'
+ */
+export function mealNoticeLines(meals: NeisMeal[], dateStr: string): string[] {
+  const label = shortDateLabel(dateStr);
+  const today = meals.filter((m) => m.date === dateStr && m.dishes.length > 0);
+  return today.map((m) => `${label} ${today.length > 1 ? m.kind : '급식'}: ${m.dishes.map((d) => d.name).join(', ')}`);
 }
 
 /** 그날의 수업·일정 문서를 읽어 초안 줄을 만든다 */

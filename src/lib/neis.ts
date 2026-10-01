@@ -177,8 +177,8 @@ async function fetchRange(
     // 하루치가 5건을 넘거나 너무 많이 불렀으면 받은 만큼만 (끝없이 나누지 않는다)
     if (page.rows.length >= page.total || a === b || calls >= MAX_SPLIT_CALLS) return page.rows;
     const mid = addDays(a, Math.floor(daysBetween(a, b) / 2));
-    const left = await walk(a, mid);
-    const right = await walk(addDays(mid, 1), b);
+    // 두 쪽을 함께 부른다 (차례로 부르면 한 달에 열 번 남짓을 기다린다)
+    const [left, right] = await Promise.all([walk(a, mid), walk(addDays(mid, 1), b)]);
     return [...left, ...right];
   };
   return walk(from, to);
