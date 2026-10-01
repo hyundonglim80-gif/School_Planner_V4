@@ -6,6 +6,7 @@ import { eventDocPayload, readEventList } from '../lib/eventText';
 import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 import { moveToTrash } from '../utils/trashHelper';
 import { formatDateStr } from '../lib/dateUtils';
+import { moveEventToDate } from '../lib/eventDocOps';
 import { showErrorToast } from '../utils/toast';
 import { FORWARD_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
 import type { ShortcutOverrides } from '../lib/shortcuts';
@@ -152,6 +153,11 @@ interface AppState {
   selectAllEvents: (eventIds: string[], dateMap?: Record<string, string>) => void;
   bulkUpdateSelectedEvents: (updates: { completed?: boolean; label?: string; labelIds?: string[] }) => Promise<void>;
   bulkDeleteSelectedEvents: () => Promise<void>;
+  /**
+   * 고른 일정을 모두 한 날짜로 옮긴다 (기간·반복 묶음이어도 고른 것만 - 범위는 묻지 않는다).
+   * 옮긴 것·이미 그 날인 것·못 옮긴 것을 세어 주고, 옮긴 일정의 모습(안내용)도 준다. 다 끝나면 다중 선택을 끝낸다.
+   */
+  bulkMoveSelectedEvents: (toDate: string) => Promise<{ moved: number; same: number; failed: number; items: any[] }>;
 
   // Google API Token (For Tasks etc)
   googleAccessToken: string | null;
@@ -456,6 +462,47 @@ export const useAppStore = create<AppState>()(
           return;
         }
         get().clearEventSelection();
+      },
+      bulkMoveSelectedEvents: async (toDate) => {
+        const { selectedEventIds, selectedEventDateMap, selectedGroupId, currentDate } = get();
+        const result = { moved: 0, same: 0, failed: 0, items: [] as any[] };
+        if (selectedEventIds.length === 0) return result;
+        const defaultDate = formatDateStr(new Date(currentDate));
+        const failedIds: string[] = [];
+        // 하나씩 옮긴다 (한 건 = 두 날짜 문서 한 트랜잭션). 같은 날짜에 여럿을 놓아도 서로 덮지 않는다.
+        for (const id of selectedEventIds) {
+          const fromDate = selectedEventDateMap[id] || defaultDate;
+          if (fromDate === toDate) {
+            result.same += 1;
+            continue;
+          }
+          try {
+            const r = await moveEventToDate({ fId: selectedGroupId || 'personal', fromDate, toDate, eventId: id });
+            if (!r) {
+              result.failed += 1;
+              failedIds.push(id);
+              continue;
+            }
+            result.moved += 1;
+            result.items.push(r.item);
+            get().retargetEventPanels(selectedGroupId, fromDate, id, toDate, r.id);
+          } catch (err) {
+            console.error('일정을 옮기지 못했습니다:', id, err);
+            result.failed += 1;
+            failedIds.push(id);
+          }
+        }
+        if (failedIds.length === 0) {
+          get().clearEventSelection();
+        } else {
+          // 못 옮긴 것만 고른 채로 둔다 (다시 누르면 그것만 옮긴다)
+          const map = get().selectedEventDateMap;
+          set({
+            selectedEventIds: failedIds,
+            selectedEventDateMap: Object.fromEntries(failedIds.map((id) => [id, map[id]]).filter(([, d]) => !!d)),
+          });
+        }
+        return result;
       },
       bulkDeleteSelectedEvents: async () => {
         const { selectedEventIds, selectedEventDateMap, selectedGroupId, currentDate } = get();

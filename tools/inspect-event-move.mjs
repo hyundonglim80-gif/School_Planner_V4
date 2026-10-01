@@ -40,6 +40,8 @@ const MOVE = '옮길 회의 ' + Date.now().toString(36);
 const STAY = '남을 일정';
 const NEW = '새 일정 날짜 바꾸기 ' + Date.now().toString(36);
 const DRAG = '끌어 옮길 일정 ' + Date.now().toString(36);
+const MULTI_A = '여럿 옮기기 가 ' + Date.now().toString(36);
+const MULTI_B = '여럿 옮기기 나 ' + Date.now().toString(36);
 const JR = 'jr_move_probe';
 const WEEKLY = '매주 협의회 ' + Date.now().toString(36);
 const wk = [-7, 0, 7, 14].map((n) => plus(n)); // 지난주·이번 주·다음 주·다다음 주
@@ -60,6 +62,8 @@ async function seed() {
     eventList: [
       { id: 'ev_stay', content: STAY, completed: false, calendar: true },
       { id: 'ev_drag', content: DRAG, completed: false, calendar: true },
+      { id: 'ev_multi_a', content: MULTI_A, completed: false, calendar: true },
+      { id: 'ev_multi_b', content: MULTI_B, completed: false, calendar: true },
       {
         id: 'ev_move',
         content: MOVE,
@@ -69,7 +73,7 @@ async function seed() {
         linkedItems: [{ targetType: 'journal', targetId: JR, targetDate: today, targetFId: 'personal', title: '[기록] 회의 준비' }],
       },
     ],
-    eventText: `${STAY}\n${DRAG}\n${MOVE}`,
+    eventText: `${STAY}\n${DRAG}\n${MULTI_A}\n${MULTI_B}\n${MOVE}`,
     updatedAt: Date.now(),
   });
   // 옮길 날짜에 원래 있던 일정 (덮이면 안 된다)
@@ -205,6 +209,22 @@ const run = async () => {
   await monthItem.dragTo(page.locator(`[data-date="${plus(2)}"]`));
   await page.waitForTimeout(2500);
   check('월간: 끌어 놓은 날로 옮겨졌다', (await listOf(plus(2))).list.some((e) => e.id === 'ev_drag'));
+
+  // ── 6. 다중 선택: 둘을 골라 한 날짜로 ──
+  await page.getByRole('button', { name: '하루', exact: true }).first().click();
+  await page.getByText(MULTI_A).first().waitFor({ timeout: 15000 });
+  await page.getByRole('button', { name: /더보기|⋮/ }).first().click();
+  await page.getByText('다중 선택 모드 켜기').first().click();
+  await page.getByText(MULTI_A).first().click();
+  await page.getByText(MULTI_B).first().click();
+  await page.getByTitle('선택 일정을 다른 날짜로 옮기기').click();
+  await page.getByLabel('옮길 날짜').fill(plus(4));
+  await page.getByRole('button', { name: /2건 옮기기/ }).click();
+  await page.getByText(/일정 2건을 .*로 옮겼습니다/).first().waitFor({ timeout: 20000 });
+  const m = await listOf(plus(4));
+  check('다중 선택: 고른 둘이 그 날로 옮겨졌다', m.list.some((e) => e.id === 'ev_multi_a') && m.list.some((e) => e.id === 'ev_multi_b'));
+  check('다중 선택: 오늘에서는 빠졌다', !(await listOf(today)).list.some((e) => String(e.id).startsWith('ev_multi_')));
+  check('다중 선택 모드가 끝났다', !(await page.getByTitle('선택 일정을 다른 날짜로 옮기기').isVisible().catch(() => false)));
 
   if (logs.length) {
     console.log('\n── 콘솔 ──');
