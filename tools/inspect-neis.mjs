@@ -4,6 +4,8 @@
 // (실제 서버를 두드리지 않는다). 키 없이 부르면 5건만 주는 것까지 흉내 내서 나눠 받기도 함께 본다.
 // - 학교를 고르기 전에는 급식이 없다
 // - 환경설정 '우리 학교'에서 이름으로 찾아 고르면 계정에 저장되고, 하루 화면 수업 칸 아래에 그날 급식(알레르기 번호)
+// - 찾은 학교가 키 없이 다 오지 않으면 '더 있습니다', '바꾸기'를 눌렀다 '그대로 두기'면 학교는 그대로 (4-6)
+// - 공유 그룹 공간에서도 내 학교 급식이 보인다 (4-6)
 // - 한 달 급식을 키 없이 빠짐없이 받는다 (여러 번 나눠 부른다)
 // - 알림장 '🍚 급식'이 다음 수업일 급식 한 줄을 더한다
 // - 학사일정이 하루(수업 칸 아래)·주간·월간·년간 날짜 옆에 보이고, 공휴일·토요휴업일은 빠진다
@@ -98,7 +100,11 @@ async function fakeNeis(route) {
   const service = url.pathname.split('/').pop();
   const p = url.searchParams;
   let rows = [];
-  if (service === 'schoolInfo') rows = SCHOOL.SCHUL_NM.includes(p.get('SCHUL_NM') || '') ? [SCHOOL] : [];
+  if (service === 'schoolInfo') {
+    const q = p.get('SCHUL_NM') || '';
+    // '초' 한 글자면 7곳 - 키 없이 5곳만 와서 '더 있습니다'가 떠야 한다
+    rows = q === '초' ? Array.from({ length: 7 }, (_, i) => ({ ...SCHOOL, SD_SCHUL_CODE: `90000${i}`, SCHUL_NM: `점검${i}초등학교` })) : SCHOOL.SCHUL_NM.includes(q) ? [SCHOOL] : [];
+  }
   if (service === 'mealServiceDietInfo') rows = mealRows(p.get('MLSV_FROM_YMD'), p.get('MLSV_TO_YMD'));
   if (service === 'SchoolSchedule') rows = SCHEDULE.filter((r) => r.AA_YMD >= p.get('AA_FROM_YMD') && r.AA_YMD <= p.get('AA_TO_YMD'));
   const total = rows.length;
@@ -129,6 +135,11 @@ try {
   const box = page.locator('[data-school-setting]');
   await box.waitFor({ timeout: 10000 });
   await box.scrollIntoViewIfNeeded();
+  await box.getByLabel('학교 이름').fill('초');
+  await box.getByLabel('학교 이름').press('Enter');
+  await box.locator('[data-school-results]').waitFor({ timeout: 10000 });
+  await page.waitForTimeout(500);
+  check("찾은 학교가 다 오지 않으면 '더 있습니다' (이름을 더 적게)", (await box.getByText(/더 있습니다/).count()) === 1 && (await box.locator('[data-school-results] button').count()) === 5);
   await box.getByLabel('학교 이름').fill('대도초');
   await box.getByLabel('학교 이름').press('Enter');
   const result = box.locator('[data-school-results] button', { hasText: '서울대도초등학교' });
@@ -140,6 +151,11 @@ try {
   check('고르면 계정에 저장된다 (교육청·학교 코드)', s.officeCode === 'B10' && s.schoolCode === '7091375' && s.name === '서울대도초등학교', JSON.stringify({ o: s.officeCode, c: s.schoolCode }));
   check('고른 학교 이름이 보이고 찾기 칸은 닫힌다', (await box.locator('[data-school-name]').innerText()).includes('서울대도초등학교') && (await box.getByLabel('학교 이름').count()) === 0);
   await page.screenshot({ path: 'tools/report/neis-settings.png' });
+  await box.getByRole('button', { name: '바꾸기' }).click();
+  const reopened = (await box.getByLabel('학교 이름').count()) === 1;
+  await box.getByRole('button', { name: '그대로 두기' }).click();
+  await page.waitForTimeout(600);
+  check("'바꾸기'는 찾기 칸을 다시 열고, '그대로 두기'면 학교는 그대로", reopened && (await box.getByLabel('학교 이름').count()) === 0 && (await saved()).schoolCode === '7091375');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(800);
 
@@ -157,6 +173,21 @@ try {
   const mealCalls = neisCalls.filter((u) => u.pathname.endsWith('mealServiceDietInfo'));
   check('키 없이 한 달을 나눠 받는다', mealCalls.length > 1 && mealCalls.every((u) => !u.searchParams.has('KEY')), `${mealCalls.length}번`);
   await page.screenshot({ path: 'tools/report/neis-day.png' });
+
+  // 공유 그룹 공간에서도 내 계정의 학교 급식 (설명서 note)
+  const spaceSel = page.locator('header select');
+  const groupOpt = (await spaceSel.count())
+    ? (await spaceSel.locator('option').evaluateAll((os) => os.map((o) => o.value))).find((v) => v)
+    : undefined;
+  if (weekday && groupOpt) {
+    await spaceSel.selectOption(groupOpt);
+    await page.waitForTimeout(2000);
+    check('공유 그룹 공간에서도 내 학교 급식이 보인다', (await meals.count()) === 1);
+    await spaceSel.selectOption('');
+    await page.waitForTimeout(1500);
+  } else {
+    console.log(`- 그룹 공간 급식: 건너뜀 (${weekday ? '공유 그룹 없음' : '주말'})`);
+  }
 
   // ── 알림장 '🍚 급식' ────────────────────────────────────────
   await page.getByRole('button', { name: '📢 알림장' }).first().click();
