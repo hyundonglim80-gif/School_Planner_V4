@@ -28,6 +28,8 @@ import { useGroupDelete } from '../../hooks/useGroupDelete';
 import { openEntryPanel } from '../../components/EntryPanelHost';
 import { useEventDropMove, eventDragSourceProps, DROP_TARGET_CLASS } from '../../hooks/useEventDrag';
 import { useState } from 'react';
+import { layoutWeekBars, type BarCell } from '../../lib/periodBars';
+import PeriodBar from './PeriodBar';
 
 // Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
 // 편집기가 첫 화면 묶음에 함께 실려 온다. 그래서 여기서도 필요할 때 불러온다.
@@ -80,13 +82,20 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
     }
     return days;
   }, [days, showWeekend]);
+  /** 달력 한 줄(한 주)씩. 기간 일정 막대는 주마다 따로 놓는다 (ROADMAP 13) */
+  const weeks = React.useMemo(() => {
+    const size = showWeekend ? 7 : 5;
+    const out: CalendarDay[][] = [];
+    for (let i = 0; i < displayDays.length; i += size) out.push(displayDays.slice(i, i + size));
+    return out;
+  }, [displayDays, showWeekend]);
 
   const { getLabelColor, eventLabels, labelsLoaded } = useLabels();
   const { holidays } = useGovHolidays();
   // 우리 학교 학사일정 (나이스 - 표시만, ROADMAP 4-4). 앞뒤 달의 날도 보이므로 그 달들까지
   const { byDate: schoolEvents } = useSchoolSchedule(days.map((d) => d.dateStr.slice(0, 7)));
   const { templates, currentTemplateName } = useTimetableTemplate();
-  
+
   const maxPeriods = templates[currentTemplateName]?.names.length || 6;
   const periodArray = Array.from({ length: maxPeriods }, (_, i) => i + 1);
 
@@ -145,18 +154,38 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
         ))}
       </div>
 
-      <div className={"grid " + (showWeekend ? "grid-cols-7" : "grid-cols-5") + " divide-x divide-y divide-slate-100"}>
-        {displayDays.map((dayObj) => {
+      {/* 한 주가 한 줄. 날짜 칸은 줄 높이를 다 차지하고(subgrid), 그 사이 줄에 기간 일정 막대를 놓는다:
+          1줄 = 날짜·학사일정·수업 / 막대 줄들 / 마지막 줄 = 그날 일정. 막대가 칸을 건너 이어지도록 막대는 칸 밖(주 격자)에 있다. */}
+      <div className="divide-y divide-slate-100">
+      {weeks.map((week) => {
+        const dayInfos = week.map((dayObj) => {
           const summary = dataMap[dayObj.dateStr] || {};
           const rawEvents = summary.eventList || [];
-          const schedules = summary.schedules || {};
-          
-          const hasClasses = periodArray.some(p => schedules[p]?.subject?.trim() && schedules[p]?.subject?.toUpperCase() !== 'X');
-          
           // 공휴일 일정은 목록에서 빼고 날짜 옆 빨간 이름으로만 보여준다
           const { events: dayEvents, holidayName: holidayFromEvent } = splitHolidayEvents(rawEvents);
           // '달력' 속성을 켠 일정만 달력에 올린다 (V3 월간과 같은 규칙)
           const events = dayEvents.filter((ev: any) => isCalendarVisible(ev, eventLabels));
+          return { dayObj, summary, events, holidayFromEvent };
+        });
+        const layout = showEvents
+          ? layoutWeekBars(dayInfos.map((d) => ({ dateStr: d.dayObj.dateStr, events: d.events })), (ev) => eventDisplayContent(ev, eventLabels))
+          : null;
+        const lanes = layout?.lanes || 0;
+        const currentMonthDates = new Set(week.filter((d) => d.isCurrentMonth).map((d) => d.dateStr));
+
+        return (
+        <div
+          key={week[0].dateStr}
+          data-month-week
+          className={`grid ${showWeekend ? 'grid-cols-7' : 'grid-cols-5'} ${compact ? 'min-h-[64px] gap-y-[2px]' : 'min-h-[74px] gap-y-1'}`}
+          style={{ gridTemplateRows: `auto${lanes ? ` repeat(${lanes}, auto)` : ''} 1fr` }}
+        >
+        {dayInfos.map(({ dayObj, summary, events: allEvents, holidayFromEvent }, col) => {
+          const schedules = summary.schedules || {};
+
+          const hasClasses = periodArray.some(p => schedules[p]?.subject?.trim() && schedules[p]?.subject?.toUpperCase() !== 'X');
+          // 기간 일정 조각은 막대로 그렸으니 칸에는 나머지만
+          const events = layout ? layout.rest[dayObj.dateStr] || [] : allEvents;
           const holidayName = dayObj.holidayName || holidays[dayObj.dateStr] || holidayFromEvent;
           // 토요일 파랑 / 일요일·공휴일 빨강 (lib/holiday의 공통 규칙)
           const tone = dayToneOf({ isSunday: dayObj.isSunday, isSaturday: dayObj.isSaturday, holidayName });
@@ -168,11 +197,12 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
               onClick={() => onSelectDate(dayObj.dateStr)}
               data-date={dayObj.dateStr}
               {...drop.targetProps(dayObj.dateStr)}
-              className={`${compact ? 'min-h-[64px] p-1' : 'min-h-[74px] p-2'} flex flex-col justify-between transition-all cursor-pointer group hover:brightness-98 min-w-0 overflow-hidden ${
+              style={{ gridColumn: col + 1, gridRow: '1 / -1', gridTemplateRows: 'subgrid' }}
+              className={`${compact ? 'p-1' : 'p-2'} grid transition-all cursor-pointer group hover:brightness-98 min-w-0 overflow-hidden ${col > 0 ? 'border-l border-slate-100' : ''} ${
                 !dayObj.isCurrentMonth ? 'bg-slate-50/40 opacity-40' : DAY_CELL_BG[tone]
               } ${dayObj.isToday ? 'ring-2 ring-inset ring-primary/40' : ''} ${drop.overDate === dayObj.dateStr ? DROP_TARGET_CLASS : ''}`}
             >
-              <div>
+              <div className="min-w-0" style={{ gridRow: 1 }}>
                 {/* 자리가 모자라면 표식이 아랫줄로 내려간다. 날짜와 공휴일
                     이름을 가리는 것보다 한 줄 더 쓰는 편이 낫다. */}
                 <div className={`flex flex-wrap items-center justify-between gap-x-1 gap-y-0.5 ${compact ? 'mb-0.5' : 'mb-1.5'}`}>
@@ -190,7 +220,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                         여기까지 그리면 '개천절'이 '3 개…' 와 '개천절' 두 번 나온다. */}
                     {holidayName && !compact && <HolidayName name={holidayName} tier="month" />}
                   </div>
-                  
+
                   {/* 표식은 줄어들면 안 된다. 셋이 나란히 설 수 있으므로
                       사이를 좁혀 두고, 칸 밖으로 밀리지 않게 shrink-0을 준다. */}
                   <div className="flex items-center gap-0.5 shrink-0">
@@ -209,7 +239,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                     </button>
                   </div>
                 </div>
-                
+
                 {/* 휴대폰에서는 공휴일 이름을 날짜 옆에 둘 자리가 없다.
                     53px 칸에서 '개천절'이 '개…'가 됐다. 제 줄로 내려 칸 너비를
                     다 쓰고, 그래도 길면 글자를 줄인다. */}
@@ -306,7 +336,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                     {periodArray.map((p) => {
                       const item = schedules[p];
                       const text = item?.subject?.trim() || '';
-                      
+
                       if (text && text.toUpperCase() !== 'X') {
                         // 예전에는 글자 수만 보고 단계를 골랐다. 칸이 얼마나 좁은지는
                         // 보지 않아서, 교시가 6~7개면 칩이 20px 남짓인데 16~18px 글자가
@@ -347,12 +377,13 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                   </div>
                 )}
 
+              </div>
                 {showEvents && (
                 /* 접지 않고 다 보여준다. 세 개만 두고 '+1개'로 줄이면 그 하나가
                    무엇인지 알 수 없어, 결국 날짜를 눌러 들어가 봐야 한다.
                    접어서 아낀 자리보다 잃는 것이 크다. 줄 높이가 날마다
                    달라지지만, 달력은 그날 무엇이 있는지 보려고 여는 것이다. */
-                <div className={compact ? 'space-y-[2px]' : 'space-y-1'}>
+                <div className={`min-w-0 ${compact ? 'space-y-[2px]' : 'space-y-1'}`} style={{ gridRow: lanes + 2 }}>
                   {events.map((ev) => {
                     // 라벨 해석은 lib/eventLabels 한 곳에서만 한다
                     const labelDef = resolveEventLabel(ev, eventLabels, { keepUnknown: !labelsLoaded });
@@ -435,7 +466,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                         >
                           {eventDisplayContent(ev, eventLabels)}
                         </span>
-                        
+
                         {(ev.linkedItems || []).length > 0 && (
                           <button
                             type="button"
@@ -461,10 +492,38 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                   })}
                 </div>
                 )}
-              </div>
             </div>
           );
         })}
+        {layout?.bars.map((bar) => {
+          const first = bar.cells[0].ev;
+          const labelDef = resolveEventLabel(first, eventLabels, { keepUnknown: !labelsLoaded });
+          const labelName = labelDef?.name || '';
+          const openCell = (cell: BarCell) =>
+            openEntryPanel({ kind: 'event', groupId: selectedGroupId, dateStr: cell.dateStr, entryId: String(cell.ev.id), initial: cell.ev });
+          return (
+            <PeriodBar
+              key={`${bar.key}@${bar.start}`}
+              bar={bar}
+              labelName={labelName}
+              labelColor={labelDef ? getLabelColor(labelName) : null}
+              compact={compact}
+              isMultiSelectMode={isMultiSelectMode}
+              selectedEventIds={selectedEventIds}
+              isCurrentMonth={(d) => currentMonthDates.has(d)}
+              onOpen={openCell}
+              onToggleSelect={(cell) => toggleEventSelection(cell.ev.id, cell.dateStr)}
+              onOpenLinks={(cell) => openLinkViewerModal('event', cell.dateStr, cell.ev.id)}
+              dragProps={(cell) => eventDragSourceProps(cell.dateStr, cell.ev, drop.dragEnabled, drop.clearOver)}
+              dropProps={(d) => drop.targetProps(d)}
+              dragEnabled={drop.dragEnabled}
+              style={{ gridColumn: `${bar.start + 1} / span ${bar.len}`, gridRow: bar.lane + 2 }}
+            />
+          );
+        })}
+        </div>
+        );
+      })}
       </div>
     </div>
 

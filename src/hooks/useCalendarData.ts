@@ -48,6 +48,9 @@ function mapEvents(data: DocumentData): EventItem[] {
       // 기한 표시(ROADMAP 11-2) - 사슬 기한은 forwardChainId로 찾는다
       ...(typeof e.due === 'string' ? { due: e.due } : {}),
       ...(e.forwardChainId ? { forwardChainId: e.forwardChainId } : {}),
+      // 기간·반복 묶음(ROADMAP 13 막대) - 끌어 옮기기·지우기도 이것으로 범위를 묻는다
+      ...(e.groupId ? { groupId: e.groupId } : {}),
+      ...(typeof e.period === 'boolean' ? { period: e.period } : {}),
     }))
     .filter((e: EventItem) => e.content && e.content.trim().length > 0);
 }

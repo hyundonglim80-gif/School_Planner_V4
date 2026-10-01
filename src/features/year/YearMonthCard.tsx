@@ -22,6 +22,7 @@ import EvalCountBadge from '../../components/EvalCountBadge';
 import { dropTargetProps, eventDragSourceProps, DROP_TARGET_CLASS, type DropHandlers } from '../../hooks/useEventDrag';
 import SchoolEventName from '../../components/SchoolEventName';
 import type { SchoolEventsByDate } from '../../hooks/useNeis';
+import { collapsePeriods, periodRangeLabel, periodIndexLabel, type CollapsedPeriod } from '../../lib/periodBars';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -122,16 +123,91 @@ function YearMonthCard({
   const calendarEventsOf = (dateStr: string) =>
     (eventsMap[dateStr] || []).filter((e: any) => isHolidayEvent(e) || isCalendarVisible(e, eventLabels));
 
-  const activeDays = days.filter((dObj) => {
+  const shownDays = days.filter((dObj) => {
     const dayOfWeekNum = dObj.dateObj.getDay();
-    if (!showWeekend && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) return false;
+    return showWeekend || (dayOfWeekNum !== 0 && dayOfWeekNum !== 6);
+  });
+  // 기간 일정(ROADMAP 13): 조각이 날마다 '기말고사 (1/5)'로 늘어서지 않게, 이 달에서 처음 나오는 날 한 번만 범위와 함께 보인다.
+  // 나머지 날은 그 조각을 빼고 본다 - 다른 것이 없으면 그날 줄도 없다.
+  const { rest: restEventsOf, starts: periodStartsOf } = collapsePeriods(
+    shownDays.map((dObj) => ({ dateStr: dObj.dateStr, events: calendarEventsOf(dObj.dateStr).filter((e: any) => !isHolidayEvent(e)) })),
+    (ev) => eventDisplayContent(ev, eventLabels),
+  );
 
+  const activeDays = shownDays.filter((dObj) => {
     const evs = calendarEventsOf(dObj.dateStr);
     const sch = schedulesMap[dObj.dateStr] || {};
     const hasClasses = periodArray.some((p) => sch[p]?.subject?.trim() && sch[p]?.subject?.toUpperCase() !== 'X');
 
-    return evs.length > 0 || (showClass && hasClasses) || !!schoolEvents[dObj.dateStr];
+    return (
+      evs.some(isHolidayEvent) ||
+      (restEventsOf[dObj.dateStr] || []).length > 0 ||
+      !!periodStartsOf[dObj.dateStr] ||
+      (showClass && hasClasses) ||
+      !!schoolEvents[dObj.dateStr]
+    );
   });
+
+  /** 기간 일정 묶음 하나 (그 달에 든 날을 함께). 누르면 첫 조각을 고친다 - 지우기·옮기기는 범위를 묻는다. */
+  const renderPeriod = (g: CollapsedPeriod) => {
+    const first = g.cells[0];
+    const labelDef = resolveEventLabel(first.ev, eventLabels, { keepUnknown: !labelsLoaded });
+    const labelName = labelDef?.name || '';
+    const labelColor = labelDef ? labelColorOf(labelName) : null;
+    const allDone = g.cells.every((c) => !!c.ev.completed);
+    const allSelected = g.cells.every((c) => selectedEventIds.includes(c.ev.id));
+    const anySelected = g.cells.some((c) => selectedEventIds.includes(c.ev.id));
+    const range = periodRangeLabel(g.cells);
+    const indexLabel = periodIndexLabel(g.cells, g.total);
+    return (
+      <div
+        key={`period-${first.ev.id}`}
+        data-period-group={first.ev.groupId}
+        {...eventDragSourceProps(first.dateStr, first.ev, dragEnabled, onDragEnd)}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (isMultiSelectMode) {
+            // 묶음째 고른다 (일부만 골라져 있으면 나머지를 더 고른다)
+            g.cells.filter((c) => allSelected || !selectedEventIds.includes(c.ev.id)).forEach((c) => onToggleSelection(c.ev.id, c.dateStr));
+          } else {
+            onOpenDetail('event', first.dateStr, first.ev.id, first.ev);
+          }
+        }}
+        className={`group relative px-1.5 py-1 rounded-lg ${BODY_TEXT.month} leading-snug transition-all border border-l-4 block hover:shadow-sm cursor-pointer break-words ${
+          anySelected
+            ? 'bg-primary/10 border-primary text-primary'
+            : allDone
+            ? 'bg-slate-50 border-slate-100 text-slate-400'
+            : 'bg-blue-50/60 border-blue-100 text-slate-700 font-medium'
+        }`}
+        style={anySelected || allDone ? undefined : { borderLeftColor: labelColor?.border || '#93c5fd' }}
+        title={`${g.base} (${indexLabel}) · ${range}${g.startsPeriod ? '' : ' · 앞 달에서 이어짐'}${g.endsPeriod ? '' : ' · 다음 달로 이어짐'} - 누르면 첫 조각 고치기`}
+      >
+        {isMultiSelectMode && (
+          <input type="checkbox" checked={allSelected} readOnly className="inline-block align-middle mr-1.5 pointer-events-none" />
+        )}
+        {labelColor && (
+          <span
+            className="inline-block align-middle mr-1.5 text-2xs font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
+            style={{
+              backgroundColor: allDone ? '#f1f5f9' : labelColor.bg,
+              color: allDone ? '#94a3b8' : labelColor.text,
+              border: '1px solid ' + (allDone ? '#e2e8f0' : labelColor.border),
+            }}
+          >
+            {labelName}
+          </span>
+        )}
+        <span className={`inline align-middle ${allDone ? 'line-through text-slate-400' : ''}`}>{g.base}</span>
+        <span data-period-range className="inline-block align-middle ml-1.5 text-2xs font-semibold text-slate-500 whitespace-nowrap">
+          {g.startsPeriod ? '' : '◂ '}📆 {range} ({indexLabel}){g.endsPeriod ? '' : ' ▸'}
+        </span>
+        {!isMultiSelectMode && (
+          <EventItemActions floating onDelete={() => onDeleteEvent(first.dateStr, first.ev.id, first.ev)} />
+        )}
+      </div>
+    );
+  };
 
   return (
     <div
@@ -191,7 +267,9 @@ function YearMonthCard({
                 holidayName,
               });
 
-              const visibleEvents = evs.filter((e: any) => !isHolidayEvent(e));
+              // 기간 일정 조각은 빼고(처음 날에 묶음으로)
+              const visibleEvents = restEventsOf[dObj.dateStr] || [];
+              const periodGroups = periodStartsOf[dObj.dateStr] || [];
               const hasClasses = periodArray.some((p) => sch[p]?.subject?.trim() && sch[p]?.subject?.toUpperCase() !== 'X');
 
               return (
@@ -291,8 +369,9 @@ function YearMonthCard({
                       </div>
                     )}
 
-                    {showEvents && visibleEvents.length > 0 && (
+                    {showEvents && (visibleEvents.length > 0 || periodGroups.length > 0) && (
                       <div className="flex flex-col gap-1">
+                        {periodGroups.map(renderPeriod)}
                         {visibleEvents.map((ev) => {
                           // 라벨 해석은 lib/eventLabels 한 곳에서만 한다
                           const labelDef = resolveEventLabel(ev, eventLabels, { keepUnknown: !labelsLoaded });
