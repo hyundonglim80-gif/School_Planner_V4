@@ -51,6 +51,7 @@ const STARTUP_OPTIONS: { value: StartupScope; label: string }[] = [
   { value: 'month', label: '월간' },
   { value: 'year', label: '년간' },
   { value: 'memo', label: '메모' },
+  { value: 'class', label: '학급' },
 ];
 
 /** 공휴일을 채워둘 연도. 올해와 내년이면 학사일정을 짜는 데 모자라지 않다. */

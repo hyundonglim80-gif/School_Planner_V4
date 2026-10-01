@@ -6,6 +6,7 @@ import WeekScreen from './features/week/WeekScreen';
 import MonthScreen from './features/month/MonthScreen';
 import YearScreen from './features/year/YearScreen';
 import MemoScreen from './features/memo/MemoScreen';
+import ClassScreen from './features/class/ClassScreen';
 import { useAuth } from './features/auth/useAuth';
 import { useAppStore } from './store/useAppStore';
 import { db } from './lib/firebase';
@@ -59,6 +60,7 @@ function App() {
         {scope === 'month' && <MonthScreen />}
         {scope === 'year' && <YearScreen />}
         {scope === 'memo' && <MemoScreen />}
+        {scope === 'class' && <ClassScreen />}
       </Layout>
       <EventAlarmPopup alarms={ringingAlarms} onDismiss={dismissAlarms} />
     </>

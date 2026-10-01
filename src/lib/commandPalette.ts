@@ -11,7 +11,7 @@
 import { SHORTCUT_ACTIONS, type ShortcutId } from './shortcuts';
 import { addDays, daysBetween, formatDateStr, getAcademicYear, parseDateStr } from './dateUtils';
 
-export type PaletteScope = 'day' | 'week' | 'month' | 'year' | 'memo';
+export type PaletteScope = 'day' | 'week' | 'month' | 'year' | 'memo' | 'class';
 
 // ── 날짜 알아듣기 ────────────────────────────────────────────────────
 
@@ -181,6 +181,7 @@ const COMMAND_META: Record<ShortcutId, CommandMeta> = {
   scopeMonth: { icon: '📅', keywords: ['월간', '한달', '달력'] },
   scopeYear: { icon: '📊', keywords: ['년간', '연간', '일년', '1년'] },
   scopeMemo: { icon: '📝', keywords: ['메모'] },
+  scopeClass: { icon: '🏫', keywords: ['학급', '반', '우리 반', '학급 운영'] },
   scopePrev: { icon: '⬅️', keywords: ['이전 화면', '앞 화면'] },
   scopeNext: { icon: '➡️', keywords: ['다음 화면', '옆 화면'] },
   datePrev: { icon: '◀', keywords: ['이전 날짜', '전날', '앞으로'] },

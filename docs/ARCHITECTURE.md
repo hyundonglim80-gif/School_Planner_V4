@@ -249,6 +249,10 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   주간은 폭이 넓으면(본문 1200px 이상) 다음 주도 그린다. **읽을 날짜는 폭과 무관하게 늘 두 주** —
   폭에 따라 바꾸면 팝업이 붙어 본문이 좁아지는 순간 다시 읽으며 화면이 '불러오는 중'으로 바뀌어 팝업이 닫혔다(`dc8a3ad`).
 - **메모** `MemoScreen` = 왼쪽 라벨 거르개 + 메이슨리 카드. `useMemos(groupId)`.
+- **학급** `ClassScreen`(ROADMAP 16) = 학급 고르기 + 오늘 출결 + 학급 도구 + 학생 명단. 날짜가 없다(날짜 이동 줄·위아래 밀어 날짜 넘기기 없음).
+  도구 창의 열림 상태는 Layout이 쥐므로 화면은 `lib/appActions.runAppAction({ id: 단축키 이름, classKey, num })`으로 부탁한다.
+  화면 종류를 더하면: store `Scope`·`App`·Layout `scopes`·`scopeOrder`·`MobileTabBar`·`shortcuts`·`COMMAND_META`·`PaletteScope`·
+  `useGlobalGestures`·시작 화면(`preferenceSync`·`SettingsModal`).
 - 화면 폭 판단은 창이 아니라 **본문 폭**(`useMainWidth`, `@container`)으로 한다. 오른쪽 칸이 열리면 그만큼 좁아진다.
 
 ### 오른쪽 줄 (쓰는 칸과 팝업)

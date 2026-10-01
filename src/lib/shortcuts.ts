@@ -23,6 +23,7 @@ export type ShortcutId =
   | 'scopeMonth'
   | 'scopeYear'
   | 'scopeMemo'
+  | 'scopeClass'
   | 'scopePrev'
   | 'scopeNext'
   | 'datePrev'
@@ -86,6 +87,7 @@ export const SHORTCUT_ACTIONS: ShortcutAction[] = [
   { id: 'scopeMonth', label: '월간 화면', group: '화면 이동', def: b('3', { shift: true }) },
   { id: 'scopeYear', label: '년간 화면', group: '화면 이동', def: b('4', { shift: true }) },
   { id: 'scopeMemo', label: '메모 화면', group: '화면 이동', def: b('5', { shift: true }) },
+  { id: 'scopeClass', label: '학급 화면', group: '화면 이동', def: b('6', { shift: true }) },
   { id: 'scopePrev', label: '이전 화면으로', group: '화면 이동', def: b('ArrowLeft', { shift: true }) },
   { id: 'scopeNext', label: '다음 화면으로', group: '화면 이동', def: b('ArrowRight', { shift: true }) },
 

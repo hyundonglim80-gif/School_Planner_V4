@@ -57,7 +57,7 @@ export interface SyncedPreferences {
   showClass: boolean;
   showEvents: boolean;
   enableScrollNav: boolean;
-  startupScope: 'last' | 'day' | 'week' | 'month' | 'year' | 'memo';
+  startupScope: 'last' | 'day' | 'week' | 'month' | 'year' | 'memo' | 'class';
   fontScale: FontScale;
   forwardLookbackDays: number;
   shortcutOverrides: ShortcutOverrides;
@@ -89,7 +89,7 @@ export function preferencesKey(prefs: SyncedPreferences): string {
   return JSON.stringify(SYNCED_PREFERENCE_KEYS.map((k) => prefs[k]));
 }
 
-const STARTUP_SCOPES = ['last', 'day', 'week', 'month', 'year', 'memo'];
+const STARTUP_SCOPES = ['last', 'day', 'week', 'month', 'year', 'memo', 'class'];
 
 /**
  * 클라우드에서 읽은 값 중 믿을 만한 것만 돌려준다.

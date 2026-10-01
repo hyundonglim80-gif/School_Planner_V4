@@ -29,6 +29,7 @@ const SCOPE_NAME: Record<PaletteScope, string> = {
   month: '월간',
   year: '년간',
   memo: '메모',
+  class: '학급',
 };
 
 export default function CommandPaletteModal({ isOpen, onClose, onCommand, onSearch, keyHint }: CommandPaletteModalProps) {

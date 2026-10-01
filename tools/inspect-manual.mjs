@@ -138,7 +138,8 @@ if (ONLY !== 'mobile') {
     await page.keyboard.press('Shift+ArrowLeft');
     await page.keyboard.press('Shift+ArrowLeft');
     await wait(1200);
-    assert((await page.getByRole('button', { name: /새 메모/ }).count()) > 0, '하루에서 이전이 메모가 아님');
+    // 맨 끝은 학급(ROADMAP 16) - 하루에서 이전은 학급
+    assert((await page.locator('[data-class-screen]').count()) > 0, '하루에서 이전이 학급이 아님');
     await page.keyboard.press('Shift+Digit1');
     await wait(1000);
   });

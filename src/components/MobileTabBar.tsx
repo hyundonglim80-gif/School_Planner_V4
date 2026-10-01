@@ -10,6 +10,8 @@ const TABS = [
   { id: 'month', label: '월간', icon: '📅' },
   { id: 'year', label: '년간', icon: '📊' },
   { id: 'memo', label: '메모', icon: '📝' },
+  // 학급 (ROADMAP 16): 탭이 여섯이 된다 - 390px에서 한 칸 65px, 이름이 두 글자라 들어간다
+  { id: 'class', label: '학급', icon: '🏫' },
 ] as const;
 
 export default function MobileTabBar() {

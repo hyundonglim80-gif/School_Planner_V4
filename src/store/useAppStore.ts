@@ -15,7 +15,7 @@ import type { PopupStyle } from '../lib/preferenceSync';
 import type { FocusTarget } from '../lib/searchFocus';
 import type { NeisScheduleItem } from '../lib/neis';
 
-type Scope = 'day' | 'week' | 'month' | 'year' | 'memo';
+type Scope = 'day' | 'week' | 'month' | 'year' | 'memo' | 'class';
 
 /** 앱을 열었을 때 어느 화면부터 보여줄지. 'last'는 마지막에 보던 화면. */
 export type StartupScope = 'last' | Scope;

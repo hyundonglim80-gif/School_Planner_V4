@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useAppStore } from '../store/useAppStore';
 
-const SCOPES = ['day', 'week', 'month', 'year', 'memo'] as const;
+const SCOPES = ['day', 'week', 'month', 'year', 'memo', 'class'] as const;
 
 export function useGlobalGestures() {
   const touchStartRef = useRef({ x: 0, y: 0, atTop: false, atBottom: false });
@@ -64,7 +64,8 @@ export function useGlobalGestures() {
           }
         }
       } else {
-        if (state.scope === 'memo') return;
+        // 메모·학급은 날짜가 없다 - 위아래로 밀어도 날짜를 넘기지 않는다
+        if (state.scope === 'memo' || state.scope === 'class') return;
 
         const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
         const currentScroll = Math.ceil(window.innerHeight + window.scrollY);
@@ -85,7 +86,7 @@ export function useGlobalGestures() {
     const handleWheel = (e: WheelEvent) => {
       if (isModalOpen()) return;
       const state = useAppStore.getState();
-      if (state.scope === 'memo') return;
+      if (state.scope === 'memo' || state.scope === 'class') return;
       if (scrollNavTimeout.current) return;
       
       // 💡 스크롤 네비게이션이 꺼져있으면 무시

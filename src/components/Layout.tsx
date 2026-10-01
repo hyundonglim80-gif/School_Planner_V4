@@ -65,6 +65,7 @@ import {
 } from '../lib/shortcuts';
 import { showToast, showErrorToast } from '../utils/toast';
 import { useSearchFocusRunner } from '../lib/searchFocus';
+import { APP_ACTION_EVENT, type AppActionDetail } from '../lib/appActions';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user } = useAuth();
@@ -415,7 +416,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // 단축키 하나가 실제로 하는 일.
   // 조합(어떤 키냐)은 lib/shortcuts.ts가, 동작(무엇을 하냐)은 여기가 맡는다.
   const runShortcut = (id: ShortcutId) => {
-    const scopeOrder: Array<'day' | 'week' | 'month' | 'year' | 'memo'> = ['day', 'week', 'month', 'year', 'memo'];
+    const scopeOrder: Array<'day' | 'week' | 'month' | 'year' | 'memo' | 'class'> = ['day', 'week', 'month', 'year', 'memo', 'class'];
     const store = useAppStore.getState();
 
     switch (id) {
@@ -426,6 +427,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       case 'scopeMonth': setScope('month'); return;
       case 'scopeYear': setScope('year'); return;
       case 'scopeMemo': setScope('memo'); return;
+      case 'scopeClass': setScope('class'); return;
       case 'scopePrev':
       case 'scopeNext': {
         const currentIndex = scopeOrder.indexOf(store.scope);
@@ -479,6 +481,30 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       }
     }
   };
+
+  // 화면(학급 화면 등)이 부탁한 창 열기 (lib/appActions). 단축키와 같은 이름으로 받는다.
+  // 학급을 함께 받으면 출석부·누가기록은 그 학급(학생)으로 연다.
+  const runShortcutRef = useRef(runShortcut);
+  runShortcutRef.current = runShortcut;
+  useEffect(() => {
+    const onAction = (e: Event) => {
+      const d = (e as CustomEvent<AppActionDetail>).detail;
+      if (!d?.id) return;
+      setIsMoreMenuOpen(false);
+      if (d.id === 'studentRecord' && d.classKey && d.num != null) {
+        setStudentRecordStart({ classKey: d.classKey, num: d.num });
+        setIsStudentRecordOpen(true);
+        return;
+      }
+      if (d.id === 'attendance' && d.classKey) {
+        void openEntryPanel({ kind: 'attendance', groupId: null, dateStr: formatDateStr(new Date()), tab: 'check', classKey: d.classKey });
+        return;
+      }
+      runShortcutRef.current(d.id);
+    };
+    window.addEventListener(APP_ACTION_EVENT, onAction);
+    return () => window.removeEventListener(APP_ACTION_EVENT, onAction);
+  }, []);
 
   // 키보드 단축키 핸들러. 고정 키(ESC, Ctrl+S 차단, / 검색)와
   // 환경설정에서 바꿀 수 있는 단축키를 함께 처리한다.
@@ -599,6 +625,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { id: 'month', label: '월간', key: 'scopeMonth' },
     { id: 'year', label: '년간', key: 'scopeYear' },
     { id: 'memo', label: '메모', key: 'scopeMemo' },
+    { id: 'class', label: '학급', key: 'scopeClass' },
   ] as const;
 
   return (
@@ -843,7 +870,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             학년도로 넘어갔다. 가운데 날짜 칸이 flex-1이라 내용보다 작게 줄면서
             왼쪽으로 삐져나온 것이 원인이었다.
             날짜 이동은 모든 화면에 공통이므로 좁은 화면에서도 늘 첫 줄에 둔다. */}
-        {scope !== 'memo' && (
+        {scope !== 'memo' && scope !== 'class' && (
           <div className="flex flex-wrap sm:flex-nowrap items-center justify-between border-t border-dashed border-slate-200 pt-2.5 mt-0.5 max-w-7xl mx-auto w-full gap-2 sm:overflow-x-auto">
             {/* 년간의 학기 칩.
                 ⚠️ 좁은 화면에서는 아랫줄로 내린다. 토글 셋과 날짜 이동만으로도
