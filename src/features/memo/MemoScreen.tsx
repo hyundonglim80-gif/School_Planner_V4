@@ -55,7 +55,7 @@ function useColumnCount(ref: React.RefObject<HTMLElement | null>) {
 
 export default function MemoScreen() {
   const { selectedGroupId, openLabelModal } = useAppStore();
-  const { memos, loading, deleteMemo, toggleComplete, toggleFavorite, deleteCompletedMemos, labelUnlabeledMemos, swapMemoOrder } = useMemos(selectedGroupId);
+  const { memos, loading, deleteMemo, toggleComplete, toggleFavorite, toggleCheckLine, deleteCompletedMemos, labelUnlabeledMemos, swapMemoOrder } = useMemos(selectedGroupId);
   const { getLabelColor, memoLabels, labelsLoaded } = useLabels();
 
   // 고른 거르개는 기억해 두었다가 다른 화면에서 돌아와도 그대로 연다.
@@ -241,6 +241,7 @@ export default function MemoScreen() {
             onEdit={handleOpenEdit}
             onToggleComplete={toggleComplete}
             onToggleFavorite={toggleFavorite}
+            onToggleCheckLine={toggleCheckLine}
             onDelete={deleteMemo}
             onMoveUp={sameGroup(prev) ? () => swapMemoOrder(memo, prev!) : undefined}
             onMoveDown={sameGroup(next) ? () => swapMemoOrder(memo, next!) : undefined}

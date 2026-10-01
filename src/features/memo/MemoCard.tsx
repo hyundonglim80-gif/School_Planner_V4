@@ -14,6 +14,7 @@ import { focusKey } from '../../lib/searchFocus';
 import { normalizeTables } from '../../lib/entryTable';
 import EntryTableView from '../../components/EntryTableView';
 import { showDeletedToast } from '../../lib/undoToast';
+import { checkLineState, hasCheckLines } from '../../lib/checkLines';
 
 interface MemoCardProps {
   memo: Memo;
@@ -25,6 +26,8 @@ interface MemoCardProps {
   /** 앞(▲)·뒤(▼)의 메모와 차례를 바꾼다. 바꿀 상대가 없으면 주지 않는다. */
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  /** '☐ 우유' 줄을 누르면 그 줄의 체크 글자만 바꾼다 (lib/checkLines). 주지 않으면 그냥 글로 보인다. */
+  onToggleCheckLine?: (memo: Memo, lineIndex: number, line: string) => Promise<boolean> | void;
 }
 
 interface NormalizedAttachment {
@@ -59,7 +62,7 @@ const normalizeAttachment = (att: any): NormalizedAttachment | null => {
 //    일이 생겼다. 규칙은 lib/attachments 한 곳에만 둔다.
 const isImageFile = isImageAttachment;
 
-export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavorite, onDelete, onMoveUp, onMoveDown }: MemoCardProps) {
+export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavorite, onDelete, onMoveUp, onMoveDown, onToggleCheckLine }: MemoCardProps) {
   const { openLinkViewerModal } = useAppStore();
   const { memoLabels } = useLabels();
 
@@ -105,6 +108,58 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavor
   const [manualCollapsed, setManualCollapsed] = React.useState<boolean | null>(null);
   const isCollapsed = manualCollapsed ?? isLongEntry(body);
   const preview = previewLine(body);
+
+  // 체크 줄(☐/☑)은 누르면 체크한다. 저장하는 동안은 그 줄을 다시 받지 않는다 (두 번 눌러 되돌아가지 않게).
+  const [pendingLine, setPendingLine] = React.useState<number | null>(null);
+  const toggleLine = async (idx: number, line: string) => {
+    if (!onToggleCheckLine || pendingLine !== null) return;
+    setPendingLine(idx);
+    try {
+      await onToggleCheckLine(memo, idx, line);
+    } finally {
+      setPendingLine(null);
+    }
+  };
+  const renderBody = () => {
+    if (!onToggleCheckLine || !hasCheckLines(body)) return renderFormattedText(body);
+    return body.split('\n').map((line, idx) => {
+      const state = checkLineState(line);
+      // 들여쓰기는 누르는 칸 밖에 둔다 (체크한 줄의 줄긋기가 빈칸까지 긋지 않게)
+      const indent = state ? line.length - line.trimStart().length : 0;
+      return (
+        <React.Fragment key={idx}>
+          {idx > 0 && '\n'}
+          {indent > 0 && line.slice(0, indent)}
+          {state ? (
+            <span
+              role="checkbox"
+              aria-checked={state === 'done'}
+              tabIndex={0}
+              title={state === 'done' ? '눌러서 체크 풀기' : '눌러서 체크'}
+              data-check-line={idx}
+              onClick={(e) => {
+                e.stopPropagation();
+                void toggleLine(idx, line);
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                e.preventDefault();
+                e.stopPropagation();
+                void toggleLine(idx, line);
+              }}
+              className={`rounded px-0.5 -mx-0.5 cursor-pointer hover:bg-slate-100 ${
+                state === 'done' && !isCompleted ? 'text-slate-400 line-through' : ''
+              } ${pendingLine === idx ? 'opacity-50' : ''}`}
+            >
+              {renderFormattedText(line.slice(indent))}
+            </span>
+          ) : (
+            renderFormattedText(line)
+          )}
+        </React.Fragment>
+      );
+    });
+  };
 
   return (
     <div
@@ -349,7 +404,7 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavor
               isCompleted ? 'line-through text-slate-400' : 'text-slate-800'
             }`}
           >
-            {renderFormattedText(body)}
+            {renderBody()}
           </p>
         )}
         {/* 붙인 표 - 작게 보기만 (고치기는 카드를 눌러 연 칸에서) */}

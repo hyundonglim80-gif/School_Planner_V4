@@ -96,3 +96,49 @@ describe('MemoCard - 접기/펼치기', () => {
     expect(onEdit).not.toHaveBeenCalled();
   });
 });
+
+// 로드맵 6-6: 구글 Keep 목록 메모는 '☐ 우유' 줄로 들어온다
+describe('MemoCard - 체크 줄(☐/☑)', () => {
+  const list: Memo = { ...memo, content: '장보기\n☐ 우유\n☑ 빵' };
+
+  it('체크 줄을 누르면 그 줄 번호와 글로 체크하고, 수정 배너는 열지 않는다', async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    const onToggleCheckLine = vi.fn().mockResolvedValue(true);
+    render(<MemoCard memo={list} onEdit={onEdit} onToggleCheckLine={onToggleCheckLine} />);
+
+    await user.click(screen.getByRole('checkbox', { name: '☐ 우유' }));
+
+    expect(onToggleCheckLine).toHaveBeenCalledWith(list, 1, '☐ 우유');
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it('☑ 줄은 체크된 것으로 보이고, 체크 줄이 아닌 줄을 누르면 수정 배너가 열린다', async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    render(<MemoCard memo={list} onEdit={onEdit} onToggleCheckLine={vi.fn()} />);
+
+    expect(screen.getByRole('checkbox', { name: '☑ 빵' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('checkbox', { name: '☐ 우유' })).toHaveAttribute('aria-checked', 'false');
+    await user.click(screen.getByText('장보기', { exact: false }));
+    expect(onEdit).toHaveBeenCalledTimes(1);
+  });
+
+  it('저장하는 동안 같은 줄을 또 눌러도 한 번만 보낸다', async () => {
+    const user = userEvent.setup();
+    let finish: (v: boolean) => void = () => {};
+    const onToggleCheckLine = vi.fn(() => new Promise<boolean>((r) => (finish = r)));
+    render(<MemoCard memo={list} onToggleCheckLine={onToggleCheckLine} />);
+
+    const line = screen.getByRole('checkbox', { name: '☐ 우유' });
+    await user.click(line);
+    await user.click(line);
+    expect(onToggleCheckLine).toHaveBeenCalledTimes(1);
+    finish(true);
+  });
+
+  it('체크 함수를 주지 않으면 그냥 글로 보인다', () => {
+    render(<MemoCard memo={list} />);
+    expect(screen.queryByRole('checkbox', { name: '☐ 우유' })).toBeNull();
+  });
+});

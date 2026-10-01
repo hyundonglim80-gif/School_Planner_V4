@@ -6,7 +6,8 @@ import { db, auth } from '../lib/firebase';
 import { moveToTrash } from '../utils/trashHelper';
 import { showUndoToast } from '../lib/undoToast';
 import { syncReverseLinks, mergeLinkEdits } from '../utils/linkUtils';
-import { showErrorToast, failWithToast } from '../utils/toast';
+import { showToast, showErrorToast, failWithToast } from '../utils/toast';
+import { toggleCheckLine as toggleCheckLineText } from '../lib/checkLines';
 
 export interface MemoAttachment {
   name: string;
@@ -260,6 +261,35 @@ export function useMemos(groupId: string | null = null) {
     }
   };
 
+  /**
+   * '☐ 우유' 줄을 눌러 ☑ 로 (다시 누르면 ☐). 글자만 바꾼다 (lib/checkLines).
+   * 서버의 지금 글에서 그 줄만 바꾼다 - 다른 기기에서 고친 다른 줄을 덮지 않고, 그 줄이 보던 것과
+   * 달라졌으면 바꾸지 않는다. 성공하면 true.
+   */
+  const toggleCheckLine = async (memo: Memo, lineIndex: number, shownLine: string): Promise<boolean> => {
+    const user = auth.currentUser;
+    if (!user) return false;
+    const docRef = groupId
+      ? doc(db, 'groups', groupId, 'tasks', memo.firestoreId)
+      : doc(db, 'users', user.uid, 'tasks', memo.firestoreId);
+    try {
+      const done = await runTransaction(db, async (tx) => {
+        const snap = await tx.get(docRef);
+        if (!snap.exists()) throw new Error('메모를 찾지 못했습니다. 다른 곳에서 지웠을 수 있습니다.');
+        const data = snap.data();
+        const next = toggleCheckLineText(data.text || data.content || '', lineIndex, shownLine);
+        if (next === null) return false;
+        tx.update(docRef, { text: next, content: next });
+        return true;
+      });
+      if (!done) showToast('그 사이 메모 글이 바뀌어 체크하지 않았습니다. 바뀐 글을 보고 다시 눌러 주세요.');
+      return done;
+    } catch (e) {
+      showErrorToast('체크 표시를 저장하지 못했습니다.', e);
+      return false;
+    }
+  };
+
   /** 휴지통 문서 id들을 돌려준다 (지운 뒤 안내의 '되돌리기') */
   const deleteCompletedMemos = async (memosToDelete?: Memo[]): Promise<string[]> => {
     const user = auth.currentUser;
@@ -345,5 +375,5 @@ export function useMemos(groupId: string | null = null) {
     }
   };
 
-  return { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, toggleFavorite, deleteCompletedMemos, labelUnlabeledMemos, swapMemoOrder };
+  return { memos, loading, addMemo, updateMemo, deleteMemo, toggleComplete, toggleFavorite, toggleCheckLine, deleteCompletedMemos, labelUnlabeledMemos, swapMemoOrder };
 }

@@ -319,6 +319,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-command-palette.mjs` | 명령 창 - 날짜로 가기(하루·주간에 남기)·기능 열기(첫소리)·통합 검색 넘기기·⋮ 메뉴·ESC(19항목). 자료를 심지 않는다 |
 | `tools/inspect-more-menu.mjs` | ⋮ 메뉴 구역(`Layout.moreMenuSections`) - 구역 차례·제목·항목, 항목마다 창이 열리는지(29항목). 자료를 심지 않는다 |
 | `tools/inspect-event-panel-order.mjs` | 일정 칸 차례 - 새 일정·수정 칸 모두 내용 칸이 맨 위, 열자마자 커서(7항목). 만든 일정은 지운다 |
+| `tools/inspect-check-lines.mjs` | 메모 카드의 ☐/☑ 줄 - 누르면 서버 글에서 그 줄 글자만 바뀌는지, 쓰는 칸이 안 열리는지(10항목). 메모를 심고 지운다 |
 | `tools/inspect-memo-open.mjs` | 메모 화면을 열 때 - 즐겨찾기가 없으면 전체로, ☆가 생기면 다시 즐겨찾기로(8항목). 계정 즐겨찾기를 잠시 떼고 되돌린다 |
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번 |
