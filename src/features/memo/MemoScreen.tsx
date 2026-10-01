@@ -82,23 +82,37 @@ export default function MemoScreen() {
     }
   }, [focusSection]);
 
+  // 즐겨찾기가 하나도 없으면 즐겨찾기 대신 전체로 연다 (빈 화면 대신). 메모를 다 읽은 뒤
+  // 화면을 열 때(공간을 바꿀 때도) 한 번만 정한다 - 보던 중에 마지막 ☆를 떼도 화면이 갑자기
+  // 바뀌지 않고, 기억한 거르개도 그대로라 ☆를 붙여 두면 다음에는 즐겨찾기로 연다.
+  const [noFavoritesOnOpen, setNoFavoritesOnOpen] = useState<boolean | null>(null);
+  useEffect(() => setNoFavoritesOnOpen(null), [selectedGroupId]);
+  useEffect(() => {
+    if (loading || noFavoritesOnOpen !== null) return;
+    setNoFavoritesOnOpen(!memos.some((m) => m.favorite));
+  }, [loading, memos, noFavoritesOnOpen]);
+
   // 거르개는 셋 중 하나: '전체', '⭐ 즐겨찾기', 라벨 여러 개(lib/labelTree의 LabelFilter).
   // 라벨은 여러 개 고를 수 있고, 상위는 앞의 '하위 포함' 체크를 켰을 때만 하위까지 거른다.
   const currentFilter: string | LabelFilter = (() => {
     if (showAllForFocus) return '전체';
+    const favoriteOrAll = noFavoritesOnOpen ? '전체' : FAVORITE_FILTER;
     const f = rememberedFilter || FAVORITE_FILTER;
-    if (f === '전체' || f === FAVORITE_FILTER) return f;
+    if (f === '전체') return f;
+    if (f === FAVORITE_FILTER) return favoriteOrAll;
     // 예전에는 라벨 하나를 글자로 기억했다
     const asFilter: LabelFilter = typeof f === 'string' ? { labels: [f], withChildren: [] } : f;
     // 라벨 목록을 아직 못 읽었으면 판단을 미룬다 (기본값만 보고 '없는 라벨'로 단정하지 않는다)
     if (!labelsLoaded) return asFilter;
     const pruned = pruneFilter(asFilter, memoLabels);
-    return pruned.labels.length > 0 ? pruned : FAVORITE_FILTER;
+    return pruned.labels.length > 0 ? pruned : favoriteOrAll;
   })();
 
   const labelFilter: LabelFilter = typeof currentFilter === 'string' ? EMPTY_FILTER : currentFilter;
   const chooseFilter = (filter: string | LabelFilter) => {
     setShowAllForFocus(false);
+    // 손으로 고른 것은 그대로 보인다 (즐겨찾기가 없어도 ⭐를 누르면 빈 즐겨찾기와 안내)
+    setNoFavoritesOnOpen(false);
     // 라벨을 모두 떼면 전체로
     setMemoFilter(typeof filter !== 'string' && filter.labels.length === 0 ? '전체' : filter);
   };

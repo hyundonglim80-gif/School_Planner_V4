@@ -337,6 +337,74 @@ describe('메모 즐겨찾기', () => {
   });
 });
 
+// 로드맵 6-5: 즐겨찾기가 없는데 즐겨찾기로 열면 빈 화면이었다
+describe('즐겨찾기가 없으면 전체 메모로 연다', () => {
+  let docs: { id: string; data: () => Record<string, unknown> }[] = [];
+  const memo = (id: string, text: string, favorite = false) => ({ id, data: () => ({ text, favorite, createdAt: 1 }) });
+  const nav = () => screen.getByRole('navigation', { name: '메모 라벨 거르개' });
+  const chip = (name: string) => within(nav()).getByRole('button', { name: new RegExp(name) });
+  beforeEach(() => {
+    useAppStore.setState({ memoFilter: null });
+    vi.mocked(onSnapshotMock).mockImplementation(((_ref: unknown, next: (s: unknown) => void) => {
+      next({ forEach: (f: (d: unknown) => void) => docs.forEach(f), exists: () => false, data: () => ({}) });
+      return () => {};
+    }) as any);
+  });
+  afterEach(() => {
+    vi.mocked(onSnapshotMock).mockImplementation((() => () => {}) as any);
+  });
+
+  it('하나도 없으면 전체 메모가 골라진 채 메모가 보인다', async () => {
+    docs = [memo('a', '장보기'), memo('b', '회의 준비')];
+    render(<><MemoScreen /><EntryPanelHost /></>);
+
+    expect(await screen.findByText('장보기')).toBeInTheDocument();
+    expect(chip('전체 메모')).toHaveAttribute('aria-pressed', 'true');
+    expect(chip('⭐ 즐겨찾기')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('하나라도 있으면 지금처럼 즐겨찾기로 연다', async () => {
+    docs = [memo('a', '장보기', true), memo('b', '회의 준비')];
+    render(<><MemoScreen /><EntryPanelHost /></>);
+
+    expect(await screen.findByText('장보기')).toBeInTheDocument();
+    expect(chip('⭐ 즐겨찾기')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByText('회의 준비')).not.toBeInTheDocument();
+  });
+
+  it('즐겨찾기를 기억해 두었어도 없으면 전체로 열고, 기억은 바꾸지 않는다', async () => {
+    useAppStore.setState({ memoFilter: '⭐ 즐겨찾기' });
+    docs = [memo('a', '장보기')];
+    render(<><MemoScreen /><EntryPanelHost /></>);
+
+    expect(await screen.findByText('장보기')).toBeInTheDocument();
+    expect(chip('전체 메모')).toHaveAttribute('aria-pressed', 'true');
+    expect(useAppStore.getState().memoFilter).toBe('⭐ 즐겨찾기');
+  });
+
+  it('기억한 라벨이 지워졌고 즐겨찾기도 없으면 전체로 연다', async () => {
+    useAppStore.setState({ memoFilter: '없어진라벨' });
+    docs = [memo('a', '장보기')];
+    render(<><MemoScreen /><EntryPanelHost /></>);
+
+    expect(await screen.findByText('장보기')).toBeInTheDocument();
+    expect(chip('전체 메모')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('없어도 ⭐를 누르면 빈 즐겨찾기와 ☆ 안내가 보인다', async () => {
+    const user = userEvent.setup();
+    docs = [memo('a', '장보기')];
+    render(<><MemoScreen /><EntryPanelHost /></>);
+    await screen.findByText('장보기');
+
+    await user.click(chip('⭐ 즐겨찾기'));
+
+    expect(chip('⭐ 즐겨찾기')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText(/즐겨찾기한 메모가 없습니다/)).toBeInTheDocument();
+    expect(screen.queryByText('장보기')).not.toBeInTheDocument();
+  });
+});
+
 describe('메모 라벨 상위/하위', () => {
   // '업무' 칩만 (옆의 '업무 하위 라벨 접기' 단추는 빼고). 이름에는 ✓와 개수가 붙는다.
   const WORK_CHIP = /^(✓\s*)?업무\s*\d*$/;
