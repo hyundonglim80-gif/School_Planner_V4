@@ -20,15 +20,17 @@ import {
   useLabelTree,
   type LabelFilter,
 } from '../../lib/labelTree';
-import { showToast, showErrorToastOnce } from '../../utils/toast';
+import { showErrorToastOnce } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
 import { TABLE_ONLY_CONTENT, normalizeTables } from '../../lib/entryTable';
 import EntryTableView from '../../components/EntryTableView';
 import { useDayEvalCounts } from '../../hooks/useDayEvalCounts';
+import { showDeletedToast } from '../../lib/undoToast';
 
 interface DayJournalProps {
   journals: JournalEntry[];
-  onDeleteJournal: (id: string) => Promise<void>;
+  /** 휴지통 문서 id를 돌려주면 안내에 '되돌리기'가 붙는다 */
+  onDeleteJournal: (id: string) => Promise<string | void>;
   onReorderJournals?: (sourceIndex: number, targetIndex: number) => Promise<void>;
 }
 
@@ -477,13 +479,14 @@ export default function DayJournal({
                             type="button"
                             onClick={async (e) => {
                               e.stopPropagation();
+                              let trashId: string | void;
                               try {
-                                await onDeleteJournal(entry.id);
+                                trashId = await onDeleteJournal(entry.id);
                               } catch (err) {
                                 showErrorToastOnce('기록을 지우지 못했습니다.', err);
                                 return;
                               }
-                              showToast('🗑️ 기록을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+                              showDeletedToast('🗑️ 기록을 삭제했습니다. 휴지통에서 복원할 수 있습니다.', trashId || undefined);
                             }}
                             className="text-slate-400 hover:text-red-500 p-1 rounded-md text-xs transition-colors cursor-pointer"
                             title="기록 삭제"

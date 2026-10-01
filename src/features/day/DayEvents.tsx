@@ -3,18 +3,20 @@ import type { EventItem } from '../../hooks/useDayData';
 import { useAppStore } from '../../store/useAppStore';
 import { focusKey } from '../../lib/searchFocus';
 import { useLabels } from '../../hooks/useLabels';
-import { showToast } from '../../utils/toast';
+
 import { formatDateStr } from '../../lib/dateUtils';
 import { resolveEventLabelNames, eventDisplayContent } from '../../lib/eventLabels';
 import { useGroupDelete } from '../../hooks/useGroupDelete';
 import EventAlarmModal from '../../components/EventAlarmModal';
 import EventItemActions from '../../components/EventItemActions';
 import { openEntryPanel } from '../../components/EntryPanelHost';
+import { showDeletedToast } from '../../lib/undoToast';
 
 interface DayEventsProps {
   events: EventItem[];
   onToggleEvent: (id: string) => Promise<void>;
-  onDeleteEvent: (id: string) => Promise<void>;
+  /** 휴지통 문서 id를 돌려주면 안내에 '되돌리기'가 붙는다 */
+  onDeleteEvent: (id: string) => Promise<string | void>;
   onUpdateEvent?: (id: string, updates: Partial<EventItem>) => Promise<void>;
   onForwardIncomplete?: () => Promise<number>;
   onReorderEvents?: (sourceIndex: number, targetIndex: number) => Promise<void>;
@@ -69,10 +71,10 @@ export default function DayEvents({
   const { requestDelete, groupDeleteModal } = useGroupDelete({
     fId: selectedGroupId,
     deleteOne: async (_dateStr, id) => {
-      await onDeleteEvent(id);
+      const trashId = await onDeleteEvent(id);
       // 오른쪽 칸에서 고치던 일정이면 칸도 닫는다 (없는 일정을 붙들고 있지 않게)
       closeEntryPanelsFor('event', String(id));
-      showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+      showDeletedToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.', trashId || undefined);
     },
   });
 

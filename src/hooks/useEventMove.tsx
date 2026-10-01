@@ -7,7 +7,7 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import GroupMoveModal, { type GroupMoveScope } from '../components/GroupMoveModal';
 import { groupIdOf } from '../lib/eventGroups';
-import { moveEventToDate, moveGroupEvents, type MoveEventResult } from '../lib/eventDocOps';
+import { moveEventToDate, moveGroupEvents, type MoveEventResult, type MoveTrail } from '../lib/eventDocOps';
 import { daysBetween, formatDateStr } from '../lib/dateUtils';
 import { shortDateLabel } from '../lib/notices';
 import { isForwardTarget } from '../lib/forwarding';
@@ -32,6 +32,8 @@ export interface MoveOutcome {
   /** 묶음 가운데 옮기지 못한 건수 */
   failed: number;
   scope: GroupMoveScope;
+  /** 옮긴 것마다 어디서 어디로 (안내의 '되돌리기' - lib/undoToast.showMovedToast) */
+  trail: MoveTrail[];
 }
 
 /** 옮겼으면 결과, 창을 닫아 그만두었으면 'cancelled', 옮길 일정을 못 찾았으면 'missing' */
@@ -70,7 +72,15 @@ export function useEventMove(fId: string | null) {
           eventId: String(req.item.id),
           patch: req.patch,
           shiftAlarm: req.shiftAlarm,
-        }).then((r) => resolve(r ? { current: r, moved: 1, failed: 0, scope: 'only' } : 'missing'), reject);
+        }).then(
+          (r) =>
+            resolve(
+              r
+                ? { current: r, moved: 1, failed: 0, scope: 'only', trail: [oneTrail(req, r.id)] }
+                : 'missing'
+            ),
+          reject
+        );
       }),
     [space]
   );
@@ -101,7 +111,7 @@ export function useEventMove(fId: string | null) {
               patch: p.patch,
               shiftAlarm: p.shiftAlarm,
             });
-            p.resolve(r ? { current: r, moved: 1, failed: 0, scope } : 'missing');
+            p.resolve(r ? { current: r, moved: 1, failed: 0, scope, trail: [oneTrail(p, r.id)] } : 'missing');
           } else {
             const r = await moveGroupEvents({
               fId: space,
@@ -120,6 +130,10 @@ export function useEventMove(fId: string | null) {
   ) : null;
 
   return { requestMove, groupMoveModal };
+}
+
+function oneTrail(req: MoveRequest, id: string): MoveTrail {
+  return { fromDate: req.fromDate, toDate: req.toDate, id, shiftAlarm: req.shiftAlarm };
 }
 
 /**

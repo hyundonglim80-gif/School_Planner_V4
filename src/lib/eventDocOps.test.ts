@@ -306,3 +306,97 @@ describe('묶인 일정(기간·반복) 옮기기', () => {
     expect(writes).toEqual([]);
   });
 });
+
+describe('되돌리기 (로드맵 6번) - 옮긴 것 되옮기기, 고친 칸 되돌리기', () => {
+  it('옮긴 일정을 원래 날짜로 되옮긴다 - 알림도 같이 돌아오고 그 사이 두 날에 더한 일정은 그대로', async () => {
+    const { undoMoves } = await import('./eventDocOps');
+    useServer({
+      [day('2026-10-01')]: { eventList: [{ id: 'ev_a', content: '회의', time: '2026-10-01T15:00' }, { id: 'ev_b', content: '남을 일' }] },
+    });
+    const r = await moveEventToDate({ fId: 'personal', fromDate: '2026-10-01', toDate: '2026-10-05', eventId: 'ev_a' });
+    // 그 사이 다른 기기가 두 날에 일정을 더했다
+    store[day('2026-10-01')].eventList.push({ id: 'ev_new1', content: '새 일정 1' });
+    store[day('2026-10-05')].eventList.push({ id: 'ev_new2', content: '새 일정 2' });
+
+    const back = await undoMoves('personal', [{ fromDate: '2026-10-01', toDate: '2026-10-05', id: r!.id }]);
+
+    expect(back).toMatchObject({ missing: 0 });
+    expect(back.back[0].id).toBe('ev_a');
+    expect(ids('2026-10-01')).toEqual(['ev_b', 'ev_new1', 'ev_a']);
+    expect(ids('2026-10-05')).toEqual(['ev_new2']);
+    expect(store[day('2026-10-01')].eventList[2].time).toBe('2026-10-01T15:00');
+  });
+
+  it('쓰는 칸에서 알림 시각을 새로 정해 옮겼으면 되옮길 때도 알림은 그대로 둔다', async () => {
+    const { undoMoves } = await import('./eventDocOps');
+    useServer({ [day('2026-10-05')]: { eventList: [{ id: 'ev_a', content: '회의', time: '2026-10-05T09:00' }] } });
+    await undoMoves('personal', [{ fromDate: '2026-10-01', toDate: '2026-10-05', id: 'ev_a', shiftAlarm: false }]);
+    expect(store[day('2026-10-01')].eventList[0]).toMatchObject({ id: 'ev_a', time: '2026-10-05T09:00' });
+  });
+
+  it('묶음 옮기기는 옮긴 것마다 자취를 남기고, 되옮기면 모두 제자리로', async () => {
+    const { moveGroupEvents, undoMoves } = await import('./eventDocOps');
+    useServer({
+      [day('2026-10-05')]: { eventList: [{ id: 'p1', content: '시험 (1/3)', groupId: 'g' }] },
+      [day('2026-10-06')]: { eventList: [{ id: 'p2', content: '시험 (2/3)', groupId: 'g' }] },
+      [day('2026-10-07')]: { eventList: [{ id: 'p3', content: '시험 (3/3)', groupId: 'g' }] },
+    });
+    const r = await moveGroupEvents({
+      fId: 'personal',
+      items: ['05', '06', '07'].map((d, i) => ({ fromDate: `2026-10-${d}`, id: `p${i + 1}` })),
+      days: 1,
+      current: { fromDate: '2026-10-05', id: 'p1' },
+    });
+    expect(r.trail.map((t) => `${t.id}:${t.fromDate}>${t.toDate}`)).toEqual([
+      'p1:2026-10-05>2026-10-06',
+      'p2:2026-10-06>2026-10-07',
+      'p3:2026-10-07>2026-10-08',
+    ]);
+
+    // 하루씩 밀려 들어간 것이라 나중에 옮긴 것부터 되옮겨야 서로 엉키지 않는다
+    const back = await undoMoves('personal', r.trail);
+    expect(back.back).toHaveLength(3);
+    expect(ids('2026-10-05')).toEqual(['p1']);
+    expect(ids('2026-10-06')).toEqual(['p2']);
+    expect(ids('2026-10-07')).toEqual(['p3']);
+    expect(ids('2026-10-08')).toEqual([]);
+  });
+
+  it('그 사이 지워진 일정은 건너뛰고 셈한다', async () => {
+    const { undoMoves } = await import('./eventDocOps');
+    useServer({ [day('2026-10-05')]: { eventList: [] } });
+    const back = await undoMoves('personal', [{ fromDate: '2026-10-01', toDate: '2026-10-05', id: 'ev_gone' }]);
+    expect(back).toEqual({ back: [], missing: 1 });
+  });
+
+  it('고치기 전 칸 값으로 되돌린다 - 없던 칸은 지우고, 그 사이 고친 다른 칸·다른 일정은 그대로', async () => {
+    const { restoreEventFields, snapshotEventFields } = await import('./eventDocOps');
+    const before = { id: 'ev_a', content: '회의', label: '이월', labelIds: ['L1'], completed: false };
+    const snaps = [snapshotEventFields('2026-10-01', before, ['label', 'labelIds', 'forward', 'forwardOptOut', 'completed'])];
+    // 다중 선택으로 라벨을 바꾸고 완료한 뒤, 다른 기기가 내용을 고치고 일정을 하나 더했다
+    useServer({
+      [day('2026-10-01')]: {
+        eventList: [
+          { id: 'ev_a', content: '학년 회의', label: '달력', labelIds: ['L2'], forward: false, forwardOptOut: false, completed: true },
+          { id: 'ev_b', content: '다른 일', completed: true },
+        ],
+      },
+    });
+
+    const n = await restoreEventFields('personal', snaps);
+
+    expect(n).toBe(1);
+    const [a, b] = store[day('2026-10-01')].eventList;
+    expect(a).toEqual({ id: 'ev_a', content: '학년 회의', label: '이월', labelIds: ['L1'], completed: false });
+    expect(b).toEqual({ id: 'ev_b', content: '다른 일', completed: true });
+    expect(store[day('2026-10-01')].eventText).toBeDefined(); // V3 글도 함께 쓴다
+  });
+
+  it('되돌릴 일정이 그 날에 없으면 아무것도 쓰지 않는다', async () => {
+    const { restoreEventFields } = await import('./eventDocOps');
+    useServer({ [day('2026-10-01')]: { eventList: [{ id: 'ev_b', content: '다른 일' }] } });
+    const n = await restoreEventFields('personal', [{ dateStr: '2026-10-01', id: 'ev_a', fields: { completed: false } }]);
+    expect(n).toBe(0);
+    expect(writes).toEqual([]);
+  });
+});

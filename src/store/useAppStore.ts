@@ -6,7 +6,7 @@ import { eventDocPayload, readEventList } from '../lib/eventText';
 import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 import { moveToTrash } from '../utils/trashHelper';
 import { formatDateStr } from '../lib/dateUtils';
-import { moveEventToDate } from '../lib/eventDocOps';
+import { moveEventToDate, snapshotEventFields, type EventFieldSnapshot, type MoveTrail } from '../lib/eventDocOps';
 import { showErrorToast } from '../utils/toast';
 import { FORWARD_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
 import type { ShortcutOverrides } from '../lib/shortcuts';
@@ -154,13 +154,15 @@ interface AppState {
   toggleEventSelection: (eventId: string, dateStr?: string) => void;
   clearEventSelection: () => void;
   selectAllEvents: (eventIds: string[], dateMap?: Record<string, string>) => void;
-  bulkUpdateSelectedEvents: (updates: { completed?: boolean; label?: string; labelIds?: string[] }) => Promise<void>;
-  bulkDeleteSelectedEvents: () => Promise<void>;
+  /** 고치기 전 칸 값을 돌려준다(안내의 '되돌리기'). 실패하면 안내하고 null */
+  bulkUpdateSelectedEvents: (updates: { completed?: boolean; label?: string; labelIds?: string[] }) => Promise<EventFieldSnapshot[] | null>;
+  /** 휴지통 문서 id들을 돌려준다(안내의 '되돌리기'). 실패하면 안내하고 null */
+  bulkDeleteSelectedEvents: () => Promise<string[] | null>;
   /**
    * 고른 일정을 모두 한 날짜로 옮긴다 (기간·반복 묶음이어도 고른 것만 - 범위는 묻지 않는다).
    * 옮긴 것·이미 그 날인 것·못 옮긴 것을 세어 주고, 옮긴 일정의 모습(안내용)도 준다. 다 끝나면 다중 선택을 끝낸다.
    */
-  bulkMoveSelectedEvents: (toDate: string) => Promise<{ moved: number; same: number; failed: number; items: any[] }>;
+  bulkMoveSelectedEvents: (toDate: string) => Promise<{ moved: number; same: number; failed: number; items: any[]; trail: MoveTrail[] }>;
 
   // Google API Token (For Tasks etc)
   googleAccessToken: string | null;
@@ -425,9 +427,9 @@ export const useAppStore = create<AppState>()(
       
       bulkUpdateSelectedEvents: async (updates) => {
         const { selectedEventIds, selectedEventDateMap, selectedGroupId, currentDate } = get();
-        if (selectedEventIds.length === 0) return;
+        if (selectedEventIds.length === 0) return [];
         const user = auth.currentUser;
-        if (!user) return;
+        if (!user) return null;
 
         const defaultDate = formatDateStr(new Date(currentDate)); // toISOString은 UTC라 한국 새벽·자정이면 하루 앞날이 된다
         const groupedByDate: Record<string, string[]> = {};
@@ -436,6 +438,10 @@ export const useAppStore = create<AppState>()(
           if (!groupedByDate[d]) groupedByDate[d] = [];
           groupedByDate[d].push(id);
         }
+        // 되돌리기에 쓸 고치기 전 칸 값 (날짜마다 - 트랜잭션이 다시 돌면 그 날짜 것을 새로 담는다)
+        const touched = updates.label !== undefined ? ['label', 'labelIds', 'forward', 'forwardOptOut'] : [];
+        if (updates.completed !== undefined) touched.push('completed');
+        const snapsByDate = new Map<string, EventFieldSnapshot[]>();
 
         const promises = Object.entries(groupedByDate).map(async ([dStr, ids]) => {
           const eventDocRef = selectedGroupId
@@ -446,11 +452,13 @@ export const useAppStore = create<AppState>()(
           const wanted = new Set(ids.map(String));
           await runTransaction(db, async (tx) => {
             const snap = await tx.get(eventDocRef);
+            snapsByDate.set(dStr, []);
             if (!snap.exists()) return;
             // V3 옛 글(eventText)만 있는 날도 목록으로 읽는다. eventList만 보면 빈 목록을 써서 그날 일정이 사라진다.
             const currentList: any[] = readEventList(snap.data());
             const updatedList = currentList.map((item) => {
               if (wanted.has(String(item.id))) {
+                snapsByDate.get(dStr)!.push(snapshotEventFields(dStr, item, touched));
                 return {
                   ...item,
                   ...(updates.completed !== undefined ? { completed: updates.completed } : {}),
@@ -472,13 +480,14 @@ export const useAppStore = create<AppState>()(
           await Promise.all(promises);
         } catch (err) {
           showErrorToast('선택한 일정을 수정하지 못했습니다.', err);
-          return;
+          return null;
         }
         get().clearEventSelection();
+        return [...snapsByDate.values()].flat();
       },
       bulkMoveSelectedEvents: async (toDate) => {
         const { selectedEventIds, selectedEventDateMap, selectedGroupId, currentDate } = get();
-        const result = { moved: 0, same: 0, failed: 0, items: [] as any[] };
+        const result = { moved: 0, same: 0, failed: 0, items: [] as any[], trail: [] as MoveTrail[] };
         if (selectedEventIds.length === 0) return result;
         const defaultDate = formatDateStr(new Date(currentDate));
         const failedIds: string[] = [];
@@ -498,6 +507,7 @@ export const useAppStore = create<AppState>()(
             }
             result.moved += 1;
             result.items.push(r.item);
+            result.trail.push({ fromDate, toDate, id: r.id });
             get().retargetEventPanels(selectedGroupId, fromDate, id, toDate, r.id);
           } catch (err) {
             console.error('일정을 옮기지 못했습니다:', id, err);
@@ -519,9 +529,10 @@ export const useAppStore = create<AppState>()(
       },
       bulkDeleteSelectedEvents: async () => {
         const { selectedEventIds, selectedEventDateMap, selectedGroupId, currentDate } = get();
-        if (selectedEventIds.length === 0) return;
+        if (selectedEventIds.length === 0) return [];
         const user = auth.currentUser;
-        if (!user) return;
+        if (!user) return null;
+        const trashIds: string[] = [];
 
         const defaultDate = formatDateStr(new Date(currentDate)); // toISOString은 UTC라 한국 새벽·자정이면 하루 앞날이 된다
         const groupedByDate: Record<string, string[]> = {};
@@ -546,7 +557,7 @@ export const useAppStore = create<AppState>()(
           const trashed = new Set<string>();
           for (const item of toDelete) {
             try {
-              await moveToTrash({
+              const trashId = await moveToTrash({
                 id: String(item.id),
                 type: 'event',
                 originalDateStr: dStr,
@@ -554,6 +565,7 @@ export const useAppStore = create<AppState>()(
                 content: item.content,
                 data: item,
               });
+              if (trashId) trashIds.push(trashId);
               trashed.add(String(item.id));
             } catch (e) {
               console.error('Failed to move bulk event to trash:', e);
@@ -579,9 +591,10 @@ export const useAppStore = create<AppState>()(
           await Promise.all(promises);
         } catch (err) {
           showErrorToast('선택한 일정을 삭제하지 못했습니다.', err);
-          return;
+          return null;
         }
         get().clearEventSelection();
+        return trashIds;
       },
 
       isLinkerModalOpen: false,

@@ -17,8 +17,9 @@ import { readEvalList } from '../lib/evalList';
 import { markFirestoreAlive } from '../lib/firestoreRecovery';
 import { type PeriodSchedule, type EventItem, runAutoForwarding } from './useDayData';
 import { readEventList } from '../lib/eventText';
-import { showErrorToast, showToast } from '../utils/toast';
+import { showErrorToast } from '../utils/toast';
 import { updateEventInDoc, deleteEventFromDoc, TrashFailedError } from '../lib/eventDocOps';
+import { showDeletedToast } from '../lib/undoToast';
 
 export interface DaySummary {
   eventText?: string;
@@ -345,8 +346,8 @@ export function useCalendarData(dateStrings: string[], groupId: string | null = 
 
     try {
       // 휴지통에 먼저 넣고, 서버의 지금 목록에서 그 항목만 뺀다 (lib/eventDocOps)
-      await deleteEventFromDoc(eventDocRef, { dateStr, fId: groupId || 'personal', eventId, fallbackItem });
-      showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+      const trashId = await deleteEventFromDoc(eventDocRef, { dateStr, fId: groupId || 'personal', eventId, fallbackItem });
+      showDeletedToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.', trashId);
     } catch (error) {
       showErrorToast(error instanceof TrashFailedError ? '휴지통에 옮기지 못해 일정을 지우지 않았습니다. 네트워크를 확인해 주세요.' : '일정을 삭제하지 못했습니다.', error);
     }

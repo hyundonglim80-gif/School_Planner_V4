@@ -4,6 +4,7 @@ import { collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc, writeBatch, 
 import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 import { db, auth } from '../lib/firebase';
 import { moveToTrash } from '../utils/trashHelper';
+import { showUndoToast } from '../lib/undoToast';
 import { syncReverseLinks, mergeLinkEdits } from '../utils/linkUtils';
 import { showErrorToast, failWithToast } from '../utils/toast';
 
@@ -213,9 +214,11 @@ export function useMemos(groupId: string | null = null) {
         console.warn('지울 메모를 서버에서 읽지 못했습니다:', e);
       }
     }
+    // 휴지통 문서 id - 지운 뒤 안내의 '되돌리기'가 이것으로 되살린다
+    let trashId: string | undefined;
     if (targetMemo) {
       try {
-        await moveToTrash({
+        trashId = await moveToTrash({
           id: targetMemo.firestoreId,
           type: 'memo',
           fId: groupId || 'personal',
@@ -226,13 +229,23 @@ export function useMemos(groupId: string | null = null) {
         failWithToast('휴지통에 옮기지 못해 메모를 지우지 않았습니다. 네트워크를 확인해 주세요.', e);
       }
     }
-    return await deleteDoc(docRef);
+    await deleteDoc(docRef);
+    return trashId;
   };
 
   // 카드의 단추가 기다리지 않고 부른다. 실패하면 안내만 한다(예전엔 조용히 실패했다).
+  // 완료로 옮기면 카드가 아래 '완료' 구역으로 가서, 잘못 눌렀으면 찾아 내려가야 했다 - 안내에 '되돌리기'
   const toggleComplete = async (memo: Memo) => {
+    const completed = !memo.completed;
     try {
-      return await updateMemo(memo.firestoreId, { completed: !memo.completed });
+      const r = await updateMemo(memo.firestoreId, { completed });
+      if (completed) {
+        showUndoToast('✅ 메모를 완료로 옮겼습니다.', async () => {
+          await updateMemo(memo.firestoreId, { completed: false });
+          return '↩️ 메모를 진행으로 되돌렸습니다.';
+        });
+      }
+      return r;
     } catch (e) {
       showErrorToast('메모 완료 표시를 저장하지 못했습니다.', e);
     }
@@ -247,25 +260,28 @@ export function useMemos(groupId: string | null = null) {
     }
   };
 
-  const deleteCompletedMemos = async (memosToDelete?: Memo[]) => {
+  /** 휴지통 문서 id들을 돌려준다 (지운 뒤 안내의 '되돌리기') */
+  const deleteCompletedMemos = async (memosToDelete?: Memo[]): Promise<string[]> => {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
 
     const targets = memosToDelete || memos.filter(m => m.completed);
-    if (targets.length === 0) return;
+    if (targets.length === 0) return [];
 
     // 휴지통에 넣은 메모만 지운다. 못 넣은 것은 남기고 알린다(지우면 되돌릴 길이 없다).
     let failed = 0;
+    const trashIds: string[] = [];
     await Promise.all(
       targets.map(async (targetMemo) => {
         try {
-          await moveToTrash({
+          const trashId = await moveToTrash({
             id: targetMemo.firestoreId,
             type: 'memo',
             fId: groupId || 'personal',
             content: targetMemo.content || targetMemo.text || '',
             data: targetMemo,
           });
+          if (trashId) trashIds.push(trashId);
         } catch (e) {
           console.error('Failed to move memo to trash:', e);
           failed += 1;
@@ -281,6 +297,7 @@ export function useMemos(groupId: string | null = null) {
     if (failed > 0) {
       failWithToast(`메모 ${failed}개는 휴지통에 옮기지 못해 지우지 않았습니다. 네트워크를 확인해 주세요.`);
     }
+    return trashIds;
   };
 
   /**

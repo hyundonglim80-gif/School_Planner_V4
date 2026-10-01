@@ -85,7 +85,7 @@ export function countGroupItems(hits: GroupHit[]): number {
 }
 
 /**
- * 찾아 둔 묶음 일정을 지운다. 지운 건수를 준다.
+ * 찾아 둔 묶음 일정을 지운다. 지운 건수와 휴지통 문서 id들(지운 뒤 안내의 '되돌리기')을 준다.
  *
  * 한 건 삭제와 같게 휴지통을 먼저 거친다. 여러 날을 한꺼번에 지우는 일이라
  * 되돌릴 길이 없으면 잘못 고른 한 번이 그대로 손해가 된다.
@@ -99,16 +99,17 @@ export function countGroupItems(hits: GroupHit[]): number {
 export async function deleteGroupEvents(
   fId: string | null | undefined,
   hits: GroupHit[]
-): Promise<number> {
+): Promise<{ removed: number; trashIds: string[] }> {
   const col = eventsColRef(fId);
-  if (!col || hits.length === 0) return 0;
+  if (!col || hits.length === 0) return { removed: 0, trashIds: [] };
+  const trashIds: string[] = [];
 
   const trashedByDate = new Map<string, Set<string>>();
   let failed = 0;
   for (const hit of hits) {
     for (const item of hit.items) {
       try {
-        await moveToTrash({
+        const trashId = await moveToTrash({
           id: String(item.id),
           type: 'event',
           originalDateStr: hit.dateStr,
@@ -116,6 +117,7 @@ export async function deleteGroupEvents(
           content: String(item.content ?? ''),
           data: item,
         });
+        if (trashId) trashIds.push(trashId);
         if (!trashedByDate.has(hit.dateStr)) trashedByDate.set(hit.dateStr, new Set());
         trashedByDate.get(hit.dateStr)!.add(String(item.id));
       } catch (err) {
@@ -148,7 +150,7 @@ export async function deleteGroupEvents(
   if (failed > 0) {
     throw new Error(`${failed}건은 휴지통에 옮기지 못해 지우지 않았습니다 (${removed}건은 지웠습니다). 네트워크를 확인해 주세요.`);
   }
-  return removed;
+  return { removed, trashIds };
 }
 
 // ── 묶음 옮기기 ─────────────────────────────────────────────────────

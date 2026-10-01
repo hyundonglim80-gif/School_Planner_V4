@@ -16,12 +16,13 @@ export interface TrashItem {
 
 /**
  * Move an item to the trash collection in Firestore.
+ * 휴지통 문서 id를 돌려준다 - 지운 뒤 안내의 '되돌리기'가 이것으로 되살린다 (lib/undoToast).
  */
-export async function moveToTrash(item: Omit<TrashItem, 'deletedAt'>) {
+export async function moveToTrash(item: Omit<TrashItem, 'deletedAt'>): Promise<string | undefined> {
   const user = auth.currentUser;
   if (!user) {
     console.warn('moveToTrash: No authenticated user.');
-    return;
+    return undefined;
   }
 
   // Ensure safe document ID by removing slashes and invalid characters
@@ -44,6 +45,7 @@ export async function moveToTrash(item: Omit<TrashItem, 'deletedAt'>) {
   const sanitizedData = JSON.parse(JSON.stringify(trashData)) as TrashItem;
 
   await setDoc(trashRef, sanitizedData);
+  return trashId;
 }
 
 /**

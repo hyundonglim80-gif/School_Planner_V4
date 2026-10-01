@@ -895,9 +895,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     }
   }, [eventList, saveEventItems]);
 
-  const deleteEventItem = useCallback(async (id: string, fallbackItem?: Partial<EventItem>) => {
+  const deleteEventItem = useCallback(async (id: string, fallbackItem?: Partial<EventItem>): Promise<string | undefined> => {
     const user = auth.currentUser;
-    if (!user || !dateStr) return;
+    if (!user || !dateStr) return undefined;
     const eventDocRef = groupId
       ? doc(db, 'groups', groupId, 'events', dateStr)
       : doc(db, 'users', user.uid, 'events', dateStr);
@@ -927,9 +927,11 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       };
     }
 
+    // 휴지통 문서 id - 지운 뒤 안내의 '되돌리기'가 이것으로 되살린다
+    let trashId: string | undefined;
     if (itemToDelete) {
       try {
-        await moveToTrash({
+        trashId = await moveToTrash({
           id: String(itemToDelete.id),
           type: 'event',
           originalDateStr: dateStr,
@@ -956,6 +958,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     } catch (err) {
       failWithToast('일정 삭제에 실패했습니다. 네트워크를 확인해 주세요.', err);
     }
+    return trashId;
   }, [eventList, dateStr, groupId]);
 
   const updateEventItem = useCallback(async (id: string, updates: Partial<EventItem>) => {
@@ -1159,9 +1162,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     }
   }, [dateStr, journals, mutateJournals]);
 
-  const deleteJournalEntry = useCallback(async (id: string) => {
+  const deleteJournalEntry = useCallback(async (id: string): Promise<string | undefined> => {
     const user = auth.currentUser;
-    if (!user || !dateStr) return;
+    if (!user || !dateStr) return undefined;
 
     // 휴지통에 넣을 원본. 화면 목록에 없으면 서버에서 찾는다 - 없으면 휴지통도 거치지 않고 사라진다.
     let itemToDelete: JournalEntry | undefined = journals.find(j => j.id === id);
@@ -1176,9 +1179,10 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         console.warn('Failed to fetch remote journal list for deletion:', e);
       }
     }
+    let trashId: string | undefined;
     if (itemToDelete) {
       try {
-        await moveToTrash({
+        trashId = await moveToTrash({
           id: itemToDelete.id,
           type: 'journal',
           originalDateStr: dateStr,
@@ -1200,6 +1204,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
 
     // 알림장·출결 자동 항목이면 원본(알림장·출석부)도 비운다
     if (itemToDelete) await syncAutoSourceAndTell({ entry: itemToDelete, groupId, dateStr, content: null });
+    return trashId;
   }, [dateStr, groupId, journals, mutateJournals]);
 
   const updateJournalEntry = useCallback(async (id: string, input: { content?: string; label?: string; labelIds?: string[]; imageUrl?: string; attachments?: Attachment[]; linkedItems?: any[]; tables?: EntryTable[]; linkedItemsBase?: any[] }) => {

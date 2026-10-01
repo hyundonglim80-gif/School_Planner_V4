@@ -102,12 +102,14 @@ export function useEvaluation(groupId?: string | null) {
     [mutateEvaluations]
   );
 
+  /** 휴지통에 먼저 넣고 뺀다. 남은 목록과 휴지통 문서 id(지운 뒤 안내의 '되돌리기')를 준다. */
   const deleteEvaluation = useCallback(async (dateStr: string, evalId: string) => {
     const list = await loadEvaluations(dateStr);
     const target = list.find(e => e.id === evalId);
+    let trashId: string | undefined;
     if (target) {
       try {
-        await moveToTrash({
+        trashId = await moveToTrash({
           id: target.id,
           type: 'eval',
           originalDateStr: dateStr,
@@ -121,7 +123,8 @@ export function useEvaluation(groupId?: string | null) {
         throw err;
       }
     }
-    return removeEvaluation(dateStr, evalId);
+    const remaining = await removeEvaluation(dateStr, evalId);
+    return { remaining, trashId };
   }, [loadEvaluations, removeEvaluation, groupId]);
 
   return { loading, loadEvaluations, upsertEvaluation, removeEvaluation, deleteEvaluation };

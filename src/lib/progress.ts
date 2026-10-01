@@ -426,16 +426,20 @@ export async function setProgressBump(
   });
 }
 
-/** 휴지통에 먼저 넣고 지운다 (휴지통에 못 넣으면 지우지 않는다 - 던진다). 복원은 TrashModal 'progress' */
-export async function deleteProgressPlan(uid: string, plan: ProgressPlan): Promise<void> {
+/**
+ * 휴지통에 먼저 넣고 지운다 (휴지통에 못 넣으면 지우지 않는다 - 던진다). 복원은 lib/trashRestore 'progress'.
+ * 휴지통 문서 id를 돌려준다(지운 뒤 안내의 '되돌리기').
+ */
+export async function deleteProgressPlan(uid: string, plan: ProgressPlan): Promise<string | undefined> {
   const { id, ...data } = plan;
-  await moveToTrash({
+  const trashId = await moveToTrash({
     id,
     type: 'progress',
     content: `${plan.key} 진도 (${plan.lessons.length}차시)`,
     data: { id, ...data },
   });
   await deleteDoc(doc(progressCol(uid), id));
+  return trashId;
 }
 
 /** 휴지통에서 되살린다. 같은 id 문서가 이미 있으면 덮지 않고 새 id로 */

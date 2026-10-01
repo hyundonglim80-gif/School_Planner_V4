@@ -267,8 +267,13 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 - **알림장·출석부 ↔ 기록**: 저장하면 그날 기록에 `notice_{date}` / `attendance_{학급키}` 항목을 만들고 고쳐 쓴다(`lib/autoJournal`).
   거꾸로 **기록에서 그 항목을 고치거나 지우면 원본도 따라간다**(`lib/autoJournalSync`, `useDayData`·휴지통 복원이 부른다).
   출결 줄(`5번 김지우 결석(질병) 1·2교시 - 감기`)을 못 읽으면 출석부는 건드리지 않는다.
-- **휴지통**: 지우는 것은 모두 `moveToTrash`를 거친다. 복원은 `TrashModal.restoreItem`이 종류별로 원래 자리에 되돌린다.
-  영구 삭제 때 첨부도 정리한다. 자동 비우기는 환경설정(기본 끄기).
+- **휴지통**: 지우는 것은 모두 `moveToTrash`를 거친다(휴지통 문서 id를 돌려준다). 복원은 `lib/trashRestore.restoreTrashItem`이
+  종류별로 원래 자리에 되돌린다 - 휴지통 창과 안내의 '되돌리기'가 같은 길. 영구 삭제 때 첨부도 정리한다. 자동 비우기는 환경설정(기본 끄기).
+- **되돌리기**(`lib/undoToast`, ROADMAP 6번): 안내(`showToast`의 action)에 '되돌리기' 단추. 지우기는 `showDeletedToast(글, 휴지통 id)` →
+  `restoreTrashIds`(휴지통 문서를 서버에서 읽어 되살린다), 옮기기는 `showMovedToast(글, 그룹, trail)` → `eventDocOps.undoMoves`
+  (나중에 옮긴 것부터, 고치던 칸도 `retargetEventPanels`), 다중 선택 완료·라벨은 `showFieldsChangedToast` → `restoreEventFields`
+  (고치기 전 칸 값, 없던 칸은 지운다). 그래서 **지우기 함수는 휴지통 id를, 옮기기는 `trail`을 돌려준다** - 새 지우기 길을 만들면 같게.
+  목록을 구독하지 않고 들고 있는 창(조사표)은 `afterRestore`로 다시 읽는다. 일정 한 건의 완료는 칩을 다시 누르면 되므로 안내가 없다.
 - **링크**: `LinkerModal`로 고르고, `addReverseLink`/`syncReverseLinks`가 양쪽에 붙인다. 이월로 id가 바뀌면 옛 역링크를 갈아끼운다.
 - **메모 ↔ 기록 옮기기**: `lib/moveEntry`. 새 항목 → 역링크 갈아끼우기 → 원본 휴지통. 일정은 옮기지 않는다.
 - **첨부·캡처**: 구글 드라이브 `School_Planner` 폴더(`lib/driveApi`). 화면에 그림은 thumbnail 주소로 보인다.
@@ -305,6 +310,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `npx vitest run` | 매 작업. 1000개 남짓. 설명서 연결·단축키 글자·팝업 규칙까지 지킨다 |
 | `tools/inspect-scenarios.mjs` | 같은 기능을 여러 조건(공간·날짜·여는 길·자료 모양·칸 상태·두 탭·PC/휴대폰)에서. 점검 자료를 에뮬레이터에 직접 심는다 |
 | `tools/inspect-event-move.mjs` | 일정 날짜 옮기기 - 쓰는 칸·묶음 범위 창·주간/월간 끌기·다중 선택을 크롬으로 누르고 서버를 확인(26항목) |
+| `tools/inspect-undo.mjs` | 안내의 되돌리기 - 일정·기록·메모 지우기, 칸에서 옮기기, 다중 선택 완료·삭제, 메모 완료, 마우스 올려 두기(19항목) |
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번 |
 | `tools/inspect-*.mjs` 나머지 | 지난 신고를 재현하던 것들(이월·뒤로가기·기록 삭제 뒤 빈 화면·V3/V4 한 출처 등) |

@@ -19,6 +19,7 @@ import {
 } from '../../lib/labelTree';
 import { showToast, showErrorToast, showErrorToastOnce } from '../../utils/toast';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { showDeletedToast } from '../../lib/undoToast';
 
 /** 라벨이 아닌 '즐겨찾기' 거르개. 라벨 이름과 겹치지 않게 별표를 붙여 둔다. */
 const FAVORITE_FILTER = '⭐ 즐겨찾기';
@@ -199,7 +200,8 @@ export default function MemoScreen() {
       )
     ) {
       try {
-        await deleteCompletedMemos(completedMemos);
+        const trashIds = await deleteCompletedMemos(completedMemos);
+        showDeletedToast(`🗑️ 완료된 메모 ${trashIds.length}개를 휴지통으로 옮겼습니다. 휴지통에서 복원할 수 있습니다.`, trashIds);
       } catch (e) {
         showErrorToastOnce('완료된 메모를 지우지 못했습니다.', e);
       }

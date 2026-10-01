@@ -16,7 +16,7 @@ vi.mock('../lib/eventGroups', async (importOriginal) => {
     findGroupEvents: async () => store.hits,
     deleteGroupEvents: async (_fId: string, hits: any[]) => {
       store.deletedDates = hits.map((h) => h.dateStr);
-      return actual.countGroupItems(hits);
+      return { removed: actual.countGroupItems(hits), trashIds: [] };
     },
   };
 });

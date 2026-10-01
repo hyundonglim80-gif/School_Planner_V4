@@ -2,7 +2,13 @@
  * Global Toast Notification Utility for V4
  */
 
-export function showToast(message: string, duration: number = 2500, type: 'info' | 'error' = 'info') {
+/** 안내 옆에 붙는 단추 (되돌리기 등). 누르면 안내를 닫고 run을 부른다. */
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
+
+export function showToast(message: string, duration: number = 2500, type: 'info' | 'error' = 'info', action?: ToastAction) {
   let toastContainer = document.getElementById('sp4-toast-container');
   if (!toastContainer) {
     toastContainer = document.createElement('div');
@@ -18,7 +24,13 @@ export function showToast(message: string, duration: number = 2500, type: 'info'
       ? 'bg-red-600/95 border-red-400/50'
       : 'bg-slate-900/90 border-slate-700/50';
   toastEl.className = `pointer-events-auto flex items-center gap-2 px-5 py-2.5 ${tone} text-white text-xs sm:text-sm font-semibold rounded-xl shadow-xl backdrop-blur-sm border transform transition-all duration-300 translate-y-2 opacity-0`;
-  toastEl.innerText = message;
+  toastEl.setAttribute('role', 'status');
+
+  // 여러 줄 안내도 줄을 바꿔 보이게 (innerText 대신 - 테스트 환경 jsdom은 innerText를 모른다)
+  const textEl = document.createElement('span');
+  textEl.className = 'whitespace-pre-line';
+  textEl.textContent = message;
+  toastEl.appendChild(textEl);
 
   toastContainer.appendChild(toastEl);
 
@@ -28,7 +40,10 @@ export function showToast(message: string, duration: number = 2500, type: 'info'
     toastEl.classList.add('translate-y-0', 'opacity-100');
   });
 
-  setTimeout(() => {
+  let closed = false;
+  const dismiss = () => {
+    if (closed) return;
+    closed = true;
     toastEl.classList.remove('translate-y-0', 'opacity-100');
     toastEl.classList.add('translate-y-2', 'opacity-0');
     setTimeout(() => {
@@ -36,7 +51,31 @@ export function showToast(message: string, duration: number = 2500, type: 'info'
         toastEl.parentNode.removeChild(toastEl);
       }
     }, 300);
-  }, duration);
+  };
+  let timer = setTimeout(dismiss, duration);
+
+  if (action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = action.label;
+    btn.dataset.toastAction = action.label;
+    btn.className =
+      'shrink-0 ml-1 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/30 text-amber-200 hover:text-white font-bold cursor-pointer transition-colors';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (closed) return;
+      clearTimeout(timer);
+      dismiss();
+      action.run();
+    });
+    toastEl.appendChild(btn);
+    // 단추를 누르려고 마우스를 올린 사이에 사라지지 않게, 올려 둔 동안은 기다린다
+    toastEl.addEventListener('mouseenter', () => clearTimeout(timer));
+    toastEl.addEventListener('mouseleave', () => {
+      clearTimeout(timer);
+      if (!closed) timer = setTimeout(dismiss, 2000);
+    });
+  }
 }
 
 /**

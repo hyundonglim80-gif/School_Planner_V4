@@ -50,18 +50,20 @@ export class TrashFailedError extends Error {
 /**
  * 일정 하나를 휴지통에 넣고(먼저), 트랜잭션으로 서버의 지금 목록에서 그 항목만 뺀다.
  * 휴지통에 못 넣으면 지우지 않고 TrashFailedError를 던진다.
+ * 휴지통 문서 id를 돌려준다(지운 뒤 안내의 '되돌리기').
  */
 export async function deleteEventFromDoc(
   ref: DocumentReference,
   opts: { dateStr: string; fId: string; eventId: string; fallbackItem?: any }
-): Promise<void> {
+): Promise<string | undefined> {
   const { dateStr, fId, eventId, fallbackItem } = opts;
   const { snap } = await getDocTrustingServer(ref);
   const list = snap.exists() ? readEventList(snap.data()) : [];
   const removed = list.find((item: any) => String(item.id) === String(eventId)) || fallbackItem;
+  let trashId: string | undefined;
   if (removed) {
     try {
-      await moveToTrash({
+      trashId = await moveToTrash({
         id: String(eventId),
         type: 'event',
         originalDateStr: dateStr,
@@ -81,6 +83,7 @@ export async function deleteEventFromDoc(
     if (kept.length === cur.length) return;
     tx.set(ref, eventDocPayload(kept), { merge: true });
   });
+  return trashId;
 }
 
 // ── 다른 날짜로 옮기기 ───────────────────────────────────────────────
@@ -109,6 +112,16 @@ export interface MoveEventResult {
   /** 옮긴 뒤의 id. 새 날짜에 같은 id가 이미 있을 때만 새 id를 붙인다. */
   id: string;
   item: any;
+}
+
+/** 옮긴 자취 하나 - 안내의 '되돌리기'가 이것으로 원래 날짜에 되옮긴다 (undoMoves) */
+export interface MoveTrail {
+  fromDate: string;
+  toDate: string;
+  /** 옮긴 뒤의 id */
+  id: string;
+  /** 옮길 때 알림도 같이 옮겼나 - 되옮길 때도 같게 */
+  shiftAlarm?: boolean;
 }
 
 /**
@@ -193,6 +206,8 @@ export interface GroupMoveResult {
   moved: number;
   /** 옮기지 못한 건수 */
   failed: number;
+  /** 옮긴 것마다 어디서 어디로 (되돌리기용) */
+  trail: MoveTrail[];
 }
 
 /**
@@ -223,17 +238,95 @@ export async function moveGroupEvents(opts: {
 
   let moved = 1;
   let failed = 0;
+  const trail: MoveTrail[] = [
+    { fromDate: current.fromDate, toDate: addDays(current.fromDate, days), id: first.id, shiftAlarm: current.shiftAlarm },
+  ];
   const rest = items
     .filter((it) => !(it.fromDate === current.fromDate && String(it.id) === String(current.id)))
     .sort((a, b) => (a.fromDate < b.fromDate ? -1 : a.fromDate > b.fromDate ? 1 : 0));
   for (const it of rest) {
     try {
-      const r = await moveEventToDate({ fId, fromDate: it.fromDate, toDate: addDays(it.fromDate, days), eventId: it.id });
-      if (r) moved += 1;
+      const toDate = addDays(it.fromDate, days);
+      const r = await moveEventToDate({ fId, fromDate: it.fromDate, toDate, eventId: it.id });
+      if (r) {
+        moved += 1;
+        trail.push({ fromDate: it.fromDate, toDate, id: r.id });
+      }
     } catch (err) {
       failed += 1;
       console.error('묶음 일정을 옮기지 못했습니다:', it, err);
     }
   }
-  return { current: first, moved, failed };
+  return { current: first, moved, failed, trail };
+}
+
+export interface UndoMoveResult {
+  /** 되옮긴 것: 옮겼던 자취와 되옮긴 뒤의 id */
+  back: Array<{ trail: MoveTrail; id: string }>;
+  /** 그 사이 지워졌거나 또 옮겨져 못 찾은 것 */
+  missing: number;
+}
+
+/**
+ * 옮긴 일정을 원래 날짜로 되옮긴다 (옮긴 뒤 안내의 '되돌리기'). 나중에 옮긴 것부터.
+ * 옮기기와 같은 길(moveEventToDate)이라 알림·역링크도 함께 돌아간다. 쓰는 칸에서 함께 고친 내용은 그대로 둔다.
+ * 하나라도 서버가 답하지 않으면 던진다(그 앞의 것은 이미 되옮겼다).
+ */
+export async function undoMoves(fId: string, trail: MoveTrail[]): Promise<UndoMoveResult> {
+  const result: UndoMoveResult = { back: [], missing: 0 };
+  for (const t of [...trail].reverse()) {
+    const r = await moveEventToDate({ fId, fromDate: t.toDate, toDate: t.fromDate, eventId: t.id, shiftAlarm: t.shiftAlarm });
+    if (r) result.back.push({ trail: t, id: r.id });
+    else result.missing += 1;
+  }
+  return result;
+}
+
+/** 되돌리기용: 일정 하나의 고치기 전 칸 값. 값이 undefined면 그 칸이 없었다. */
+export interface EventFieldSnapshot {
+  dateStr: string;
+  id: string;
+  fields: Record<string, unknown>;
+}
+
+/** 고치기 전에 이 칸들의 값을 담아 둔다 */
+export function snapshotEventFields(dateStr: string, item: any, keys: string[]): EventFieldSnapshot {
+  return { dateStr, id: String(item.id), fields: Object.fromEntries(keys.map((k) => [k, item[k]])) };
+}
+
+/**
+ * 담아 둔 칸 값으로 되돌린다 (다중 선택의 완료·라벨 '되돌리기'). 날짜마다 트랜잭션으로 서버의 지금 목록에서
+ * 그 일정의 그 칸만 바꾼다 - 그 사이 고친 다른 칸·다른 일정은 그대로. 되돌린 건수를 준다.
+ */
+export async function restoreEventFields(fId: string, snaps: EventFieldSnapshot[]): Promise<number> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('로그인이 필요합니다.');
+  const byDate = new Map<string, Map<string, Record<string, unknown>>>();
+  for (const s of snaps) {
+    if (!byDate.has(s.dateStr)) byDate.set(s.dateStr, new Map());
+    byDate.get(s.dateStr)!.set(String(s.id), s.fields);
+  }
+  let restored = 0;
+  for (const [dateStr, fieldsById] of byDate) {
+    const ref = fId && fId !== 'personal' ? doc(db, 'groups', fId, 'events', dateStr) : doc(db, 'users', uid, 'events', dateStr);
+    restored += await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return 0;
+      let n = 0;
+      const next = readEventList(snap.data()).map((item: any) => {
+        const fields = fieldsById.get(String(item.id));
+        if (!fields) return item;
+        n += 1;
+        const back = { ...item };
+        for (const [k, v] of Object.entries(fields)) {
+          if (v === undefined) delete back[k];
+          else back[k] = v;
+        }
+        return back;
+      });
+      if (n > 0) tx.set(ref, eventDocPayload(next), { merge: true });
+      return n;
+    });
+  }
+  return restored;
 }

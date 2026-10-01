@@ -29,6 +29,7 @@ import { useProgressInputs, useProgressPlans } from '../hooks/useProgress';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
 import { useAppStore } from '../store/useAppStore';
 import { showErrorToast, showToast } from '../utils/toast';
+import { showDeletedToast } from '../lib/undoToast';
 
 interface ProgressModalProps {
   isOpen: boolean;
@@ -260,8 +261,8 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   const handleDelete = async () => {
     if (!uid || !saved) return;
     try {
-      await deleteProgressPlan(uid, saved);
-      showToast(`🗑️ '${saved.key}' 진도를 지웠습니다. 휴지통에서 복원할 수 있습니다.`);
+      const trashId = await deleteProgressPlan(uid, saved);
+      showDeletedToast(`🗑️ '${saved.key}' 진도를 지웠습니다. 휴지통에서 복원할 수 있습니다.`, trashId);
       const rest = plans.filter((p) => p.id !== saved.id);
       setDraft(rest[0] ? toDraft(rest[0]) : newDraft());
     } catch (e) {

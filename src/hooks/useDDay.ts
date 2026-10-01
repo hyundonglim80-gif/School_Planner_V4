@@ -4,6 +4,7 @@ import { subscribeDocWithServerFallback } from '../lib/firestoreSubscribe';
 import { db, auth } from '../lib/firebase';
 import { moveToTrash } from '../utils/trashHelper';
 import { showToast, showErrorToast } from '../utils/toast';
+import { showDeletedToast } from '../lib/undoToast';
 
 export interface DDayItem {
   id: string;
@@ -158,9 +159,10 @@ export function useDDay() {
     // 지우지 못했으면 휴지통에도 넣지 않는다 (넣으면 되살릴 때 두 개가 된다)
     if (!ok) return;
 
+    let trashId: string | undefined;
     if (removed) {
       try {
-        await moveToTrash({
+        trashId = await moveToTrash({
           id: removed.id,
           type: 'dday',
           content: removed.title,
@@ -170,7 +172,12 @@ export function useDDay() {
         console.error('D-Day 휴지통 이동 실패:', err);
       }
     }
-    showToast('🗑️ D-Day를 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+    if (removed && !trashId) {
+      // 휴지통에 못 넣었는데 '복원할 수 있습니다'라고 하면 안 된다
+      showErrorToast('D-Day를 지웠지만 휴지통에 넣지 못했습니다.');
+      return;
+    }
+    showDeletedToast('🗑️ D-Day를 삭제했습니다. 휴지통에서 복원할 수 있습니다.', trashId);
   }, [mutateDDays]);
 
   const primaryDDay = useMemo(

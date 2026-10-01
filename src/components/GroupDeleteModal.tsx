@@ -6,7 +6,7 @@
 // 이 팝업 자체가 확인 단계다. 고를 때 몇 건이 지워지는지 숫자로 보여 주고,
 // 지운 것은 휴지통에서 되살릴 수 있으므로 확인창을 한 번 더 띄우지 않는다.
 import { useEffect, useState } from 'react';
-import { showToast, showErrorToast, showErrorToastOnce } from '../utils/toast';
+import { showErrorToast, showErrorToastOnce } from '../utils/toast';
 import {
   findGroupEvents,
   hitsFrom,
@@ -15,6 +15,7 @@ import {
   type GroupHit,
 } from '../lib/eventGroups';
 import ModalShell, { ModalCloseButton } from './ModalShell';
+import { showDeletedToast } from '../lib/undoToast';
 
 export interface GroupDeleteModalProps {
   isOpen: boolean;
@@ -77,8 +78,8 @@ export default function GroupDeleteModal({
         await onDeleteThisOnly();
       } else {
         const target = scope === 'after' ? afterHits : hits || [];
-        const removed = await deleteGroupEvents(fId, target);
-        showToast(`🗑️ 연결된 일정 ${removed}건을 삭제했습니다. 휴지통에서 복원할 수 있습니다.`);
+        const { removed, trashIds } = await deleteGroupEvents(fId, target);
+        showDeletedToast(`🗑️ 연결된 일정 ${removed}건을 삭제했습니다. 휴지통에서 복원할 수 있습니다.`, trashIds);
       }
       onDeleted?.();
       onClose();

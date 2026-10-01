@@ -14,12 +14,13 @@ import { runAutoForwarding } from '../../hooks/useDayData';
 import { readEventList } from '../../lib/eventText';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { updateEventInDoc, deleteEventFromDoc, TrashFailedError } from '../../lib/eventDocOps';
-import { showToast, showErrorToast } from '../../utils/toast';
+import { showErrorToast } from '../../utils/toast';
 import { lazyWithReload } from '../../lib/lazyWithReload';
 import { openEntryPanel } from '../../components/EntryPanelHost';
 import { useGroupDelete } from '../../hooks/useGroupDelete';
 import YearMonthCard from './YearMonthCard';
 import { useEventDropMove } from '../../hooks/useEventDrag';
+import { showDeletedToast } from '../../lib/undoToast';
 
 // Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
 // 편집기가 첫 화면 묶음에 함께 실려 온다. 그래서 여기서도 필요할 때 불러온다.
@@ -263,8 +264,8 @@ export default function YearScreen() {
 
     try {
       // 휴지통에 먼저 넣고, 서버의 지금 목록에서 그 항목만 뺀다 (lib/eventDocOps)
-      await deleteEventFromDoc(eventDocRef, { dateStr, fId: selectedGroupId || 'personal', eventId, fallbackItem });
-      showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+      const trashId = await deleteEventFromDoc(eventDocRef, { dateStr, fId: selectedGroupId || 'personal', eventId, fallbackItem });
+      showDeletedToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.', trashId);
     } catch (err) {
       showErrorToast(err instanceof TrashFailedError ? '휴지통에 옮기지 못해 일정을 지우지 않았습니다. 네트워크를 확인해 주세요.' : '일정을 삭제하지 못했습니다.', err);
     }

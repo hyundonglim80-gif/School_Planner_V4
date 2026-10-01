@@ -11,6 +11,7 @@ import { useLabels } from '../hooks/useLabels';
 import { resolveEventLabelNames } from '../lib/eventLabels';
 import { addReverseLink } from '../utils/linkUtils';
 import { updateEventInDoc, deleteEventFromDoc, TrashFailedError } from '../lib/eventDocOps';
+import { showDeletedToast } from '../lib/undoToast';
 
 // Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
 // 편집기가 첫 화면 묶음에 함께 실려 온다. 그래서 여기서도 필요할 때 불러온다.
@@ -196,13 +197,13 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
       }
       // 휴지통에 먼저 넣고, 서버의 지금 목록에서 그 항목만 뺀다 (lib/eventDocOps).
       // 예전엔 캐시로 읽어 통째로 썼고, 휴지통에 못 넣어도 지웠다.
-      await deleteEventFromDoc(doc(db, spaceColPath(uid), item.dateStr), {
+      const trashId = await deleteEventFromDoc(doc(db, spaceColPath(uid), item.dateStr), {
         dateStr: item.dateStr,
         fId: selectedGroupId || 'personal',
         eventId: item.eventId,
       });
       setIncompleteEvents(prev => prev.filter(e => !isSameItem(e, item)));
-      showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+      showDeletedToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.', trashId);
     } catch (e: any) {
       showErrorToast(
         e instanceof TrashFailedError

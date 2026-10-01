@@ -14,6 +14,7 @@ import GroupDeleteModal from './GroupDeleteModal';
 import { baseContentOf, groupIdOf } from '../lib/eventGroups';
 import PopupFrame from './PopupFrame';
 import AutoTextarea from './AutoTextarea';
+import { showDeletedToast } from '../lib/undoToast';
 
 function formatAlarmBadge(time?: string) {
   if (!time) return null;
@@ -296,8 +297,8 @@ export default function DetailEditModal({
         });
         showToast(`🗑️ ${itemId}교시 수업 내용을 비웠습니다.`);
       } else {
-        await deleteEventItem(String(itemId), initialData);
-        showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+        const trashId = await deleteEventItem(String(itemId), initialData);
+        showDeletedToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.', trashId);
       }
       onClose();
     } catch (err) {
@@ -607,8 +608,8 @@ export default function DetailEditModal({
           groupId={groupIdOf(currentItem || initialData) || ''}
           content={String((currentItem || initialData)?.content || '')}
           onDeleteThisOnly={async () => {
-            await deleteEventItem(String(itemId), initialData);
-            showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+            const trashId = await deleteEventItem(String(itemId), initialData);
+            showDeletedToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.', trashId);
           }}
           onDeleted={onClose}
           onClose={() => setGroupDeleteOpen(false)}

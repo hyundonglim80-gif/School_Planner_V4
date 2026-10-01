@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { showErrorToast, showToast } from '../utils/toast';
+import { showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
 import { Trash2, X, CheckSquare, Tag, Loader2, CalendarDays } from 'lucide-react';
 import { addDays, formatDateStr } from '../lib/dateUtils';
 import { shortDateLabel } from '../lib/notices';
 import { movesForwardIntoPast } from '../hooks/useEventMove';
+import { showDeletedToast, showFieldsChangedToast, showMovedToast } from '../lib/undoToast';
 
 export default function MultiEventActionBar() {
   const {
@@ -15,6 +16,7 @@ export default function MultiEventActionBar() {
     bulkUpdateSelectedEvents,
     bulkDeleteSelectedEvents,
     bulkMoveSelectedEvents,
+    selectedGroupId,
   } = useAppStore();
 
   const { eventLabels, getLabelColor } = useLabels();
@@ -57,7 +59,8 @@ export default function MultiEventActionBar() {
     if (selectedEventIds.length === 0 || isProcessing) return;
     try {
       setIsProcessing(true);
-      await bulkUpdateSelectedEvents({ completed: true });
+      const snaps = await bulkUpdateSelectedEvents({ completed: true });
+      if (snaps) showFieldsChangedToast(`✅ 일정 ${snaps.length}건을 완료로 표시했습니다.`, selectedGroupId, snaps);
     } catch (e: any) {
       console.error(e);
       showErrorToast('일괄 완료 처리 중 오류가 발생했습니다: ' + e.message);
@@ -72,8 +75,15 @@ export default function MultiEventActionBar() {
     try {
       setIsProcessing(true);
       const id = eventLabels.find((l) => l.name === labelName)?.id;
-      await bulkUpdateSelectedEvents({ label: labelName, labelIds: id ? [id] : [] });
+      const snaps = await bulkUpdateSelectedEvents({ label: labelName, labelIds: id ? [id] : [] });
       setIsLabelOpen(false);
+      if (snaps) {
+        showFieldsChangedToast(
+          labelName ? `🏷️ 일정 ${snaps.length}건의 라벨을 '${labelName}'(으)로 바꿨습니다.` : `🏷️ 일정 ${snaps.length}건의 라벨을 뗐습니다.`,
+          selectedGroupId,
+          snaps
+        );
+      }
     } catch (e: any) {
       console.error(e);
       showErrorToast('라벨 일괄 변경 중 오류가 발생했습니다: ' + e.message);
@@ -90,11 +100,13 @@ export default function MultiEventActionBar() {
       const r = await bulkMoveSelectedEvents(moveDate);
       setIsMoveOpen(false);
       const bounces = r.items.some((item) => movesForwardIntoPast(item, moveDate, eventLabels));
-      showToast(
+      showMovedToast(
         (r.moved > 0 ? `✅ 일정 ${r.moved}건을 ${shortDateLabel(moveDate)}로 옮겼습니다.` : '옮긴 일정이 없습니다.') +
           (r.same > 0 ? ` ${r.same}건은 이미 그 날입니다.` : '') +
           (r.failed > 0 ? ` ${r.failed}건은 옮기지 못해 고른 채로 두었습니다 - 네트워크를 확인하고 다시 눌러 주세요.` : '') +
-          (bounces ? ' 이월 일정은 끝내지 않으면 다음에 오늘로 다시 옮겨 옵니다.' : '')
+          (bounces ? ' 이월 일정은 끝내지 않으면 다음에 오늘로 다시 옮겨 옵니다.' : ''),
+        selectedGroupId,
+        r.trail
       );
     } catch (e: any) {
       console.error(e);
@@ -112,7 +124,8 @@ export default function MultiEventActionBar() {
 
     try {
       setIsProcessing(true);
-      await bulkDeleteSelectedEvents();
+      const trashIds = await bulkDeleteSelectedEvents();
+      if (trashIds) showDeletedToast(`🗑️ 일정 ${trashIds.length}건을 삭제했습니다. 휴지통에서 복원할 수 있습니다.`, trashIds);
     } catch (e: any) {
       console.error(e);
       showErrorToast('일괄 삭제 중 오류가 발생했습니다: ' + e.message);

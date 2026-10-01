@@ -27,6 +27,7 @@ import { useMinWidth } from '../hooks/useMinWidth';
 import { useGroups } from '../hooks/useGroups';
 import { shortDateLabel } from '../lib/notices';
 import { showToast, showErrorToast } from '../utils/toast';
+import { showDeletedToast } from '../lib/undoToast';
 
 // 알림장·출석부는 열 때만 내려받는다 (학급 운영을 안 쓰는 날에는 필요 없다)
 const NoticeDrawer = lazyWithReload(() => import('./NoticeDrawer'));
@@ -268,8 +269,8 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
       onDelete={
         target.entryId
           ? async () => {
-              await deleteJournalEntry(target.entryId!);
-              showToast('🗑️ 기록을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+              const trashId = await deleteJournalEntry(target.entryId!);
+              showDeletedToast('🗑️ 기록을 삭제했습니다. 휴지통에서 복원할 수 있습니다.', trashId);
             }
           : undefined
       }
@@ -367,8 +368,8 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
       onDelete={
         target.entryId
           ? async () => {
-              await deleteMemo(target.entryId!);
-              showToast('🗑️ 메모를 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+              const trashId = await deleteMemo(target.entryId!);
+              showDeletedToast('🗑️ 메모를 삭제했습니다. 휴지통에서 복원할 수 있습니다.', trashId);
             }
           : undefined
       }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useEvaluation } from '../hooks/useEvaluation';
+import { showDeletedToast } from '../lib/undoToast';
 import type { EvaluationItem } from '../hooks/useEvaluation';
 import { useRoster } from '../hooks/useRoster';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
@@ -144,6 +145,13 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
     }
     setViewMode(here.length > 0 ? 'list' : 'create');
   };
+  // 지운 뒤 '되돌리기'는 나중에 불린다 - 그때의 창 상태로 다시 읽게 늘 새 것을 가리킨다
+  const loadListRef = useRef(loadList);
+  const isOpenRef = useRef(isOpen);
+  useEffect(() => {
+    loadListRef.current = loadList;
+    isOpenRef.current = isOpen;
+  });
 
   const handleCreate = async () => {
     if (!title.trim()) return showToast('제목을 입력하세요.');
@@ -373,14 +381,18 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
   const handleDelete = async () => {
     if (!currentEval) return;
     let remaining: EvaluationItem[];
+    let trashId: string | undefined;
     try {
-      remaining = await deleteEvaluation(currentEval.dateStr, currentEval.id);
+      ({ remaining, trashId } = await deleteEvaluation(currentEval.dateStr, currentEval.id));
     } catch (e) {
       showErrorToast('조사표를 지우지 못했습니다(휴지통에 옮기지 못함). 네트워크를 확인해 주세요.', e);
       return;
     }
     setEvalList(remaining);
-    showToast('🗑️ 조사표를 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+    // 되돌리면 이 창이 들고 있는 목록도 다시 읽는다 (창이 닫혔으면 다음에 열 때 읽는다)
+    showDeletedToast('🗑️ 조사표를 삭제했습니다. 휴지통에서 복원할 수 있습니다.', trashId, () => {
+      if (isOpenRef.current) void loadListRef.current();
+    });
 
     // 같은 자리에 하나만 남으면 그것을 열고, 여럿이면 다시 고르게 한다.
     const left = isWholeDay ? remaining : remaining.filter((ev) => locationOf(ev) === wantedLocation);

@@ -164,7 +164,7 @@ describe('기간·반복 묶음 옮기기 - 어디까지 옮길지 묻는다', (
     hook.eventList = [weekly('w1')];
     const p = openPanel({ entryId: 'w1', initial: weekly('w1') });
     fireEvent.change(dateInput(p), { target: { value: '2026-10-02' } });
-    vi.mocked(moveGroupEvents).mockResolvedValue({ current: { id: 'w1', item: weekly('w1') }, moved: 2, failed: 0 });
+    vi.mocked(moveGroupEvents).mockResolvedValue({ current: { id: 'w1', item: weekly('w1') }, moved: 2, failed: 0, trail: [] });
 
     fireEvent.click(within(p).getByRole('button', { name: '옮기고 저장' }));
     fireEvent.click(await screen.findByRole('button', { name: /이후 일정 모두 옮기기 \(2건\)/ }));

@@ -11,6 +11,7 @@ import { useEventMove, moveMessage, movesForwardIntoPast } from './useEventMove'
 import { useLabels } from './useLabels';
 import { useAppStore } from '../store/useAppStore';
 import { showToast, showErrorToastOnce } from '../utils/toast';
+import { showMovedToast } from '../lib/undoToast';
 
 /** 끌기 자료의 종류. 다른 곳(글자 칸 등)에 놓이면 일정 내용 글자로 들어간다. */
 export const EVENT_DRAG_MIME = 'application/x-sp4-event';
@@ -95,7 +96,7 @@ export function useEventDropMove() {
           return;
         }
         retargetEventPanels(selectedGroupId, dragged.fromDate, dragged.id, toDate, result.current.id);
-        showToast(moveMessage(result, dragged.fromDate, toDate, bounces));
+        showMovedToast(moveMessage(result, dragged.fromDate, toDate, bounces), selectedGroupId, result.trail);
       } catch (err) {
         showErrorToastOnce('일정을 옮기지 못했습니다. 네트워크를 확인해 주세요.', err);
       }

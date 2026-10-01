@@ -166,7 +166,8 @@ describe('Keep 가져오기 - 붙어 있던 사진·파일', () => {
     await pickFiles(user, [noteWithPhoto(), photo()]);
 
     expect(await screen.findByText(/짝을 찾은 파일 1개/)).toBeInTheDocument();
-    expect(screen.getByText(/사진·파일 1개/)).toBeInTheDocument();
+    // 창 안의 셈 (같은 말이 아래 안내에도 뜬다)
+    expect(screen.getByText(/지금까지 메모 1건/)).toHaveTextContent(/사진·파일 1개/);
   });
 
   it('사진을 드라이브에 올려 메모에 붙인다', async () => {

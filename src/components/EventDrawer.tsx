@@ -26,6 +26,7 @@ import { isTopSideItem } from './PopupFrame';
 import EventAlarmModal from './EventAlarmModal';
 import PeriodModal from './PeriodModal';
 import AutoTextarea from './AutoTextarea';
+import { showDeletedToast, showMovedToast } from '../lib/undoToast';
 
 interface EventDrawerProps {
   /** 어느 날짜의 일정인가 (YYYY-MM-DD) */
@@ -309,7 +310,7 @@ export default function EventDrawer({
         snapshotRef.current = snapshotOf(content, labels, attrs, alarmTime, newLinks);
         setAlarmDirty(false);
         onMoved?.(to, result.current.id, result.current.item as EventItem);
-        showToast(moveMessage(result, dateStr, to, bounces));
+        showMovedToast(moveMessage(result, dateStr, to, bounces), groupId, result.trail);
       } else if (entryId) {
         await updateEventItem(entryId, {
           content,
@@ -397,14 +398,15 @@ export default function EventDrawer({
   const { requestDelete, groupDeleteModal } = useGroupDelete({
     fId,
     deleteOne: async (_d, id, item) => {
+      let trashId: string | undefined;
       try {
-        await deleteEventItem(id, item);
+        trashId = await deleteEventItem(id, item);
       } catch (e) {
         // 지우지 못했으면 칸을 닫지 않는다
         showErrorToastOnce('일정을 지우지 못했습니다.', e);
         return;
       }
-      showToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.');
+      showDeletedToast('🗑️ 일정을 삭제했습니다. 휴지통에서 복원할 수 있습니다.', trashId);
       onClose();
     },
     onDeleted: onClose,

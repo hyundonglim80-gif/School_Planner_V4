@@ -4,7 +4,7 @@
 `git pull`로 기기끼리 맞춰진다. 기기마다 따로 쌓이는 Claude 기억(이 기기의
 `~/.claude/projects/<작업 폴더>/memory/`)과는 아래 '기억 합치기' 절차로 하나로 맞춘다.
 
-마지막 합침: 2026-10-01 (Windows PC, `D:\gody5\Git`)
+마지막 합침: 2026-10-01 (Windows PC, `C:\HDL`)
 
 ---
 
@@ -56,12 +56,14 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
 **토큰 아끼기**: 긴 대화는 요청마다 앞의 내용을 다시 보내 사용량을 많이 쓴다. 항목 하나를 끝내면 새 대화를 열어
 "이어서"라고 하면 이 파일과 로드맵만 읽고 가볍게 시작한다. 확인은 바뀐 부분만(2장), 큰 파일은 필요한 장만 읽는다.
 
-### 지금 상태 (2026-10-01, 로드맵 약 29%)
+### 지금 상태 (2026-10-01, 로드맵 약 31%)
 
-- 로드맵 17개 중 **1~5번 끝**(일정 날짜 옮기기·수업 칸 압축·드라이브 자동 백업·나이스·진도 관리). wip 브랜치 없음.
+- 로드맵 17개 중 **1~5번 끝**(일정 날짜 옮기기·수업 칸 압축·드라이브 자동 백업·나이스·진도 관리), **6번은 6-1(되돌리기 단추) 끝**. wip 브랜치 없음.
 - 3번의 드라이브 **실제 업로드**는 에뮬레이터에 구글 토큰이 없어 못 봤다 → 사용자에게 실제 사이트 환경설정 '지금 백업'으로
   확인을 부탁했다. 안 된다고 하면 `lib/autoBackup.runDriveBackup`·`lib/driveApi`(백업 함수)부터 본다. 확인되면 이 줄을 지운다.
-- 다음은 **6번 작은 것 묶음**(되돌리기 단추·Ctrl+K·메뉴 구역 등 일곱 가지, 결정 필요 없음). 설명서 전체 점검(`inspect-manual`)은 6번을 끝낸 뒤.
+- 다음은 **6-2 Ctrl+K 명령 창**(6번 작은 것 묶음의 둘째, 결정 필요 없음). 설명서 전체 점검(`inspect-manual`)은 6번을 끝낸 뒤.
+- 6-1 되돌리기(2026-10-01 끝): `lib/undoToast`·`lib/trashRestore`. **지우기 함수는 휴지통 id, 옮기기는 trail을 돌려준다** - 새 지우기·옮기기
+  길을 만들면 같게 하고 안내는 `showDeletedToast`/`showMovedToast`로. 크롬 `tools/inspect-undo.mjs` 19항목.
 - 5번 진도 관리(2026-10-01 끝): `lib/progress`·`lib/classDays`(수업 없는 날 규칙 - 시간표 적용도 같이 써서 공휴일·V3 수업X 라벨을
   건너뛰게 고쳤다)·진도 관리 창·수업 칸 겹쳐 보기·알림장 차시 준비물. 크롬 `tools/inspect-progress.mjs` 39항목.
 - 4번 나이스: `sharedConfig` 규칙 배포와 키 넣기는 사용자에게 부탁했다(배포 전엔 키 없이 나눠 받아 돈다).
@@ -102,7 +104,8 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
   - `C:\HDL` PC: Android Studio가 없다. Temurin 21 JRE를 `C:\Users\user\.jdks\jdk-21.0.12.1+1-jre`에 풀어 둔다
     (`export JAVA_HOME="/c/Users/user/.jdks/jdk-21.0.12.1+1-jre"`). 임시 폴더에 풀었다가 지워져 에뮬레이터가 안 켜진 적이 있다.
     없으면 `https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse`을 받아 거기에 푼다.
-    사이트는 `npx vite preview --port 4173`로 띄웠다(serve-both 대신).
+    사이트는 다른 PC와 같게 `node tools/serve-both.mjs`(4190)로 띄운다. `vite preview`(4173)는 앱을 `/`에 두어 점검 스크립트의
+    `/School_Planner_V4/` 주소에서 스크립트가 404로 떠 화면이 비었다(2026-10-01).
 - **화면의 title·단추 이름을 바꾸면 점검 스크립트도 고친다**: `grep -rn '<옛 글자>' tools/`. 1-4(끌어 옮기기)에서 일정 title을
   바꿨는데 inspect-manual·inspect-scenarios가 옛 title로 찾아 4항목이 깨진 채 남았다(2026-10-01 발견). 같은 이름의 단추를
   새로 만들 때도(예: '끄기') 기존 스크립트가 엄격 모드로 깨지니 칸에 `data-…`를 달아 범위를 좁힌다.
