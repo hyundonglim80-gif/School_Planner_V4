@@ -197,3 +197,76 @@ export function attachmentImageSrc(att: { url?: string; driveId?: string } | nul
 export function driveUrlToStore(mimeType: string | undefined, file: DriveFile): string {
   return mimeType?.startsWith('image/') ? driveImageSrc(file.id) : file.downloadLink;
 }
+
+// ── 자동 백업 (docs/ROADMAP.md 3번) ─────────────────────────────────
+//
+// ⚠️ 백업 파일은 공개하지 않는다. 위의 uploadToDrive는 첨부가 화면·공유 그룹에서 보이도록
+//    '링크가 있는 사람은 볼 수 있음'으로 여는데, 백업에는 명렬표·출석부·학생 기록이 들어 있다.
+//    그래서 따로 올리고 권한을 건드리지 않는다(앱이 만든 파일이라 drive.file 권한으로 충분하다).
+
+export const BACKUP_FOLDER_NAME = '백업';
+export const BACKUP_FILE_PREFIX = 'SP4_자동백업_';
+
+export interface DriveBackupFile {
+  id: string;
+  name: string;
+  createdTime?: string;
+  size?: string;
+  webViewLink?: string;
+}
+
+/** School_Planner 안의 '백업' 폴더를 찾고, 없으면 만든다 */
+export async function getOrCreateBackupFolder(token: string): Promise<{ id: string; webViewLink?: string }> {
+  const parent = await getOrCreateFolder(token);
+  const q = encodeURIComponent(
+    `mimeType='application/vnd.google-apps.folder' and name='${BACKUP_FOLDER_NAME}' and '${parent}' in parents and trashed=false`
+  );
+  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,webViewLink)`, token);
+  const data = await res.json();
+  if (data.files?.length > 0) return { id: data.files[0].id, webViewLink: data.files[0].webViewLink };
+  const created = await driveFetch('https://www.googleapis.com/drive/v3/files?fields=id,webViewLink', token, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: BACKUP_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder', parents: [parent] }),
+  });
+  const c = await created.json();
+  return { id: c.id, webViewLink: c.webViewLink };
+}
+
+/** 백업 폴더의 자동 백업 파일들 (최신 것부터) */
+export async function listBackupFiles(token: string, folderId: string): Promise<DriveBackupFile[]> {
+  const q = encodeURIComponent(`'${folderId}' in parents and trashed=false and name contains '${BACKUP_FILE_PREFIX}'`);
+  const res = await driveFetch(
+    `https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=createdTime%20desc&pageSize=100&fields=files(id,name,createdTime,size,webViewLink)`,
+    token
+  );
+  const data = await res.json();
+  return Array.isArray(data.files) ? data.files : [];
+}
+
+/** JSON 하나를 공개하지 않고 올린다 */
+export async function uploadPrivateJson(token: string, folderId: string, name: string, json: string): Promise<DriveBackupFile> {
+  const initRes = await driveFetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,webViewLink,size',
+    token,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, mimeType: 'application/json', parents: [folderId] }),
+    }
+  );
+  const uploadUrl = initRes.headers.get('Location');
+  if (!uploadUrl) throw new Error('업로드 주소를 받지 못했습니다.');
+  const up = await fetch(uploadUrl, { method: 'PUT', body: new Blob([json], { type: 'application/json' }) });
+  if (!up.ok) throw new Error(`구글 드라이브 업로드 실패 ${up.status}`);
+  return up.json();
+}
+
+/** 드라이브 휴지통으로 보낸다 (드라이브에서 30일 동안 되살릴 수 있다) */
+export async function trashDriveFile(token: string, fileId: string): Promise<void> {
+  await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, token, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trashed: true }),
+  });
+}
