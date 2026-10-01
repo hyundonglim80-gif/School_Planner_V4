@@ -103,6 +103,8 @@ interface AppState {
   showWeekend: boolean;
   showClass: boolean;
   showEvents: boolean;
+  /** 주간 화면에 작년 같은 주를 흐리게 겹쳐 보나 (ROADMAP 7). 이 기기에만 남는다(계정에 올리지 않는다). */
+  showLastYear: boolean;
   currentDate: string; 
   selectedGroupId: string | null; 
   govApiKey: string; 
@@ -131,6 +133,7 @@ interface AppState {
   setShowWeekend: (show: boolean) => void;
   setShowClass: (show: boolean) => void;
   setShowEvents: (show: boolean) => void;
+  setShowLastYear: (show: boolean) => void;
   setCurrentDate: (date: Date) => void;
   setSelectedGroupId: (groupId: string | null) => void;
   setGovApiKey: (key: string) => void;
@@ -311,6 +314,7 @@ export const useAppStore = create<AppState>()(
       showWeekend: true,
       showClass: true,
       showEvents: true,
+      showLastYear: false,
       currentDate: new Date().toISOString(),
       selectedGroupId: null,
       govApiKey: '',
@@ -339,6 +343,7 @@ export const useAppStore = create<AppState>()(
       setShowWeekend: (showWeekend) => set({ showWeekend }),
       setShowClass: (showClass) => set({ showClass }),
       setShowEvents: (showEvents) => set({ showEvents }),
+      setShowLastYear: (showLastYear) => set({ showLastYear }),
       setCurrentDate: (date) => set({ currentDate: date.toISOString() }),
       setSelectedGroupId: (selectedGroupId) => set({ selectedGroupId }),
       setGovApiKey: (govApiKey) => set({ govApiKey }),
@@ -776,6 +781,7 @@ export const useAppStore = create<AppState>()(
         showWeekend: state.showWeekend,
         showClass: state.showClass,
         showEvents: state.showEvents,
+        showLastYear: state.showLastYear,
         enableScrollNav: state.enableScrollNav, // 추가됨
         startupScope: state.startupScope,
         fontScale: state.fontScale,

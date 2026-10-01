@@ -24,6 +24,8 @@ import { useClock } from '../../hooks/useClock';
 import { periodStateAt } from '../../lib/periodTimes';
 import { useProgressMarks } from '../../hooks/useProgress';
 import { slotId } from '../../lib/progress';
+import LastYearDay from './LastYearDay';
+import type { LastYearDay as LastYearDayData } from '../../hooks/useLastYearWeek';
 import { useState } from 'react';
 
 // Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
@@ -44,9 +46,16 @@ interface WeekGridProps {
   onQuickAdd: (dateStr: string) => void;
   onToggleEvent: (dateStr: string, eventId: string) => void;
   onDeleteEvent: (dateStr: string, eventId: string, item?: any) => void;
+  /** 작년 이맘때 (ROADMAP 7) - 켰을 때만. 올해 날짜 → 작년 같은 요일, 작년 날짜별 일정·기록 */
+  lastYear?: {
+    dateMap: Record<string, string>;
+    byDate: Record<string, LastYearDayData>;
+    loading: boolean;
+    error: boolean;
+  };
 }
 
-export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onToggleEvent, onDeleteEvent }: WeekGridProps) {
+export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onToggleEvent, onDeleteEvent, lastYear }: WeekGridProps) {
   const { getLabelColor, eventLabels, labelsLoaded } = useLabels();
   const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal, selectedGroupId } = useAppStore();
   const { holidays } = useGovHolidays();
@@ -400,6 +409,15 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                   </div>
                 )}
               </div>
+              )}
+
+              {lastYear && lastYear.dateMap[day.dateStr] && (
+                <LastYearDay
+                  lastDate={lastYear.dateMap[day.dateStr]}
+                  data={lastYear.byDate[lastYear.dateMap[day.dateStr]]}
+                  loading={lastYear.loading}
+                  error={lastYear.error}
+                />
               )}
             </div>
           </div>

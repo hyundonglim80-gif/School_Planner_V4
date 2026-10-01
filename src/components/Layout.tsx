@@ -421,6 +421,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       case 'toggleWeekend': setShowWeekend(!store.showWeekend); return;
       case 'toggleEvents': setShowEvents(!store.showEvents); return;
       case 'toggleClass': setShowClass(!store.showClass); return;
+      // 작년 이맘때는 주간 화면에만 있다. 다른 화면에서 누르면 주간으로 가서 켠다.
+      case 'lastYear':
+        if (store.scope !== 'week') {
+          setScope('week');
+          store.setShowLastYear(true);
+        } else {
+          store.setShowLastYear(!store.showLastYear);
+        }
+        return;
 
       // 메뉴 열기. 기본값이 비어 있어서, 사용자가 키를 정해야 동작한다.
       case 'multiSelect': setMultiSelectMode(!store.isMultiSelectMode); return;

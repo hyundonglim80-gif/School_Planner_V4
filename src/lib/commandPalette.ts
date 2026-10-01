@@ -189,6 +189,7 @@ const COMMAND_META: Record<ShortcutId, CommandMeta> = {
   toggleWeekend: { icon: '👁️', keywords: ['주말'] },
   toggleEvents: { icon: '👁️', keywords: ['일정 보이기', '일정 숨기기'] },
   toggleClass: { icon: '👁️', keywords: ['수업 보이기', '수업 숨기기', '시간표 보이기'] },
+  lastYear: { icon: '🕰️', title: '작년 이맘때 (주간)', keywords: ['작년', '지난해', '이맘때', '작년 같은 주'] },
   multiSelect: { icon: '☑️', keywords: ['다중 선택', '여러 개', '선택 모드', '한꺼번에'] },
   clipboard: { icon: '📎', keywords: ['클립보드', '복사', '붙여넣기'] },
   calendar: { icon: '📤', title: '구글 캘린더로 보내기', keywords: ['구글', '캘린더', '동기화', 'google'] },

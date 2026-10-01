@@ -31,6 +31,7 @@ export type ShortcutId =
   | 'toggleWeekend'
   | 'toggleEvents'
   | 'toggleClass'
+  | 'lastYear'
   | 'clipboard'
   | 'multiSelect'
   | 'calendar'
@@ -95,6 +96,8 @@ export const SHORTCUT_ACTIONS: ShortcutAction[] = [
   // 아래는 기본값이 비어 있다. 쓰고 싶은 사람이 직접 정한다.
   // 자주 쓰는 조합을 미리 차지해 두면 오히려 걸리적거린다.
   { id: 'multiSelect', label: '다중 선택 모드', group: '메뉴 열기', def: b('') },
+  // 주간 화면의 '작년 이맘때' (ROADMAP 7). 다른 화면에서 누르면 주간으로 가서 켠다.
+  { id: 'lastYear', label: '작년 이맘때 보이기 / 숨기기 (주간)', group: '메뉴 열기', def: b('') },
   { id: 'clipboard', label: '클립보드 칸 열기 / 닫기', group: '메뉴 열기', def: b('') },
   { id: 'calendar', label: '캘린더', group: '메뉴 열기', def: b('') },
   { id: 'dday', label: 'D-Day 관리', group: '메뉴 열기', def: b('') },

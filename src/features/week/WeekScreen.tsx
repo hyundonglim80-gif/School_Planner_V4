@@ -5,9 +5,11 @@ import { useCalendarData } from '../../hooks/useCalendarData';
 import { useMainWidth } from '../../hooks/useMainWidth';
 import WeekGrid from './WeekGrid';
 import { openEntryPanel } from '../../components/EntryPanelHost';
+import { lastYearWeekOf } from '../../lib/lastYearWeek';
+import { useLastYearWeek } from '../../hooks/useLastYearWeek';
 
 export default function WeekScreen() {
-  const { currentDate, setCurrentDate, setScope, selectedGroupId, showWeekend } = useAppStore();
+  const { currentDate, setCurrentDate, setScope, selectedGroupId, showWeekend, showLastYear, setShowLastYear } = useAppStore();
   // 날짜 칸의 + 는 그날의 새 일정을 오른쪽 칸에 연다
   const openQuickAdd = (dateStr: string) => void openEntryPanel({ kind: 'event', groupId: selectedGroupId, dateStr });
 
@@ -37,6 +39,10 @@ export default function WeekScreen() {
   );
 
   const { dataMap, loading, toggleEventItem, deleteEventItem } = useCalendarData(dateStrings, selectedGroupId);
+
+  // 작년 이맘때 (ROADMAP 7): 이번 주의 작년 학년도 같은 주. 켰을 때만 읽는다. 다음 주 줄에는 붙이지 않는다.
+  const lastYearWeek = useMemo(() => lastYearWeekOf(weekDays.map((d) => d.dateStr)), [weekDays]);
+  const lastYear = useLastYearWeek(lastYearWeek?.lastDates || [], selectedGroupId, showLastYear);
 
   const rangeLabel = useMemo(() => {
     if (weekDays.length === 0) return '';
@@ -87,6 +93,29 @@ export default function WeekScreen() {
 
   return (
     <div className="animate-fade-in pb-12">
+      {/* 작년 이맘때 토글. 켜면 요일 카드 아래에 작년 같은 요일이 흐리게 붙는다. */}
+      <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 mb-2 px-1">
+        {showLastYear && lastYearWeek && (
+          <span data-last-year-label className="text-xs text-slate-500 min-w-0">
+            작년 같은 주 · <strong className="font-bold text-slate-700">{lastYearWeek.label}</strong>
+            {lastYear.error && <span className="ml-1 text-rose-500">(서버에서 읽지 못했습니다)</span>}
+          </span>
+        )}
+        <button
+          type="button"
+          data-last-year-toggle
+          aria-pressed={showLastYear}
+          onClick={() => setShowLastYear(!showLastYear)}
+          title={showLastYear ? '작년 이맘때 숨기기' : '작년 학년도 같은 주의 일정·기록을 요일 카드 아래에 흐리게 보기'}
+          className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all whitespace-nowrap ${
+            showLastYear
+              ? 'bg-amber-50 text-amber-800 border-amber-300 shadow-xs'
+              : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
+          }`}
+        >
+          🕰️ 작년 이맘때
+        </button>
+      </div>
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-primary" />
@@ -101,6 +130,11 @@ export default function WeekScreen() {
             onSelectDate={handleSelectDate}
             onToggleEvent={toggleEventItem}
             onDeleteEvent={deleteEventItem}
+            lastYear={
+              showLastYear && lastYearWeek
+                ? { dateMap: lastYearWeek.dateMap, byDate: lastYear.byDate, loading: lastYear.loading, error: lastYear.error }
+                : undefined
+            }
           />
           {showNextWeek && (
             <section aria-label="다음 주">
