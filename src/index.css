@@ -160,4 +160,12 @@
   #sp4-print-root tr {
     break-inside: avoid;
   }
+  /* 출결 누계·조사표·평가 모아 보기 표는 화면에서 칸 선이 옅다 - 종이에는 칸마다 선 (주간학습안내 표는 제 선이 있다) */
+  #sp4-print-root table:not([data-guide-table]) {
+    border-collapse: collapse !important;
+  }
+  #sp4-print-root table:not([data-guide-table]) th,
+  #sp4-print-root table:not([data-guide-table]) td {
+    border: 1px solid #94a3b8 !important;
+  }
 }

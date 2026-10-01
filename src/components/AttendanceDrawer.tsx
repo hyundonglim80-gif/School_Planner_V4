@@ -32,6 +32,7 @@ import { loadAttendanceDay, loadAttendanceForClass, saveAttendanceDay, type Clas
 import { SOURCE_CHANGED_EVENT, type SourceChangedDetail } from '../lib/autoJournalSync';
 import { shortDateLabel } from '../lib/notices';
 import { showToast, showErrorToast } from '../utils/toast';
+import { printNode } from '../lib/print';
 
 type Tab = 'check' | 'summary';
 type SummaryRange = 'year' | 'sem1' | 'sem2' | 'month';
@@ -239,6 +240,8 @@ export default function AttendanceDrawer({
   const markedCount = Object.keys(records).length;
 
   // ── 누계 ──
+  /** 인쇄할 누계 표 (ROADMAP 12-3) */
+  const summaryRef = useRef<HTMLDivElement>(null);
   const [summaryRange, setSummaryRange] = useState<SummaryRange>('year');
   const [summaryDays, setSummaryDays] = useState<AttendanceDay[] | null>(null);
   const [openStudent, setOpenStudent] = useState<number | null>(null);
@@ -494,11 +497,28 @@ export default function AttendanceDrawer({
               <span className="text-slate-400">
                 {rangeOf(summaryRange).start} ~ {rangeOf(summaryRange).end} · 결석은 날 수, 지각·조퇴·결과는 횟수 · 학생을 누르면 날짜별 내역
               </span>
+              <button
+                type="button"
+                data-attendance-print
+                disabled={summaryDays === null}
+                onClick={() => {
+                  if (!summaryRef.current || !cls) return;
+                  const label = { year: '학년도 전체', sem1: '1학기', sem2: '2학기', month: `${parseDateStr(date).getMonth() + 1}월` }[summaryRange];
+                  printNode(summaryRef.current, {
+                    title: `${cls.year}학년도 ${cls.grade}학년 ${cls.classNum}반 출결 누계 (${label})`,
+                    subtitle: `${rangeOf(summaryRange).start} ~ ${rangeOf(summaryRange).end} · 결석은 날 수, 지각·조퇴·결과는 횟수`,
+                    landscape: true,
+                  });
+                }}
+                className="ml-auto px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 font-bold disabled:opacity-40"
+              >
+                🖨️ 인쇄
+              </button>
             </div>
             {summaryDays === null ? (
               <p className="text-center text-slate-400 py-6">불러오는 중...</p>
             ) : (
-              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+              <div ref={summaryRef} className="overflow-x-auto border border-slate-200 rounded-xl">
                 <table className="w-full text-center whitespace-nowrap">
                   <thead className="bg-slate-50 text-slate-500">
                     <tr>

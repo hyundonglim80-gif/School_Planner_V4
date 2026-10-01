@@ -24,6 +24,20 @@ const back3 = ds(new Date(Date.now() - 3 * 86400000));
 const OLD = '전에 묶여 있던 이월 일정';
 const NEW = '방금 만든 이월 일정';
 
+// 점검 계정의 라벨·일정 문서를 붙들어 두었다가 끝에 되돌린다 (되돌리지 않아 seed 라벨 '이월'·'기간'이 사라져
+// 다른 점검(inspect-manual '라벨을 고르면 속성이 따라 켜짐')이 깨졌다 - 2026-10-02)
+const back9 = ds(new Date(Date.now() - 9 * 86400000));
+const touched = [doc(db, 'users', uid, 'settings', 'labels'), ...[back9, back3, today].map((d) => doc(db, 'users', uid, 'events', d))];
+const originals = new Map();
+for (const ref of touched) originals.set(ref.path, (await getDocFromServer(ref)).data() || null);
+const restore = async () => {
+  for (const ref of touched) {
+    const orig = originals.get(ref.path);
+    if (orig) await setDoc(ref, orig);
+    else await deleteDoc(ref).catch(() => {});
+  }
+};
+
 await setDoc(doc(db, 'users', uid, 'settings', 'labels'), {
   eventLabels: [
     { id: 'lbl_ev_a', name: '회의', color: 'blue', isForward: false },
@@ -31,7 +45,7 @@ await setDoc(doc(db, 'users', uid, 'settings', 'labels'), {
   ], updatedAt: Date.now(),
 });
 // 오래전부터 이월되지 못하고 묶여 있던 일정 하나 (신고의 '다른 오늘 일정')
-await setDoc(doc(db, 'users', uid, 'events', ds(new Date(Date.now() - 9 * 86400000))), {
+await setDoc(doc(db, 'users', uid, 'events', back9), {
   eventList: [{ id: 'ev_old', content: OLD, completed: false, label: 'ToDo', labelIds: ['lbl_ev_b'], forward: false, calendar: true }],
   eventText: OLD, updatedAt: Date.now(),
 });
@@ -79,4 +93,6 @@ console.log(`② 새로고침 없이, 저장만 한 뒤 오늘 문서: ${JSON.st
 console.log(`   방금 만든 것이 왔나      : ${after.some(c=>c.includes(NEW)) ? '✔' : '✘'}`);
 console.log(`   묶여 있던 것도 같이 왔나 : ${after.some(c=>c.includes(OLD)) ? '✔' : '✘'}`);
 await page.screenshot({ path: 'tools/report/add-forward.png', fullPage: true });
-await browser.close(); process.exit(0);
+await browser.close();
+await restore();
+process.exit(0);

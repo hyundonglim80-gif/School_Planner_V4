@@ -9,6 +9,7 @@ import { closeAllModals } from '../hooks/useModalLayer';
 import { showToast, showErrorToast } from '../utils/toast';
 import PopupFrame from './PopupFrame';
 import { auth } from '../lib/firebase';
+import { printNode } from '../lib/print';
 import { classKeyOf } from '../lib/attendance';
 import { subscribeClassHub } from '../lib/seatingStore';
 import { evalGroupsFrom, groupSetSummary, type GroupSet } from '../lib/groups';
@@ -61,6 +62,8 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
   const [stepNames, setStepNames] = useState<string[]>(DEFAULT_STEPS.slice(0, 3));
 
   // 뷰어 상태
+  /** 인쇄할 조사표 표 (ROADMAP 12-3) */
+  const evalTableRef = useRef<HTMLDivElement>(null);
   const [records, setRecords] = useState<Record<number, Record<string, any>>>({});
 
   // ⚙️ 기본 정보 수정 패널. V3와 같이 접어 두었다가 눌러서 편다.
@@ -680,7 +683,7 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
           {viewMode === 'view' && currentEval && (
             <div>
               <div className="mb-3 flex items-center justify-between">
-                <div>
+                <div className="min-w-0">
                   <h4 className="font-black text-slate-800">
                     {currentEval.title}
                     {isSharedScope && (
@@ -800,14 +803,38 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
                 )}
               </div>
 
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <div className="flex justify-end -mt-1 mb-1.5">
+                <button
+                  type="button"
+                  data-eval-print
+                  onClick={() => {
+                    if (!evalTableRef.current) return;
+                    const m = currentEval.rosterMeta;
+                    printNode(evalTableRef.current, {
+                      title: `${currentEval.title}${currentEval.subject ? ` (${currentEval.subject})` : ''}`,
+                      subtitle: [
+                        m?.year ? `${m.year}학년도 ${m.grade}학년 ${m.classNum}반` : '',
+                        currentEval.dateStr,
+                        currentEval.type === 'eval' ? '평가' : currentEval.type === 'check' ? '체크' : '메모',
+                        `${currentEval.studentsSnapshot.length}명`,
+                      ].filter(Boolean).join(' · '),
+                      landscape: false,
+                    });
+                  }}
+                  title="이 조사표를 A4 세로로 인쇄합니다 (적은 값 그대로)"
+                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-xs font-bold"
+                >
+                  🖨️ 인쇄
+                </button>
+              </div>
+              <div ref={evalTableRef} className="border border-slate-200 rounded-xl overflow-hidden">
                 <div className="max-h-[60vh] overflow-x-auto overflow-y-auto">
                   {/* 칸 차례와 이름은 V3와 같게 둔다. 같은 표를 두 앱에서 보고,
                       구글 시트로 내보낸 표의 머리말도 이것과 짝이 맞는다. */}
                   <table className="w-full text-xs border-collapse text-center">
                     <thead className="bg-slate-100 sticky top-0 z-10">
                       <tr>
-                        <th className="p-2 text-center w-11 border-b-2 border-slate-300 font-normal text-slate-700">번호</th>
+                        <th className="p-2 text-center w-11 whitespace-nowrap border-b-2 border-slate-300 font-normal text-slate-700">번호</th>
                         <th className="p-2 text-center w-20 border-b-2 border-slate-300 font-normal text-slate-700">이름</th>
                         {currentEval.type === 'eval' && currentEval.methodObj.group && (
                           <>
@@ -825,8 +852,8 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
                           {currentEval.type === 'memo' ? '개별 메모내용' : '사유 / 메모'}
                         </th>
                       </tr>
-                      {/* 전체 일괄 적용 행. 남의 조사표에서는 내보내지 않는다. */}
-                      <tr className={`bg-slate-50 border-b-2 border-slate-300 ${canEdit ? '' : 'hidden'}`}>
+                      {/* 전체 일괄 적용 행. 남의 조사표에서는 내보내지 않는다. 인쇄에서도 뺀다. */}
+                      <tr data-print-hide className={`bg-slate-50 border-b-2 border-slate-300 ${canEdit ? '' : 'hidden'}`}>
                         <td colSpan={2} className="p-1.5 text-center text-slate-500 font-bold">전체 일괄 적용</td>
                         {currentEval.type === 'eval' && currentEval.methodObj.group && (
                           <>

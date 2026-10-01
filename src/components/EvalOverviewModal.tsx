@@ -31,6 +31,7 @@ import {
   type OverviewFilter,
 } from '../lib/evalSummary';
 import { showErrorToast, showToast } from '../utils/toast';
+import { printNode } from '../lib/print';
 
 interface EvalOverviewModalProps {
   isOpen: boolean;
@@ -176,6 +177,21 @@ export default function EvalOverviewModal({ isOpen, onClose }: EvalOverviewModal
   };
 
   const select = 'px-2 py-1.5 border border-slate-200 rounded-lg font-bold text-xs bg-white';
+  /** 인쇄할 표 (ROADMAP 12-3) */
+  const tableRef = useRef<HTMLDivElement>(null);
+  const printTable = () => {
+    if (!tableRef.current || !cls) return;
+    const parts = [
+      filter.subject ? (filter.subject === NO_SUBJECT ? '교과 없음' : filter.subject) : '모든 교과',
+      filter.semester ? `${filter.semester}학기` : '학년 전체',
+      filter.type ? EVAL_TYPE_LABEL[filter.type] : '',
+    ].filter(Boolean);
+    printNode(tableRef.current, {
+      title: `${describeClass(cls)} 평가 모아 보기`,
+      subtitle: `${parts.join(' · ')} · 조사표 ${shown.length}개 · ✎ 사유 있음 · · 명단에 없음`,
+      landscape: shown.length > 5,
+    });
+  };
 
   return (
     <ModalShell isOpen={isOpen} onClose={onClose} width="2xl" title="📊 평가 모아 보기" footer={<ModalCloseButton onClose={onClose} />}>
@@ -239,6 +255,9 @@ export default function EvalOverviewModal({ isOpen, onClose }: EvalOverviewModal
             <button type="button" onClick={downloadShown} disabled={shown.length === 0} className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 font-bold disabled:opacity-40">
               📥 CSV
             </button>
+            <button type="button" onClick={printTable} disabled={shown.length === 0} className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 font-bold disabled:opacity-40">
+              🖨️ 인쇄
+            </button>
           </div>
 
           {evals === null ? (
@@ -250,7 +269,7 @@ export default function EvalOverviewModal({ isOpen, onClose }: EvalOverviewModal
           ) : shown.length === 0 ? (
             <p className="text-center text-slate-400 py-8">고른 교과·학기·유형에 맞는 조사표가 없습니다.</p>
           ) : (
-            <div className="border border-slate-200 rounded-xl overflow-auto max-h-[65vh]" data-eval-overview>
+            <div ref={tableRef} className="border border-slate-200 rounded-xl overflow-auto max-h-[65vh]" data-eval-overview>
               <table className="text-xs border-collapse min-w-full">
                 <thead className="bg-slate-100 sticky top-0 z-20">
                   <tr>

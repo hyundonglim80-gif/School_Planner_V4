@@ -58,10 +58,12 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
 
 ### 지금 상태 (2026-10-02, 로드맵 약 65%)
 
-- 로드맵 17개 중 **1~11번 끝**(일정 날짜 옮기기·수업 칸 압축·드라이브 자동 백업·나이스·진도 관리·작은 것 묶음 7가지·작년 이맘때·자리표 허브·
-  학생 카드와 평가 모아 보기·관찰 빨리 적기·빠른 입력과 기한). wip 브랜치 없음. 설명서 전체 점검은 9번 끝에 했다(결과는 ROADMAP 9번) - 다음은 12번을 끝낼 때.
-- **12번 인쇄·주간학습안내 하는 중** - 12-1 인쇄 틀(`lib/print.printNode` - 복제해 `#sp4-print-root`, `@media print`)·주간 A4 가로,
-  12-2 주간학습안내(`lib/weeklyGuide`·`WeeklyGuideModal`, store `openWeeklyGuide`) 끝, 다음은 **12-3 출석 누계·조사표 인쇄**. 찍지 않을 단추에는 `data-print-hide`. 12번을 끝내면 설명서 전체 점검(`df -h /c` 먼저). 크롬 `tools/inspect-print.mjs`.
+- 로드맵 17개 중 **1~12번 끝**(일정 날짜 옮기기·수업 칸 압축·드라이브 자동 백업·나이스·진도 관리·작은 것 묶음 7가지·작년 이맘때·자리표 허브·
+  학생 카드와 평가 모아 보기·관찰 빨리 적기·빠른 입력과 기한·인쇄와 주간학습안내). wip 브랜치 없음. 설명서 전체 점검은 12번 끝에 했다(결과는 ROADMAP 12번) - 다음은 15번을 끝낼 때.
+- **다음은 13번 기간 일정을 막대로** (월간·년간).
+- 12번 인쇄(2026-10-02 끝): 인쇄 틀 `lib/print.printNode`(복제해 `#sp4-print-root`, `@media print`, 그때만 `@page` 가로·세로). 찍지 않을 단추·줄에는
+  `data-print-hide`. 주간 A4 가로·주간학습안내(`lib/weeklyGuide`·`WeeklyGuideModal`, store `openWeeklyGuide`)·출석 누계·평가 모아 보기·조사표 한 장.
+  크롬 `tools/inspect-print.mjs` 30항목.
 - 11번 빠른 입력·기한(2026-10-02 끝): 빠른 입력 칩(`lib/quickInput`·`QuickInputChips`, 새 일정 칸만, 누를 때만 넣고 그 말을 뺀다). 기한은 일정 칸 `due`
   + 이월 사슬마다 `settings/v4_eventDue` - **V3 이월(`forwarding.js`)과 V4 이월(`doAutoForwarding`)·`addEventItem`·주간 요약(`mapEvents`)은 정해진 칸만
   옮긴다**: 일정에 새 칸을 더하면 이 셋을 고치고, V3가 빼먹는 칸은 `forwardChainId`로 찾게 한다. 크롬 `inspect-quick-input`(20)·`inspect-due`(17).
@@ -144,6 +146,8 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
   `firebase-debug.log`·`firestore-debug.log`(git 무시)에 요청을 모두 적어 하루 반에 2GB가 넘었다. 증상: 점검이 아무 말 없이 멈춤, vitest
   워커가 죽음, 'No space left on device', 인증 에뮬레이터(9099)만 꺼지고 8080은 살아 있음. 처리: 두 로그를 비운다(내용만 비우면 된다 -
   `[IO.File]::WriteAllText(경로,'')`), 8080을 쥔 java를 끄고 `npm run emu` → `npm run seed`. 긴 점검 전에 `df -h /c`로 남은 자리를 본다.
+- **점검 스크립트는 심은 자료를 끝에 되돌린다** (2026-10-02): `inspect-add-forward.mjs`가 점검 계정 라벨을 덮고 두어 seed '이월' 라벨이
+  사라졌고, 설명서 점검의 라벨 항목이 '버튼을 못 찾음'으로 깨졌다. 점검이 이상하게 깨지면 앱보다 먼저 자료(라벨·설정 문서)를 본다.
 - **에뮬레이터 저장이 문서 하나에서만 6~7초씩 걸리면** 앱 버그가 아니라 에뮬레이터에 남은 잠금이다. 점검 브라우저를
   저장 도중에 강제로 끄면 그 거래의 잠금이 남는다(2026-09-29 D-Day 저장이 6초씩 걸림). 에뮬레이터를 다시 켜고 seed 한다.
 - 이유: 매 작업마다 전체 점검을 2~3번 돌리고 에뮬레이터를 껐다 켜느라 오래 걸렸다.

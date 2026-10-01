@@ -5,6 +5,8 @@
 //   - 12-1 주간: 🖨️ 인쇄 → A4 가로, 이번 주 칸만, 요일마다 한 열, 제목 / 인쇄가 끝나면(afterprint) 치운다
 //   - 12-2 주간학습안내: 다음 주 표(과목·메모·준비물·알림장), 넣을 것 체크, 제목·알리는 말(이 기기), 주 넘기기, 표 복사, A4 세로 인쇄,
 //     주간 화면 단추는 보고 있는 주로. 다음 주 월·화 수업·알림장 문서를 심었다가 처음 모습으로 되돌린다.
+//   - 12-3 출석부 누계(A4 가로)·평가 모아 보기 표·조사표 한 장(입력 칸은 글로, 전체 일괄 적용 줄은 빼고).
+//     올해 학년도 첫 학급에 오늘 날짜 점검 조사표를 하나 심었다가 뺀다.
 //
 //   npm run emu / node tools/serve-both.mjs / VITE_USE_EMULATOR=1 npm run build
 //   node tools/inspect-print.mjs
@@ -58,6 +60,37 @@ async function restoreGuide() {
   }
 }
 await seedGuide();
+
+// 12-3: 올해 학년도 첫 학급에 점검 조사표
+const AY = t0.getMonth() >= 2 ? t0.getFullYear() : t0.getFullYear() - 1;
+const TODAY = ymd(t0);
+const evalRef = doc(db, 'users', uid, 'evaluations', TODAY);
+const rosterData = (await getDocFromServer(doc(db, 'users', uid, 'settings', 'rosters'))).data() || {};
+const CLS = (rosterData.classList || rosterData.rosters || []).find((c) => Number(c.year) === AY && (c.students || []).length > 0);
+let origEval = null;
+async function seedEval() {
+  if (!CLS) return;
+  origEval = (await getDocFromServer(evalRef)).data() || null;
+  const snap = CLS.students.filter((st) => st.isActive !== false).map((st) => ({ num: Number(st.num), name: st.name, gender: st.gender || '' }));
+  const ev = {
+    id: 'ev_print_test', title: '점검 인쇄 평가', subject: '수학', type: 'eval', methodObj: { indiv: true, group: false },
+    steps: ['잘함', '보통', '노력'], groups: [], dateStr: TODAY, periodStr: 1, context: { source: 'schedule', period: 1 },
+    rosterMeta: { year: CLS.year, grade: String(CLS.grade), classNum: String(CLS.classNum) }, studentsSnapshot: snap,
+    records: { [snap[0].num]: { indivScore: '잘함', reason: '점검 근거' } },
+  };
+  const list = [...(origEval?.evalList || origEval?.list || []).filter((e) => e.id !== 'ev_print_test'), ev];
+  await setDoc(evalRef, { list, evalList: list, updatedAt: Date.now() }, { merge: true });
+}
+async function restoreEval() {
+  if (!CLS) return;
+  const now = (await getDocFromServer(evalRef)).data();
+  if (!now) return;
+  const list = (now.evalList || now.list || []).filter((e) => e.id !== 'ev_print_test');
+  if (list.length === 0 && !origEval) await deleteDoc(evalRef);
+  else await setDoc(evalRef, { ...now, list, evalList: list });
+}
+await seedEval();
+const CLASS_KEY = CLS ? `${CLS.year}_${CLS.grade}_${CLS.classNum}` : '';
 
 const results = [];
 const check = (name, ok, detail = '') => {
@@ -172,6 +205,54 @@ try {
   await guide.locator('[data-guide-range]').waitFor({ timeout: 8000 });
   check('주간 화면 단추 → 보고 있는 주(이번 주)', (await guide.locator('[data-guide-range]').innerText()) === rangeOf(thisMon), await guide.locator('[data-guide-range]').innerText());
   await guide.getByRole('button', { name: '닫기' }).last().click();
+  await page.waitForTimeout(300);
+
+  // ── 12-3 출석부 누계 ──
+  check('점검할 올해 학급이 있다', !!CLS, CLASS_KEY);
+  await page.getByRole('button', { name: '하루', exact: true }).first().click();
+  await page.getByTitle('더보기 메뉴').click();
+  await page.locator('[data-menu-section]').getByRole('button', { name: /출석부/ }).click();
+  const att = page.locator('aside[aria-label="출석부 쓰기"]');
+  await att.waitFor({ timeout: 10000 });
+  await att.getByRole('button', { name: '📊 누계' }).click();
+  await att.locator('table').waitFor({ timeout: 10000 });
+  await att.locator('[data-attendance-print]').click();
+  check('출석부 누계 🖨️ → A4 가로, 누계 표', /landscape/.test(await pageRule()) && (await root().locator('table').count()) === 1 &&
+    (await root().locator('.sp4-print-title').innerText()).includes('출결 누계'), await root().locator('.sp4-print-title').innerText());
+  await afterPrint();
+  await att.getByRole('button', { name: '닫기', exact: true }).last().click();
+  await page.waitForTimeout(300);
+
+  // ── 12-3 평가 모아 보기 ──
+  await page.getByTitle('더보기 메뉴').click();
+  await page.locator('[data-menu-section]').getByRole('button', { name: /평가 모아 보기/ }).click();
+  const ov = page.getByRole('dialog').filter({ hasText: '📊 평가 모아 보기' });
+  await ov.getByRole('combobox', { name: '학급' }).locator(`option[value="${CLASS_KEY}"]`).waitFor({ state: 'attached', timeout: 10000 });
+  await ov.getByRole('combobox', { name: '학급' }).selectOption(CLASS_KEY);
+  await ov.locator('[data-eval-col="ev_print_test"]').waitFor({ timeout: 10000 });
+  await ov.getByRole('button', { name: '🖨️ 인쇄' }).click();
+  check('평가 모아 보기 🖨️ → 표, 제목에 학급', (await root().locator('[data-eval-overview] table').count()) === 1 &&
+    (await root().locator('.sp4-print-title').innerText()).includes('평가 모아 보기'));
+  await page.emulateMedia({ media: 'print' });
+  const clipped = await root().locator('[data-eval-overview]').evaluate((el) => getComputedStyle(el).overflow + '/' + getComputedStyle(el).maxHeight);
+  check('인쇄 모양: 스크롤 상자를 펼친다', clipped.startsWith('visible') && clipped.endsWith('none'), clipped);
+  await page.emulateMedia({ media: 'screen' });
+  await afterPrint();
+
+  // ── 12-3 조사표 한 장 ──
+  await ov.locator('[data-eval-col="ev_print_test"]').click();
+  const evDialog = page.getByRole('dialog').filter({ hasText: '전체 일괄 적용' }).last();
+  await evDialog.locator('[data-eval-print]').waitFor({ timeout: 10000 });
+  await evDialog.locator('[data-eval-print]').click();
+  check('조사표 🖨️ → A4 세로, 제목·교과', /portrait/.test(await pageRule()) && (await root().locator('.sp4-print-title').innerText()) === '점검 인쇄 평가 (수학)');
+  check('입력 칸은 적은 값 글로 (select·input 없음)', (await root().locator('select, input').count()) === 0 && (await root().innerText()).includes('잘함') && (await root().innerText()).includes('점검 근거'));
+  check('전체 일괄 적용 줄은 빼고 찍는다', !(await root().innerText()).includes('전체 일괄 적용'));
+  await page.emulateMedia({ media: 'print' });
+  await page.setViewportSize({ width: 720, height: 1000 });
+  await page.screenshot({ path: 'tools/report/print-eval.png', fullPage: true });
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.emulateMedia({ media: 'screen' });
+  await afterPrint();
 } catch (e) {
   check('예상 못 한 오류', false, String(e).slice(0, 300));
   await page.screenshot({ path: 'tools/report/print-error.png' }).catch(() => {});
@@ -179,6 +260,7 @@ try {
   check('페이지 오류 없음', logs.length === 0, logs.join(' / '));
   await browser.close();
   await restoreGuide();
+  await restoreEval();
 }
 
 const failed = results.filter((r) => !r.ok);
