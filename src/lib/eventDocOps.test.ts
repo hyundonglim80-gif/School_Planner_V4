@@ -227,3 +227,82 @@ describe('역링크 - 옮긴 일정의 옛 자리 고치기', () => {
     expect(next).toEqual([link('ev_new', '2026-10-02')]);
   });
 });
+
+describe('묶인 일정(기간·반복) 옮기기', () => {
+  it('어디서 어디로 가는지 날짜 순으로 미리 센다', async () => {
+    const { planGroupMove } = await import('./eventGroups');
+    const plan = planGroupMove(
+      [
+        { dateStr: '2026-10-05', list: [], items: [{ id: 'a', content: '기말고사 (1/2)' }] },
+        { dateStr: '2026-10-06', list: [], items: [{ id: 'b', content: '기말고사 (2/2)' }] },
+      ],
+      7
+    );
+    expect(plan).toEqual([
+      { fromDate: '2026-10-05', toDate: '2026-10-12', id: 'a', content: '기말고사 (1/2)' },
+      { fromDate: '2026-10-06', toDate: '2026-10-13', id: 'b', content: '기말고사 (2/2)' },
+    ]);
+  });
+
+  it('고치던 일정을 먼저 옮기고(고친 내용은 그것에만) 나머지를 같은 날 수만큼 옮긴다', async () => {
+    const { moveGroupEvents } = await import('./eventDocOps');
+    useServer({
+      [day('2026-10-05')]: { eventList: [{ id: 'a', content: '협의회', groupId: 'g' }, { id: 'x', content: '다른 일' }] },
+      [day('2026-10-12')]: { eventList: [{ id: 'b', content: '협의회', groupId: 'g' }] },
+      [day('2026-10-19')]: { eventList: [{ id: 'c', content: '협의회', groupId: 'g' }] },
+    });
+
+    const r = await moveGroupEvents({
+      fId: 'personal',
+      items: [
+        { fromDate: '2026-10-12', id: 'b' },
+        { fromDate: '2026-10-19', id: 'c' },
+      ],
+      days: 1,
+      current: { fromDate: '2026-10-12', id: 'b', patch: { content: '학년 협의회' } },
+    });
+
+    expect(r).toMatchObject({ moved: 2, failed: 0 });
+    expect(r.current.item.content).toBe('학년 협의회');
+    // 첫 주(10/5)는 고르지 않았으므로 그대로
+    expect(ids('2026-10-05')).toEqual(['a', 'x']);
+    expect(ids('2026-10-12')).toEqual([]);
+    expect(ids('2026-10-13')).toEqual(['b']);
+    expect(ids('2026-10-19')).toEqual([]);
+    expect(store[day('2026-10-20')].eventList[0]).toMatchObject({ id: 'c', content: '협의회', groupId: 'g' });
+  });
+
+  it('서로의 날짜로 밀려 들어가도(하루씩 밀기) 하나도 잃지 않는다', async () => {
+    const { moveGroupEvents } = await import('./eventDocOps');
+    useServer({
+      [day('2026-10-05')]: { eventList: [{ id: 'p1', content: '시험 (1/3)', groupId: 'g' }] },
+      [day('2026-10-06')]: { eventList: [{ id: 'p2', content: '시험 (2/3)', groupId: 'g' }] },
+      [day('2026-10-07')]: { eventList: [{ id: 'p3', content: '시험 (3/3)', groupId: 'g' }] },
+    });
+    const r = await moveGroupEvents({
+      fId: 'personal',
+      items: ['05', '06', '07'].map((d, i) => ({ fromDate: `2026-10-${d}`, id: `p${i + 1}` })),
+      days: 1,
+      current: { fromDate: '2026-10-05', id: 'p1' },
+    });
+    expect(r.moved).toBe(3);
+    expect(ids('2026-10-05')).toEqual([]);
+    expect(ids('2026-10-06')).toEqual(['p1']);
+    expect(ids('2026-10-07')).toEqual(['p2']);
+    expect(ids('2026-10-08')).toEqual(['p3']);
+  });
+
+  it('고치던 일정을 못 찾으면 아무것도 옮기지 않고 던진다', async () => {
+    const { moveGroupEvents } = await import('./eventDocOps');
+    useServer({ [day('2026-10-19')]: { eventList: [{ id: 'c', content: '협의회', groupId: 'g' }] } });
+    await expect(
+      moveGroupEvents({
+        fId: 'personal',
+        items: [{ fromDate: '2026-10-19', id: 'c' }],
+        days: 1,
+        current: { fromDate: '2026-10-12', id: 'b' },
+      })
+    ).rejects.toThrow(/찾지 못했습니다/);
+    expect(writes).toEqual([]);
+  });
+});

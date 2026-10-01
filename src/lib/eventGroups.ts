@@ -13,6 +13,7 @@ import { collection, doc, getDocsFromServer, runTransaction, type CollectionRefe
 import { db, auth } from './firebase';
 import { eventDocPayload, readEventList } from './eventText';
 import { moveToTrash } from '../utils/trashHelper';
+import { addDays } from './dateUtils';
 
 /** 날짜 문서를 한 번에 몇 개씩 고칠지 (날짜마다 트랜잭션 하나) */
 const PARALLEL_DATES = 8;
@@ -148,4 +149,25 @@ export async function deleteGroupEvents(
     throw new Error(`${failed}건은 휴지통에 옮기지 못해 지우지 않았습니다 (${removed}건은 지웠습니다). 네트워크를 확인해 주세요.`);
   }
   return removed;
+}
+
+// ── 묶음 옮기기 ─────────────────────────────────────────────────────
+
+export interface GroupMovePlanItem {
+  fromDate: string;
+  toDate: string;
+  id: string;
+  content: string;
+}
+
+/** 찾아 둔 묶음 일정을 같은 날 수만큼 옮기면 어디서 어디로 가는지 (날짜 순) */
+export function planGroupMove(hits: GroupHit[], days: number): GroupMovePlanItem[] {
+  return hits.flatMap((hit) =>
+    hit.items.map((item: any) => ({
+      fromDate: hit.dateStr,
+      toDate: addDays(hit.dateStr, days),
+      id: String(item.id),
+      content: String(item.content ?? item.text ?? ''),
+    }))
+  );
 }

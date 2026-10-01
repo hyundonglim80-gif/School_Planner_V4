@@ -185,3 +185,55 @@ export async function moveEventToDate(opts: MoveEventOptions): Promise<MoveEvent
   }
   return result;
 }
+
+export interface GroupMoveResult {
+  /** 고치던 일정(맨 먼저 옮긴다)의 옮긴 결과 */
+  current: MoveEventResult;
+  /** 옮긴 건수 (고치던 일정 포함) */
+  moved: number;
+  /** 옮기지 못한 건수 */
+  failed: number;
+}
+
+/**
+ * 기간·반복 묶음의 일정 여럿을 같은 날 수만큼 옮긴다.
+ *
+ * 고치던 일정을 **맨 먼저** 옮긴다 - 그것이 실패하면 아무것도 옮기지 않고 던진다(칸이 그 자리에 남는다).
+ * 나머지는 날짜 순으로 하나씩(한 건 = 두 날짜 문서 한 트랜잭션). 같은 묶음끼리 서로의 날짜로 옮겨 가도
+ * id로 짝을 맞추므로 차례와 상관없이 맞다. 중간에 몇 건이 실패하면 옮긴 것은 그대로 두고 failed로 알린다
+ * (여러 날을 한꺼번에 되돌릴 길이 없어, 다시 옮기기를 누르면 남은 것만 옮겨진다).
+ * 쓰는 칸에서 고친 내용(patch)은 고치던 일정에만 쓴다 - 기간 일정은 날마다 '(3/5)' 번호가 달라 같은 글로 덮으면 안 된다.
+ */
+export async function moveGroupEvents(opts: {
+  fId: string;
+  items: Array<{ fromDate: string; id: string }>;
+  days: number;
+  current: { fromDate: string; id: string; patch?: Record<string, any>; shiftAlarm?: boolean };
+}): Promise<GroupMoveResult> {
+  const { fId, items, days, current } = opts;
+  const first = await moveEventToDate({
+    fId,
+    fromDate: current.fromDate,
+    toDate: addDays(current.fromDate, days),
+    eventId: current.id,
+    patch: current.patch,
+    shiftAlarm: current.shiftAlarm,
+  });
+  if (!first) throw new Error('옮길 일정을 찾지 못했습니다. 그 사이 지워졌거나 다른 날로 옮겨졌을 수 있습니다.');
+
+  let moved = 1;
+  let failed = 0;
+  const rest = items
+    .filter((it) => !(it.fromDate === current.fromDate && String(it.id) === String(current.id)))
+    .sort((a, b) => (a.fromDate < b.fromDate ? -1 : a.fromDate > b.fromDate ? 1 : 0));
+  for (const it of rest) {
+    try {
+      const r = await moveEventToDate({ fId, fromDate: it.fromDate, toDate: addDays(it.fromDate, days), eventId: it.id });
+      if (r) moved += 1;
+    } catch (err) {
+      failed += 1;
+      console.error('묶음 일정을 옮기지 못했습니다:', it, err);
+    }
+  }
+  return { current: first, moved, failed };
+}

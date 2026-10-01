@@ -40,6 +40,8 @@ const MOVE = '옮길 회의 ' + Date.now().toString(36);
 const STAY = '남을 일정';
 const NEW = '새 일정 날짜 바꾸기 ' + Date.now().toString(36);
 const JR = 'jr_move_probe';
+const WEEKLY = '매주 협의회 ' + Date.now().toString(36);
+const wk = [-7, 0, 7, 14].map((n) => plus(n)); // 지난주·이번 주·다음 주·다다음 주
 
 const results = [];
 const check = (name, ok, detail = '') => {
@@ -70,6 +72,14 @@ async function seed() {
     eventText: '그날 원래 일정',
     updatedAt: Date.now(),
   });
+  // 반복 묶음: 지난주·오늘·다음 주·다다음 주
+  for (const [i, d] of wk.entries()) {
+    const ref = doc(db, 'users', uid, 'events', d);
+    const snap = await getDocFromServer(ref);
+    const list = (snap.data()?.eventList || []).filter((e) => !String(e.content || '').startsWith('매주 협의회'));
+    list.push({ id: 'ev_wk_' + i, content: WEEKLY, completed: false, recur: true, calendar: true, groupId: 'grp_probe' });
+    await setDoc(ref, { eventList: list, eventText: list.map((e) => e.content).join('\n'), updatedAt: Date.now() });
+  }
   await setDoc(doc(db, 'users', uid, 'journals', today), {
     entries: [
       {
@@ -144,6 +154,28 @@ const run = async () => {
   check('새 일정이 고른 날짜에 저장됐다', c.list.some((e) => e.content === NEW));
   check('오늘에는 들어가지 않았다', !t.list.some((e) => e.content === NEW));
   await page.screenshot({ path: 'tools/report/event-move-new.png' });
+
+  // ── 3. 반복 묶음: 오늘 것부터 뒤쪽을 하루씩 ──
+  await panel2.getByRole('button', { name: '닫기' }).click();
+  await page.getByText(WEEKLY).first().click();
+  const panel3 = page.getByRole('complementary', { name: '일정 쓰기' });
+  await panel3.getByLabel('일정 날짜').waitFor({ timeout: 10000 });
+  await panel3.getByTitle('다음 날로', { exact: true }).click();
+  check('묶음이면 저장할 때 어디까지 옮길지 묻는다고 알린다', await panel3.getByText(/어디까지 옮길지 묻습니다/).isVisible());
+  await panel3.getByRole('button', { name: '옮기고 저장' }).click();
+  const afterBtn = page.getByRole('button', { name: /이후 일정 모두 옮기기 \(3건\)/ });
+  await afterBtn.waitFor({ timeout: 15000 });
+  check('범위 창이 뜨고 이후 3건·전체 4건을 센다', await page.getByRole('button', { name: /전체 옮기기 \(4건\)/ }).isVisible());
+  await page.screenshot({ path: 'tools/report/event-move-group.png' });
+  await afterBtn.click();
+  await page.getByText(/연결된 일정 3건을 1일 뒤로 옮겼습니다/).first().waitFor({ timeout: 20000 });
+  check('이후 3건을 하루 뒤로 옮겼다는 안내', true);
+  const has = async (d, id) => (await listOf(d)).list.some((e) => e.id === id);
+  check('지난주 것은 그대로', await has(wk[0], 'ev_wk_0'));
+  check('오늘·다음 주·다다음 주 것은 하루 뒤로', (await has(plus(1), 'ev_wk_1')) && (await has(plus(8), 'ev_wk_2')) && (await has(plus(15), 'ev_wk_3')));
+  check('옛 날짜에서는 빠졌다', !(await has(wk[1], 'ev_wk_1')) && !(await has(wk[2], 'ev_wk_2')) && !(await has(wk[3], 'ev_wk_3')));
+  const g = (await listOf(plus(8))).list.find((e) => e.id === 'ev_wk_2');
+  check('묶음 표시(groupId)는 그대로', g?.groupId === 'grp_probe');
 
   if (logs.length) {
     console.log('\n── 콘솔 ──');

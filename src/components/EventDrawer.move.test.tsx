@@ -3,7 +3,7 @@ import { render, screen, within, act, fireEvent, waitFor } from '@testing-librar
 import EntryPanelHost from './EntryPanelHost';
 import type { EventItem } from '../hooks/useDayData';
 import { useAppStore } from '../store/useAppStore';
-import { moveEventToDate } from '../lib/eventDocOps';
+import { moveEventToDate, moveGroupEvents } from '../lib/eventDocOps';
 
 // 일정 날짜 옮기기 (docs/ROADMAP.md 1-2). 일정 쓰는 칸 맨 위의 날짜 칸:
 // 새 일정은 저장할 날짜가 곧바로 바뀌고, 고치던 일정은 저장할 때 그 날짜로 옮긴 뒤 새 날짜의 수정 칸이 된다.
@@ -21,13 +21,22 @@ vi.mock('../hooks/useDayData', async (importOriginal) => {
 vi.mock('../hooks/useMinWidth', () => ({ useMinWidth: () => true }));
 vi.mock('../lib/eventDocOps', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/eventDocOps')>();
-  return { ...actual, moveEventToDate: vi.fn() };
+  return { ...actual, moveEventToDate: vi.fn(), moveGroupEvents: vi.fn() };
 });
+// 묶음 조회는 Firestore를 훑는다 - 훑은 결과만 갈아 끼운다
+const groupStore = vi.hoisted(() => ({ hits: [] as any[] }));
+vi.mock('../lib/eventGroups', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/eventGroups')>();
+  return { ...actual, findGroupEvents: async () => groupStore.hits };
+});
+vi.mock('../hooks/useGovHolidays', () => ({ loadHolidayYears: async () => ({}) }));
 
 const meeting: EventItem = { id: 'ev_1', content: '교직원 회의', completed: false, linkedItems: [], attachments: [] };
 
 beforeEach(() => {
   vi.mocked(moveEventToDate).mockReset();
+  vi.mocked(moveGroupEvents).mockReset();
+  groupStore.hits = [];
   useAppStore.setState({ entryPanels: [], entryPanel: null });
   hook = {
     eventList: [meeting],
@@ -119,5 +128,73 @@ describe('일정 쓰는 칸의 날짜', () => {
     expect(within(p).getByText(/10\/15\(목\) 일정/)).toBeInTheDocument();
     expect(within(p).getByDisplayValue('학년 협의회')).toBeInTheDocument();
     expect(within(p).queryByText(/저장하면/)).not.toBeInTheDocument();
+  });
+});
+
+describe('기간·반복 묶음 옮기기 - 어디까지 옮길지 묻는다', () => {
+  const weekly = (id: string): EventItem => ({ id, content: '학년 협의회', completed: false, groupId: 'grp', recur: true } as any);
+  const hitsOf = () => [
+    { dateStr: '2026-09-24', list: [], items: [weekly('w0')] },
+    { dateStr: '2026-10-01', list: [], items: [weekly('w1')] },
+    { dateStr: '2026-10-08', list: [], items: [weekly('w2')] },
+  ];
+
+  it("'이 날짜의 일정만'을 고르면 그 한 건만 옮기고 칸이 따라간다", async () => {
+    groupStore.hits = hitsOf();
+    hook.eventList = [weekly('w1')];
+    const p = openPanel({ entryId: 'w1', initial: weekly('w1') });
+    fireEvent.change(dateInput(p), { target: { value: '2026-10-02' } });
+    expect(within(p).getByText(/어디까지 옮길지 묻습니다/)).toBeInTheDocument();
+
+    vi.mocked(moveEventToDate).mockResolvedValue({ id: 'w1', item: weekly('w1') });
+    fireEvent.click(within(p).getByRole('button', { name: '옮기고 저장' }));
+    const only = await screen.findByRole('button', { name: /이 날짜의 일정만 옮기기/ });
+    // 이후 모두(2건)·전체(3건)가 세어져 있다
+    expect(await screen.findByRole('button', { name: /이후 일정 모두 옮기기 \(2건\)/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /전체 옮기기 \(3건\)/ })).toBeInTheDocument();
+    fireEvent.click(only);
+
+    await waitFor(() => expect(panelDate()).toBe('2026-10-02'));
+    expect(moveEventToDate).toHaveBeenCalledWith(expect.objectContaining({ eventId: 'w1', toDate: '2026-10-02' }));
+    expect(moveGroupEvents).not.toHaveBeenCalled();
+  });
+
+  it("'이후 모두'를 고르면 그 날짜부터 뒤쪽을 같은 날 수만큼 옮긴다", async () => {
+    groupStore.hits = hitsOf();
+    hook.eventList = [weekly('w1')];
+    const p = openPanel({ entryId: 'w1', initial: weekly('w1') });
+    fireEvent.change(dateInput(p), { target: { value: '2026-10-02' } });
+    vi.mocked(moveGroupEvents).mockResolvedValue({ current: { id: 'w1', item: weekly('w1') }, moved: 2, failed: 0 });
+
+    fireEvent.click(within(p).getByRole('button', { name: '옮기고 저장' }));
+    fireEvent.click(await screen.findByRole('button', { name: /이후 일정 모두 옮기기 \(2건\)/ }));
+
+    await waitFor(() => expect(panelDate()).toBe('2026-10-02'));
+    expect(moveGroupEvents).toHaveBeenCalledWith(
+      expect.objectContaining({
+        days: 1,
+        items: [
+          { fromDate: '2026-10-01', id: 'w1' },
+          { fromDate: '2026-10-08', id: 'w2' },
+        ],
+        current: expect.objectContaining({ fromDate: '2026-10-01', id: 'w1' }),
+      })
+    );
+  });
+
+  it('창을 닫으면 옮기지 않고, 칸은 고른 날짜를 든 채 남는다', async () => {
+    groupStore.hits = hitsOf();
+    hook.eventList = [weekly('w1')];
+    const p = openPanel({ entryId: 'w1', initial: weekly('w1') });
+    fireEvent.change(dateInput(p), { target: { value: '2026-10-02' } });
+    fireEvent.click(within(p).getByRole('button', { name: '옮기고 저장' }));
+    await screen.findByRole('button', { name: /이 날짜의 일정만 옮기기/ });
+
+    fireEvent.click(screen.getAllByRole('button', { name: '닫기' }).at(-1)!);
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: /이 날짜의 일정만 옮기기/ })).not.toBeInTheDocument());
+    expect(moveEventToDate).not.toHaveBeenCalled();
+    expect(panelDate()).toBe('2026-10-01');
+    expect(dateInput(p).value).toBe('2026-10-02');
   });
 });

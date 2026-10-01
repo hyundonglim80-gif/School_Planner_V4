@@ -9,7 +9,7 @@
 //
 // 저장은 열 때의 날짜·공간에 한다. 칸이 열린 채 다른 날짜·화면으로 옮겨 다녀도 그렇다.
 // 날짜를 바꾸려면 칸 맨 위의 날짜 칸에서 고른다: 새 일정은 저장할 날짜가 바뀌고, 고치던 일정은
-// 저장할 때 그 날짜로 옮긴다(lib/eventDocOps.moveEventToDate). 옮긴 뒤 칸은 새 날짜의 수정 칸이 된다.
+// 저장할 때 그 날짜로 옮긴다(hooks/useEventMove - 기간·반복 묶음이면 어디까지 옮길지 묻는다). 옮긴 뒤 칸은 새 날짜의 수정 칸이 된다.
 import React, { useEffect, useRef, useState } from 'react';
 import { useDayData, type EventItem } from '../hooks/useDayData';
 import { useLabels } from '../hooks/useLabels';
@@ -17,9 +17,9 @@ import { useAppStore } from '../store/useAppStore';
 import { useGroupDelete } from '../hooks/useGroupDelete';
 import { resolveEventLabelNames, eventDisplayContent } from '../lib/eventLabels';
 import { baseContentOf } from '../lib/eventGroups';
-import { moveEventToDate } from '../lib/eventDocOps';
+import { useEventMove } from '../hooks/useEventMove';
 import { isForwardTarget } from '../lib/forwarding';
-import { addDays, formatDateStr } from '../lib/dateUtils';
+import { addDays, daysBetween, formatDateStr } from '../lib/dateUtils';
 import { shortDateLabel } from '../lib/notices';
 import { showToast, showErrorToastOnce } from '../utils/toast';
 import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
@@ -92,6 +92,8 @@ export default function EventDrawer({
   const { eventLabels, getLabelColor, labelsLoaded } = useLabels();
   const { eventList, addEventItem, updateEventItem, deleteEventItem } = useDayData(dateStr, groupId);
   const fId = groupId || 'personal';
+  // 다른 날짜로 옮기기 (묶음이면 범위를 묻는 창까지)
+  const { requestMove, groupMoveModal } = useEventMove(groupId);
 
   const isEditing = !!entryId;
   const current: EventItem | null = entryId
@@ -288,26 +290,32 @@ export default function EventDrawer({
         // 끝내지 않은 이월 일정을 지난 날짜에 두면 다음 이월 때 오늘로 다시 온다 - 미리 알린다
         const bounces =
           to < formatDateStr(new Date()) && !current?.completed && isForwardTarget({ ...(current || {}), ...patch }, eventLabels);
-        const moved = await moveEventToDate({
-          fId,
+        // 기간·반복 묶음이면 어디까지 옮길지 먼저 묻는다
+        const result = await requestMove({
           fromDate: dateStr,
           toDate: to,
-          eventId: entryId,
+          item: current || { id: entryId },
           patch,
           // 알림 시각을 새로 정했으면 정한 그대로, 아니면 일정과 같이 옮긴다
           shiftAlarm: !alarmDirty,
         });
-        if (!moved) {
+        if (result === 'cancelled') return false; // 창을 닫았다 - 날짜 칸은 고른 그대로 둔다
+        if (result === 'missing') {
           showToast('옮길 일정을 찾지 못했습니다. 그 사이 지워졌거나 다른 날로 옮겨졌을 수 있습니다.');
           return false;
         }
         snapshotRef.current = snapshotOf(content, labels, attrs, alarmTime, newLinks);
         setAlarmDirty(false);
-        onMoved?.(to, moved.id, moved.item as EventItem);
-        showToast(
-          `✅ 일정을 ${shortDateLabel(to)}로 옮겼습니다.` +
-            (bounces ? ' 이월 일정이라 끝내지 않으면 다음에 오늘로 다시 옮겨 옵니다.' : '')
-        );
+        onMoved?.(to, result.current.id, result.current.item as EventItem);
+        const days = daysBetween(dateStr, to);
+        const head =
+          result.moved > 1
+            ? `✅ 연결된 일정 ${result.moved}건을 ${days > 0 ? `${days}일 뒤로` : `${-days}일 앞으로`} 옮겼습니다.`
+            : `✅ 일정을 ${shortDateLabel(to)}로 옮겼습니다.`;
+        const tail =
+          (result.failed > 0 ? ` ${result.failed}건은 옮기지 못했습니다 - 네트워크를 확인하고 다시 옮겨 주세요.` : '') +
+          (bounces ? ' 이월 일정이라 끝내지 않으면 다음에 오늘로 다시 옮겨 옵니다.' : '');
+        showToast(head + tail);
       } else if (entryId) {
         await updateEventItem(entryId, {
           content,
@@ -464,7 +472,7 @@ export default function EventDrawer({
             {dateChanged && (
               <p className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
                 저장하면 {shortDateLabel(dateStr)} → <b>{shortDateLabel(moveTo)}</b>로 옮깁니다.
-                {current?.groupId ? ' 기간·반복 묶음 가운데 이 날 것만 옮깁니다.' : ''}{' '}
+                {current?.groupId ? ' 기간·반복 묶음이라 저장할 때 어디까지 옮길지 묻습니다.' : ''}{' '}
                 <button type="button" onClick={() => setMoveTo(dateStr)} className="underline cursor-pointer">
                   그대로 두기
                 </button>
@@ -708,6 +716,7 @@ export default function EventDrawer({
       )}
 
       {groupDeleteModal}
+      {groupMoveModal}
     </SidePanelFrame>
   );
 }
