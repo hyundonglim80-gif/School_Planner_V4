@@ -221,6 +221,10 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 묶어 보인다(`collapsePeriods`). 달력 요약(`useCalendarData.mapEvents`)은 정해진 칸만 옮기므로 `groupId`를 넣었다 - 빠져 있어
 월간·년간에서 끌기·지우기가 묶음 범위를 묻지 못했다.
 
+### 휴대폰 월간 (`MonthGrid` compact, `MonthDaySheet`, ROADMAP 15)
+휴대폰(`useIsMobile`, 639px 이하) 월간 칸에는 과목 칩이 없다. 날짜·칸 안 일정·기간 막대를 누르면 `MonthScreen`이 `sheetDate`를 정하고
+탭바 바로 위에 그날 목록을 띄운다(팝업이 아니라 화면의 일부). 같은 날을 한 번 더 누르면 하루 화면. PC는 그대로.
+
 ### 년간 학사력 (`lib/yearSheet`, `features/year/YearSheet`, ROADMAP 14)
 년간은 '📅 학사력'(처음)과 '📋 자세히'(예전 `YearMonthCard`) 두 모양이고 고른 것은 이 기기(`sp4_yearView`)에 남는다. 학사력은 읽기 전용에
 가깝다: 날짜 칸은 점·막대만(공휴일·D-Day·학사일정·'달력' 일정), 달 아래 목록을 누르면 오른쪽 일정 칸. 수업·기록 표식·끌기·여러 개 고르기는

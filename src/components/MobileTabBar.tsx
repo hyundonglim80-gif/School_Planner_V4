@@ -17,6 +17,7 @@ export default function MobileTabBar() {
 
   return (
     <nav
+      data-mobile-tabbar
       className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-sm border-t border-border shadow-[0_-1px_3px_rgba(0,0,0,0.04)]"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >

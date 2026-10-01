@@ -16,7 +16,7 @@ import {
   DAY_NUMBER_COLOR,
   WEEKDAY_HEADER_COLOR,
 } from '../../lib/holiday';
-import { fitToWidthFontSize, verticalFitFontSize } from '../../lib/typeScale';
+import { fitToWidthFontSize } from '../../lib/typeScale';
 import { resolveEventLabel, eventDisplayContent, isForwardLabel, isCalendarVisible } from '../../lib/eventLabels';
 import { BODY_TEXT } from '../../lib/typeScale';
 import JournalCountBadge from '../../components/JournalCountBadge';
@@ -59,6 +59,8 @@ interface MonthGridProps {
    *    한 화면에 들어온다.
    */
   compact?: boolean;
+  /** 휴대폰에서 그날 목록을 띄운 날짜 - 칸에 테를 두른다 (ROADMAP 15) */
+  selectedDate?: string | null;
 }
 
 // 요일 머리글도 같은 규칙을 쓴다 (일=빨강, 토=파랑)
@@ -72,7 +74,7 @@ const ALL_WEEKDAYS = [
   { name: '토', color: WEEKDAY_HEADER_COLOR.saturday },
 ];
 
-export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, showWeekend = true, onToggleEvent, onDeleteEvent, compact = false }: MonthGridProps) {
+export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, showWeekend = true, onToggleEvent, onDeleteEvent, compact = false, selectedDate = null }: MonthGridProps) {
   const currentWeekdays = showWeekend ? ALL_WEEKDAYS : ALL_WEEKDAYS.slice(1, 6);
   const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal, selectedGroupId } = useAppStore();
 
@@ -98,34 +100,6 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
 
   const maxPeriods = templates[currentTemplateName]?.names.length || 6;
   const periodArray = Array.from({ length: maxPeriods }, (_, i) => i + 1);
-
-  /**
-   * 휴대폰에서 교시 칸을 몇 개까지 그릴지.
-   *
-   * 뒤쪽 빈 교시를 그리지 않는 규칙은 그대로다. 시간표가 6교시까지인데 학교가
-   * 5교시까지만 돌면, 여섯째 칸이 빈 채로 서서 '6교시가 있는데 비었다'로 읽힌다.
-   *
-   * ⚠️ 다만 그 잘라내기를 '그날 마지막 수업'으로 재면 안 된다. 그러면 5교시
-   *    수업을 3교시로 옮긴 날 하나가 칸 셋으로 줄어들고, 비어 있던 4·5교시가
-   *    통째로 사라진다. 옆 날짜는 다섯 칸인데 그 날만 셋이라 차례도 안 맞는다.
-   *    실제로 그렇게 보였다(PC는 늘 시간표 교시 수대로 그려 멀쩡했다).
-   *
-   * 그래서 화면에 보이는 달 전체에서 가장 늦은 교시로 잰다. 한 날을 고쳐도
-   * 그 날만 좁아지지 않고, 달에 5교시가 하나라도 있으면 모든 날이 다섯 칸이다.
-   */
-  const compactPeriodCount = React.useMemo(() => {
-    if (!compact) return maxPeriods;
-    let last = 0;
-    for (const dayObj of displayDays) {
-      const sch = dataMap[dayObj.dateStr]?.schedules || {};
-      for (let p = maxPeriods; p > last; p--) {
-        const t = sch[p]?.subject?.trim() || '';
-        if (t && t.toUpperCase() !== 'X') { last = p; break; }
-      }
-    }
-    // 달이 통째로 비어 있으면 잘라낼 것도 없다
-    return last || maxPeriods;
-  }, [compact, displayDays, dataMap, maxPeriods]);
 
   const [detailModal, setDetailModal] = useState<{
     isOpen: boolean;
@@ -200,7 +174,8 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
               style={{ gridColumn: col + 1, gridRow: '1 / -1', gridTemplateRows: 'subgrid' }}
               className={`${compact ? 'p-1' : 'p-2'} grid transition-all cursor-pointer group hover:brightness-98 min-w-0 overflow-hidden ${col > 0 ? 'border-l border-slate-100' : ''} ${
                 !dayObj.isCurrentMonth ? 'bg-slate-50/40 opacity-40' : DAY_CELL_BG[tone]
-              } ${dayObj.isToday ? 'ring-2 ring-inset ring-primary/40' : ''} ${drop.overDate === dayObj.dateStr ? DROP_TARGET_CLASS : ''}`}
+              } ${selectedDate === dayObj.dateStr ? 'ring-2 ring-inset ring-primary' : dayObj.isToday ? 'ring-2 ring-inset ring-primary/40' : ''} ${drop.overDate === dayObj.dateStr ? DROP_TARGET_CLASS : ''}`}
+              data-selected={selectedDate === dayObj.dateStr ? 'true' : undefined}
             >
               <div className="min-w-0" style={{ gridRow: 1 }}>
                 {/* 자리가 모자라면 표식이 아랫줄로 내려간다. 날짜와 공휴일
@@ -263,73 +238,9 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                   </div>
                 )}
 
-                {/*
-                  휴대폰: 교시 칸을 여섯으로 나누면 칩 하나가 8px이다.
-                  가로로 쓰면 '과학'이 들어갈 자리가 없어 글자가 통째로 사라진다.
-                  첫 글자만 모아 '과수영미실사'로 적어 보았더니 무슨 과목인지
-                  알 수 없어 더 나빴다.
-
-                  세로로 쓴다. 8px 폭에 한 글자씩 내려 쓰면 되므로 이름이 온전히 남는다.
-
-                  ⚠️ 뒤쪽 빈 교시는 그리지 않는다.
-                     시간표가 5교시까지인데 여섯째 칸이 빈 채로 서 있으면
-                     '6교시가 있는데 비었다'로 읽힌다. 실제로 그렇게 보였다.
-                     사이에 낀 빈 교시(3교시만 없는 날)는 그대로 둔다 — 그건
-                     자리로 읽어야 차례가 맞는다. 끝에 남는 것만 잘라 낸다.
-                     칸이 줄면 남은 칩이 넓어져 글자도 그만큼 커진다.
-
-                     몇 칸까지 그릴지는 날마다 재지 않고 달 전체로 잰다
-                     (compactPeriodCount 참고).
-                */}
-                {showClass && hasClasses && compact && (() => {
-                  const shown = periodArray.filter((p) => p <= compactPeriodCount);
-                  return (
-                    <div className="flex flex-nowrap gap-[1px] w-full mb-0.5 items-stretch">
-                      {shown.map((p) => {
-                        const item = schedules[p];
-                        const text = item?.subject?.trim() || '';
-
-                        if (text && text.toUpperCase() !== 'X') {
-                          return (
-                            <div
-                              key={p}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDetailModal({
-                                  isOpen: true,
-                                  type: 'schedule',
-                                  dateStr: dayObj.dateStr,
-                                  itemId: p,
-                                  initialData: item,
-                                });
-                              }}
-                              className="flex-1 min-w-0 flex items-center justify-center border border-emerald-300 rounded-[3px] bg-emerald-50 text-emerald-700 font-bold overflow-hidden cursor-pointer [container-type:inline-size]"
-                              title={`${text} (${p}교시)`}
-                            >
-                              {/* 세로쓰기에서 글자 사이를 벌리는 것은 letter-spacing이다.
-                                  줄을 얇게 하려고 음수로 당긴다. */}
-                              <span
-                                className="whitespace-nowrap leading-none [writing-mode:vertical-rl] [text-orientation:upright] [letter-spacing:-0.06em]"
-                                style={{ fontSize: verticalFitFontSize() }}
-                              >
-                                {text}
-                              </span>
-                            </div>
-                          );
-                        }
-                        // 빈 교시에도 몇 교시 자리인지 붙여 둔다. 빈 칸이 이어지면
-                        // 몇째 칸인지 세어야 알 수 있었다.
-                        return (
-                          <div
-                            key={p}
-                            title={`${p}교시`}
-                            className="flex-1 min-w-0 border border-slate-200 rounded-[3px] bg-slate-50"
-                          />
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
+                {/* 휴대폰에서는 과목 칩을 그리지 않는다 (ROADMAP 15, 2026-10-02).
+                    53px 칸에 교시 여섯을 세로 글자로 세워도 읽기 어려웠고 줄 높이만 먹었다. 그날 수업은 날짜를 누르면
+                    올라오는 그날 목록(MonthDaySheet)에 적는다. PC 칸은 그대로. */}
 
                 {showClass && hasClasses && !compact && (
                   <div className="flex flex-nowrap gap-[1px] w-full mb-1.5 mt-0.5">
@@ -399,6 +310,9 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                           e.stopPropagation();
                           if (isMultiSelectMode) {
                             toggleEventSelection(ev.id, dayObj.dateStr);
+                          } else if (compact) {
+                            // 휴대폰: 칸 안 일정은 작아 겨누기 어렵다 - 날짜를 누른 것으로 보고 그날 목록을 연다 (ROADMAP 15)
+                            onSelectDate(dayObj.dateStr);
                           } else {
                             // 일정은 오른쪽 칸에서 고친다 (달력을 보면서)
                             openEntryPanel({
@@ -499,8 +413,11 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
           const first = bar.cells[0].ev;
           const labelDef = resolveEventLabel(first, eventLabels, { keepUnknown: !labelsLoaded });
           const labelName = labelDef?.name || '';
+          // 휴대폰은 막대를 눌러도 그날 목록 (칸 안 일정과 같다)
           const openCell = (cell: BarCell) =>
-            openEntryPanel({ kind: 'event', groupId: selectedGroupId, dateStr: cell.dateStr, entryId: String(cell.ev.id), initial: cell.ev });
+            compact
+              ? onSelectDate(cell.dateStr)
+              : openEntryPanel({ kind: 'event', groupId: selectedGroupId, dateStr: cell.dateStr, entryId: String(cell.ev.id), initial: cell.ev });
           return (
             <PeriodBar
               key={`${bar.key}@${bar.start}`}
