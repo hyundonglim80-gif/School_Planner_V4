@@ -215,8 +215,29 @@ async function run() {
     await getDoc(doc(A.db, 'users', aUid, 'settings', 'labels'));
   });
 
+  console.log('\n[나이스 키 sharedConfig] — 로그인하면 읽고, 쓰기는 개발자만');
+  const D = client('developer');
+  await login(D, 'hyundonglim80@gmail.com');
+  await must('개발자가 키를 저장한다', async () => {
+    await setDoc(doc(D.db, 'sharedConfig', 'neis'), { key: 'RULECHECK-KEY', updatedAt: Date.now() });
+  });
+  await must('아무 사용자나 키를 읽는다', async () => {
+    const d = await getDoc(doc(X.db, 'sharedConfig', 'neis'));
+    if (d.data()?.key !== 'RULECHECK-KEY') throw new Error('키를 못 읽었다');
+  });
+  await mustNot('개발자가 아니면 키를 못 바꾼다', async () => {
+    await setDoc(doc(X.db, 'sharedConfig', 'neis'), { key: 'HIJACK' });
+  });
+  await mustNot('개발자가 아니면 admin/config는 못 읽는다', async () => {
+    const d = await getDoc(doc(X.db, 'admin', 'config'));
+    if (!d.exists()) throw Object.assign(new Error('없음'), { code: 'permission-denied' });
+  });
+  await must('개발자가 점검용 키를 지운다', async () => {
+    await deleteDoc(doc(D.db, 'sharedConfig', 'neis'));
+  });
+
   console.log(`\n───────── ${pass}개 통과 / ${fail}개 실패 ─────────`);
-  for (const c of [A, B, X, C]) await deleteApp(c.app).catch(() => {});
+  for (const c of [A, B, X, C, D]) await deleteApp(c.app).catch(() => {});
   process.exit(fail === 0 ? 0 : 1);
 }
 

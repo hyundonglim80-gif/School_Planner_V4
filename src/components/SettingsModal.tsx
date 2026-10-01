@@ -24,6 +24,7 @@ import { MIN_LOOKBACK_DAYS, MAX_LOOKBACK_DAYS, clampLookbackDays } from '../lib/
 import { SHORTCUT_ACTIONS, resolveBindings, formatActionBinding, type ShortcutId } from '../lib/shortcuts';
 import ShortcutModal from './ShortcutModal';
 import { loadAdminConfig, saveAdminGovApiKey } from '../lib/adminConfig';
+import { clearNeisCache, loadNeisKey, saveNeisKey, testNeisKey } from '../lib/neis';
 import { loadSharedHolidays, saveSharedHolidays } from '../lib/holidays';
 import { fetchHolidaysFromGovApi } from '../lib/govApi';
 import { clearHolidayCache } from '../hooks/useGovHolidays';
@@ -113,6 +114,36 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [startupScope, setStartupScope] = useState<StartupScope>('last');
   const [lookbackDays, setLookbackDays] = useState('14');
   const [govApiKey, setGovApiKey] = useState('');
+  // 나이스 키 (sharedConfig/neis - 모두가 읽는다. lib/neis)
+  const [neisKey, setNeisKey] = useState('');
+  const [neisBusy, setNeisBusy] = useState(false);
+  const saveNeis = async () => {
+    const key = neisKey.trim();
+    setNeisBusy(true);
+    try {
+      let found = 0;
+      if (key) {
+        try {
+          found = await testNeisKey(key);
+        } catch (e) {
+          showErrorToast('나이스가 이 키를 받지 않아 저장하지 않았습니다.', e);
+          return;
+        }
+      }
+      await saveNeisKey(key);
+      clearNeisCache();
+      showToast(key ? `✅ 나이스 키를 저장했습니다 (시험: '서울' 학교 ${found}곳).` : '나이스 키를 지웠습니다. 키 없이 부릅니다.');
+    } catch (e: any) {
+      showErrorToast(
+        e?.code === 'permission-denied'
+          ? 'Firestore 규칙에서 막혔습니다. firestore.rules의 sharedConfig 규칙을 배포해 주세요.'
+          : '나이스 키를 저장하지 못했습니다.',
+        e
+      );
+    } finally {
+      setNeisBusy(false);
+    }
+  };
 
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -249,6 +280,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   // 키는 소스가 아니라 admin/config에 있다. 기기를 바꿔도 다시 입력하지 않아도 된다.
   const loadDeveloperSettings = async () => {
+    clearNeisCache();
+    void loadNeisKey().then(setNeisKey);
     const config = await loadAdminConfig();
     if (config.govApiKey) {
       setGovApiKey(config.govApiKey);
@@ -1040,6 +1073,35 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <p className="text-xs text-amber-600 mt-3 leading-relaxed">
               holidays/{'{'}연도{'}'}와 admin/config는 firestore.rules에 규칙이 있어야 저장됩니다. 규칙을 아직 배포하지
               않았다면 '내려받아 저장'이 권한 오류로 실패합니다.
+            </p>
+          </Section>
+        )}
+
+        {developer && (
+          <Section
+            title="🔧 개발자 설정 - 나이스 키"
+            desc="급식·학사일정을 부르는 open.neis.go.kr 인증키입니다. Firestore sharedConfig/neis에 저장되어 로그인한 모든 사용자가 읽습니다(네트워크 요청에도 보입니다). 키가 없거나 막히면 앱은 키 없이 한 번에 5건씩 나눠 부릅니다."
+          >
+            <div className="flex gap-2" data-neis-key>
+              <input
+                type="text"
+                value={neisKey}
+                onChange={(e) => setNeisKey(e.target.value)}
+                placeholder="나이스 인증키 (비우고 저장하면 키 없이)"
+                aria-label="나이스 인증키"
+                className="flex-1 min-w-0 px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-primary"
+              />
+              <button
+                type="button"
+                onClick={() => void saveNeis()}
+                disabled={neisBusy}
+                className="px-3 py-1.5 shrink-0 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-60"
+              >
+                {neisBusy ? '확인 중...' : '확인 후 저장'}
+              </button>
+            </div>
+            <p className="text-xs text-amber-600 mt-2 leading-relaxed">
+              나이스에 한 번 불러 보고 답하면 저장합니다. firestore.rules의 sharedConfig 규칙이 배포되어 있어야 저장됩니다.
             </p>
           </Section>
         )}
