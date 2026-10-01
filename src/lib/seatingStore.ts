@@ -3,10 +3,11 @@
 // 자리표 저장(ROADMAP 8번). 셈은 lib/seating에 있다. V4 전용, 명렬표처럼 개인 공간에만.
 //
 //   users/{uid}/v4_seating/{id}         자리표 한 장 (classKey로 학급을 가리킨다)
-//   users/{uid}/v4_classHub/{학급키}     학급마다 하나 - 떨어뜨릴 학생(apart), 발표자 뽑기 이번 판(draw) …
+//   users/{uid}/v4_classHub/{학급키}     학급마다 하나 - 떨어뜨릴 학생(apart), 발표자 뽑기 이번 판(draw), 저장한 모둠(groupSets)
 //
 // 떨어뜨릴 학생은 arrayUnion/arrayRemove로 한 쌍씩 더하고 뺀다 - 다른 기기에서 더한 것을 덮지 않게.
 // 뽑기도 뽑은 번호 하나씩 arrayUnion(새 판만 통째로) - 다른 기기에서 이어 뽑는다.
+// 모둠은 id → 한 벌의 맵이라 한 벌씩 쓰고 지운다(다른 벌을 덮지 않게).
 // 자리표의 자리(seats)는 한 장 통째로 쓴다. 자리 배치는 한 덩어리라(섞기·맞바꾸기) 칸마다 합칠 수 없고,
 // 화면은 구독으로 늘 최신 자리표를 들고 있어 고친 직후의 값을 쓴다.
 import {
@@ -14,6 +15,7 @@ import {
   arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   onSnapshot,
@@ -26,6 +28,7 @@ import { db } from './firebase';
 import { moveToTrash } from '../utils/trashHelper';
 import { sanitizeChart, type SeatingChart } from './seating';
 import { sanitizeDraw, type DrawPick, type DrawState } from './draw';
+import { sanitizeGroupSets, type GroupSet } from './groups';
 
 const seatingCol = (uid: string) => collection(db, 'users', uid, 'v4_seating');
 const hubDoc = (uid: string, classKey: string) => doc(db, 'users', uid, 'v4_classHub', classKey);
@@ -100,12 +103,15 @@ export interface ClassHub {
   apart: string[];
   /** 발표자 뽑기 이번 판 (lib/draw) */
   draw: DrawState;
+  /** 저장한 모둠 (만든 차례, lib/groups) */
+  groupSets: GroupSet[];
 }
 
 export function sanitizeHub(raw: any): ClassHub {
   return {
     apart: Array.isArray(raw?.apart) ? [...new Set<string>(raw.apart.filter((p: unknown) => typeof p === 'string'))] : [],
     draw: sanitizeDraw(raw?.draw),
+    groupSets: sanitizeGroupSets(raw?.groupSets),
   };
 }
 
@@ -159,4 +165,50 @@ export async function startNewDrawRound(uid: string, classKey: string, round: nu
 export async function restoreDrawState(uid: string, classKey: string, state: DrawState): Promise<void> {
   const now = Date.now();
   await setDoc(hubDoc(uid, classKey), { classKey, draw: { ...state, updatedAt: now }, updatedAt: now }, { merge: true });
+}
+
+// ── 모둠 (ROADMAP 8-4) ──
+// groupSets는 id → 한 벌. merge로 그 벌만 쓰고(모둠 배열은 통째로 바뀐다), 지울 때는 그 칸만 뺀다.
+
+export function newGroupSetId(): string {
+  // 필드 경로로 쓰므로 글자·숫자·밑줄만
+  return `gs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/** 모둠 한 벌을 쓴다(새로 만들기·고치기). 실패하면 던진다 */
+export async function saveGroupSet(uid: string, classKey: string, set: GroupSet): Promise<void> {
+  const { id, ...rest } = set;
+  const now = Date.now();
+  await setDoc(
+    hubDoc(uid, classKey),
+    { classKey, groupSets: { [id]: { ...rest, createdAt: rest.createdAt || now, updatedAt: now } }, updatedAt: now },
+    { merge: true }
+  );
+}
+
+/**
+ * 휴지통에 먼저 넣고 지운다 (휴지통에 못 넣으면 지우지 않는다 - 던진다). 복원은 lib/trashRestore 'groupSet'.
+ * 휴지통 문서 id를 돌려준다(지운 뒤 안내의 '되돌리기').
+ */
+export async function deleteGroupSet(uid: string, classKey: string, set: GroupSet, className: string): Promise<string> {
+  const trashId = await moveToTrash({
+    id: set.id,
+    type: 'groupSet',
+    content: `${className} 모둠 '${set.name}'`,
+    data: { classKey, ...set },
+  });
+  if (!trashId) throw new Error('휴지통에 넣지 못해 지우지 않았습니다.');
+  await updateDoc(hubDoc(uid, classKey), { [`groupSets.${set.id}`]: deleteField(), updatedAt: Date.now() });
+  return trashId;
+}
+
+/** 휴지통에서 되살린다. 같은 id가 이미 있으면 덮지 않고 새 id로 */
+export async function restoreGroupSet(uid: string, data: any): Promise<void> {
+  const classKey = String(data?.classKey || '');
+  if (!classKey) throw new Error('어느 학급의 모둠인지 알 수 없습니다.');
+  const [set] = sanitizeGroupSets({ [String(data?.id || newGroupSetId())]: data });
+  if (!set) throw new Error('모둠 자료가 비어 있습니다.');
+  const hub = await getDoc(hubDoc(uid, classKey));
+  const taken = !!hub.data()?.groupSets?.[set.id];
+  await saveGroupSet(uid, classKey, { ...set, id: taken ? newGroupSetId() : set.id });
 }

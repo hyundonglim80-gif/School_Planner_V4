@@ -9,11 +9,15 @@
 //   자리에는 오늘 출결(결석·지각…)을 적어 보인다(출석부 문서를 구독).
 // - 발표자 뽑기(8-3): '🎯 발표자 뽑기' 칸 - 이번 판에 안 뽑힌 학생 먼저, 오늘 결석은 빼고, 뽑힌 자리를 짚는다, 크게 보기.
 //   이번 판은 학급 허브(draw)에 - 다른 기기에서 이어 뽑는다. 자리표가 없어도 명렬표로 뽑는다.
+// - 모둠(8-4): '👥 모둠' 칸 - 무작위·자리대로 나눠 이름 붙여 저장(학급 허브 groupSets), 이 칸이 열린 동안 자리에 모둠 색.
+//   조사표 '조별 평가'를 만들 때 저장한 모둠을 불러 쓴다(EvaluationModal).
 import React, { useEffect, useMemo, useState } from 'react';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 import SeatStudentCard from './SeatStudentCard';
 import SeatDrawPanel, { drawStatusLine } from './SeatDrawPanel';
 import DrawBigView from './DrawBigView';
+import SeatGroupsPanel from './SeatGroupsPanel';
+import { groupColor, groupIndexByNum, type StudentGroup } from '../lib/groups';
 import { useStudentDraw } from '../hooks/useStudentDraw';
 import { auth } from '../lib/firebase';
 import { useRoster, type Student } from '../hooks/useRoster';
@@ -111,7 +115,9 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
   const [activeId, setActiveId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [selected, setSelected] = useState<Selection>(null);
-  const [panel, setPanel] = useState<'shape' | 'apart' | 'draw' | null>(drawRequest ? 'draw' : null);
+  const [panel, setPanel] = useState<'shape' | 'apart' | 'draw' | 'groups' | null>(drawRequest ? 'draw' : null);
+  /** 모둠 칸이 보이는 모둠 (자리에 색) */
+  const [groupsShown, setGroupsShown] = useState<StudentGroup[] | null>(null);
   const [drawBig, setDrawBig] = useState(false);
   const [shuffleOpts, setShuffleOpts] = useState(() =>
     readJson(SHUFFLE_MEMORY_KEY, { avoidPast: true, mixGender: false })
@@ -208,6 +214,8 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
     nameOf: (num) => nameOf(num),
   });
   const drawOn = panel === 'draw';
+  const groupsOn = panel === 'groups';
+  const groupOf = useMemo(() => (groupsOn && groupsShown ? groupIndexByNum(groupsShown) : new Map<number, number>()), [groupsOn, groupsShown]);
   useEffect(() => {
     if (!drawOn) setDrawBig(false);
   }, [drawOn]);
@@ -446,6 +454,7 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
     const focused = !editMode && num !== undefined && focusNum === num;
     const drawnNow = drawOn && num !== undefined && draw.shown === num;
     const drawn = drawOn && num !== undefined && drawnSet.has(num);
+    const groupIndex = num !== undefined ? groupOf.get(num) : undefined;
     const gender = st?.gender === 'M' || st?.gender === '남' ? 'M' : st?.gender === 'F' || st?.gender === '여' ? 'F' : '';
     return (
       <button
@@ -454,6 +463,7 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
         data-seat={key}
         data-seat-num={num ?? ''}
         data-seat-drawn-now={drawnNow && !draw.rolling ? '' : undefined}
+        data-seat-group={groupIndex}
         draggable={num !== undefined}
         onDragStart={(e) => {
           e.dataTransfer.setData('text/plain', `seat:${key}`);
@@ -481,6 +491,8 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
             ? 'border-amber-400 ring-4 ring-amber-300 bg-amber-100'
             : isSelected || focused
             ? 'border-primary ring-2 ring-primary/40 bg-indigo-50'
+            : groupIndex !== undefined
+            ? `${groupColor(groupIndex).seat} border-2`
             : warn.has(key)
               ? 'border-amber-400 bg-amber-50'
               : num === undefined
@@ -659,16 +671,42 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
                 </button>
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => setPanel(drawOn ? null : 'draw')}
-              aria-pressed={drawOn}
-              disabled={!classKey}
-              className={`ml-auto ${toolBtn(drawOn)}`}
-            >
-              🎯 발표자 뽑기
-            </button>
+            <div className="ml-auto flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPanel(groupsOn ? null : 'groups')}
+                aria-pressed={groupsOn}
+                disabled={!classKey}
+                className={toolBtn(groupsOn)}
+              >
+                👥 모둠
+              </button>
+              <button
+                type="button"
+                onClick={() => setPanel(drawOn ? null : 'draw')}
+                aria-pressed={drawOn}
+                disabled={!classKey}
+                className={toolBtn(drawOn)}
+              >
+                🎯 발표자 뽑기
+              </button>
+            </div>
           </div>
+
+          {groupsOn && uid && classKey && cls && (
+            <SeatGroupsPanel
+              key={classKey}
+              uid={uid}
+              classKey={classKey}
+              className={describeClass(cls)}
+              sets={hub.groupSets}
+              activeNums={activeNums}
+              apart={hub.apart}
+              chart={chart}
+              nameOf={nameOf}
+              onShown={setGroupsShown}
+            />
+          )}
 
           {drawOn && classKey && (
             <SeatDrawPanel
@@ -928,12 +966,15 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
                       }}
                       onClick={() => tapUnseated(n)}
                       data-seat-drawn-now={drawOn && !draw.rolling && draw.shown === n ? '' : undefined}
+                      data-seat-group={groupOf.get(n)}
                       className={`px-2 py-1 rounded-lg text-xs font-bold border cursor-grab ${
                         drawOn && draw.shown === n
                           ? 'border-amber-400 ring-2 ring-amber-300 bg-amber-100 text-slate-800'
                           : (selected?.kind === 'student' && selected.num === n) || (!editMode && focusNum === n)
                             ? 'border-primary bg-indigo-50 text-primary'
-                            : 'border-slate-200 bg-white text-slate-700'
+                            : groupOf.has(n)
+                              ? `${groupColor(groupOf.get(n)!).seat} text-slate-700`
+                              : 'border-slate-200 bg-white text-slate-700'
                       }`}
                     >
                       {drawOn && drawnSet.has(n) && <span className="mr-1 text-amber-600" data-seat-drawn>✓</span>}

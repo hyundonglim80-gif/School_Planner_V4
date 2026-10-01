@@ -9,6 +9,9 @@ import { closeAllModals } from '../hooks/useModalLayer';
 import { showToast, showErrorToast } from '../utils/toast';
 import PopupFrame from './PopupFrame';
 import { auth } from '../lib/firebase';
+import { classKeyOf } from '../lib/attendance';
+import { subscribeClassHub } from '../lib/seatingStore';
+import { evalGroupsFrom, groupSetSummary, type GroupSet } from '../lib/groups';
 
 interface EvaluationModalProps {
   isOpen: boolean;
@@ -49,6 +52,9 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
   const [useIndiv, setUseIndiv] = useState(true);
   const [useGroup, setUseGroup] = useState(false);
   const [groupCount, setGroupCount] = useState(4);
+  /** 조별 평가의 조를 자리표에서 저장한 모둠으로 ('' = 번호 차례로 groupCount조) */
+  const [groupSetId, setGroupSetId] = useState('');
+  const [groupSets, setGroupSets] = useState<GroupSet[]>([]);
   const [stepCount, setStepCount] = useState(3);
   const [stepNames, setStepNames] = useState<string[]>(DEFAULT_STEPS.slice(0, 3));
 
@@ -62,6 +68,25 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
   const [metaDate, setMetaDate] = useState('');
   const [metaPeriod, setMetaPeriod] = useState('');
   const [metaSubject, setMetaSubject] = useState('');
+
+  // 조별 평가를 켜면 고른 학급의 저장한 모둠(자리표 학급 허브, 개인 공간)을 구독한다
+  const createRoster = rosters[parseInt(rosterIdx, 10)];
+  const createClassKey = createRoster ? classKeyOf(createRoster) : '';
+  const wantGroupSets = isOpen && viewMode === 'create' && evalType === 'eval' && useGroup;
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    setGroupSets([]);
+    if (!wantGroupSets || !uid || !createClassKey) return;
+    return subscribeClassHub(
+      uid,
+      createClassKey,
+      (hub) => setGroupSets(hub.groupSets),
+      (err) => console.warn('저장한 모둠을 불러오지 못했습니다:', err)
+    );
+  }, [wantGroupSets, createClassKey]);
+  // 학급을 바꾸면 고른 모둠을 푼다 (다른 학급의 모둠이다)
+  useEffect(() => setGroupSetId(''), [createClassKey]);
+  const chosenGroupSet = groupSets.find((g) => g.id === groupSetId) || null;
 
   useEffect(() => {
     if (isOpen) {
@@ -164,10 +189,14 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
 
     let steps: string[] = [];
     let groups: { name: string; members: number[] }[] = [];
+    const savedGroupSet = groupSets.find((g) => g.id === groupSetId);
 
     if (evalType === 'eval') {
       steps = stepNames.filter(s => s.trim());
-      if (useGroup) {
+      if (useGroup && savedGroupSet) {
+        // 자리표에서 저장한 모둠 (ROADMAP 8-4) - 지금 재학생만, 빈 모둠은 뺀다. 모양은 V3 조와 같다 {name, members}
+        groups = evalGroupsFrom(savedGroupSet, activeStudents.map((s: any) => Number(s.num)));
+      } else if (useGroup) {
         const totalStudents = activeStudents.length;
         let currentIdx = 0;
         for (let i = 0; i < groupCount; i++) {
@@ -599,9 +628,37 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
                     </div>
                   </div>
                   {useGroup && (
-                    <div>
-                      <label className="text-xs font-bold text-slate-500 block mb-1">조 갯수: {groupCount}조</label>
-                      <input type="number" value={groupCount} min={1} max={20} onChange={e => setGroupCount(parseInt(e.target.value) || 4)} className="px-2 py-1 border border-slate-200 rounded text-xs w-16" />
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 block mb-1">조 나누기</label>
+                        <select
+                          value={groupSetId}
+                          onChange={e => setGroupSetId(e.target.value)}
+                          aria-label="조 나누기"
+                          className="px-2 py-1 border border-slate-200 rounded text-xs max-w-full"
+                        >
+                          <option value="">번호 차례로 나누기</option>
+                          {groupSets.map(g => (
+                            <option key={g.id} value={g.id}>🪑 저장한 모둠: {g.name} ({groupSetSummary(g.groups)})</option>
+                          ))}
+                        </select>
+                        {groupSets.length === 0 && (
+                          <p className="text-2xs text-slate-400 mt-1">⋮ → 🪑 자리표 → 👥 모둠에서 나눠 저장한 모둠을 여기서 불러 씁니다.</p>
+                        )}
+                      </div>
+                      {chosenGroupSet ? (
+                        <p className="text-2xs text-slate-500 leading-relaxed" data-eval-group-preview>
+                          {chosenGroupSet.groups
+                            .filter(g => g.members.length > 0)
+                            .map(g => `${g.name}: ${g.members.join(', ')}`)
+                            .join(' / ')}
+                        </p>
+                      ) : (
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 block mb-1">조 갯수: {groupCount}조</label>
+                          <input type="number" value={groupCount} min={1} max={20} onChange={e => setGroupCount(parseInt(e.target.value) || 4)} className="px-2 py-1 border border-slate-200 rounded text-xs w-16" />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
