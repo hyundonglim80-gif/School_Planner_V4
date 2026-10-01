@@ -60,7 +60,9 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
 
 - 로드맵 17개 중 **1~8번 끝**(일정 날짜 옮기기·수업 칸 압축·드라이브 자동 백업·나이스·진도 관리·작은 것 묶음 7가지·작년 이맘때·자리표 허브). wip 브랜치 없음.
   6번을 끝내며 설명서 전체 점검 88/89(깨진 1건은 점검 스크립트의 기다림 탓 - 고침). 다음 전체 점검은 9번을 끝낼 때.
-- **다음은 9번 학생 카드 + 평가 모아 보기** - 단계를 나눠 ROADMAP 9번에 적고 시작한다.
+- **9번 학생 카드 + 평가 모아 보기 하는 중** - 9-1 학생 카드 끝, 다음은 **9-2 평가 모아 보기**(학급 × 조사표 표, CSV).
+  읽기는 `lib/evalArchive.loadClassEvals`(학년도 범위, rosterMeta로 그 학급), 칸 값·학기·CSV 셈은 `lib/evalSummary`(9-2 몫까지 이미 있다).
+  조사표 창을 특정 조사표로 열려면 `openEvaluationModal(날짜, 자리, 교시, 교과, evalId)`. 크롬 `tools/inspect-student-card.mjs` 15항목.
 - 8번 자리표 허브(2026-10-02 끝, 8-1~8-4). 8-1: `lib/seating`(순수 셈)·`lib/seatingStore`·`SeatingModal`, 저장은 V4 전용
   `v4_seating/{id}`(자리표 한 장)·`v4_classHub/{학급키}`(떨어뜨릴 학생 - **뽑기·모둠도 여기에 더한다**). 학생은 **번호**로 가리킨다.
   8-2 학생 칸: `SeatStudentCard`·`lib/classHub`(셈)·`lib/classHubStore`(출결·조사표·관찰 한 줄 - 있는 저장 길만, 한 학생 칸만 바꾼다).

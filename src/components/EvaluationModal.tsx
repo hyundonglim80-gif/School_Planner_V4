@@ -20,6 +20,8 @@ interface EvaluationModalProps {
   defaultSource?: string;
   defaultPeriod?: number | string;
   defaultSubject?: string;
+  /** 열자마자 보일 조사표 id (학생 카드의 평가에서) - 그 자리에 여럿이어도 그것을 연다 */
+  initialEvalId?: string;
 }
 
 const SUBJECTS = ['국어','도덕','사회','수학','과학','실과','체육','음악','미술','영어','창체'];
@@ -27,7 +29,7 @@ const DEFAULT_STEPS = ['우수', '보통', '노력요함', '미흡', '매우미�
 
 // 교시를 넘기지 않고 열면 그날 조사표 전체를 맡는다. 달력에서 날짜 표식을
 // 눌렀을 때가 그렇다. 그 자리에서는 어느 교시 것인지 알 수가 없다.
-export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSource = 'schedule', defaultPeriod = '', defaultSubject = '' }: EvaluationModalProps) {
+export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSource = 'schedule', defaultPeriod = '', defaultSubject = '', initialEvalId }: EvaluationModalProps) {
   const { selectedGroupId, openEvaluationModal } = useAppStore();
   const { templates, currentTemplateName } = useTimetableTemplate();
   const periodNames = templates[currentTemplateName]?.names || ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'];
@@ -155,6 +157,12 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
 
     if (list.length === 0) {
       setViewMode('create');
+      return;
+    }
+
+    const wanted = initialEvalId ? list.find((ev) => ev.id === initialEvalId) : undefined;
+    if (wanted) {
+      await openViewer(wanted, list);
       return;
     }
 

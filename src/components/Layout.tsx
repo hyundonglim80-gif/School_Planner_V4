@@ -96,6 +96,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     evalSource,
     evalPeriod,
     evalSubject,
+    evalId,
     closeEvaluationModal,
     isMultiSelectMode,
     setMultiSelectMode,
@@ -1030,6 +1031,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             defaultSource={evalSource}
             defaultPeriod={evalPeriod}
             defaultSubject={evalSubject}
+            initialEvalId={evalId}
           />
         )}
 

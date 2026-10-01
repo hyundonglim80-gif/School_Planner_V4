@@ -2,6 +2,9 @@
 //
 // 학생 누가기록. 기록에 적힌 학생 태그(#26040305)와 출석부를 모아 한 학생의
 // 한 해를 날짜 차례로 보여 준다. 생활기록부를 쓸 때 근거를 한눈에 보려는 것이다.
+//
+// 학생 카드(ROADMAP 9-1): 위에 사진·특이사항·출결 누계·기록·평가 수, 아래 '기록·출결'과 '평가' 두 갈래.
+// 평가는 그 학년도에 이 학급으로 만든 조사표 중 이 학생이 명단에 있는 것(lib/evalArchive, 값은 lib/evalSummary).
 import React, { useEffect, useMemo, useState } from 'react';
 import { collection, documentId, getDocs, query, where } from 'firebase/firestore';
 import ModalShell, { ModalCloseButton } from './ModalShell';
@@ -15,6 +18,11 @@ import { findStudentTags, makeStudentTag, sameStudent, tagOfStudent, type Studen
 import { classKeyOf, historyOf, recordText, tallyByStudent, KINDS, KIND_LABEL, REASONS, REASON_LABEL } from '../lib/attendance';
 import { loadAttendanceForClass } from '../lib/attendanceStore';
 import { shortDateLabel } from '../lib/notices';
+import { loadClassEvals, type ArchivedEval } from '../lib/evalArchive';
+import { evalHasStudent } from '../lib/classHub';
+import { EVAL_TYPE_LABEL, evalCellText, isEmptyCell, sortEvals, studentEvalCell } from '../lib/evalSummary';
+import { useStudentPhotos } from '../hooks/useStudentPhotos';
+import StudentPhoto from './roster/StudentPhoto';
 import { showToast, showErrorToast } from '../utils/toast';
 
 interface StudentRecordModalProps {
@@ -37,11 +45,21 @@ interface TimelineItem {
 }
 
 const MEMORY_KEY = 'sp4-student-record';
+/** 명렬표 창의 '사진 보기' (켜 두었을 때만 드라이브에서 사진을 읽는다) */
+const PHOTOS_KEY = 'sp4-roster-photos';
+
+function photosWanted(): boolean {
+  try {
+    return localStorage.getItem(PHOTOS_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 export default function StudentRecordModal({ isOpen, onClose, initialClassKey, initialNum }: StudentRecordModalProps) {
   const { rosterList, loading: rosterLoading } = useRoster();
   const { groups } = useGroups();
-  const { selectedGroupId, setCurrentDate, setScope, setSelectedGroupId, requestFocus } = useAppStore();
+  const { selectedGroupId, setCurrentDate, setScope, setSelectedGroupId, requestFocus, openEvaluationModal } = useAppStore();
 
   const [classKey, setClassKey] = useState<string | null>(null);
   const [num, setNum] = useState<number | null>(initialNum ?? null);
@@ -92,6 +110,11 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
   // ── 모으기 ──
   const [items, setItems] = useState<TimelineItem[] | null>(null);
   const [attendanceDays, setAttendanceDays] = useState<Awaited<ReturnType<typeof loadAttendanceForClass>>>([]);
+  /** 그 학년도 이 학급 조사표 (학생과 상관없이 학급마다 한 번 읽는다) */
+  const [classEvals, setClassEvals] = useState<ArchivedEval[] | null>(null);
+  const [tab, setTab] = useState<'timeline' | 'evals'>('timeline');
+  const [photosOn] = useState(photosWanted);
+  const photoState = useStudentPhotos(isOpen && photosOn ? cls : null, cls?.students || [], photosOn);
 
   useEffect(() => {
     if (!isOpen || !cls || !tag || num === null) {
@@ -158,6 +181,55 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, classKey, num, selectedGroupId]);
 
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!isOpen || !cls || !uid) {
+      setClassEvals(null);
+      return;
+    }
+    let alive = true;
+    setClassEvals(null);
+    const spaces: Array<{ id: string | null; name: string }> = [{ id: null, name: '개인' }];
+    if (selectedGroupId) {
+      spaces.push({ id: selectedGroupId, name: groups.find((g) => g.id === selectedGroupId)?.name || '그룹' });
+    }
+    loadClassEvals(uid, spaces, cls)
+      .then((list) => alive && setClassEvals(sortEvals(list)))
+      .catch((err) => {
+        if (!alive) return;
+        setClassEvals([]);
+        showErrorToast('조사표를 모으지 못했습니다.', err);
+      });
+    return () => {
+      alive = false;
+    };
+    // cls는 classKey에서 나온다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, classKey, selectedGroupId]);
+
+  /** 이 학생이 명단에 있는 조사표와 그 값 */
+  const studentEvals = useMemo(
+    () =>
+      num === null || !classEvals
+        ? null
+        : classEvals.filter((ev) => evalHasStudent(ev, num)).map((ev) => ({ ev, cell: studentEvalCell(ev, num) })),
+    [classEvals, num]
+  );
+  const filledEvalCount = studentEvals?.filter((e) => !isEmptyCell(e.cell)).length || 0;
+
+  /** 그 조사표를 연다 (다른 공간 것이면 그 공간으로) */
+  const openEval = (ev: ArchivedEval) => {
+    if ((ev.space || null) !== (selectedGroupId || null)) setSelectedGroupId(ev.space || null);
+    const fromJournal = ev.context?.source === 'journal';
+    openEvaluationModal(
+      ev.dateStr,
+      fromJournal ? 'journal' : 'schedule',
+      fromJournal ? undefined : Number(ev.periodStr) || undefined,
+      ev.subject || '',
+      ev.id
+    );
+  };
+
   const tally = useMemo(() => (num === null ? null : tallyByStudent(attendanceDays)[String(num)] || null), [attendanceDays, num]);
 
   const tagText = tag ? makeStudentTag(tag) : '';
@@ -174,7 +246,20 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
   const copyAll = async () => {
     if (!items || !student) return;
     const head = `${student.name} (${tagText}) 누가기록`;
-    const body = items.map((it) => `${it.date} [${it.kind === 'attendance' ? '출결' : '기록'}] ${it.text.replace(/\n+/g, ' / ')}`);
+    // 평가도 적은 값이 있는 것만 날짜 차례로 섞어 넣는다
+    const lines = [
+      ...items.map((it) => ({
+        date: it.date,
+        line: `${it.date} [${it.kind === 'attendance' ? '출결' : '기록'}] ${it.text.replace(/\n+/g, ' / ')}`,
+      })),
+      ...(studentEvals || [])
+        .filter((e) => !isEmptyCell(e.cell))
+        .map(({ ev, cell }) => ({
+          date: ev.dateStr,
+          line: `${ev.dateStr} [${EVAL_TYPE_LABEL[ev.type] || '평가'}] ${ev.subject ? `${ev.subject} ` : ''}${ev.title}: ${evalCellText(cell).replace(/\n+/g, ' / ')}`,
+        })),
+    ];
+    const body = lines.sort((a, b) => a.date.localeCompare(b.date)).map((l) => l.line);
     try {
       await navigator.clipboard.writeText([head, ...body].join('\n'));
       showToast('📋 복사했습니다.');
@@ -261,13 +346,36 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
               </p>
             ) : (
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2 flex-wrap p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                  <div>
+                <div
+                  className="flex items-center justify-between gap-2 flex-wrap p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                  data-student-card={num}
+                >
+                  <div className="flex items-start gap-3 min-w-0">
+                    {photosOn && (
+                      <StudentPhoto
+                        url={photoState.photos.get(num)?.url}
+                        name={student?.name || `${num}번`}
+                        size={56}
+                        loose={photoState.photos.get(num)?.exact === false}
+                      />
+                    )}
+                    <div className="min-w-0">
                     <div className="text-sm font-black text-slate-800">
                       {student?.name || `${num}번`} <span className="font-mono font-bold text-amber-700">{tagText}</span>
+                      {student?.gender && (
+                        <span className="ml-1 text-xs font-bold text-slate-400">
+                          {student.gender === 'M' || student.gender === '남' ? '남' : '여'}
+                        </span>
+                      )}
+                      {student?.isActive === false && <span className="ml-1 text-xs font-bold text-slate-400">(전출)</span>}
                     </div>
-                    <div className="text-slate-500 mt-0.5">
-                      기록 {journalCount}건
+                    {student?.note && (
+                      <div className="mt-0.5 text-slate-600" data-student-note>
+                        <b className="text-slate-400">특이사항</b> {student.note}
+                      </div>
+                    )}
+                    <div className="text-slate-500 mt-0.5" data-student-counts>
+                      기록 {journalCount}건 · 평가 {filledEvalCount}건
                       {tally &&
                         KINDS.map((k) => {
                           const n = REASONS.reduce((s, r) => s + tally[k][r], 0);
@@ -279,6 +387,7 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
                             </span>
                           );
                         })}
+                    </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -299,7 +408,7 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
                     <button
                       type="button"
                       onClick={copyAll}
-                      disabled={!items || items.length === 0}
+                      disabled={!items || (items.length === 0 && filledEvalCount === 0)}
                       className="px-2 py-1 bg-white border border-slate-200 rounded-lg font-bold hover:bg-slate-100 disabled:opacity-40"
                     >
                       📋 전체 복사
@@ -307,7 +416,72 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
                   </div>
                 </div>
 
-                {items === null ? (
+                <div className="flex items-center gap-1" role="tablist" aria-label="누가기록 갈래">
+                  {(
+                    [
+                      ['timeline', `🗓️ 기록·출결${items ? ` ${items.length}` : ''}`],
+                      ['evals', `📊 평가${studentEvals ? ` ${studentEvals.length}` : ''}`],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      role="tab"
+                      aria-selected={tab === key}
+                      onClick={() => setTab(key)}
+                      className={`px-3 py-1.5 rounded-lg font-black ${
+                        tab === key ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {tab === 'evals' ? (
+                  studentEvals === null ? (
+                    <p className="text-center text-slate-400 py-6">모으는 중...</p>
+                  ) : studentEvals.length === 0 ? (
+                    <p className="text-center text-slate-400 py-6">
+                      {cls?.year}학년도에 이 학급으로 만든 조사표 중 이 학생이 든 것이 없습니다.
+                    </p>
+                  ) : (
+                    <ul className="space-y-1.5" data-student-evals>
+                      {studentEvals.map(({ ev, cell }) => (
+                        <li key={`${ev.space || 'me'}:${ev.id}`}>
+                          <button
+                            type="button"
+                            onClick={() => openEval(ev)}
+                            title="그 조사표를 엽니다"
+                            data-student-eval={ev.id}
+                            className="w-full text-left p-2.5 bg-white border border-slate-200 rounded-xl hover:border-primary/40 flex items-start gap-2"
+                          >
+                            <div className="shrink-0 w-28 whitespace-nowrap">
+                              <b className="text-slate-800">{ev.dateStr}</b>
+                              <span className="text-slate-400">{shortDateLabel(ev.dateStr).replace(/^\d+\/\d+/, '')}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="px-1.5 py-px rounded-md font-bold border bg-violet-50 text-violet-700 border-violet-200">
+                                  {EVAL_TYPE_LABEL[ev.type] || '평가'}
+                                </span>
+                                {ev.subject && <span className="font-bold text-slate-500">{ev.subject}</span>}
+                                <span className="font-bold text-slate-800 truncate">{ev.title}</span>
+                                {ev.space && <span className="text-slate-400">👥 {ev.spaceName}</span>}
+                              </div>
+                              <p
+                                className={`mt-0.5 text-sm ${isEmptyCell(cell) ? 'text-slate-300' : 'text-slate-700 font-bold'}`}
+                                data-student-eval-value
+                              >
+                                {isEmptyCell(cell) ? '안 적음' : evalCellText(cell)}
+                              </p>
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                ) : items === null ? (
                   <p className="text-center text-slate-400 py-6">모으는 중...</p>
                 ) : items.length === 0 ? (
                   <p className="text-center text-slate-400 py-6">

@@ -321,6 +321,9 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   **모둠**(8-4, `SeatGroupsPanel`, 셈 `lib/groups`): 학급 허브 `groupSets`(id → 한 벌, 한 벌씩 merge·deleteField, 지우면 휴지통 `groupSet`).
   모둠 칸이 열린 동안 `onShown`으로 받은 모둠을 자리에 칠한다. 조사표 만들기(`EvaluationModal`)의 '조 나누기'가 같은 허브를 구독해
   고른 모둠을 `evalGroupsFrom`으로 조사표 `groups`(V3와 같은 {name, members})에 넣는다.
+- **학생 카드·평가 모아 보기**(ROADMAP 9): 조사표를 학년도 범위로 모아 읽기만 한다(`lib/evalArchive.loadClassEvals` - `rosterMeta`가
+  그 학급인 것, 개인 + 지금 고른 그룹). 칸 값은 `lib/evalSummary.studentEvalCell`(구글 시트 내보내기와 같은 규칙). 학생 누가기록 위의
+  카드와 '📊 평가' 갈래가 이것을 쓰고, 평가를 누르면 `openEvaluationModal(…, evalId)`로 그 조사표를 바로 연다.
 - **나이스 급식·학사일정**: 표시만 한다(`hooks/useNeis`, 일정 문서에 쓰지 않는다). 학사일정 이름을 누르면 `SchoolEventModal`
   (store `schoolEventPeek`, Layout이 그린다): 'D-Day로'는 `useDDay.addDDay`, '일정으로 담기'는 새 일정 칸을 `draftText`로 연다 -
   저장은 늘 일정 칸이 한다. 방학 기간 채우기는 `schoolSetting.findVacations`(방학식 다음 날 ~ 개학식 전날, 저장은 따로).

@@ -256,7 +256,9 @@ interface AppState {
   evalSource: 'schedule' | 'journal' | 'event';
   evalPeriod?: number;
   evalSubject?: string;
-  openEvaluationModal: (dateStr: string, source: 'schedule' | 'journal' | 'event', period?: number, subject?: string) => void;
+  /** 열자마자 보일 조사표 (학생 카드의 평가에서 열 때 - 그 자리에 조사표가 여럿이어도 그것으로) */
+  evalId?: string;
+  openEvaluationModal: (dateStr: string, source: 'schedule' | 'journal' | 'event', period?: number, subject?: string, evalId?: string) => void;
   closeEvaluationModal: () => void;
 
   // Trash Modal State
@@ -675,12 +677,13 @@ export const useAppStore = create<AppState>()(
       isEvaluationModalOpen: false,
       evalDateStr: '',
       evalSource: 'event',
-      openEvaluationModal: (dateStr, source, period, subject) => set({
+      openEvaluationModal: (dateStr, source, period, subject, evalId) => set({
         isEvaluationModalOpen: true,
         evalDateStr: dateStr,
         evalSource: source,
         evalPeriod: period,
-        evalSubject: subject
+        evalSubject: subject,
+        evalId,
       }),
       closeEvaluationModal: () => set({ isEvaluationModalOpen: false }),
 
