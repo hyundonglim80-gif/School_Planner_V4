@@ -35,7 +35,8 @@ export interface DaySummary {
 // 이 사이에 서버 스냅샷이 도착하면 추가 조회를 하지 않는다.
 const SERVER_RECHECK_DELAY_MS = 2000;
 
-function mapEvents(data: DocumentData): EventItem[] {
+/** 달력 요약에 옮길 칸. 정해진 칸만 옮기므로 월간·년간에서 새 칸을 읽으려면 여기에 더한다 (시험용으로 내보낸다) */
+export function mapEvents(data: DocumentData): EventItem[] {
   return readEventList(data)
     .map((e: any, idx: number) => ({
       id: e.id || 'ev_' + idx,
@@ -51,6 +52,8 @@ function mapEvents(data: DocumentData): EventItem[] {
       // 기간·반복 묶음(ROADMAP 13 막대) - 끌어 옮기기·지우기도 이것으로 범위를 묻는다
       ...(e.groupId ? { groupId: e.groupId } : {}),
       ...(typeof e.period === 'boolean' ? { period: e.period } : {}),
+      // 일정마다 켜고 끈 '달력' - 빠져 있어 월간·년간이 라벨만 보고 일정마다 끈 것을 무시했다 (isCalendarVisible: 항목 값 → 라벨)
+      ...(typeof e.calendar === 'boolean' ? { calendar: e.calendar } : {}),
     }))
     .filter((e: EventItem) => e.content && e.content.trim().length > 0);
 }

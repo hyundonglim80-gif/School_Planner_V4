@@ -4,6 +4,7 @@
 //   - 월간: 나란한 날의 조각이 한 막대(칸을 건너 이어짐), 주가 바뀌면 다음 줄에서 이어짐, 겹치면 다른 줄,
 //     V3가 만든 조각(period 표시 없음)도 막대, 조각은 날짜 칸 안에 따로 나오지 않는다, 막대의 그날 조각을 누르면 그 조각을 고친다
 //   - 년간: 처음 날에 한 번만 범위와 함께, 나머지 날에는 조각이 없다
+//   - 일정마다 켜고 끈 '달력'이 라벨보다 먼저 (달력 요약 mapEvents가 calendar를 넘긴다)
 //   이번 달 셋째·넷째 주에 점검 기간 일정을 심었다가 처음 모습으로 되돌린다.
 //
 //   npm run emu / node tools/serve-both.mjs / VITE_USE_EMULATOR=1 npm run build
@@ -59,6 +60,11 @@ const add = (dates, name, group, extra) =>
 add(A, NAME_A, 'a', { period: true, label: '달력', labelIds: ['ev_1'] });
 add(B, NAME_B, 'b', { period: true, label: '', labelIds: [] });
 add(C, NAME_C, 'c', { label: '', labelIds: [] });
+// 일정마다 켜고 끈 '달력'이 라벨보다 먼저 (달력 요약이 calendar 칸을 넘겨야 한다)
+pieces.get(A[0]).push(
+  { id: 'ev_pb_off', content: '점검달력끔', completed: false, label: '달력', labelIds: ['ev_1'], calendar: false },
+  { id: 'ev_pb_on', content: '점검달력켬', completed: false, label: '이월', labelIds: ['ev_3'], calendar: true },
+);
 
 async function seed() {
   for (const [d, list] of pieces) {
@@ -115,6 +121,9 @@ try {
   check('B: 겹치는 기간은 다른 줄', (await barB.count()) === 1 && Math.abs(b1.y - a1.y) >= 10, `A y=${Math.round(a1.y)} B y=${Math.round(b1.y)}`);
   const thu = await box(cell(A[1]));
   check('B는 목·금 칸에', Math.abs(b1.x - thu.x) < 8 && Math.abs(b1.x + b1.width - (fri.x + fri.width)) < 8);
+
+  check('일정마다 끈 달력: 달력 라벨이어도 안 보인다', (await cell(A[0]).getByText('점검달력끔').count()) === 0);
+  check('일정마다 켠 달력: 이월 라벨이어도 보인다', (await cell(A[0]).getByText('점검달력켬').count()) === 1);
 
   const barC = page.locator('[data-period-bar="group_pb_c|점검방학|2"]');
   check('C: V3 모양(period 표시 없음)도 막대', (await barC.count()) === 1);
