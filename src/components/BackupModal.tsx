@@ -19,6 +19,7 @@ import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
 import { parseCsv } from '../lib/csv';
 import { parseRosterCsvRows, mergeRosters, ROSTER_CSV_HEADER } from '../lib/rosterCsv';
 import PopupFrame from './PopupFrame';
+import { buildBackupPayload } from '../lib/backupJson';
 
 interface BackupModalProps {
   isOpen: boolean;
@@ -430,62 +431,24 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
       // 4. JSON 전체 백업 다운로드
       else if (exportTarget === 'json') {
         setStatusMsg('JSON 전체 백업 생성 중...');
-        const payload: Record<string, any> = {
-          version: 'SP4-UNIFIED-BACKUP',
-          exportedAt: new Date().toISOString(),
+        // 만드는 길은 드라이브 자동 백업과 같다(lib/backupJson). 고른 기간을 따르고, 기간 전체를 담으려면
+        // '전체 기간'을 고른다. 알림장은 기록과 함께, 출석부는 명렬표와 함께 담긴다.
+        const payload = await buildBackupPayload({
+          uid: user.uid,
           scope: selectedScope,
           scopeName,
-          events: {},
-          schedules: {},
-          journals: {},
-          tasks: {},
-          evaluations: {},
-          rosters: {},
-          settings: {},
-        };
-
-        // 고른 기간을 따른다. 예전에는 기간을 정해도 JSON만 늘 전체를 담아서,
-        // 화면에서 고른 것과 파일에 든 것이 달랐다.
-        // 기간 전체를 담으려면 '전체 기간'을 고른다.
-        payload.period = startDate && endDate ? { startDate, endDate } : 'all';
-
-        const inRange = (cRef: any) =>
-          startDate && endDate
-            ? query(cRef, where(documentId(), '>=', startDate), where(documentId(), '<=', endDate))
-            : cRef;
-
-        if (incEvents) {
-          const snap = await getDocs(inRange(getColRef('events')));
-          snap.forEach((d) => (payload.events[d.id] = d.data()));
-        }
-        if (incSchedules) {
-          const snap = await getDocs(inRange(getColRef('schedules')));
-          snap.forEach((d) => (payload.schedules[d.id] = d.data()));
-        }
-        if (incJournals) {
-          const snap = await getDocs(inRange(getColRef('journals')));
-          snap.forEach((d) => (payload.journals[d.id] = d.data()));
-        }
-        if (incEvals) {
-          const snap = await getDocs(inRange(getColRef('evaluations')));
-          snap.forEach((d) => (payload.evaluations[d.id] = d.data()));
-        }
-        if (incMemos) {
-          const snap = await getDocs(getColRef('tasks'));
-          snap.forEach((d) => (payload.tasks[d.id] = d.data()));
-        }
-        // 설정도 함께 담는다. 예전에는 settings 칸을 만들어 두고 비운 채로 내보내서,
-        // '전체 백업'인데 라벨·시간표·환경설정·D-Day가 들어 있지 않았다.
-        // 복원해도 그것들은 돌아오지 않았다.
-        if (selectedScope === 'personal') {
-          const snap = await getDocs(collection(db, 'users', user.uid, 'settings'));
-          snap.forEach((d) => {
-            // 구글 시트 주소 같은 연결 정보는 기기에 매인 값이라 뺀다
-            if (d.id === 'backup_config') return;
-            payload.settings[d.id] = d.data();
-            if (incRosters && (d.id === 'rosters' || d.id === 'roster')) payload.rosters[d.id] = d.data();
-          });
-        }
+          startDate,
+          endDate,
+          include: {
+            events: incEvents,
+            schedules: incSchedules,
+            journals: incJournals,
+            evaluations: incEvals,
+            memos: incMemos,
+            rosters: incRosters,
+          },
+          onProgress: (msg) => setStatusMsg(msg),
+        });
 
         const jsonStr = JSON.stringify(payload, null, 2);
         const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -587,9 +550,12 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
     { bag: 'events', label: '일정', unit: '일', on: incEvents },
     { bag: 'schedules', label: '수업', unit: '일', on: incSchedules },
     { bag: 'journals', label: '기록', unit: '일', on: incJournals },
+    // 알림장은 기록과 함께, 출석부는 명렬표와 함께 (lib/backupJson이 그렇게 담는다)
+    { bag: 'notices', label: '알림장', unit: '일', on: incJournals },
     { bag: 'tasks', label: '메모', unit: '건', on: incMemos },
     { bag: 'evaluations', label: '조사표', unit: '건', on: incEvals },
     { bag: 'rosters', label: '명렬표', unit: '개', on: incRosters },
+    { bag: 'attendance', label: '출석부', unit: '건', on: incRosters && selectedScope === 'personal' },
   ] as const;
 
   /** 백업 JSON 한 덩이를 고른 항목에 맞춰 되돌린다 */
@@ -603,6 +569,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
     if (incEvents) await put('events', data.events);
     if (incSchedules) await put('schedules', data.schedules);
     if (incJournals) await put('journals', data.journals);
+    if (incJournals) await put('notices', data.notices);
     if (incMemos) await put('tasks', data.tasks);
     if (incEvals) await put('evaluations', data.evaluations);
 
@@ -618,6 +585,10 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
       if (incRosters) {
         for (const id in data.rosters || {}) {
           await setDoc(doc(db, 'users', uid, 'settings', id), data.rosters[id], { merge: true });
+        }
+        // 출석부도 개인 공간에만 있다 (예전 백업에는 없어서 빈 채로 넘어간다)
+        for (const id in data.attendance || {}) {
+          await setDoc(doc(db, 'users', uid, 'attendance', id), data.attendance[id], { merge: true });
         }
       }
     }

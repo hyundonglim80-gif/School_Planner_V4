@@ -124,6 +124,37 @@ describe('내보내기/가져오기 - 고른 항목만 되돌린다', () => {
   });
 });
 
+describe('내보내기/가져오기 - 알림장·출석부도 되돌린다 (docs/ROADMAP.md 3-1)', () => {
+  it('기록을 고르면 알림장을, 명렬표를 고르면(개인 공간) 출석부를 함께 되돌린다', async () => {
+    await openAndPick([
+      backup('전체.json', {
+        journals: { '2026-10-01': { entries: [] } },
+        notices: { '2026-10-01': { date: '2026-10-01', lines: ['우유 가져오기'] } },
+        attendance: { '2026_1_1_2026-10-01': { date: '2026-10-01', records: {} } },
+      }),
+    ]);
+    await waitFor(() => expect(written().some((p: string) => p.includes('/attendance/'))).toBe(true));
+    const paths = written();
+    expect(paths.some((p: string) => p.includes('/notices/2026-10-01'))).toBe(true);
+    expect(paths.some((p: string) => p.includes('/attendance/2026_1_1_2026-10-01'))).toBe(true);
+  });
+
+  it('기록을 끄면 알림장은 되돌리지 않는다', async () => {
+    const user = userEvent.setup();
+    render(<BackupModal isOpen onClose={vi.fn()} />);
+    const box = screen.getByLabelText('📔 기록') as HTMLInputElement;
+    if (box.checked) await user.click(box);
+    await user.upload(screen.getByLabelText('가져올 백업 파일'), [
+      backup('전체.json', {
+        tasks: { m1: { text: '메모1' } },
+        notices: { '2026-10-01': { date: '2026-10-01', lines: ['우유 가져오기'] } },
+      }),
+    ]);
+    await waitFor(() => expect(setDocMock).toHaveBeenCalled());
+    expect(written().some((p: string) => p.includes('/notices/'))).toBe(false);
+  });
+});
+
 // Keep에서 내보낸 파일을 이 창에 넣는 일이 잦다. 생김새가 아주 달라 백업 복원
 // 길로는 읽을 수 없으므로(갈래별 묶음이 아니라 메모 한 건의 모양),
 // 라벨·사진·중복 건너뛰기를 챙기는 Keep 전용 창으로 넘긴다.
