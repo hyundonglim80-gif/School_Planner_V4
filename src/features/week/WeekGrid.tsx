@@ -26,6 +26,7 @@ import { useProgressMarks } from '../../hooks/useProgress';
 import { slotId } from '../../lib/progress';
 import LastYearDay from './LastYearDay';
 import type { LastYearDay as LastYearDayData } from '../../hooks/useLastYearWeek';
+import type { ImportPick } from '../../lib/lastYearImport';
 import { useState } from 'react';
 
 // Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
@@ -52,6 +53,9 @@ interface WeekGridProps {
     byDate: Record<string, LastYearDayData>;
     loading: boolean;
     error: boolean;
+    /** 고른 작년 항목 (pickKey → 고른 것) */
+    picked: Record<string, ImportPick>;
+    onTogglePick: (pick: ImportPick) => void;
   };
 }
 
@@ -414,9 +418,13 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
               {lastYear && lastYear.dateMap[day.dateStr] && (
                 <LastYearDay
                   lastDate={lastYear.dateMap[day.dateStr]}
+                  toDate={day.dateStr}
                   data={lastYear.byDate[lastYear.dateMap[day.dateStr]]}
                   loading={lastYear.loading}
                   error={lastYear.error}
+                  existingEventTexts={rawEvents.map((e) => (e.content || '').trim())}
+                  picked={lastYear.picked}
+                  onTogglePick={lastYear.onTogglePick}
                 />
               )}
             </div>

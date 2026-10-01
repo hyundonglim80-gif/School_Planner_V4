@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { getWeekDays, parseDateStr, addDays, formatDateStr } from '../../lib/dateUtils';
 import { useCalendarData } from '../../hooks/useCalendarData';
@@ -7,9 +7,23 @@ import WeekGrid from './WeekGrid';
 import { openEntryPanel } from '../../components/EntryPanelHost';
 import { lastYearWeekOf } from '../../lib/lastYearWeek';
 import { useLastYearWeek } from '../../hooks/useLastYearWeek';
+import {
+  importLastYear,
+  undoLastYearImport,
+  importedMessage,
+  isImportableJournal,
+  pickKey,
+  ImportFailedError,
+  type ImportPick,
+  type ImportResult,
+} from '../../lib/lastYearImport';
+import { eventContentOf } from '../../lib/eventText';
+import { showUndoToast } from '../../lib/undoToast';
+import { showToast, showErrorToastOnce } from '../../utils/toast';
+import { runAutoForwarding } from '../../hooks/useDayData';
 
 export default function WeekScreen() {
-  const { currentDate, setCurrentDate, setScope, selectedGroupId, showWeekend, showLastYear, setShowLastYear } = useAppStore();
+  const { currentDate, setCurrentDate, setScope, selectedGroupId, showWeekend, showEvents, showLastYear, setShowLastYear } = useAppStore();
   // 날짜 칸의 + 는 그날의 새 일정을 오른쪽 칸에 연다
   const openQuickAdd = (dateStr: string) => void openEntryPanel({ kind: 'event', groupId: selectedGroupId, dateStr });
 
@@ -43,6 +57,21 @@ export default function WeekScreen() {
   // 작년 이맘때 (ROADMAP 7): 이번 주의 작년 학년도 같은 주. 켰을 때만 읽는다. 다음 주 줄에는 붙이지 않는다.
   const lastYearWeek = useMemo(() => lastYearWeekOf(weekDays.map((d) => d.dateStr)), [weekDays]);
   const lastYear = useLastYearWeek(lastYearWeek?.lastDates || [], selectedGroupId, showLastYear);
+
+  // 고른 작년 항목 (7-2). 주·공간이 바뀌거나 끄면 풀린다 - 고른 때의 열쇠와 지금 열쇠가 다르면 빈 것으로 본다.
+  const pickScope = `${lastYearWeek?.label}|${selectedGroupId}|${showLastYear}`;
+  const [pickState, setPickState] = useState<{ scope: string; picked: Record<string, ImportPick> }>({ scope: '', picked: {} });
+  const picked = pickState.scope === pickScope ? pickState.picked : {};
+  const pickedCount = Object.keys(picked).length;
+  const setPicked = (next: Record<string, ImportPick>) => setPickState({ scope: pickScope, picked: next });
+  const togglePick = (pick: ImportPick) => {
+    const key = pickKey(pick.kind, pick.fromDate, pick.item.id);
+    const next = { ...picked };
+    if (next[key]) delete next[key];
+    else next[key] = pick;
+    setPicked(next);
+  };
+  const [importing, setImporting] = useState(false);
 
   const rangeLabel = useMemo(() => {
     if (weekDays.length === 0) return '';
@@ -79,6 +108,71 @@ export default function WeekScreen() {
     return weekDays;
   }, [weekDays, showWeekend]);
 
+  /** 보이는 요일의 작년 항목 중 고를 수 있는 것 전부 ('모두 고르기') */
+  const importablePicks = (): ImportPick[] => {
+    if (!lastYearWeek) return [];
+    const out: ImportPick[] = [];
+    for (const day of displayWeekDays) {
+      const fromDate = lastYearWeek.dateMap[day.dateStr];
+      const data = fromDate ? lastYear.byDate[fromDate] : undefined;
+      if (!data) continue;
+      const existing = new Set((dataMap[day.dateStr]?.eventList || []).map((e) => (e.content || '').trim()));
+      if (showEvents) {
+        for (const ev of data.events) {
+          if (!existing.has(eventContentOf(ev))) out.push({ kind: 'event', fromDate, toDate: day.dateStr, item: ev });
+        }
+      }
+      for (const j of data.journals) {
+        const text = String(j.content || '').trim();
+        if (isImportableJournal(j) && (text || (j.tables || []).length > 0)) {
+          out.push({ kind: 'journal', fromDate, toDate: day.dateStr, item: j });
+        }
+      }
+    }
+    return out;
+  };
+
+  const pickAll = () => {
+    const next: Record<string, ImportPick> = {};
+    for (const p of importablePicks()) next[pickKey(p.kind, p.fromDate, p.item.id)] = p;
+    setPicked(next);
+  };
+
+  /** 고른 것을 올해 같은 요일로. 안내에 되돌리기. 실패하면 고른 것을 그대로 두어 다시 누를 수 있게(같은 글은 건너뛴다). */
+  const runImport = async () => {
+    const picks = Object.values(picked);
+    if (picks.length === 0 || importing) return;
+    const groupId = selectedGroupId; // 누른 순간의 공간에 쓴다 (ARCHITECTURE 4-6)
+    const undoable = (r: ImportResult, message: string) => {
+      if (r.added.length === 0) {
+        showToast(message);
+        return;
+      }
+      showUndoToast(message, async () => {
+        const n = await undoLastYearImport(groupId, r.added);
+        return n > 0 ? `↩️ 가져온 ${n}개를 뺐습니다.` : '뺄 것이 없습니다. 이미 지웠습니다.';
+      });
+    };
+    setImporting(true);
+    try {
+      const r = await importLastYear(groupId, picks);
+      setPicked({});
+      undoable(r, importedMessage(r));
+      // 지난 날짜에 넣었으면 이월을 한 번 (새 일정을 지난 날에 넣을 때와 같다)
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      if (r.added.some((a) => a.kind === 'event' && a.date < todayStr)) runAutoForwarding(groupId).catch(console.error);
+    } catch (e) {
+      if (e instanceof ImportFailedError && e.partial.added.length > 0) {
+        undoable(e.partial, `${importedMessage(e.partial)}\n${e.date}부터는 서버에 연결되지 않아 가져오지 못했습니다.`);
+      } else {
+        showErrorToastOnce(e instanceof Error ? e.message : '가져오지 못했습니다.', e);
+      }
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const displayNextWeekDays = useMemo(
     () => (showWeekend ? nextWeekDays : nextWeekDays.filter((d) => !d.isWeekend)),
     [nextWeekDays, showWeekend]
@@ -100,6 +194,41 @@ export default function WeekScreen() {
             작년 같은 주 · <strong className="font-bold text-slate-700">{lastYearWeek.label}</strong>
             {lastYear.error && <span className="ml-1 text-rose-500">(서버에서 읽지 못했습니다)</span>}
           </span>
+        )}
+        {/* 고른 작년 항목을 올해 같은 요일로 (7-2) */}
+        {showLastYear && !lastYear.loading && !lastYear.error && (
+          pickedCount > 0 ? (
+            <span data-last-year-picks className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-amber-700">{pickedCount}개 고름</span>
+              <button
+                type="button"
+                data-last-year-import
+                disabled={importing}
+                onClick={() => void runImport()}
+                title="고른 작년 일정·기록을 올해 같은 요일에 복사합니다 (작년 것은 그대로)"
+                className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 shadow-xs whitespace-nowrap"
+              >
+                {importing ? '가져오는 중…' : '📥 올해로 가져오기'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPicked({})}
+                className="px-2 py-1 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-100 whitespace-nowrap"
+              >
+                풀기
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              data-last-year-pick-all
+              onClick={pickAll}
+              title="보이는 요일의 작년 일정·기록을 모두 고릅니다 (올해 이미 있는 것은 빼고)"
+              className="px-2 py-1 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-100 whitespace-nowrap"
+            >
+              모두 고르기
+            </button>
+          )
         )}
         <button
           type="button"
@@ -132,7 +261,14 @@ export default function WeekScreen() {
             onDeleteEvent={deleteEventItem}
             lastYear={
               showLastYear && lastYearWeek
-                ? { dateMap: lastYearWeek.dateMap, byDate: lastYear.byDate, loading: lastYear.loading, error: lastYear.error }
+                ? {
+                    dateMap: lastYearWeek.dateMap,
+                    byDate: lastYear.byDate,
+                    loading: lastYear.loading,
+                    error: lastYear.error,
+                    picked,
+                    onTogglePick: togglePick,
+                  }
                 : undefined
             }
           />
