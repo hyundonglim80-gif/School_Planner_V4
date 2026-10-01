@@ -46,6 +46,7 @@ export type ShortcutId =
   | 'studentRecord'
   | 'seating'
   | 'drawStudent'
+  | 'evalOverview'
   | 'group'
   | 'timetable'
   | 'progress'
@@ -113,6 +114,7 @@ export const SHORTCUT_ACTIONS: ShortcutAction[] = [
   { id: 'studentRecord', label: '학생 누가기록', group: '메뉴 열기', def: b('') },
   { id: 'seating', label: '자리표', group: '메뉴 열기', def: b('') },
   { id: 'drawStudent', label: '발표자 뽑기 (자리표)', group: '메뉴 열기', def: b('') },
+  { id: 'evalOverview', label: '평가 모아 보기', group: '메뉴 열기', def: b('') },
   { id: 'group', label: '공유 그룹 관리', group: '메뉴 열기', def: b('') },
   { id: 'timetable', label: '시간표 적용 (주간 템플릿)', group: '메뉴 열기', def: b('') },
   { id: 'progress', label: '진도 관리', group: '메뉴 열기', def: b('') },
