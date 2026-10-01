@@ -68,6 +68,9 @@ async function main() {
   const base = (col) => collection(db, 'users', uid, col);
 
   // ── 라벨 / 환경설정 ─────────────────────────────────────────────
+  // 드라이브 자동 백업: 방금 한 것으로 둔다. 점검 계정에는 구글 토큰이 없어, 비워 두면 PC 화면마다
+  // '지금 백업' 띠가 떠서 다른 점검의 화면을 밀어낸다. 띠는 tools/inspect-auto-backup.mjs가 따로 본다.
+  await setDoc(doc(db, 'users', uid, 'settings', 'v4_autoBackup'), { lastAt: Date.now() }, { merge: true });
   await setDoc(doc(db, 'users', uid, 'settings', 'labels'), {
     eventLabels: [
       { id: 'ev_1', name: '달력', color: 'red', calendar: true, skip: false, forward: false, period: false, recur: false },

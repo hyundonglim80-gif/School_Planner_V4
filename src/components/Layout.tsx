@@ -41,6 +41,8 @@ import { closeAllModals } from '../hooks/useModalLayer';
 import ClipboardPanel, { useClipboardCapture, LEFT_COLUMN_CSS_WIDTH } from './ClipboardPanel';
 import ColumnResizer from './ColumnResizer';
 import { purgeExpiredTrashDaily } from '../lib/trashRetention';
+import { useAutoBackupRunner } from '../hooks/useAutoBackup';
+import AutoBackupBanner from './AutoBackupBanner';
 import { MainWidthContext } from '../hooks/useMainWidth';
 import { useMinWidth } from '../hooks/useMinWidth';
 import { useGlobalGestures } from '../hooks/useGlobalGestures';
@@ -138,6 +140,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (user?.uid) void purgeExpiredTrashDaily(user.uid);
   }, [user?.uid]);
+
+  // 드라이브 자동 백업 (PC, 구글 권한이 이미 있을 때 조용히). 오래 밀리면 위에 띠
+  const autoBackup = useAutoBackupRunner();
 
   useGlobalGestures();
   // 검색에서 '이동'한 항목을 찾아 스크롤하고 강조한다
@@ -966,6 +971,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* 하단 탭바에 내용이 가리지 않도록 아래 여백을 둔다 */}
       <main ref={mainRef} className="@container px-3 py-3 sm:p-5 max-w-7xl mx-auto pb-24 sm:pb-5">
+        {autoBackup.nag && (
+          <AutoBackupBanner overdue={autoBackup.overdue} keep={autoBackup.settings.keep} onSnooze={autoBackup.snooze} />
+        )}
         <MainWidthContext.Provider value={mainWidth}>{children}</MainWidthContext.Provider>
       </main>
 

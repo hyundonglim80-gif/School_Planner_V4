@@ -29,6 +29,8 @@ import { fetchHolidaysFromGovApi } from '../lib/govApi';
 import { clearHolidayCache } from '../hooks/useGovHolidays';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 import { runDriveMigration, CORS_HELP, type MigrationProgress } from '../lib/driveMigration';
+import { useAutoBackupSettings, backupNow } from '../hooks/useAutoBackup';
+import { INTERVAL_CHOICES, KEEP_CHOICES, saveAutoBackupSettings, type AutoBackupSettings } from '../lib/autoBackup';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -139,6 +141,19 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     } catch {
       setTrashDays(before);
       showErrorToast('저장하지 못했습니다. 잠시 뒤 다시 골라 주세요.');
+    }
+  };
+  // 드라이브 자동 백업 (lib/autoBackup) - 계정에 하나, 고르는 즉시 저장한다
+  const { settings: backupSettings, loaded: backupLoaded } = useAutoBackupSettings();
+  const [backingUp, setBackingUp] = useState(false);
+  const chooseBackup = async (patch: Partial<AutoBackupSettings>, msg: string) => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    try {
+      await saveAutoBackupSettings(uid, patch);
+      showToast(msg);
+    } catch (e) {
+      showErrorToast('저장하지 못했습니다. 잠시 뒤 다시 골라 주세요.', e);
     }
   };
   const popupStyle = useAppStore((s) => s.popupStyle);
@@ -679,6 +694,105 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 {d === 0 ? '끄기' : `${d}일`}
               </button>
             ))}
+          </div>
+        </Section>
+
+        <Section
+          title="드라이브 자동 백업"
+          desc="PC에서 앱을 열 때, 정한 날이 지났고 구글 권한이 이미 있으면 개인 공간 전체(알림장·출석부 포함)를 JSON으로 드라이브 'School_Planner/백업' 폴더에 공개하지 않고 저장합니다. 최근 것만 남기고 오래된 것은 드라이브 휴지통으로 보냅니다. 권한이 없어 오래 밀리면 화면 위에 '지금 백업'이 뜹니다. 되돌리기는 받은 파일을 '내보내기 / 가져오기'의 가져오기로."
+        >
+          <div className="space-y-2" data-auto-backup-settings>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                onClick={() => void chooseBackup({ enabled: true }, '💾 드라이브 자동 백업을 켰습니다.')}
+                disabled={!backupLoaded}
+                aria-pressed={backupSettings.enabled}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all disabled:opacity-50 ${
+                  backupSettings.enabled
+                    ? 'bg-primary text-white border-primary shadow-xs'
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-primary hover:text-primary'
+                }`}
+              >
+                켜기
+              </button>
+              <button
+                onClick={() => void chooseBackup({ enabled: false }, '💾 드라이브 자동 백업을 껐습니다.')}
+                disabled={!backupLoaded}
+                aria-pressed={!backupSettings.enabled}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all disabled:opacity-50 ${
+                  !backupSettings.enabled
+                    ? 'bg-primary text-white border-primary shadow-xs'
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-primary hover:text-primary'
+                }`}
+              >
+                끄기
+              </button>
+              <span className="mx-1 text-slate-300">|</span>
+              {INTERVAL_CHOICES.map((d) => (
+                <button
+                  key={d}
+                  onClick={() => void chooseBackup({ intervalDays: d }, `💾 ${d}일마다 백업합니다.`)}
+                  disabled={!backupLoaded || !backupSettings.enabled}
+                  aria-pressed={backupSettings.intervalDays === d}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all disabled:opacity-50 ${
+                    backupSettings.intervalDays === d
+                      ? 'bg-primary text-white border-primary shadow-xs'
+                      : 'bg-white text-slate-500 border-slate-200 hover:border-primary hover:text-primary'
+                  }`}
+                >
+                  {d}일마다
+                </button>
+              ))}
+              <span className="mx-1 text-slate-300">|</span>
+              {KEEP_CHOICES.map((n) => (
+                <button
+                  key={n}
+                  onClick={() => void chooseBackup({ keep: n }, `💾 최근 ${n}개만 남깁니다.`)}
+                  disabled={!backupLoaded || !backupSettings.enabled}
+                  aria-pressed={backupSettings.keep === n}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all disabled:opacity-50 ${
+                    backupSettings.keep === n
+                      ? 'bg-primary text-white border-primary shadow-xs'
+                      : 'bg-white text-slate-500 border-slate-200 hover:border-primary hover:text-primary'
+                  }`}
+                >
+                  {n}개 남기기
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-slate-600" data-last-backup>
+                마지막 백업:{' '}
+                {backupSettings.lastAt
+                  ? `${new Date(backupSettings.lastAt).toLocaleString('ko-KR')} · ${backupSettings.lastName || ''}${backupSettings.lastSummary ? ` (${backupSettings.lastSummary})` : ''}`
+                  : '아직 없음'}
+              </span>
+              <button
+                type="button"
+                disabled={backingUp || !backupLoaded}
+                onClick={async () => {
+                  setBackingUp(true);
+                  try {
+                    await backupNow(backupSettings.keep);
+                  } finally {
+                    setBackingUp(false);
+                  }
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50"
+              >
+                {backingUp ? '백업 중...' : '지금 백업'}
+              </button>
+              {backupSettings.folderLink && (
+                <a
+                  href={backupSettings.folderLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 text-slate-600 hover:border-primary hover:text-primary"
+                >
+                  드라이브에서 열기
+                </a>
+              )}
+            </div>
           </div>
         </Section>
 
