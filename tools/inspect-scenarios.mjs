@@ -58,6 +58,11 @@ const D = {
   evalOther: '2026-12-04', // 날짜를 바꿔 만든 조사표가 들어갈 날
   periodMove: '2026-12-07', // 교시 차례 바꾸기 (월요일)
   linkKeep: '2026-12-08', // 칸을 연 사이 걸린 링크가 저장 뒤에도 남는가
+  mvV3: '2026-12-09', // 옮기기: V3 옛 글만 있는 날에서
+  mvIdless: '2026-12-10', // 옮기기: id 없는 일정을
+  mvTo: '2026-12-11', // 옮기기: id 없는 일정이 이미 있는 날로
+  mvGroup: '2026-12-14', // 옮기기: 그룹 공간에서 옮겨 갈 날
+  mvPhone: '2026-12-15', // 옮기기: 휴대폰에서
 };
 const pad2 = (n) => String(n).padStart(2, '0');
 const localDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -120,6 +125,20 @@ async function plantFixtures() {
     eventText: ['id없는 하나', 'id없는 둘', 'id없는 셋'].join(String.fromCharCode(10)),
     updatedAt: Date.now(),
   });
+  // 옮기기: V3 옛 글만 있는 날 / id 없는 일정이 있는 두 날 (옮겨 간 날의 ev_0과 겹친다)
+  const NL = String.fromCharCode(10);
+  await setDoc(evRef(D.mvV3), { eventText: ['V3옮기기 남을 하나', 'V3옮기기 옮길 것', 'V3옮기기 남을 둘'].join(NL), updatedAt: Date.now() });
+  await setDoc(evRef(D.mvIdless), {
+    eventList: ['id없이 옮길 것', 'id없이 남을 것'].map((c) => ({ content: c, label: '달력', labelIds: ['ev_1'], completed: false })),
+    eventText: ['id없이 옮길 것', 'id없이 남을 것'].join(NL),
+    updatedAt: Date.now(),
+  });
+  await setDoc(evRef(D.mvTo), {
+    eventList: [{ content: '그 날의 id 없는 일정', label: '달력', labelIds: ['ev_1'], completed: false }],
+    eventText: '그 날의 id 없는 일정',
+    updatedAt: Date.now(),
+  });
+  for (const d of [D.mvGroup, D.mvPhone]) await deleteDoc(evRef(d)).catch(() => {});
   // 조사표: V4가 list·evalList를 맞춰 쓴 뒤 V3가 evalList에만 하나 더한 날 / 조사표가 하나 있는 다른 날
   const evalItem = (id, title, date) => ({
     id, title, subject: '', type: 'check', methodObj: { indiv: true, group: false }, steps: [], groups: [],
@@ -313,6 +332,30 @@ async function newEventViaDay(text) {
   await box.fill(text);
   await box.press('Control+s');
   await until(async () => (await rowText(text)) > 0);
+}
+
+/**
+ * 일정을 눌러 쓰는 칸을 열고, 맨 위 날짜 칸으로 다른 날짜에 옮긴다.
+ * (휴대폰 폭의 덮는 배너에는 '일정 쓰기' 이름표가 없어 화면 전체에서 맨 나중 것을 찾는다)
+ */
+async function moveViaPanel(text, toDate) {
+  await eventRows().filter({ hasText: text }).first().click();
+  const date = page.getByLabel('일정 날짜').last();
+  await date.waitFor({ timeout: 8000 });
+  await date.fill(toDate);
+  await page.getByRole('button', { name: '옮기고 저장' }).last().click();
+  await page.getByText(/일정을 .*로 옮겼습니다/).first().waitFor({ timeout: 10000 });
+  await wait(800);
+  await closeAll();
+}
+
+/** 개인 공간으로 (앞 점검이 그룹 공간에 두고 끝났을 수 있다 - MATCH로 골라 돌릴 때) */
+async function ensurePersonal() {
+  const sel = page.locator('header select');
+  if ((await sel.count()) && (await sel.inputValue()) !== '') {
+    await sel.selectOption('');
+    await wait(1500);
+  }
 }
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -729,6 +772,16 @@ if (ONLY !== 'mobile') {
     assert(inGroup && !inPersonal, `그룹 ${inGroup} / 개인 ${inPersonal}`);
   });
 
+  await check('옮기기: 그룹 공간의 일정은 그룹 안에서 옮겨지고 개인 공간에는 생기지 않는다', async () => {
+    await newEventViaDay('그룹에서 옮길 일정');
+    await closeAll();
+    await moveViaPanel('그룹에서 옮길 일정', D.mvGroup);
+    const fromGroup = (await storedEvents(D.ids, groupId)).some((e) => e.content === '그룹에서 옮길 일정');
+    const toGroup = (await storedEvents(D.mvGroup, groupId)).some((e) => e.content === '그룹에서 옮길 일정');
+    const toPersonal = (await storedEvents(D.mvGroup)).some((e) => e.content === '그룹에서 옮길 일정');
+    assert(!fromGroup && toGroup && !toPersonal, `옛 날(그룹) ${fromGroup} / 새 날(그룹) ${toGroup} / 새 날(개인) ${toPersonal}`);
+  });
+
   await check('칸을 연 채 공간을 개인으로 바꾸고 저장해도, 칸을 연 공간(그룹)에 들어간다', async () => {
     await goDate(D.space);
     await addEventBtn().click();
@@ -983,6 +1036,30 @@ if (ONLY !== 'mobile') {
     assert(s2.length === 2 && !s2.some((e) => e.content === 'id없는 셋'), `지운 뒤: ${s2.map((e) => e.content).join(' / ')}`);
   });
 
+  // ── 일정 날짜 옮기기 (docs/ROADMAP.md 1번) ──
+  await check('옮기기: V3 옛 글만 있는 날에서 한 건을 옮겨도 그날 다른 일정은 남고, 옮겨 간 날에 들어간다', async () => {
+    await ensurePersonal();
+    await goDay(D.mvV3);
+    await moveViaPanel('V3옮기기 옮길 것', D.mvTo);
+    const left = (await storedEvents(D.mvV3)).map((e) => e.content);
+    const there = (await storedEvents(D.mvTo)).map((e) => e.content);
+    assert(left.length === 2 && left.includes('V3옮기기 남을 하나') && left.includes('V3옮기기 남을 둘'), `옛 날: ${left.join(' / ')}`);
+    assert(there.includes('V3옮기기 옮길 것'), `옮겨 간 날: ${there.join(' / ')}`);
+  });
+
+  await check('옮기기: id 없는 V3 일정을 id 없는 일정이 있는 날로 옮겨도 두 벌이 되거나 덮이지 않는다', async () => {
+    await ensurePersonal();
+    await goDay(D.mvIdless);
+    await moveViaPanel('id없이 옮길 것', D.mvTo);
+    const left = (await storedEvents(D.mvIdless)).map((e) => e.content);
+    const there = await storedEvents(D.mvTo);
+    const names = there.map((e) => e.content);
+    const ids = there.map((e) => String(e.id));
+    assert(left.length === 1 && left[0] === 'id없이 남을 것', `옛 날: ${left.join(' / ')}`);
+    assert(names.filter((n) => n === 'id없이 옮길 것').length === 1 && names.includes('그 날의 id 없는 일정'), `옮겨 간 날: ${names.join(' / ')}`);
+    assert(new Set(ids).size === ids.length, `id가 겹침: ${ids.join(', ')}`);
+  });
+
   await check('조사표: V3가 evalList에만 더한 조사표도 보이고, V4에서 새로 만들어도 지워지지 않는다', async () => {
     await goDay(D.evalMix);
     const period1 = page.locator('[data-focus-key^="period"]').first();
@@ -1227,6 +1304,14 @@ if (ONLY !== 'pc') {
     assert(opened > 0, '칸이 안 열림');
     assert(still === 0, '뒤로가기로 칸이 닫히지 않음');
     assert(page.url().startsWith(SITE.replace(/\/$/, '')), '앱을 나감');
+  });
+
+  await check('옮기기: 휴대폰에서도 일정 칸의 날짜로 다른 날에 옮긴다', async () => {
+    await goDate(D.long);
+    await moveViaPanel('휴대폰 새 일정', D.mvPhone);
+    const moved = (await storedEvents(D.mvPhone)).some((e) => e.content === '휴대폰 새 일정');
+    const left = (await storedEvents(D.long)).some((e) => e.content === '휴대폰 새 일정');
+    assert(moved && !left, `새 날 ${moved} / 옛 날 ${left}`);
   });
 
   await check('아래 탭으로 월간에 가서 일정을 누르면 고칠 칸이 열린다', async () => {
