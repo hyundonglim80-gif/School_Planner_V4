@@ -404,6 +404,7 @@ function EventPanel({ target }: { target: EntryPanelTarget }) {
       groupId={target.groupId}
       entryId={target.entryId}
       initial={target.initial}
+      draftText={target.entryId ? undefined : target.draftText}
       onCreated={(id, item) => {
         setEntryPanelId(id, item);
         target.onCreated?.({ id, type: 'event', title: item.content || '', date: dateStr, fId: target.groupId || 'personal' });

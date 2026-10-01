@@ -19,9 +19,11 @@ export default function DDayModal({ isOpen, onClose }: DDayModalProps) {
 
     try {
       setSubmitting(true);
-      await addDDay(title.trim(), date);
-      setTitle('');
-      setDate('');
+      // 저장하지 못했으면 적은 것을 그대로 둔다
+      if (await addDDay(title.trim(), date)) {
+        setTitle('');
+        setDate('');
+      }
     } finally {
       setSubmitting(false);
     }

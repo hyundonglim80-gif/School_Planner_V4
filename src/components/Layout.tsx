@@ -26,6 +26,10 @@ const DetailEditModal = lazyWithReload(() => import('./DetailEditModal'));
 const JournalPeekHost = lazy(() =>
   import('./JournalPeekModal').then((m) => ({ default: m.JournalPeekHost }))
 );
+// 날짜 칸의 학사일정 이름을 눌렀을 때 (나이스 - D-Day로·일정으로 담기)
+const SchoolEventPeekHost = lazyWithReload(() =>
+  import('./SchoolEventModal').then((m) => ({ default: m.SchoolEventPeekHost }))
+);
 const LinkerModal = lazyWithReload(() => import('./LinkerModal'));
 const LinkViewerModal = lazyWithReload(() => import('./LinkViewerModal'));
 const TrashModal = lazyWithReload(() => import('./TrashModal'));
@@ -103,6 +107,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     labelModalTab,
     openLabelModal,
     closeLabelModal,
+    schoolEventPeek,
     // 💡 스크롤 네비게이션 상태 가져오기
   } = useAppStore();
   const { groups, loading: groupsLoading } = useGroups();
@@ -1103,6 +1108,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         <JournalPeekHost />
+
+        {schoolEventPeek && <SchoolEventPeekHost />}
 
         {isStudentRecordOpen && (
           <StudentRecordModal isOpen onClose={() => setIsStudentRecordOpen(false)} />

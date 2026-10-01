@@ -103,9 +103,9 @@ export function useDDay() {
   const mutateDDays = useCallback(
     async (
       mutate: (list: DDayItem[], selected: string | null) => { list: DDayItem[]; selected: string | null }
-    ) => {
+    ): Promise<boolean> => {
       const user = auth.currentUser;
-      if (!user) return;
+      if (!user) return false;
       const prefDocRef = doc(db, 'users', user.uid, 'settings', 'preferences');
       try {
         await runTransaction(db, async (tx) => {
@@ -115,26 +115,30 @@ export function useDDay() {
           const next = mutate(current, data.selectedDDayId ?? null);
           tx.set(prefDocRef, { dDayList: next.list, selectedDDayId: next.selected }, { merge: true });
         });
+        return true;
       } catch (e) {
         showErrorToast('D-Day 저장에 실패했습니다. 네트워크를 확인해 주세요.', e);
+        return false;
       }
     },
     []
   );
 
-  const addDDay = useCallback(async (title: string, date: string) => {
-    if (!title.trim() || !date) return;
+  /** 추가했으면 true. 실패하면 안내만 하고 false (예전에는 실패해도 '추가했습니다'가 떴다) */
+  const addDDay = useCallback(async (title: string, date: string): Promise<boolean> => {
+    if (!title.trim() || !date) return false;
     const newItem: DDayItem = {
       id: 'dday_' + Date.now(),
       title: title.trim(),
       date,
     };
-    await mutateDDays((list, selected) => ({
+    const ok = await mutateDDays((list, selected) => ({
       list: [...list, newItem],
       // 아직 고른 게 없으면 방금 추가한 것을 선택해 둔다 (V3와 같은 동작)
       selected: selected ?? newItem.id,
     }));
-    showToast('✅ D-Day를 추가했습니다.');
+    if (ok) showToast('✅ D-Day를 추가했습니다.');
+    return ok;
   }, [mutateDDays]);
 
   const selectDDay = useCallback(async (id: string | null) => {
@@ -144,13 +148,15 @@ export function useDDay() {
 
   const deleteDDay = useCallback(async (id: string) => {
     let removed: DDayItem | undefined;
-    await mutateDDays((list, selected) => {
+    const ok = await mutateDDays((list, selected) => {
       removed = list.find((d) => d.id === id);
       return {
         list: list.filter((d) => d.id !== id),
         selected: selected === id ? null : selected,
       };
     });
+    // 지우지 못했으면 휴지통에도 넣지 않는다 (넣으면 되살릴 때 두 개가 된다)
+    if (!ok) return;
 
     if (removed) {
       try {

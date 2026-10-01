@@ -13,6 +13,7 @@ import type { ShortcutOverrides } from '../lib/shortcuts';
 import { applyFontScale, DEFAULT_FONT_SCALE, type FontScale } from '../lib/fontScale';
 import type { PopupStyle } from '../lib/preferenceSync';
 import type { FocusTarget } from '../lib/searchFocus';
+import type { NeisScheduleItem } from '../lib/neis';
 
 type Scope = 'day' | 'week' | 'month' | 'year' | 'memo';
 
@@ -30,6 +31,8 @@ export interface EntryPanelTarget {
   entryId?: string;
   /** 고칠 때 넘기는 그 순간의 항목 (구독이 도착하기 전 빈 칸이 보이지 않게) */
   initial?: any;
+  /** 새로 쓸 때 미리 적어 둘 글 (학사일정 '일정으로 담기') */
+  draftText?: string;
   /** 새로 쓸 때 미리 골라 둘 라벨 */
   defaultLabel?: string;
   /** 알림장('write'|'list')·출석부('check'|'summary')를 열 때 처음 보일 탭 */
@@ -227,6 +230,11 @@ interface AppState {
   journalPeek: { dateStr: string; fId?: string | null } | null;
   openJournalPeek: (dateStr: string, fId?: string | null) => void;
   closeJournalPeek: () => void;
+
+  /** 날짜 칸의 학사일정 이름을 눌러 여는 창 (나이스, 'D-Day로'·'일정으로 담기') */
+  schoolEventPeek: { dateStr: string; items: NeisScheduleItem[] } | null;
+  openSchoolEventPeek: (dateStr: string, items: NeisScheduleItem[]) => void;
+  closeSchoolEventPeek: () => void;
 
   /**
    * 다른 곳(달력의 '기록 N건 보기', 링크 보기)에서 기록·메모를 고칠 때. 하루·메모 화면과
@@ -625,6 +633,10 @@ export const useAppStore = create<AppState>()(
       journalPeek: null,
       openJournalPeek: (dateStr, fId) => set({ journalPeek: { dateStr, fId: fId ?? null } }),
       closeJournalPeek: () => set({ journalPeek: null }),
+
+      schoolEventPeek: null,
+      openSchoolEventPeek: (dateStr, items) => set({ schoolEventPeek: { dateStr, items } }),
+      closeSchoolEventPeek: () => set({ schoolEventPeek: null }),
 
       openEntryEditor: (t) =>
         get().openEntryPanel({

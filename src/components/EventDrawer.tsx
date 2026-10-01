@@ -38,6 +38,8 @@ interface EventDrawerProps {
   onCreated?: (id: string, item: EventItem) => void;
   /** 고칠 때 넘기는 그 순간의 일정 (구독이 도착하기 전 빈 칸이 보이지 않게) */
   initial?: EventItem;
+  /** 새 일정 칸에 미리 적어 둘 글 (학사일정 '일정으로 담기'). 저장해야 일정이 된다 */
+  draftText?: string;
   docked: boolean;
   onClose: () => void;
   /** 제목 아래에 적는 한 줄 (예: '9/28(월) 일정 · 개인') */
@@ -79,6 +81,7 @@ export default function EventDrawer({
   entryId,
   onCreated,
   initial,
+  draftText,
   docked,
   onClose,
   subtitle,
@@ -202,6 +205,7 @@ export default function EventDrawer({
       // 새 일정은 통합 라벨 관리의 맨 위 라벨을 미리 골라 두고, 그 라벨의 속성을 따른다.
       // (안 고른 채 저장되면 어느 갈래에도 걸리지 않는다. 마음에 안 들면 눌러서 뗀다.)
       const top = eventLabels[0];
+      t = draftText || '';
       l = top?.name ? [top.name] : [];
       a = top ? attrsOfLabel(top) : { ...NO_ATTRS, calendar: true };
     }

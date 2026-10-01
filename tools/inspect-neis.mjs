@@ -1,6 +1,6 @@
 // tools/inspect-neis.mjs
 //
-// 나이스 급식·학사일정 (docs/ROADMAP.md 4-2·4-3·4-4)을 실제 크롬으로 본다. 나이스 응답은 page.route로 흉내 낸다
+// 나이스 급식·학사일정 (docs/ROADMAP.md 4-2~4-5)을 실제 크롬으로 본다. 나이스 응답은 page.route로 흉내 낸다
 // (실제 서버를 두드리지 않는다). 키 없이 부르면 5건만 주는 것까지 흉내 내서 나눠 받기도 함께 본다.
 // - 학교를 고르기 전에는 급식이 없다
 // - 환경설정 '우리 학교'에서 이름으로 찾아 고르면 계정에 저장되고, 하루 화면 수업 칸 아래에 그날 급식(알레르기 번호)
@@ -8,14 +8,17 @@
 // - 알림장 '🍚 급식'이 다음 수업일 급식 한 줄을 더한다
 // - 학사일정이 하루(수업 칸 아래)·주간·월간·년간 날짜 옆에 보이고, 공휴일·토요휴업일은 빠진다
 // - 학사일정 학년을 고르면 다른 학년 행사가 빠진다
+// - 학사일정 이름을 누르면 창이 열리고(하루 화면으로 넘어가지 않는다) 'D-Day로'는 곧바로 D-Day 목록에,
+//   '일정으로 담기'는 이름을 적어 둔 새 일정 칸을 연다 (저장하지 않으면 일정이 생기지 않는다) - 4-5
+// - 시간표 설정 '학사일정으로 채우기'가 방학식 다음 날 ~ 개학식 전날로 방학 칸을 채운다 (저장은 따로) - 4-5
 // - '지우기'를 누르면 급식·학사일정이 사라진다
-// 끝나면 우리 학교를 지운다.
+// 끝나면 우리 학교를 지우고 D-Day 목록을 되돌린다.
 //
 //   npm run emu / node tools/serve-both.mjs / VITE_USE_EMULATOR=1 npm run build
 //   node tools/inspect-neis.mjs
 import { chromium } from 'playwright';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, connectFirestoreEmulator, doc, getDocFromServer, setDoc } from 'firebase/firestore';
+import { getFirestore, connectFirestoreEmulator, doc, getDocFromServer, setDoc, updateDoc } from 'firebase/firestore';
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'firebase/auth';
 
 const V4 = `${process.env.SITE || 'http://localhost:4190'}/School_Planner_V4/`;
@@ -27,6 +30,10 @@ connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
 const { user } = await signInWithEmailAndPassword(auth, 'teacher@example.com', 'test1234');
 const ref = doc(db, 'users', user.uid, 'settings', 'v4_school');
 const saved = async () => (await getDocFromServer(ref)).data() || {};
+const prefRef = doc(db, 'users', user.uid, 'settings', 'preferences');
+const prefs = async () => (await getDocFromServer(prefRef)).data() || {};
+const ttRef = doc(db, 'users', user.uid, 'settings', 'timetable_v5');
+const semesterSaved = async () => JSON.stringify((await getDocFromServer(ttRef)).data()?.semesterConfig || null);
 /** 계정 저장이 서버에 닿을 때까지 몇 초 기다린다 (에뮬레이터가 바쁘면 1초를 넘긴다) */
 async function savedWhen(ok, ms = 6000) {
   const end = Date.now() + ms;
@@ -64,7 +71,14 @@ const TODAY = new Date();
 const ALL = { ONE_GRADE_EVENT_YN: 'Y', TW_GRADE_EVENT_YN: 'Y', THREE_GRADE_EVENT_YN: 'Y', FR_GRADE_EVENT_YN: 'Y', FIV_GRADE_EVENT_YN: 'Y', SIX_GRADE_EVENT_YN: 'Y' };
 const ONLY6 = { ...ALL, ONE_GRADE_EVENT_YN: 'N', TW_GRADE_EVENT_YN: 'N', THREE_GRADE_EVENT_YN: 'N', FR_GRADE_EVENT_YN: 'N', FIV_GRADE_EVENT_YN: 'N' };
 const SAT = addDays(TODAY, (6 - TODAY.getDay() + 7) % 7 || 7);
+// 방학 (4-5): 올해 학년도(3월~이듬해 2월) 여름방학식 7/24·개학식 8/17, 겨울방학식 12/31·개학식 이듬해 2/3
+const SY = TODAY.getMonth() + 1 >= 3 ? TODAY.getFullYear() : TODAY.getFullYear() - 1;
 const SCHEDULE = [
+  { AA_YMD: `${SY}0724`, EVENT_NM: '여름방학식', EVENT_CNTNT: '', SBTR_DD_SC_NM: '해당없음', ...ALL },
+  { AA_YMD: `${SY}0727`, EVENT_NM: '여름방학', EVENT_CNTNT: '', SBTR_DD_SC_NM: '휴업일', ...ALL },
+  { AA_YMD: `${SY}0817`, EVENT_NM: '2학기 개학식', EVENT_CNTNT: '', SBTR_DD_SC_NM: '해당없음', ...ALL },
+  { AA_YMD: `${SY}1231`, EVENT_NM: '겨울방학식', EVENT_CNTNT: '', SBTR_DD_SC_NM: '해당없음', ...ALL },
+  { AA_YMD: `${SY + 1}0203`, EVENT_NM: '개학식', EVENT_CNTNT: '', SBTR_DD_SC_NM: '해당없음', ...ALL },
   { AA_YMD: ymd(TODAY), EVENT_NM: '2학기 중간고사', EVENT_CNTNT: '1~3교시', SBTR_DD_SC_NM: '해당없음', ...ALL },
   { AA_YMD: ymd(addDays(TODAY, 1)), EVENT_NM: '6학년 현장체험', EVENT_CNTNT: '', SBTR_DD_SC_NM: '해당없음', ...ONLY6 },
   { AA_YMD: ymd(addDays(TODAY, 2)), EVENT_NM: '점검공휴일', EVENT_CNTNT: '', SBTR_DD_SC_NM: '공휴일', ...ALL },
@@ -95,6 +109,7 @@ async function fakeNeis(route) {
 }
 
 await setDoc(ref, { updatedAt: Date.now() }); // 학교를 고르지 않은 상태로
+const prefsBefore = await prefs(); // 'D-Day로'가 더한 것을 끝나고 되돌린다
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
 await ctx.route('https://open.neis.go.kr/**', fakeNeis);
@@ -168,7 +183,7 @@ try {
   const dayEvents = page.locator('[data-day-school-events]');
   await dayEvents.waitFor({ timeout: 10000 }).catch(() => {});
   check('하루 화면 수업 칸 아래 📚 학사 줄', (await dayEvents.count()) === 1 && /2학기 중간고사/.test(await dayEvents.innerText()));
-  check('마우스를 올리면 내용까지', /1~3교시/.test((await dayEvents.getAttribute('title')) || ''));
+  check('마우스를 올리면 내용까지', /1~3교시/.test((await dayEvents.locator('button').getAttribute('title')) || ''));
   const named = (text) => page.locator('[data-school-event]', { hasText: text });
   await page.keyboard.press('Shift+Digit2');
   await page.waitForTimeout(2500);
@@ -200,6 +215,39 @@ try {
   await page.waitForTimeout(2500);
   check('월간: 날짜 칸에 학사일정', (await named('2학기 중간고사').count()) >= 1);
   await page.screenshot({ path: 'tools/report/neis-month.png' });
+
+  // ── 4-5 학사일정 창: D-Day로 · 일정으로 담기 ─────────────────
+  const todayStr = `${TODAY.getFullYear()}-${p2(TODAY.getMonth() + 1)}-${p2(TODAY.getDate())}`;
+  const peek = page.locator('[data-school-event-modal]');
+  await named('2학기 중간고사').first().click();
+  await peek.waitFor({ timeout: 10000 }).catch(() => {});
+  check('월간: 학사일정 이름을 누르면 학사일정 창 (내용까지)', (await peek.count()) === 1 && /2학기 중간고사/.test(await peek.innerText()) && /1~3교시/.test(await peek.innerText()));
+  check('누른 날로 하루 화면으로 넘어가지 않는다', (await page.locator('[data-day-school-events]').count()) === 0 && (await named('2학기 중간고사').count()) >= 1);
+  await page.screenshot({ path: 'tools/report/neis-peek.png' });
+  const ddayBtn = peek.locator('[data-school-event-dday]').first();
+  check("'D-Day로' 단추에 오늘 기준 D-Day", /D-Day로 \(D-Day\)/.test(await ddayBtn.innerText()), await ddayBtn.innerText());
+  await ddayBtn.click();
+  const end = Date.now() + 6000;
+  let list = [];
+  while (Date.now() < end) {
+    list = (await prefs()).dDayList || [];
+    if (list.some((d) => d.title === '2학기 중간고사' && d.date === todayStr)) break;
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  check("'D-Day로'는 곧바로 D-Day 목록(계정)에 더한다", list.some((d) => d.title === '2학기 중간고사' && d.date === todayStr), `${list.length}개`);
+  await page.waitForTimeout(800);
+  check("이미 있으면 'D-Day에 있음'으로 막힌다 (두 번 더하지 않는다)", /D-Day에 있음/.test(await ddayBtn.innerText()) && (await ddayBtn.isDisabled()));
+  await peek.locator('[data-school-event-to-event]').first().click();
+  const evPanel = page.getByRole('complementary', { name: '일정 쓰기' });
+  await evPanel.waitFor({ timeout: 10000 }).catch(() => {});
+  const evBox = evPanel.getByPlaceholder('새로운 일정을 입력하세요...');
+  check("'일정으로 담기'는 이름을 적어 둔 새 일정 칸을 그날로 연다 (창은 닫힌다)",
+    (await evPanel.count()) === 1 && (await evBox.inputValue()) === '2학기 중간고사' && (await evPanel.getByLabel('일정 날짜').inputValue()) === todayStr && (await peek.count()) === 0);
+  await page.screenshot({ path: 'tools/report/neis-to-event.png' });
+  await page.keyboard.press('Escape'); // 저장하지 않고 닫는다
+  await page.waitForTimeout(800);
+  const evDoc = (await getDocFromServer(doc(db, 'users', user.uid, 'events', todayStr))).data() || {};
+  check('저장하지 않으면 일정이 생기지 않는다', !(evDoc.eventList || []).some((e) => e.content === '2학기 중간고사') && (await evPanel.count()) === 0);
   await page.keyboard.press('Shift+Digit4');
   await page.waitForTimeout(3000);
   check('년간: 날짜 옆에 학사일정', (await named('2학기 중간고사').count()) >= 1);
@@ -207,6 +255,33 @@ try {
   check('학사일정도 키 없이', schedCalls.length > 0 && schedCalls.every((u) => !u.searchParams.has('KEY')), `${schedCalls.length}번`);
   await page.keyboard.press('Shift+Digit1');
   await page.waitForTimeout(1500);
+
+  // ── 4-5 하루 화면 📚 학사 줄도 누르면 창 ─────────────────────
+  await page.locator('[data-day-school-events] button').click();
+  await peek.waitFor({ timeout: 10000 }).catch(() => {});
+  check('하루 화면 📚 학사 줄을 눌러도 학사일정 창', (await peek.count()) === 1);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(600);
+
+  // ── 4-5 방학 기간을 학사일정으로 채우기 ──────────────────────
+  const semBefore = await semesterSaved();
+  await page.getByTitle('더보기 메뉴').click();
+  await page.getByRole('button', { name: /시간표 적용/ }).click();
+  await page.getByRole('button', { name: /템플릿 클라우드 저장|불러오는 중/ }).waitFor({ timeout: 20000 });
+  await page.waitForTimeout(1500);
+  const fill = page.locator('[data-fill-vacations]');
+  await fill.scrollIntoViewIfNeeded();
+  await fill.click();
+  const note = page.locator('[data-vacation-note]');
+  await note.waitFor({ timeout: 20000 }).catch(() => {});
+  const noteText = (await note.count()) ? await note.innerText() : '';
+  check("'학사일정으로 채우기': 방학식 다음 날 ~ 개학식 전날", /여름 7\/25~8\/16 · 겨울 1\/1~2\/2/.test(noteText), noteText);
+  const dates = await page.locator('input[type=date]').evaluateAll((els) => els.map((e) => e.value));
+  check('방학 칸 네 개가 채워진다', [`${SY}-07-25`, `${SY}-08-16`, `${SY + 1}-01-01`, `${SY + 1}-02-02`].every((d) => dates.includes(d)), dates.slice(0, 4).join(','));
+  await page.screenshot({ path: 'tools/report/neis-vacation.png' });
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(800);
+  check("채우기만으로는 저장되지 않는다 ('방학 기간 저장'을 따로)", (await semesterSaved()) === semBefore);
 
   // ── 지우기 ─────────────────────────────────────────────────
   await page.getByTitle('더보기 메뉴').click();
@@ -221,6 +296,7 @@ try {
 } finally {
   await browser.close();
   await setDoc(ref, { updatedAt: Date.now() });
+  await updateDoc(prefRef, { dDayList: prefsBefore.dDayList || [], selectedDDayId: prefsBefore.selectedDDayId ?? null }).catch(() => {});
 }
 
 const failed = results.filter((r) => !r).length;

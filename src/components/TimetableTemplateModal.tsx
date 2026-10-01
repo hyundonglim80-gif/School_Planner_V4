@@ -10,6 +10,9 @@ import {
 import { formatDate } from '../lib/dateUtils';
 import PopupFrame from './PopupFrame';
 import PeriodTimesEditor from './PeriodTimesEditor';
+import { useSchool } from '../hooks/useSchool';
+import { loadMonthSchedule } from '../lib/neis';
+import { filterScheduleByGrade, findVacations, schoolYearOf, vacationMonths } from '../lib/schoolSetting';
 import {
   nextCell,
   parseClipboardGrid,
@@ -63,6 +66,12 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);
 
+  // 방학 기간을 학사일정(나이스)으로 채우기 - 환경설정 '우리 학교'를 골랐을 때만 (docs/ROADMAP.md 4-5)
+  const { school } = useSchool();
+  const [fillingVacation, setFillingVacation] = useState(false);
+  /** 채운 결과 한 줄 (안내는 사라지므로 칸 아래에 남긴다) */
+  const [vacationNote, setVacationNote] = useState('');
+
   // 💡 입력칸을 클라우드 값으로 채우는 것은 "한 번 열 때 한 번"만 한다.
   // 예전에는 templates/semesterConfig가 바뀔 때마다 이 효과가 다시 돌았다. 구독이
   // 스냅샷을 한 번 더 주는 것만으로도 입력 중이던 시간표와 방학 날짜가 클라우드 값으로
@@ -72,6 +81,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   useEffect(() => {
     if (!isOpen) {
       setHydrated(false);
+      setVacationNote('');
       return;
     }
     // 아직 클라우드에서 못 읽었으면 기다린다. 기본값으로 채워두면 저장할 때
@@ -284,6 +294,43 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
     setSemesterConfig(newConf);
     await syncToCloud(editingTemplates, newConf);
     showToast('✅ 방학 기간이 저장되었습니다.');
+  };
+
+  // 올해 학년도(3월~이듬해 2월) 학사일정에서 방학식·개학식을 찾아 칸을 채운다. 저장은 '방학 기간 저장'으로.
+  const vacationYear = schoolYearOf(formatDate(new Date()));
+  const handleFillVacations = async () => {
+    if (!school || fillingVacation) return;
+    setFillingVacation(true);
+    try {
+      const lists = await Promise.all(vacationMonths(vacationYear).map((m) => loadMonthSchedule(school, m)));
+      const { summer, winter } = findVacations(filterScheduleByGrade(lists.flat(), school.grade), vacationYear);
+      const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+      if (summer) {
+        setSummerStart(summer.start);
+        setSummerEnd(summer.end);
+      }
+      if (winter) {
+        setWinterStart(winter.start);
+        setWinterEnd(winter.end);
+      }
+      if (!summer && !winter) {
+        setVacationNote(`${vacationYear}학년도 학사일정에서 방학식·개학식을 찾지 못했습니다. 방학 기간을 직접 적어 주세요.`);
+        return;
+      }
+      const found = [summer && `여름 ${md(summer.start)}~${md(summer.end)}`, winter && `겨울 ${md(winter.start)}~${md(winter.end)}`]
+        .filter(Boolean)
+        .join(' · ');
+      const missing = [!summer && '여름', !winter && '겨울'].filter(Boolean).join('·');
+      setVacationNote(
+        `📚 ${vacationYear}학년도 학사일정으로 채웠습니다: ${found}.` +
+          (missing ? ` ${missing} 방학은 찾지 못해 그대로 두었습니다.` : '') +
+          " 맞으면 '방학 기간 저장'을 누르세요."
+      );
+    } catch (e) {
+      showErrorToast('학사일정을 불러오지 못했습니다. 잠시 뒤 다시 눌러 보세요.', e);
+    } finally {
+      setFillingVacation(false);
+    }
   };
 
   // 입력한 방학 기간으로 계산한 학기 (화면 표시 및 빠른 채우기에 사용)
@@ -505,8 +552,21 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
 
           {/* 2. 학사일정(학기 기간) 설정 */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-extrabold text-slate-800">📅 학사일정(학기) 기간 설정</span>
+              <div className="flex items-center gap-1.5">
+              {school && (
+                <button
+                  type="button"
+                  data-fill-vacations
+                  onClick={handleFillVacations}
+                  disabled={fillingVacation}
+                  title={`${school.name} ${vacationYear}학년도 학사일정의 방학식·개학식으로 방학 기간을 채웁니다 (저장은 따로)`}
+                  className="px-3 py-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 disabled:opacity-50 text-teal-700 text-xs font-bold rounded-lg transition-colors"
+                >
+                  {fillingVacation ? '불러오는 중…' : '📚 학사일정으로 채우기'}
+                </button>
+              )}
               <button
                 onClick={handleSaveSemesterDates}
                 disabled={!canSave}
@@ -515,7 +575,13 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
               >
                 방학 기간 저장
               </button>
+              </div>
             </div>
+            {vacationNote && (
+              <p data-vacation-note className="text-xs text-teal-700 leading-relaxed">
+                {vacationNote}
+              </p>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
               <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-1.5">
                 <span className="font-bold text-orange-700">☀️ 여름 방학 기간</span>

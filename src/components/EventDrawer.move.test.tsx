@@ -46,7 +46,7 @@ beforeEach(() => {
   };
 });
 
-function openPanel(target: { entryId?: string; initial?: EventItem }) {
+function openPanel(target: { entryId?: string; initial?: EventItem; draftText?: string }) {
   render(<EntryPanelHost />);
   act(() => useAppStore.getState().openEntryPanel({ kind: 'event', groupId: null, dateStr: '2026-10-01', ...target }));
   return screen.getByRole('complementary', { name: '일정 쓰기' });
@@ -196,5 +196,19 @@ describe('기간·반복 묶음 옮기기 - 어디까지 옮길지 묻는다', (
     expect(moveEventToDate).not.toHaveBeenCalled();
     expect(panelDate()).toBe('2026-10-01');
     expect(dateInput(p).value).toBe('2026-10-02');
+  });
+});
+
+describe('학사일정 일정으로 담기 (4-5)', () => {
+  it('새 일정 칸에 이름이 적힌 채 열리고, 저장해야 일정이 된다', async () => {
+    const p = openPanel({ draftText: '2학기 중간고사' });
+    const box = within(p).getByPlaceholderText('새로운 일정을 입력하세요...') as HTMLTextAreaElement;
+    expect(box.value).toBe('2학기 중간고사');
+    expect(hook.addEventItem).not.toHaveBeenCalled();
+
+    fireEvent.click(within(p).getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(hook.addEventItem).toHaveBeenCalledWith('2학기 중간고사', expect.anything()));
+    // 저장하면 그 일정의 수정 칸이 된다
+    await waitFor(() => expect(useAppStore.getState().entryPanels[0]?.entryId).toBe('ev_new'));
   });
 });
