@@ -18,7 +18,7 @@
 
 ## 지금 하는 일
 
-**1. 일정 날짜 옮기기** — 단계 1-4부터 (1-3 끝: 묶음은 범위 창에서 고른다. 끌어 놓기는 `useEventMove().requestMove`를 부르면 된다)
+**1. 일정 날짜 옮기기** — 단계 1-5부터 (1-4 끝: 끌어 놓기가 된다. 다중 선택도 `useEventMove`·`moveMessage`·`retargetEventPanels`를 쓰면 된다)
 
 ## 전체 순서
 
@@ -71,7 +71,8 @@
         — 끝. 점검 `node tools/inspect-event-move.mjs`(13항목). 묶인 일정은 아직 '그 날 것만' 옮긴다(설명서에도 그렇게 적음)
   - [x] 1-3 묶인 일정: 옮길 때 '이 날만 / 이 날과 이후 모두 / 전체'를 고르고 같은 날 수만큼(옮길 날짜 미리보기). 설명서 + 크롬 확인
         — 끝. `hooks/useEventMove`(1-4·1-5도 이것을 부른다) + `GroupMoveModal` + `eventDocOps.moveGroupEvents`. 점검 20항목
-  - [ ] 1-4 주간·월간·년간에서 끌어 놓기(PC 마우스, 휴대폰은 날짜 칸으로). 설명서 + 크롬 확인
+  - [x] 1-4 주간·월간·년간에서 끌어 놓기(PC 마우스, 휴대폰은 날짜 칸으로). 설명서 + 크롬 확인
+        — 끝. `hooks/useEventDrag`(놓기 처리는 늘 같은 함수 - 년간 달 카드 memo 유지), 날짜 칸에 `data-date`, 고치던 칸은 따라감(`retargetEventPanels`). 점검 23항목
   - [ ] 1-5 다중 선택 막대에 '옮기기'(날짜 고르기). 설명서 + 크롬 확인
   - [ ] 1-6 `tools/inspect-scenarios.mjs`에 옮기기 조건(개인/그룹, V3 글만 있는 날, id 없는 항목, 링크 달린 일정, 알림 달린 일정)
 

@@ -19,6 +19,7 @@ import { BODY_TEXT, SECTION_TITLE, fitToWidthFontSize } from '../../lib/typeScal
 import EventItemActions from '../../components/EventItemActions';
 import JournalCountBadge from '../../components/JournalCountBadge';
 import EvalCountBadge from '../../components/EvalCountBadge';
+import { dropTargetProps, eventDragSourceProps, DROP_TARGET_CLASS, type DropHandlers } from '../../hooks/useEventDrag';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -59,6 +60,12 @@ export interface YearMonthCardProps {
   onOpenDetail: (type: 'schedule' | 'event', dateStr: string, itemId: string | number, initialData: any) => void;
   onToggleSelection: (eventId: string, dateStr: string) => void;
   onOpenLinkViewer: (type: 'event', dateStr: string, eventId: string) => void;
+  /** 일정 끌어 놓기 (늘 같은 함수). 년간은 일정·수업이 있는 날만 그리므로 그 날들에만 놓을 수 있다. */
+  dropHandlers: DropHandlers;
+  dragEnabled: boolean;
+  onDragEnd: () => void;
+  /** 끌고 있는 일정이 올라와 있는 날짜 (이 달 것일 때만) */
+  overDate: string | null;
 }
 
 function YearMonthCard({
@@ -90,6 +97,10 @@ function YearMonthCard({
   onOpenDetail,
   onToggleSelection,
   onOpenLinkViewer,
+  dropHandlers,
+  dragEnabled,
+  onDragEnd,
+  overDate,
 }: YearMonthCardProps) {
   const monthKey = `${mInfo.year}-${mInfo.month}`;
 
@@ -182,7 +193,9 @@ function YearMonthCard({
                 <div
                   key={dObj.dateStr}
                   data-today={isTodayEvent ? 'true' : undefined}
-                  className={`flex flex-col gap-1.5 p-2 -mx-2 rounded-xl border-b border-dashed border-slate-200 last:border-0 ${DAY_CELL_BG[tone]} ${isTodayEvent ? 'ring-1 ring-primary/40 border-solid' : ''}`}
+                  data-date={dObj.dateStr}
+                  {...dropTargetProps(dropHandlers, dObj.dateStr)}
+                  className={`flex flex-col gap-1.5 p-2 -mx-2 rounded-xl border-b border-dashed border-slate-200 last:border-0 ${DAY_CELL_BG[tone]} ${isTodayEvent ? 'ring-1 ring-primary/40 border-solid' : ''} ${overDate === dObj.dateStr ? DROP_TARGET_CLASS : ''}`}
                 >
                   {/* 자리가 모자라면 표식이 아랫줄로 내려간다 */}
                   <div className="flex flex-wrap items-center justify-between gap-x-1 gap-y-0.5 min-w-0">
@@ -284,6 +297,7 @@ function YearMonthCard({
                           return (
                             <div
                               key={ev.id}
+                              {...eventDragSourceProps(dObj.dateStr, ev, dragEnabled, onDragEnd)}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (isMultiSelectMode) {
@@ -299,7 +313,7 @@ function YearMonthCard({
                                   ? 'bg-slate-50 border-slate-100 text-slate-400'
                                   : 'bg-white border-slate-200 text-slate-700 font-medium'
                               }`}
-                              title="클릭하여 상세 보기"
+                              title={dragEnabled ? '누르면 고치기 · 끌어서 다른 날로 옮기기' : '클릭하여 상세 보기'}
                             >
                               {/* 💡 체크박스 삭제 및 인라인 정렬 지원 */}
                               {isMultiSelectMode && (

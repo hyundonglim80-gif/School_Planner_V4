@@ -268,6 +268,11 @@ interface AppState {
    * 옮기며 id가 바뀌었으면(새 날짜에 같은 id가 있었을 때) id도 함께. 칸은 다시 그리지 않아 적던 것이 남는다.
    */
   setEntryPanelDate: (dateStr: string, key: number | undefined, id?: string, initial?: any) => void;
+  /**
+   * 칸 밖(끌어 놓기·다중 선택)에서 일정을 옮겼을 때, 그 일정을 고치던 칸이 열려 있으면 새 날짜로 따라가게 한다.
+   * 안 그러면 칸이 옛 날짜에서 그 일정을 찾지 못해 '불러오는 중'에 머문다.
+   */
+  retargetEventPanels: (groupId: string | null, fromDate: string, id: string, toDate: string, newId: string) => void;
   /** key(openedAt)의 칸을 닫는다. 주지 않으면 맨 위 칸. */
   closeEntryPanel: (key?: number) => void;
   /** 이 항목을 고치고 있던 칸을 모두 닫는다 (항목을 지웠을 때) */
@@ -640,6 +645,23 @@ export const useAppStore = create<AppState>()(
               : p
           );
           return { entryPanels: panels, entryPanel: panels[panels.length - 1] || null };
+        }),
+      retargetEventPanels: (groupId, fromDate, id, toDate, newId) =>
+        set((st) => {
+          let changed = false;
+          const panels = st.entryPanels.map((p) => {
+            if (
+              p.kind !== 'event' ||
+              String(p.entryId ?? '') !== String(id) ||
+              (p.dateStr || '') !== fromDate ||
+              (p.groupId || null) !== (groupId || null)
+            ) {
+              return p;
+            }
+            changed = true;
+            return { ...p, dateStr: toDate, entryId: newId };
+          });
+          return changed ? { entryPanels: panels, entryPanel: panels[panels.length - 1] || null } : {};
         }),
       closeEntryPanel: (key) =>
         set((st) => {

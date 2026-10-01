@@ -39,9 +39,14 @@ const newDay = plus(5);
 const MOVE = '옮길 회의 ' + Date.now().toString(36);
 const STAY = '남을 일정';
 const NEW = '새 일정 날짜 바꾸기 ' + Date.now().toString(36);
+const DRAG = '끌어 옮길 일정 ' + Date.now().toString(36);
 const JR = 'jr_move_probe';
 const WEEKLY = '매주 협의회 ' + Date.now().toString(36);
 const wk = [-7, 0, 7, 14].map((n) => plus(n)); // 지난주·이번 주·다음 주·다다음 주
+// 실행마다 새 묶음 - 앞선 실행이 옮겨 둔 것이 같은 묶음으로 잡히지 않게
+const RUN = Date.now().toString(36);
+const GRP = 'grp_probe_' + RUN;
+const WK_ID = (i) => `ev_wk_${i}_${RUN}`;
 
 const results = [];
 const check = (name, ok, detail = '') => {
@@ -54,6 +59,7 @@ async function seed() {
   await setDoc(evRef, {
     eventList: [
       { id: 'ev_stay', content: STAY, completed: false, calendar: true },
+      { id: 'ev_drag', content: DRAG, completed: false, calendar: true },
       {
         id: 'ev_move',
         content: MOVE,
@@ -63,7 +69,7 @@ async function seed() {
         linkedItems: [{ targetType: 'journal', targetId: JR, targetDate: today, targetFId: 'personal', title: '[기록] 회의 준비' }],
       },
     ],
-    eventText: `${STAY}\n${MOVE}`,
+    eventText: `${STAY}\n${DRAG}\n${MOVE}`,
     updatedAt: Date.now(),
   });
   // 옮길 날짜에 원래 있던 일정 (덮이면 안 된다)
@@ -77,7 +83,7 @@ async function seed() {
     const ref = doc(db, 'users', uid, 'events', d);
     const snap = await getDocFromServer(ref);
     const list = (snap.data()?.eventList || []).filter((e) => !String(e.content || '').startsWith('매주 협의회'));
-    list.push({ id: 'ev_wk_' + i, content: WEEKLY, completed: false, recur: true, calendar: true, groupId: 'grp_probe' });
+    list.push({ id: WK_ID(i), content: WEEKLY, completed: false, recur: true, calendar: true, groupId: GRP });
     await setDoc(ref, { eventList: list, eventText: list.map((e) => e.content).join('\n'), updatedAt: Date.now() });
   }
   await setDoc(doc(db, 'users', uid, 'journals', today), {
@@ -171,11 +177,34 @@ const run = async () => {
   await page.getByText(/연결된 일정 3건을 1일 뒤로 옮겼습니다/).first().waitFor({ timeout: 20000 });
   check('이후 3건을 하루 뒤로 옮겼다는 안내', true);
   const has = async (d, id) => (await listOf(d)).list.some((e) => e.id === id);
-  check('지난주 것은 그대로', await has(wk[0], 'ev_wk_0'));
-  check('오늘·다음 주·다다음 주 것은 하루 뒤로', (await has(plus(1), 'ev_wk_1')) && (await has(plus(8), 'ev_wk_2')) && (await has(plus(15), 'ev_wk_3')));
-  check('옛 날짜에서는 빠졌다', !(await has(wk[1], 'ev_wk_1')) && !(await has(wk[2], 'ev_wk_2')) && !(await has(wk[3], 'ev_wk_3')));
-  const g = (await listOf(plus(8))).list.find((e) => e.id === 'ev_wk_2');
-  check('묶음 표시(groupId)는 그대로', g?.groupId === 'grp_probe');
+  check('지난주 것은 그대로', await has(wk[0], WK_ID(0)));
+  check('오늘·다음 주·다다음 주 것은 하루 뒤로', (await has(plus(1), WK_ID(1))) && (await has(plus(8), WK_ID(2))) && (await has(plus(15), WK_ID(3))));
+  check('옛 날짜에서는 빠졌다', !(await has(wk[1], WK_ID(1))) && !(await has(wk[2], WK_ID(2))) && !(await has(wk[3], WK_ID(3))));
+  const g = (await listOf(plus(8))).list.find((e) => e.id === WK_ID(2));
+  check('묶음 표시(groupId)는 그대로', g?.groupId === GRP);
+
+  // ── 4. 주간에서 끌어 다음 날 카드에 놓기 ──
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: '주간', exact: true }).first().click();
+  const dragItem = page.locator(`[data-date="${today}"]`).getByText(DRAG).first();
+  await dragItem.waitFor({ timeout: 15000 });
+  check('주간: 일정에 끌기가 켜져 있다', (await page.locator(`[data-date="${today}"] [draggable="true"]`).count()) > 0);
+  await dragItem.dragTo(page.locator(`[data-date="${plus(1)}"]`));
+  await page.getByText(/일정을 .*로 옮겼습니다/).first().waitFor({ timeout: 15000 });
+  await page.waitForTimeout(800);
+  check(
+    '주간: 끌어 놓은 날로 옮겨졌다',
+    (await listOf(plus(1))).list.some((e) => e.id === 'ev_drag') && !(await listOf(today)).list.some((e) => e.id === 'ev_drag')
+  );
+  await page.screenshot({ path: 'tools/report/event-move-week-drag.png' });
+
+  // ── 5. 월간에서 한 번 더 (다음 날 → 이틀 뒤) ──
+  await page.getByRole('button', { name: '월간', exact: true }).first().click();
+  const monthItem = page.locator(`[data-date="${plus(1)}"]`).getByText(DRAG).first();
+  await monthItem.waitFor({ timeout: 15000 });
+  await monthItem.dragTo(page.locator(`[data-date="${plus(2)}"]`));
+  await page.waitForTimeout(2500);
+  check('월간: 끌어 놓은 날로 옮겨졌다', (await listOf(plus(2))).list.some((e) => e.id === 'ev_drag'));
 
   if (logs.length) {
     console.log('\n── 콘솔 ──');

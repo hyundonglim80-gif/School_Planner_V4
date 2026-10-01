@@ -24,6 +24,7 @@ import { lazyWithReload } from '../../lib/lazyWithReload';
 import EventItemActions from '../../components/EventItemActions';
 import { useGroupDelete } from '../../hooks/useGroupDelete';
 import { openEntryPanel } from '../../components/EntryPanelHost';
+import { useEventDropMove, eventDragSourceProps, DROP_TARGET_CLASS } from '../../hooks/useEventDrag';
 import { useState } from 'react';
 
 // Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
@@ -126,6 +127,8 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
     fId: selectedGroupId,
     deleteOne: onDeleteEvent,
   });
+  // 일정을 끌어 다른 날짜 칸에 놓으면 그 날로 옮긴다 (마우스 화면에서만)
+  const drop = useEventDropMove();
 
   return (
     <>
@@ -159,9 +162,11 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
               key={dayObj.dateStr}
               data-today={dayObj.isToday ? 'true' : undefined}
               onClick={() => onSelectDate(dayObj.dateStr)}
+              data-date={dayObj.dateStr}
+              {...drop.targetProps(dayObj.dateStr)}
               className={`${compact ? 'min-h-[64px] p-1' : 'min-h-[74px] p-2'} flex flex-col justify-between transition-all cursor-pointer group hover:brightness-98 min-w-0 overflow-hidden ${
                 !dayObj.isCurrentMonth ? 'bg-slate-50/40 opacity-40' : DAY_CELL_BG[tone]
-              } ${dayObj.isToday ? 'ring-2 ring-inset ring-primary/40' : ''}`}
+              } ${dayObj.isToday ? 'ring-2 ring-inset ring-primary/40' : ''} ${drop.overDate === dayObj.dateStr ? DROP_TARGET_CLASS : ''}`}
             >
               <div>
                 {/* 자리가 모자라면 표식이 아랫줄로 내려간다. 날짜와 공휴일
@@ -348,6 +353,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                     return (
                       <div
                         key={ev.id}
+                        {...eventDragSourceProps(dayObj.dateStr, ev, drop.dragEnabled, drop.clearOver)}
                         onClick={(e) => {
                           e.stopPropagation();
                           if (isMultiSelectMode) {
@@ -379,7 +385,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                             ? 'bg-slate-100 text-slate-400'
                             : 'bg-blue-50 text-blue-800 border border-blue-100'
                         }`}
-                        title="클릭하여 상세 보기"
+                        title={drop.dragEnabled ? '누르면 고치기 · 끌어서 다른 날로 옮기기' : '클릭하여 상세 보기'}
                       >
                         {isMultiSelectMode && (
                           <input
@@ -466,6 +472,7 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
     )}
 
     {groupDeleteModal}
+    {drop.groupMoveModal}
     </>
   );
 }

@@ -18,6 +18,7 @@ import { lazyWithReload } from '../../lib/lazyWithReload';
 import { openEntryPanel } from '../../components/EntryPanelHost';
 import { useGroupDelete } from '../../hooks/useGroupDelete';
 import YearMonthCard from './YearMonthCard';
+import { useEventDropMove } from '../../hooks/useEventDrag';
 
 // Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
 // 편집기가 첫 화면 묶음에 함께 실려 온다. 그래서 여기서도 필요할 때 불러온다.
@@ -271,6 +272,8 @@ export default function YearScreen() {
     fId: selectedGroupId,
     deleteOne: handleDeleteEvent,
   });
+  // 일정을 끌어 다른 날에 놓으면 그 날로 옮긴다 (마우스 화면에서만). 처리 함수는 늘 같아 달 카드 memo가 살아 있다.
+  const drop = useEventDropMove();
 
   return (
     <div className="animate-fade-in pb-12">
@@ -325,6 +328,11 @@ export default function YearScreen() {
                 onOpenDetail={handleOpenDetail}
                 onToggleSelection={toggleEventSelection}
                 onOpenLinkViewer={openLinkViewerModal}
+                dropHandlers={drop.handlers}
+                dragEnabled={drop.dragEnabled}
+                onDragEnd={drop.clearOver}
+                // 짚은 날짜는 그 달 카드에만 넘긴다 (다른 달은 다시 그리지 않는다)
+                overDate={drop.overDate && drop.overDate.startsWith(`${mInfo.year}-${String(mInfo.month).padStart(2, '0')}-`) ? drop.overDate : null}
               />
             );
           })}
@@ -345,6 +353,7 @@ export default function YearScreen() {
       )}
       
       {groupDeleteModal}
+      {drop.groupMoveModal}
 
     </div>
   );

@@ -16,6 +16,7 @@ import { lazyWithReload } from '../../lib/lazyWithReload';
 import EventItemActions from '../../components/EventItemActions';
 import { useGroupDelete } from '../../hooks/useGroupDelete';
 import { openEntryPanel } from '../../components/EntryPanelHost';
+import { useEventDropMove, eventDragSourceProps, DROP_TARGET_CLASS } from '../../hooks/useEventDrag';
 import { useState } from 'react';
 
 // Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
@@ -80,6 +81,8 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
     fId: selectedGroupId,
     deleteOne: onDeleteEvent,
   });
+  // 일정을 끌어 다른 요일에 놓으면 그 날로 옮긴다 (마우스 화면에서만)
+  const drop = useEventDropMove();
 
   return (
     <>
@@ -121,9 +124,11 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
             key={day.dateStr}
             data-today={day.isToday ? 'true' : undefined}
             onClick={() => onSelectDate(day.dateStr)}
+            data-date={day.dateStr}
+            {...drop.targetProps(day.dateStr)}
             className={`${DAY_CELL_BG[tone]} rounded-2xl border p-2.5 flex flex-col justify-between transition-all cursor-pointer group hover:shadow-md hover:border-primary/50 min-h-[250px] min-w-0 overflow-hidden ${
               day.isToday ? 'border-primary ring-2 ring-primary/20 shadow-xs' : 'border-slate-200/80 shadow-xs'
-            }`}
+            } ${drop.overDate === day.dateStr ? DROP_TARGET_CLASS : ''}`}
           >
             <div>
               {/* 표식은 오른쪽 끝에 세운다. 예전에는 날짜와 한 덩이로 묶여
@@ -265,6 +270,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                       return (
                         <div
                           key={ev.id}
+                          {...eventDragSourceProps(day.dateStr, ev, drop.dragEnabled, drop.clearOver)}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (isMultiSelectMode) {
@@ -287,7 +293,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                               ? 'bg-slate-50 border-slate-100 text-slate-400'
                               : 'bg-blue-50/60 border-blue-100 text-slate-800 font-medium'
                           }`}
-                          title="클릭하여 상세 보기"
+                          title={drop.dragEnabled ? '누르면 고치기 · 끌어서 다른 날로 옮기기' : '클릭하여 상세 보기'}
                         >
                           {isMultiSelectMode && (
                             <input
@@ -370,6 +376,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
     )}
 
     {groupDeleteModal}
+    {drop.groupMoveModal}
     </>
   );
 }

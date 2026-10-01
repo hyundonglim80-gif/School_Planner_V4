@@ -4,11 +4,14 @@
 //
 // 옮기는 자리가 여럿이다 - 일정 쓰는 칸의 날짜 칸, 주간·월간·년간에서 끌어 놓기, 다중 선택.
 // 판단과 창을 자리마다 따로 두면 한 곳만 고쳐진다(지우기가 그랬다 - useGroupDelete 참고).
-import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import GroupMoveModal, { type GroupMoveScope } from '../components/GroupMoveModal';
 import { groupIdOf } from '../lib/eventGroups';
 import { moveEventToDate, moveGroupEvents, type MoveEventResult } from '../lib/eventDocOps';
-import { daysBetween } from '../lib/dateUtils';
+import { daysBetween, formatDateStr } from '../lib/dateUtils';
+import { shortDateLabel } from '../lib/notices';
+import { isForwardTarget } from '../lib/forwarding';
+import type { EventLabel } from './useLabels';
 
 export interface MoveRequest {
   fromDate: string;
@@ -48,8 +51,6 @@ interface Pending extends MoveRequest {
 export function useEventMove(fId: string | null) {
   const space = fId || 'personal';
   const [pending, setPending] = useState<Pending | null>(null);
-  const pendingRef = useRef<Pending | null>(null);
-  pendingRef.current = pending;
 
   const requestMove = useCallback(
     (req: MoveRequest): Promise<MoveResult> =>
@@ -75,7 +76,7 @@ export function useEventMove(fId: string | null) {
   );
 
   const close = () => {
-    pendingRef.current?.resolve('cancelled');
+    pending?.resolve('cancelled');
     setPending(null);
   };
 
@@ -119,4 +120,24 @@ export function useEventMove(fId: string | null) {
   ) : null;
 
   return { requestMove, groupMoveModal };
+}
+
+/**
+ * 옮긴 뒤 띄울 안내. 쓰는 칸·끌어 놓기·다중 선택이 같은 말을 쓴다.
+ * bounces: 끝내지 않은 이월 일정을 지난 날짜로 옮겼는가 (다음 이월 때 오늘로 다시 온다)
+ */
+export function moveMessage(outcome: MoveOutcome, fromDate: string, toDate: string, bounces = false): string {
+  const days = daysBetween(fromDate, toDate);
+  const head =
+    outcome.moved > 1
+      ? `✅ 연결된 일정 ${outcome.moved}건을 ${days > 0 ? `${days}일 뒤로` : `${-days}일 앞으로`} 옮겼습니다.`
+      : `✅ 일정을 ${shortDateLabel(toDate)}로 옮겼습니다.`;
+  const failed = outcome.failed > 0 ? ` ${outcome.failed}건은 옮기지 못했습니다 - 네트워크를 확인하고 다시 옮겨 주세요.` : '';
+  const bounce = bounces ? ' 이월 일정이라 끝내지 않으면 다음에 오늘로 다시 옮겨 옵니다.' : '';
+  return head + failed + bounce;
+}
+
+/** 끝내지 않은 이월 일정을 지난 날짜로 옮기려 하는가 */
+export function movesForwardIntoPast(item: any, toDate: string, eventLabels: EventLabel[]): boolean {
+  return toDate < formatDateStr(new Date()) && !item?.completed && isForwardTarget(item, eventLabels);
 }

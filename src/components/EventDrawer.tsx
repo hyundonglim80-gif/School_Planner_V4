@@ -17,9 +17,8 @@ import { useAppStore } from '../store/useAppStore';
 import { useGroupDelete } from '../hooks/useGroupDelete';
 import { resolveEventLabelNames, eventDisplayContent } from '../lib/eventLabels';
 import { baseContentOf } from '../lib/eventGroups';
-import { useEventMove } from '../hooks/useEventMove';
-import { isForwardTarget } from '../lib/forwarding';
-import { addDays, daysBetween, formatDateStr } from '../lib/dateUtils';
+import { useEventMove, moveMessage, movesForwardIntoPast } from '../hooks/useEventMove';
+import { addDays } from '../lib/dateUtils';
 import { shortDateLabel } from '../lib/notices';
 import { showToast, showErrorToastOnce } from '../utils/toast';
 import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
@@ -288,8 +287,7 @@ export default function EventDrawer({
           ...(alarmDirty ? { time: alarmTime || '', alarmTriggered: false } : {}),
         };
         // 끝내지 않은 이월 일정을 지난 날짜에 두면 다음 이월 때 오늘로 다시 온다 - 미리 알린다
-        const bounces =
-          to < formatDateStr(new Date()) && !current?.completed && isForwardTarget({ ...(current || {}), ...patch }, eventLabels);
+        const bounces = movesForwardIntoPast({ ...(current || {}), ...patch }, to, eventLabels);
         // 기간·반복 묶음이면 어디까지 옮길지 먼저 묻는다
         const result = await requestMove({
           fromDate: dateStr,
@@ -307,15 +305,7 @@ export default function EventDrawer({
         snapshotRef.current = snapshotOf(content, labels, attrs, alarmTime, newLinks);
         setAlarmDirty(false);
         onMoved?.(to, result.current.id, result.current.item as EventItem);
-        const days = daysBetween(dateStr, to);
-        const head =
-          result.moved > 1
-            ? `✅ 연결된 일정 ${result.moved}건을 ${days > 0 ? `${days}일 뒤로` : `${-days}일 앞으로`} 옮겼습니다.`
-            : `✅ 일정을 ${shortDateLabel(to)}로 옮겼습니다.`;
-        const tail =
-          (result.failed > 0 ? ` ${result.failed}건은 옮기지 못했습니다 - 네트워크를 확인하고 다시 옮겨 주세요.` : '') +
-          (bounces ? ' 이월 일정이라 끝내지 않으면 다음에 오늘로 다시 옮겨 옵니다.' : '');
-        showToast(head + tail);
+        showToast(moveMessage(result, dateStr, to, bounces));
       } else if (entryId) {
         await updateEventItem(entryId, {
           content,
