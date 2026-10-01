@@ -17,6 +17,9 @@ import EventItemActions from '../../components/EventItemActions';
 import { useGroupDelete } from '../../hooks/useGroupDelete';
 import { openEntryPanel } from '../../components/EntryPanelHost';
 import { useEventDropMove, eventDragSourceProps, DROP_TARGET_CLASS } from '../../hooks/useEventDrag';
+import { usePeriodTimes } from '../../hooks/usePeriodTimes';
+import { useClock } from '../../hooks/useClock';
+import { periodStateAt } from '../../lib/periodTimes';
 import { useState } from 'react';
 
 // Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
@@ -67,6 +70,12 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
     })
   );
   const weekPeriods = Array.from({ length: weekPeriodCount }, (_, i) => i + 1);
+  // 교시 시각을 적어 두었으면 오늘 카드에서 지금 교시를 짚는다 (docs/ROADMAP.md 2-2)
+  const { times: periodTimes } = usePeriodTimes();
+  const hasToday = days.some((d) => d.isToday);
+  const now = useClock(hasToday);
+  const nowState = hasToday ? periodStateAt(periodTimes, now, weekPeriodCount) : null;
+  const nowPeriod = nowState?.kind === 'during' ? nowState.period : null;
 
   const [detailModal, setDetailModal] = useState<{
     isOpen: boolean;
@@ -205,11 +214,12 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                           });
                         }}
                         title={filled ? `${p}교시 ${periodText}` : `${p}교시 (비어 있음) - 눌러서 수업 적기`}
+                        data-now={day.isToday && nowPeriod === p ? 'true' : undefined}
                         className={`h-7 flex items-center gap-1.5 px-2 rounded-lg border text-xs cursor-pointer transition-colors ${
                           filled
                             ? 'bg-slate-50 border-slate-100 hover:bg-slate-100'
                             : 'bg-white/40 border-dashed border-slate-200 hover:bg-slate-50'
-                        }`}
+                        } ${day.isToday && nowPeriod === p ? 'ring-2 ring-primary/60 bg-blue-50' : ''}`}
                       >
                         <span className={`font-bold text-xs shrink-0 ${filled ? 'text-primary' : 'text-slate-300'}`}>{p}교시</span>
                         <span className={`truncate text-xs flex-1 ${filled ? 'font-semibold text-slate-800' : 'text-slate-300'}`}>

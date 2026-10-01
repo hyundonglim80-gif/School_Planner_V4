@@ -7,6 +7,10 @@ import { useClickOutside } from '../../hooks/useClickOutside';
 import { useDayEvalCounts } from '../../hooks/useDayEvalCounts';
 import { showToast, showErrorToastOnce } from '../../utils/toast';
 import { openEntryPanel } from '../../components/EntryPanelHost';
+import { usePeriodTimes } from '../../hooks/usePeriodTimes';
+import { useClock } from '../../hooks/useClock';
+import { periodStateAt, periodRangeLabel } from '../../lib/periodTimes';
+import { formatDateStr } from '../../lib/dateUtils';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
 
 interface DayScheduleProps {
@@ -118,10 +122,36 @@ export default function DaySchedule({
   }, [focusSection]);
   const periods = Array.from({ length: maxPeriods }, (_, i) => i + 1);
 
+  // 교시 시각을 적어 두었으면(⚙️ 설정) 오늘은 지금 몇 교시인지 짚는다 (docs/ROADMAP.md 2-2)
+  const { times: periodTimes } = usePeriodTimes();
+  const isTodayView = !!dateStr && dateStr === formatDateStr(new Date());
+  const now = useClock(isTodayView);
+  const nowState = isTodayView ? periodStateAt(periodTimes, now, maxPeriods) : null;
+  const subjectOf = (p: number) => (schedules[p]?.subject || '').trim();
+  /** 머리줄에 적는 한 줄 - 지금 교시 / 다음 교시까지 */
+  const nowLine = (() => {
+    if (!nowState) return '';
+    if (nowState.kind === 'during') {
+      return `지금 ${nowState.period}교시${subjectOf(nowState.period) ? ' ' + subjectOf(nowState.period) : ''} · ${nowState.minutesLeft}분 남음`;
+    }
+    if (nowState.kind === 'break' || nowState.kind === 'before') {
+      const p = nowState.next;
+      const supplies = (schedules[p]?.supplies || '').trim();
+      return (
+        (nowState.kind === 'break' ? '쉬는 시간 · ' : '') +
+        `다음 ${p}교시${subjectOf(p) ? ' ' + subjectOf(p) : ''} ${nowState.minutes}분 뒤` +
+        (supplies ? ` · 준비물 ${supplies}` : '')
+      );
+    }
+    return '';
+  })();
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
       <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isCollapsed ? '' : 'mb-4'}`}>
-        <div className="flex items-center gap-2">
+        {/* 제목·알림장·출석부는 줄어들지 않는다. 좁으면 오른쪽의 '지금' 안내만 줄어든다
+            (오른쪽 칸이 열려 본문이 좁을 때 '수업'이 '수/업'으로 꺾였다) */}
+        <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
           <button
             type="button"
             onClick={() => setIsCollapsed(!isCollapsed)}
@@ -152,10 +182,15 @@ export default function DaySchedule({
         </div>
 
         {!isCollapsed && (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center justify-end gap-1.5 min-w-0 flex-1">
+            {nowLine && (
+              <span data-now-line className="min-w-0 truncate text-xs font-bold text-primary bg-blue-50 border border-blue-100 rounded-lg px-2 py-1" title={nowLine}>
+                🕘 {nowLine}
+              </span>
+            )}
             <button
               onClick={() => setIsTemplateModalOpen(true)}
-              className="px-2 py-1 text-xs font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
+              className="shrink-0 whitespace-nowrap px-2 py-1 text-xs font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
             >
               ⚙️ 설정
             </button>
@@ -275,6 +310,9 @@ export default function DaySchedule({
           const memoText = item.memo || item.content || '';
           const suppliesText = item.supplies || '';
           const hasDetails = !!(memoText || suppliesText);
+          const isNow = nowState?.kind === 'during' && nowState.period === period;
+          const isNext = (nowState?.kind === 'break' || nowState?.kind === 'before') && nowState.next === period;
+          const range = periodRangeLabel(periodTimes, period);
           return (
             <div
               key={period}
@@ -282,9 +320,10 @@ export default function DaySchedule({
               onClick={() => startEdit(period)}
               title="클릭하여 수정"
               // 과목이 눈에 띄게 (2026-09-30 사용자 요청): 과목이 있는 교시는 왼쪽에 교시 색 막대
+              data-now={isNow ? 'true' : isNext ? 'next' : undefined}
               className={`group ${hasDetails ? 'p-3.5' : 'px-3.5 py-2'} rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[40px] hover:border-primary/50 hover:bg-slate-50/50 cursor-pointer ${
                 item.subject ? `border-l-4 ${accentClass}` : ''
-              }`}
+              } ${isNow ? 'ring-2 ring-primary/60 bg-blue-50/40' : isNext ? 'ring-1 ring-primary/30' : ''}`}
             >
               <div className="flex gap-3 h-full items-stretch">
                 <div className="flex flex-col items-center justify-center gap-1 shrink-0 px-1">
@@ -313,6 +352,7 @@ export default function DaySchedule({
                       <span className={`px-2 py-0.5 shrink-0 rounded-lg text-xs font-bold border ${colorClass}`}>
                         {period}교시
                       </span>
+                      {range && <span className="shrink-0 text-2xs font-semibold text-slate-400 tabular-nums">{range}</span>}
                       <span
                         data-subject
                         className={`truncate leading-tight ${
@@ -321,6 +361,16 @@ export default function DaySchedule({
                       >
                         {item.subject || <span className="text-slate-300 font-normal">과목 미등록</span>}
                       </span>
+                      {isNow && nowState?.kind === 'during' && (
+                        <span className="shrink-0 text-2xs font-black text-white bg-primary rounded-full px-1.5 py-0.5">
+                          지금 · {nowState.minutesLeft}분 남음
+                        </span>
+                      )}
+                      {isNext && (nowState?.kind === 'break' || nowState?.kind === 'before') && (
+                        <span className="shrink-0 text-2xs font-bold text-primary bg-blue-50 border border-blue-200 rounded-full px-1.5 py-0.5">
+                          다음 · {nowState.minutes}분 뒤
+                        </span>
+                      )}
                       {linkCount > 0 && (
                         <button
                           onClick={(e) => { e.stopPropagation(); dateStr && openLinkViewerModal('schedule', dateStr, String(period), period); }}

@@ -9,6 +9,7 @@ import {
 } from '../hooks/useTimetableTemplate';
 import { formatDate } from '../lib/dateUtils';
 import PopupFrame from './PopupFrame';
+import PeriodTimesEditor from './PeriodTimesEditor';
 import {
   nextCell,
   parseClipboardGrid,
@@ -498,6 +499,9 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
               </div>
             </div>
           </div>
+
+          {/* 1-1. 교시 시각 (하루 화면의 '지금 몇 교시') */}
+          <PeriodTimesEditor periodNames={periodNames} />
 
           {/* 2. 학사일정(학기 기간) 설정 */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">

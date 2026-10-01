@@ -60,6 +60,7 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
 | `users/{uid}/settings/preferences` | `{ dDayList, selectedDDayId }` | **V3의 문서.** D-Day만 여기. V4 설정은 쓰지 않는다 |
 | `users/{uid}/settings/v4_preferences_pc` / `_mobile` | 단축키·화면 보기·글자 크기·시작 화면·이월 기간·팝업 모양 | V4 전용, PC와 휴대폰 따로 |
 | `users/{uid}/settings/timetable_v5` | 시간표 템플릿·방학 기간 | |
+| `users/{uid}/settings/v4_periodTimes` | `{ times: { "1": { start: "09:00", end: "09:40" }, … } }` | V4 전용. 교시 시각 - 하루 화면의 '지금 몇 교시'(`lib/periodTimes`). `timetable_v5`는 V3와 함께 쓰므로 거기에 칸을 더하지 않았다 |
 | `users/{uid}/settings/rosters` | `{ classList, rosters }` (같은 값) | 명렬표 |
 | `users/{uid}/settings/v4_trash` | 휴지통 자동 비우기 기간 | |
 | (메모·기록 항목의) `tables` | 붙인 표 `[{ id, rows: [{ h?, cells: [{ v, cs?, rs?, x?, s? }] }], cols?, styles?, createdAt }]` | V4 전용 칸. `lib/entryTable` |
