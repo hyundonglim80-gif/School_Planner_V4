@@ -315,6 +315,9 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   조사표는 지금 공간 오늘 문서를 트랜잭션으로 읽어 그 조사표의 그 학생 칸만(`saveStudentEval`, 두 이름 `evalDocPayload`),
   관찰 한 줄은 개인 공간 오늘 기록에 `글 #태그` 한 항목(`addJournalLine`). 자리의 오늘 출결은 출석부 문서 구독.
   저장은 칸 안에서 하나씩 차례로, 누른 값은 덧씌움으로 먼저 보인다(출결은 저장이 끝나면, 조사표는 구독이 같은 값을 받으면 걷는다).
+  **발표자 뽑기**(8-3, `SeatDrawPanel`·`DrawBigView`, 훅 `useStudentDraw`, 셈 `lib/draw`): 학급 허브의 `draw{picked, round}`를 구독한 값으로
+  셈해 뽑고 곧바로 저장(뽑은 번호 하나씩 arrayUnion, 새 판만 통째로 - `seatingStore.saveDrawPick`). 오늘 결석은 출석부 구독에서.
+  자리표 없이도 돈다(뽑기 칸은 자리표 분기 밖). ⋮ 메뉴 '발표자 뽑기'는 Layout의 `seatingDrawRequest`를 늘려 뽑기 칸을 편다.
 - **나이스 급식·학사일정**: 표시만 한다(`hooks/useNeis`, 일정 문서에 쓰지 않는다). 학사일정 이름을 누르면 `SchoolEventModal`
   (store `schoolEventPeek`, Layout이 그린다): 'D-Day로'는 `useDDay.addDDay`, '일정으로 담기'는 새 일정 칸을 `draftText`로 연다 -
   저장은 늘 일정 칸이 한다. 방학 기간 채우기는 `schoolSetting.findVacations`(방학식 다음 날 ~ 개학식 전날, 저장은 따로).

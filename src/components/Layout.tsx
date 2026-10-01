@@ -190,6 +190,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   /** 자리표 학생 칸의 '누가기록'으로 열 때 처음 보일 학생 */
   const [studentRecordStart, setStudentRecordStart] = useState<{ classKey: string; num: number } | null>(null);
   const [isSeatingOpen, setIsSeatingOpen] = useState(false);
+  /** 늘 때마다 자리표 창이 발표자 뽑기 칸을 편다 */
+  const [seatingDrawRequest, setSeatingDrawRequest] = useState(0);
+  const openStudentDraw = () => {
+    setSeatingDrawRequest((n) => n + 1);
+    setIsSeatingOpen(true);
+  };
 
   // 더보기 드롭다운 상태
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -372,6 +378,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { icon: '📢', label: '알림장 모아 보기', shortcut: 'notices', onClick: () => openClassroomPanel('notice', 'list') },
         { icon: '🧑‍🎓', label: '학생 누가기록', shortcut: 'studentRecord', onClick: () => setIsStudentRecordOpen(true) },
         { icon: '🪑', label: '자리표', shortcut: 'seating', onClick: () => setIsSeatingOpen(true) },
+        { icon: '🎯', label: '발표자 뽑기', shortcut: 'drawStudent', onClick: openStudentDraw },
       ],
     },
     {
@@ -449,6 +456,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       case 'attendance': openClassroomPanel('attendance'); return;
       case 'studentRecord': setIsStudentRecordOpen(true); return;
       case 'seating': setIsSeatingOpen(true); return;
+      case 'drawStudent': openStudentDraw(); return;
       case 'group': setIsGroupModalOpen(true); return;
       case 'timetable': setIsTimetableModalOpen(true); return;
       case 'progress': setProgressModalOpen(true); return;
@@ -497,6 +505,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         setIsCalendarModalOpen(false);
         setIsStudentRecordOpen(false);
         setIsSeatingOpen(false);
+        setSeatingDrawRequest(0);
         setIsMoreMenuOpen(false);
         if (isForwardingModalOpen) {
           setIsForwardingModalOpen(false);
@@ -1093,7 +1102,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {isSeatingOpen && (
           <SeatingModal
             isOpen
-            onClose={() => setIsSeatingOpen(false)}
+            onClose={() => {
+              setIsSeatingOpen(false);
+              setSeatingDrawRequest(0);
+            }}
+            drawRequest={seatingDrawRequest}
             onOpenStudentRecord={(classKey, num) => {
               setStudentRecordStart({ classKey, num });
               setIsStudentRecordOpen(true);

@@ -7,9 +7,14 @@
 // - 고칠 때마다 곧바로 저장한다(저장 단추 없음). 화면은 구독으로 늘 최신 자리표를 들고 있다.
 // - 학급 허브(8-2): '자리 고치기'가 꺼진 채 학생 자리를 누르면 학생 칸(SeatStudentCard) - 오늘 출결·조사표·관찰 한 줄.
 //   자리에는 오늘 출결(결석·지각…)을 적어 보인다(출석부 문서를 구독).
+// - 발표자 뽑기(8-3): '🎯 발표자 뽑기' 칸 - 이번 판에 안 뽑힌 학생 먼저, 오늘 결석은 빼고, 뽑힌 자리를 짚는다, 크게 보기.
+//   이번 판은 학급 허브(draw)에 - 다른 기기에서 이어 뽑는다. 자리표가 없어도 명렬표로 뽑는다.
 import React, { useEffect, useMemo, useState } from 'react';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 import SeatStudentCard from './SeatStudentCard';
+import SeatDrawPanel, { drawStatusLine } from './SeatDrawPanel';
+import DrawBigView from './DrawBigView';
+import { useStudentDraw } from '../hooks/useStudentDraw';
 import { auth } from '../lib/firebase';
 import { useRoster, type Student } from '../hooks/useRoster';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
@@ -43,6 +48,7 @@ import {
 import {
   createSeatingChart,
   deleteSeatingChart,
+  sanitizeHub,
   setApartPair,
   subscribeClassHub,
   subscribeSeatingCharts,
@@ -59,6 +65,8 @@ interface SeatingModalProps {
   onOpenStudentRecord?: (classKey: string, num: number) => void;
   /** 학생 칸의 '출석부' - 그 학급·날짜로 출석부 칸을 연다 */
   onOpenAttendance?: (classKey: string, dateStr: string) => void;
+  /** 늘 때마다 발표자 뽑기 칸을 편다 (⋮ 메뉴·단축키 '발표자 뽑기') */
+  drawRequest?: number;
 }
 
 const CLASS_MEMORY_KEY = 'sp4-seating-class';
@@ -88,7 +96,7 @@ function writeJson(key: string, value: unknown) {
 
 type Selection = { kind: 'seat'; key: string } | { kind: 'student'; num: number } | null;
 
-export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onOpenAttendance }: SeatingModalProps) {
+export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onOpenAttendance, drawRequest }: SeatingModalProps) {
   const uid = auth.currentUser?.uid;
   const { rosterList, loading: rosterLoading } = useRoster();
   const { templates, currentTemplateName } = useTimetableTemplate();
@@ -99,11 +107,12 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
   const [classKey, setClassKey] = useState<string | null>(null);
   const [charts, setCharts] = useState<SeatingChart[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [hub, setHub] = useState<ClassHub>({ apart: [] });
+  const [hub, setHub] = useState<ClassHub>(() => sanitizeHub(null));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [selected, setSelected] = useState<Selection>(null);
-  const [panel, setPanel] = useState<'shape' | 'apart' | null>(null);
+  const [panel, setPanel] = useState<'shape' | 'apart' | 'draw' | null>(drawRequest ? 'draw' : null);
+  const [drawBig, setDrawBig] = useState(false);
   const [shuffleOpts, setShuffleOpts] = useState(() =>
     readJson(SHUFFLE_MEMORY_KEY, { avoidPast: true, mixGender: false })
   );
@@ -154,7 +163,7 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
       console.warn('자리표를 불러오지 못했습니다:', err);
       setLoadFailed(true);
     });
-    setHub({ apart: [] });
+    setHub(sanitizeHub(null));
     const stopHub = subscribeClassHub(uid, classKey, setHub, (err) =>
       console.warn('떨어뜨릴 학생을 불러오지 못했습니다:', err)
     );
@@ -179,6 +188,34 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
   const byNum = useMemo(() => new Map(students.map((s) => [Number(s.num), s])), [students]);
   const chart = charts?.find((c) => c.id === activeId) || charts?.[0] || null;
   const focusStudent = focusNum !== null ? byNum.get(focusNum) || null : null;
+
+  // ── 발표자 뽑기 ──
+  useEffect(() => {
+    if (drawRequest) setPanel('draw');
+  }, [drawRequest]);
+  const activeNums = useMemo(() => active.map((s) => Number(s.num)), [active]);
+  const absentNums = useMemo(
+    () => Object.values(todayRecords).filter((r) => r?.kind === 'absent').map((r) => Number(r.num)),
+    [todayRecords]
+  );
+  const nameFor = (num: number) => byNum.get(num)?.name || `${num}번`;
+  const draw = useStudentDraw({
+    uid,
+    classKey,
+    activeNums,
+    absentNums,
+    draw: hub.draw,
+    nameOf: (num) => nameOf(num),
+  });
+  const drawOn = panel === 'draw';
+  useEffect(() => {
+    if (!drawOn) setDrawBig(false);
+  }, [drawOn]);
+  // 굴리는 동안은 방금 뽑힌 학생(판의 맨 끝)을 아직 짚지 않는다 - 멈추기 전에 답이 보이지 않게
+  const drawnSet = useMemo(
+    () => new Set(draw.rolling ? hub.draw.picked.slice(0, -1) : hub.draw.picked),
+    [hub.draw.picked, draw.rolling]
+  );
 
   const chooseChart = (id: string) => {
     setActiveId(id);
@@ -407,6 +444,8 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
     const locked = chart.locked.includes(key);
     const att = num !== undefined ? todayRecords[String(num)] : undefined;
     const focused = !editMode && num !== undefined && focusNum === num;
+    const drawnNow = drawOn && num !== undefined && draw.shown === num;
+    const drawn = drawOn && num !== undefined && drawnSet.has(num);
     const gender = st?.gender === 'M' || st?.gender === '남' ? 'M' : st?.gender === 'F' || st?.gender === '여' ? 'F' : '';
     return (
       <button
@@ -414,6 +453,7 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
         type="button"
         data-seat={key}
         data-seat-num={num ?? ''}
+        data-seat-drawn-now={drawnNow && !draw.rolling ? '' : undefined}
         draggable={num !== undefined}
         onDragStart={(e) => {
           e.dataTransfer.setData('text/plain', `seat:${key}`);
@@ -437,7 +477,9 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
               }`
         }
         className={`relative h-14 min-w-0 rounded-lg border px-1 flex flex-col items-center justify-center transition-colors ${
-          isSelected || focused
+          drawnNow
+            ? 'border-amber-400 ring-4 ring-amber-300 bg-amber-100'
+            : isSelected || focused
             ? 'border-primary ring-2 ring-primary/40 bg-indigo-50'
             : warn.has(key)
               ? 'border-amber-400 bg-amber-50'
@@ -475,6 +517,11 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
         )}
         {locked && <span className="absolute top-0.5 right-1 text-2xs" aria-label="고정">🔒</span>}
         {warn.has(key) && <span className="absolute top-0.5 left-1 text-2xs" aria-label="떨어뜨릴 학생이 붙어 있음">⚠️</span>}
+        {drawn && (
+          <span className="absolute bottom-0.5 right-1 text-2xs font-black text-amber-600" aria-label="이번 판에 뽑힘" data-seat-drawn>
+            ✓
+          </span>
+        )}
       </button>
     );
   };
@@ -612,7 +659,39 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
                 </button>
               </div>
             )}
+            <button
+              type="button"
+              onClick={() => setPanel(drawOn ? null : 'draw')}
+              aria-pressed={drawOn}
+              disabled={!classKey}
+              className={`ml-auto ${toolBtn(drawOn)}`}
+            >
+              🎯 발표자 뽑기
+            </button>
           </div>
+
+          {drawOn && classKey && (
+            <SeatDrawPanel
+              shown={draw.shown}
+              rolling={draw.rolling}
+              status={draw.status}
+              draw={hub.draw}
+              nameFor={nameFor}
+              onPick={draw.pick}
+              onUndo={() => void draw.undo()}
+              onNewRound={() => void draw.newRound()}
+              onBig={() => setDrawBig(true)}
+            />
+          )}
+          <DrawBigView
+            isOpen={drawOn && drawBig}
+            onClose={() => setDrawBig(false)}
+            num={draw.shown}
+            name={draw.shown !== null ? nameFor(draw.shown) : ''}
+            rolling={draw.rolling}
+            statusLine={drawStatusLine(hub.draw, draw.status)}
+            onPick={draw.pick}
+          />
 
           {loadFailed ? (
             <p className="text-center text-red-500 py-8 text-xs">자리표를 불러오지 못했습니다. 네트워크를 확인하고 다시 열어 주세요.</p>
@@ -848,12 +927,16 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
                         e.dataTransfer.effectAllowed = 'move';
                       }}
                       onClick={() => tapUnseated(n)}
+                      data-seat-drawn-now={drawOn && !draw.rolling && draw.shown === n ? '' : undefined}
                       className={`px-2 py-1 rounded-lg text-xs font-bold border cursor-grab ${
-                        (selected?.kind === 'student' && selected.num === n) || (!editMode && focusNum === n)
-                          ? 'border-primary bg-indigo-50 text-primary'
-                          : 'border-slate-200 bg-white text-slate-700'
+                        drawOn && draw.shown === n
+                          ? 'border-amber-400 ring-2 ring-amber-300 bg-amber-100 text-slate-800'
+                          : (selected?.kind === 'student' && selected.num === n) || (!editMode && focusNum === n)
+                            ? 'border-primary bg-indigo-50 text-primary'
+                            : 'border-slate-200 bg-white text-slate-700'
                       }`}
                     >
+                      {drawOn && drawnSet.has(n) && <span className="mr-1 text-amber-600" data-seat-drawn>✓</span>}
                       {nameOf(n)}
                       {todayRecords[String(n)] && <span className="ml-1 text-rose-600">{KIND_LABEL[todayRecords[String(n)].kind]}</span>}
                     </button>
