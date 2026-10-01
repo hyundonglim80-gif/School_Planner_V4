@@ -270,6 +270,11 @@ export default function DaySchedule({
               </div>
             );
           }
+          // 빈 수업 메모·준비물은 그리지 않는다. 예전에는 칸마다 '없음'이 두 번씩 서서, 6교시가 PC에서 약 600px,
+          // 휴대폰에서는 일정 칸이 화면 1.3장 아래로 밀렸다(2026-10-01 재어 봄). 둘 다 비면 한 줄 카드가 된다.
+          const memoText = item.memo || item.content || '';
+          const suppliesText = item.supplies || '';
+          const hasDetails = !!(memoText || suppliesText);
           return (
             <div
               key={period}
@@ -277,7 +282,7 @@ export default function DaySchedule({
               onClick={() => startEdit(period)}
               title="클릭하여 수정"
               // 과목이 눈에 띄게 (2026-09-30 사용자 요청): 과목이 있는 교시는 왼쪽에 교시 색 막대
-              className={`group p-3.5 rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[40px] hover:border-primary/50 hover:bg-slate-50/50 cursor-pointer ${
+              className={`group ${hasDetails ? 'p-3.5' : 'px-3.5 py-2'} rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[40px] hover:border-primary/50 hover:bg-slate-50/50 cursor-pointer ${
                 item.subject ? `border-l-4 ${accentClass}` : ''
               }`}
             >
@@ -303,7 +308,7 @@ export default function DaySchedule({
                 <div className="flex-1 flex flex-col min-w-0">
                   {/* 과목 이름이 길어도 오른쪽 단추들을 밀어내지 않게, 줄어드는
                       쪽과 줄어들면 안 되는 쪽을 갈라 둔다. */}
-                  <div className="flex items-center justify-between gap-1 mb-2">
+                  <div className={`flex items-center justify-between gap-1 ${hasDetails ? 'mb-2' : ''}`}>
                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
                       <span className={`px-2 py-0.5 shrink-0 rounded-lg text-xs font-bold border ${colorClass}`}>
                         {period}교시
@@ -364,20 +369,22 @@ export default function DaySchedule({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                    <div className="flex flex-col">
-                      <span className="text-slate-400 text-xs mb-0.5">📝 수업 메모</span>
-                      <p className="text-slate-600 whitespace-pre-wrap leading-relaxed">
-                        {item.memo || item.content || <span className="text-slate-300">없음</span>}
-                      </p>
+                  {hasDetails && (
+                    <div className={`grid grid-cols-1 ${memoText && suppliesText ? 'sm:grid-cols-2' : ''} gap-3 text-xs`}>
+                      {memoText && (
+                        <div className="flex flex-col">
+                          <span className="text-slate-400 text-xs mb-0.5">📝 수업 메모</span>
+                          <p className="text-slate-600 whitespace-pre-wrap leading-relaxed">{memoText}</p>
+                        </div>
+                      )}
+                      {suppliesText && (
+                        <div className="flex flex-col">
+                          <span className="text-slate-400 text-xs mb-0.5">📌 비고 / 준비물</span>
+                          <p className="text-amber-600 font-medium whitespace-pre-wrap leading-relaxed">{suppliesText}</p>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex flex-col">
-                      <span className="text-slate-400 text-xs mb-0.5">📌 비고 / 준비물</span>
-                      <p className="text-amber-600 font-medium whitespace-pre-wrap leading-relaxed">
-                        {item.supplies || <span className="text-slate-300 font-normal">없음</span>}
-                      </p>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>

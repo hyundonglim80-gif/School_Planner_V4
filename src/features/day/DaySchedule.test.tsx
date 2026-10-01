@@ -88,3 +88,36 @@ describe('DaySchedule - 상단 링크 버튼 제거 / 바깥 클릭으로 닫기
     expect(screen.getByDisplayValue('국어')).toBeInTheDocument();
   });
 });
+
+describe('DaySchedule - 촘촘한 수업 칸 (docs/ROADMAP.md 2-1)', () => {
+  it("빈 수업 메모·준비물은 그리지 않는다 - '없음'이 서지 않는다", () => {
+    renderSchedule();
+    // 1교시는 메모·준비물이 있어 두 칸 모두, 2교시는 둘 다 비어 한 줄
+    expect(screen.getAllByText('📝 수업 메모')).toHaveLength(1);
+    expect(screen.getAllByText('📌 비고 / 준비물')).toHaveLength(1);
+    expect(screen.queryByText('없음')).not.toBeInTheDocument();
+    const second = screen.getByText('수학').closest('[title="클릭하여 수정"]')!;
+    expect(second.textContent).not.toMatch(/수업 메모|준비물/);
+  });
+
+  it('메모만 있으면 메모 칸만, 준비물만 있으면 준비물 칸만 그린다', () => {
+    render(
+      <DaySchedule
+        schedules={{
+          1: { subject: '국어', content: '', memo: '1단원 5차시', supplies: '', linkedItems: [] },
+          2: { subject: '과학', content: '', memo: '', supplies: '돋보기', linkedItems: [] },
+        }}
+        onSavePeriod={vi.fn(async () => {})}
+        onReorderPeriods={vi.fn(async () => {})}
+        dateStr="2026-09-14"
+        maxPeriods={2}
+      />
+    );
+    const first = screen.getByText('국어').closest('[title="클릭하여 수정"]')!;
+    const second = screen.getByText('과학').closest('[title="클릭하여 수정"]')!;
+    expect(first.textContent).toMatch(/수업 메모.*1단원 5차시/);
+    expect(first.textContent).not.toMatch(/준비물/);
+    expect(second.textContent).toMatch(/준비물.*돋보기/);
+    expect(second.textContent).not.toMatch(/수업 메모/);
+  });
+});
