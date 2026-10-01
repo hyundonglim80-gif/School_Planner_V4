@@ -26,6 +26,7 @@ const TYPE_LABELS: Record<string, string> = {
   label: '라벨',
   template: '시간표',
   progress: '진도',
+  seating: '자리표',
   clip: '클립보드',
 };
 

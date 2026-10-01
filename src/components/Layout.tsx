@@ -37,6 +37,7 @@ const LinkViewerModal = lazyWithReload(() => import('./LinkViewerModal'));
 const TrashModal = lazyWithReload(() => import('./TrashModal'));
 const CalendarSyncModal = lazyWithReload(() => import('./CalendarSyncModal'));
 const StudentRecordModal = lazyWithReload(() => import('./StudentRecordModal'));
+const SeatingModal = lazyWithReload(() => import('./SeatingModal'));
 
 import MultiEventActionBar from './MultiEventActionBar';
 import MiniCalendarPicker from './MiniCalendarPicker';
@@ -186,6 +187,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     });
   };
   const [isStudentRecordOpen, setIsStudentRecordOpen] = useState(false);
+  const [isSeatingOpen, setIsSeatingOpen] = useState(false);
 
   // 더보기 드롭다운 상태
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -367,6 +369,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { icon: '📋', label: '출석부', shortcut: 'attendance', onClick: () => openClassroomPanel('attendance') },
         { icon: '📢', label: '알림장 모아 보기', shortcut: 'notices', onClick: () => openClassroomPanel('notice', 'list') },
         { icon: '🧑‍🎓', label: '학생 누가기록', shortcut: 'studentRecord', onClick: () => setIsStudentRecordOpen(true) },
+        { icon: '🪑', label: '자리표', shortcut: 'seating', onClick: () => setIsSeatingOpen(true) },
       ],
     },
     {
@@ -443,6 +446,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       case 'notices': openClassroomPanel('notice', 'list'); return;
       case 'attendance': openClassroomPanel('attendance'); return;
       case 'studentRecord': setIsStudentRecordOpen(true); return;
+      case 'seating': setIsSeatingOpen(true); return;
       case 'group': setIsGroupModalOpen(true); return;
       case 'timetable': setIsTimetableModalOpen(true); return;
       case 'progress': setProgressModalOpen(true); return;
@@ -490,6 +494,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         setProgressModalOpen(false);
         setIsCalendarModalOpen(false);
         setIsStudentRecordOpen(false);
+        setIsSeatingOpen(false);
         setIsMoreMenuOpen(false);
         if (isForwardingModalOpen) {
           setIsForwardingModalOpen(false);
@@ -1073,6 +1078,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {isStudentRecordOpen && (
           <StudentRecordModal isOpen onClose={() => setIsStudentRecordOpen(false)} />
         )}
+
+        {isSeatingOpen && <SeatingModal isOpen onClose={() => setIsSeatingOpen(false)} />}
 
         {isTrashModalOpen && (
           <TrashModal isOpen onClose={() => setTrashModalOpen(false)} />

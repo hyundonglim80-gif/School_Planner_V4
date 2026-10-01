@@ -45,7 +45,7 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
 ## 3. 데이터 모델 (Firestore)
 
 `{sp}` = 공간. 개인이면 `users/{uid}`, 공유 그룹이면 `groups/{gid}`.
-**일정·수업·기록·메모·조사표·알림장은 공간을 따른다. 명렬표·출석부·라벨·설정·휴지통은 늘 개인(`users/{uid}`)이다.**
+**일정·수업·기록·메모·조사표·알림장은 공간을 따른다. 명렬표·출석부·자리표·라벨·설정·휴지통은 늘 개인(`users/{uid}`)이다.**
 
 | 경로 | 모양 | 비고 |
 |---|---|---|
@@ -62,6 +62,8 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
 | `users/{uid}/settings/timetable_v5` | 시간표 템플릿·방학 기간 | |
 | `users/{uid}/settings/v4_periodTimes` | `{ times: { "1": { start: "09:00", end: "09:40" }, … } }` | V4 전용. 교시 시각 - 하루 화면의 '지금 몇 교시'(`lib/periodTimes`). `timetable_v5`는 V3와 함께 쓰므로 거기에 칸을 더하지 않았다 |
 | `users/{uid}/settings/rosters` | `{ classList, rosters }` (같은 값) | 명렬표 |
+| `users/{uid}/v4_seating/{id}` | `{ classKey, name, rows, cols, groupCols, front, seats: {"줄-열": 번호}, off, locked, history: [{at, pairs}] }` | V4 전용. 자리표 한 장(`lib/seating`·`lib/seatingStore`). 학생은 번호로. 짝 쌍은 `"3-15"` 글자(배열 안 배열 불가). 자리는 한 장 통째로 쓴다 |
+| `users/{uid}/v4_classHub/{학급키}` | `{ classKey, apart: ["3-15"] }` | V4 전용. 학급마다 하나 - 떨어뜨릴 학생(arrayUnion/Remove로 한 쌍씩). 뽑기·모둠도 여기에 더한다(ROADMAP 8-3·8-4) |
 | `users/{uid}/settings/v4_trash` | 휴지통 자동 비우기 기간 | |
 | `users/{uid}/settings/v4_school` | `{ officeCode, schoolCode, officeName, name, kind, grade }` (학교를 지우면 `{ updatedAt }`만) | V4 전용. 우리 학교 - 나이스 급식·학사일정(`lib/schoolSetting`, `lib/neis`) |
 | `users/{uid}/v4_progress/{id}` | `{ key(시간표 칸 글자), startDate, lessons: [{unit, no, content, supplies}], bumps: ['YYYY-MM-DD#교시'] }` | V4 전용. 진도 관리(`lib/progress`). 수업 문서에는 쓰지 않고 화면에서만 겹쳐 본다. 차시 목록은 `saveProgressPlan`(merge, bumps 빼고), 밀기는 `setProgressBump`(arrayUnion/Remove 한 칸) - 다른 기기에서 민 것을 덮지 않게 |
@@ -304,6 +306,10 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   **새 복사본**(새 id, 글·라벨·속성 - 알림·링크·첨부·groupId·이월 사슬은 빼고)을 날짜마다 트랜잭션으로 더한다. 그날 같은 글이 있으면
   건너뛰고, 되돌리기는 가져온 id만 뺀다. 첨부를 복사하지 않는 까닭: 두 항목이 같은 드라이브 파일을 가리키면 한쪽을 영구 삭제할 때
   다른 쪽 파일까지 지워진다.
+- **자리표**(ROADMAP 8): `SeatingModal`(⋮ 학급 운영, 단축키 id `seating`). 셈은 `lib/seating`(순수 함수 - 짝 = 같은 줄·바로 옆·같은 분단,
+  0줄이 교탁 쪽 앞줄, 교탁 아래면 180도 돌려 그린다), 저장은 `lib/seatingStore`. 섞기는 고정 칸을 두고 앞줄부터 채운 뒤 무작위로 여러 번 놓고
+  두 자리씩 바꿔 보며 떨어뜨릴 학생 > 지난 짝 > 남녀 짝 차례로 덜 어기는 쪽을 고른다(`shuffleSeats`). 고칠 때마다 곧바로 저장하고
+  화면은 구독으로 최신 자리표를 든다. 섞기·번호 차례는 안내의 되돌리기(섞기 전 seats·history), 지우기는 휴지통 type `seating`.
 - **나이스 급식·학사일정**: 표시만 한다(`hooks/useNeis`, 일정 문서에 쓰지 않는다). 학사일정 이름을 누르면 `SchoolEventModal`
   (store `schoolEventPeek`, Layout이 그린다): 'D-Day로'는 `useDDay.addDDay`, '일정으로 담기'는 새 일정 칸을 `draftText`로 연다 -
   저장은 늘 일정 칸이 한다. 방학 기간 채우기는 `schoolSetting.findVacations`(방학식 다음 날 ~ 개학식 전날, 저장은 따로).
@@ -330,6 +336,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-notice-share.mjs` | 알림장 📤 공유 - 넘기는 제목·글, 창을 닫을 때·막힐 때(복사)·공유 창이 없을 때(10항목). 공유 창은 흉내, 저장하지 않는다 |
 | `tools/inspect-memo-open.mjs` | 메모 화면을 열 때 - 즐겨찾기가 없으면 전체로, ☆가 생기면 다시 즐겨찾기로(8항목). 계정 즐겨찾기를 잠시 떼고 되돌린다 |
 | `tools/inspect-last-year.mjs` | 작년 이맘때 - 토글·학년도 같은 주(2029 1주 ↔ 2028 1주)·V3 글만 있는 날·올해로 가져오기(서버 복사본·올해 있음·되돌리기·두 번 가져오기)·주 넘기기·명령 창(33항목). 자료는 2028-02-28 주·2029-02-26 주에 심고 지운다 |
+| `tools/inspect-seating.mjs` | 자리표 - 만들기(전출 빠짐)·끌어 바꾸기·눌러 바꾸기·고정·책상 없음·떨어뜨릴 학생·섞기(서버 조건)·되돌리기·모양·지우기·명령 창(41항목). 점검용 학급(2030-9-9)을 더하고 끝에 뺀다 |
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번 |
 | `tools/inspect-*.mjs` 나머지 | 지난 신고를 재현하던 것들(이월·뒤로가기·기록 삭제 뒤 빈 화면·V3/V4 한 출처 등) |

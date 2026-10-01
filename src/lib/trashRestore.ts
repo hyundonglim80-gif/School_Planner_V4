@@ -11,6 +11,7 @@ import { readEvalList, evalDocPayload } from './evalList';
 import { syncAutoSourceAndTell } from './autoJournalSync';
 import { restoreClipFromTrash } from './clipboardHistory';
 import { restoreProgressPlan } from './progress';
+import { restoreSeatingChart } from './seatingStore';
 import { getDocTrustingServer } from './firestoreSubscribe';
 
 /** 클립보드 휴지통 항목은 계정 휴지통과 id가 겹치지 않게 앞에 붙인다 (TrashModal이 목록을 만들 때) */
@@ -139,6 +140,9 @@ export async function restoreTrashItem(item: TrashItem): Promise<void> {
   } else if (type === 'progress') {
     // 진도 관리 (V4 전용 v4_progress). 같은 id가 이미 있으면 새 id로 되살린다
     await restoreProgressPlan(user.uid, data);
+  } else if (type === 'seating') {
+    // 자리표 (V4 전용 v4_seating). 같은 id가 이미 있으면 새 id로 되살린다
+    await restoreSeatingChart(user.uid, data);
   } else {
     throw new Error('이 항목 유형은 아직 복원을 지원하지 않습니다.');
   }
