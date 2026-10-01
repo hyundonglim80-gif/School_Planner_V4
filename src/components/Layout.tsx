@@ -337,6 +337,56 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <kbd className="ml-auto pl-2 shrink-0 text-2xs font-mono font-bold text-slate-400 whitespace-nowrap">{hint}</kbd>
     ) : null;
   };
+  // ⋮ 메뉴 구역. 기능이 15개를 넘어 한 줄로 늘어서 있으니 찾기 어려워 구역 제목을 붙였다(로드맵 6-3).
+  // 항목을 더할 때는 알맞은 구역에 넣는다. 명령 창(Ctrl+K)과 단축키 목록에도 같은 기능이 있어야 한다.
+  type MoreMenuItem = { icon: string; label: string; shortcut?: ShortcutId; tone?: 'install'; onClick: () => void };
+  const moreMenuSections: Array<{ title: string; items: MoreMenuItem[] }> = [
+    {
+      title: '일정 · 라벨',
+      items: [
+        // '스크롤 페이지 이동'은 환경설정으로 옮겼다. 켜고 끄는 자리가 두 군데면 어느 쪽이 지금 값인지 헷갈린다.
+        { icon: '☑️', label: `다중 선택 모드 ${isMultiSelectMode ? '종료' : '켜기'}`, shortcut: 'multiSelect', onClick: () => setMultiSelectMode(!isMultiSelectMode) },
+        // 반복 일정 등록 / 미완료 일정 가져오기는 만들어져 있었는데 여는 자리가 없어 화면에서 닿을 수 없었다.
+        { icon: '🔁', label: '반복 일정 등록', shortcut: 'recurring', onClick: () => setIsRecurringModalOpen(true) },
+        { icon: '📥', label: '미완료 일정 가져오기', shortcut: 'forwarding', onClick: () => setIsForwardingModalOpen(true) },
+        { icon: '🏷️', label: '통합 라벨 관리', shortcut: 'labels', onClick: () => openLabelModal('event') },
+      ],
+    },
+    {
+      title: '수업',
+      items: [
+        { icon: '⏰', label: '시간표 적용 (주간 템플릿)', shortcut: 'timetable', onClick: () => setIsTimetableModalOpen(true) },
+        { icon: '📘', label: '진도 관리', shortcut: 'progress', onClick: () => setProgressModalOpen(true) },
+      ],
+    },
+    {
+      // 출석부·알림장은 하루 화면 수업 칸 옆 단추로도 연다.
+      title: '학급 운영',
+      items: [
+        { icon: '🧑‍🤝‍🧑', label: '학급 정보(명렬표) 관리', shortcut: 'roster', onClick: () => setIsRosterModalOpen(true) },
+        { icon: '📋', label: '출석부', shortcut: 'attendance', onClick: () => openClassroomPanel('attendance') },
+        { icon: '📢', label: '알림장 모아 보기', shortcut: 'notices', onClick: () => openClassroomPanel('notice', 'list') },
+        { icon: '🧑‍🎓', label: '학생 누가기록', shortcut: 'studentRecord', onClick: () => setIsStudentRecordOpen(true) },
+      ],
+    },
+    {
+      title: '공유 · 연동 · 백업',
+      items: [
+        { icon: '👥', label: '공유 그룹 관리', shortcut: 'group', onClick: () => setIsGroupModalOpen(true) },
+        // 병합/교체·'지금 화면 기간으로'는 이 창에만 있다 (백업 창의 캘린더 보내기에는 없다)
+        { icon: '📅', label: '구글 캘린더로 보내기', shortcut: 'calendar', onClick: () => setIsCalendarModalOpen(true) },
+        { icon: '💾', label: '내보내기 / 가져오기 (백업)', shortcut: 'backup', onClick: () => setIsBackupModalOpen(true) },
+      ],
+    },
+    {
+      title: '설정 · 도움말',
+      items: [
+        { icon: '⚙️', label: '환경설정', shortcut: 'settings', onClick: () => setIsSettingsModalOpen(true) },
+        { icon: '💡', label: '사용 설명서', shortcut: 'help', onClick: () => setIsHelpModalOpen(true) },
+        { icon: '📱', label: '앱 설치하기 (PWA)', tone: 'install', onClick: () => void handleInstallPWA() },
+      ],
+    },
+  ];
   const viewToggles = [
     { key: 'weekend', label: '주말', on: showWeekend, set: setShowWeekend, hint: shortcutHint('toggleWeekend') },
     { key: 'events', label: '일정', on: showEvents, set: setShowEvents, hint: shortcutHint('toggleEvents') },
@@ -636,7 +686,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </button>
 
               {isMoreMenuOpen && (
-                <div className="absolute right-0 top-10 w-64 max-h-[70vh] overflow-y-auto bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-fade-in text-xs">
+                <div className="absolute right-0 top-10 w-72 max-h-[80vh] overflow-y-auto bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-fade-in text-xs">
 
                   {/* 좁은 화면에서 상단에 둘 자리가 없어 내려온 항목들 */}
                   <div className="sm:hidden border-b border-slate-200 pb-1 mb-1">
@@ -681,189 +731,43 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       setIsMoreMenuOpen(false);
                       setIsCommandPaletteOpen(true);
                     }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-b border-dashed border-slate-100"
+                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
                   >
-                    <span>⚡</span> 명령 창 (기능·날짜·검색)
+                    <span>⚡</span> 명령 창
+                    <span className="text-2xs font-medium text-slate-400 whitespace-nowrap">기능·날짜·검색</span>
                     {menuKey('commandPalette')}
                   </button>
 
-                  {/* '스크롤 페이지 이동'은 환경설정으로 옮겼다. 켜고 끄는 자리가
-                      두 군데면 어느 쪽이 지금 값인지 헷갈린다. */}
-                  <button
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      setMultiSelectMode(!isMultiSelectMode);
-                    }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-b border-dashed border-slate-100"
-                  >
-                    <span>☑️</span> 다중 선택 모드 {isMultiSelectMode ? '종료' : '켜기'}
-                    {menuKey('multiSelect')}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      openLabelModal('event');
-                    }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
-                  >
-                    <span>🏷️</span> 통합 라벨 관리
-                    {menuKey('labels')}
-                  </button>
-
-                  {/* 반복 일정 등록 / 미완료 일정 가져오기.
-                      둘 다 만들어져 있었는데 여는 자리가 없어 화면에서 닿을 수 없었다. */}
-                  <button
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      setIsRecurringModalOpen(true);
-                    }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
-                  >
-                    <span>🔁</span> 반복 일정 등록
-                    {menuKey('recurring')}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      setIsForwardingModalOpen(true);
-                    }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
-                  >
-                    <span>📥</span> 미완료 일정 가져오기
-                    {menuKey('forwarding')}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      setIsRosterModalOpen(true);
-                    }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
-                  >
-                    <span>🧑‍🤝‍🧑</span> 학급 정보(명렬표) 관리
-                    {menuKey('roster')}
-                  </button>
-
-                  {/* 학급 운영: 출석부·알림장·학생 누가기록. 수업 칸 옆 단추로도 연다. */}
-                  <button
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      openClassroomPanel('attendance');
-                    }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
-                  >
-                    <span>📋</span> 출석부
-                    {menuKey('attendance')}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      openClassroomPanel('notice', 'list');
-                    }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
-                  >
-                    <span>📢</span> 알림장 모아 보기
-                    {menuKey('notices')}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      setIsStudentRecordOpen(true);
-                    }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
-                  >
-                    <span>🧑‍🎓</span> 학생 누가기록
-                    {menuKey('studentRecord')}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      setIsGroupModalOpen(true);
-                    }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
-                  >
-                    <span>👥</span> 공유 그룹 관리
-                    {menuKey('group')}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      setIsTimetableModalOpen(true);
-                    }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
-                  >
-                    <span>⏰</span> 시간표 적용 (주간 템플릿)
-                    {menuKey('timetable')}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      setProgressModalOpen(true);
-                    }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
-                  >
-                    <span>📘</span> 진도 관리
-                    {menuKey('progress')}
-                  </button>
-
-                  {/* 병합/교체·'지금 화면 기간으로'는 이 창에만 있다 (백업 창의 캘린더 보내기에는 없다) */}
-                  <button
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      setIsCalendarModalOpen(true);
-                    }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
-                  >
-                    <span>📅</span> 구글 캘린더로 보내기
-                    {menuKey('calendar')}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      setIsBackupModalOpen(true);
-                    }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
-                  >
-                    <span>💾</span> 내보내기 / 가져오기 (백업)
-                    {menuKey('backup')}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      setIsSettingsModalOpen(true);
-                    }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
-                  >
-                    <span>⚙️</span> 환경설정
-                    {menuKey('settings')}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      setIsHelpModalOpen(true);
-                    }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-t border-dashed border-slate-100"
-                  >
-                    <span>💡</span> 사용 설명서
-                    {menuKey('help')}
-                  </button>
-
-                  <button
-                    onClick={handleInstallPWA}
-                    className="w-full px-4 py-2.5 text-left font-bold text-emerald-600 hover:bg-emerald-50 flex items-center gap-2 border-t border-dashed border-slate-100"
-                  >
-                    <span>📱</span> 앱 설치하기 (PWA)
-                  </button>
+                  {moreMenuSections.map((section) => (
+                    <div
+                      key={section.title}
+                      role="group"
+                      aria-label={section.title}
+                      data-menu-section={section.title}
+                      className="border-t border-slate-100 mt-1 pt-1"
+                    >
+                      <div className="px-4 pt-1.5 pb-0.5 text-2xs font-black text-slate-500 tracking-wide select-none">
+                        {section.title}
+                      </div>
+                      {section.items.map((item) => (
+                        <button
+                          key={item.icon}
+                          onClick={() => {
+                            setIsMoreMenuOpen(false);
+                            item.onClick();
+                          }}
+                          className={`w-full px-4 py-2 text-left font-bold flex items-center gap-2 ${
+                            item.tone === 'install'
+                              ? 'text-emerald-600 hover:bg-emerald-50'
+                              : 'text-slate-700 hover:bg-slate-50 hover:text-primary'
+                          }`}
+                        >
+                          <span>{item.icon}</span> {item.label}
+                          {item.shortcut && menuKey(item.shortcut)}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

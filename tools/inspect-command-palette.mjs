@@ -130,7 +130,7 @@ const run = async () => {
 
   // ── 7. ⋮ 메뉴, ESC, 글 칸 안에서 단축키 ──
   await page.getByTitle('더보기 메뉴').click();
-  await page.getByText('명령 창 (기능·날짜·검색)').first().click();
+  await page.getByRole('button', { name: /^⚡ 명령 창/ }).click();
   check('⋮ 메뉴에서 열린다', await box().isVisible().catch(() => false));
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
