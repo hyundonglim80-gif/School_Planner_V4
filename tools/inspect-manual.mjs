@@ -1404,7 +1404,8 @@ if (ONLY !== 'mobile') {
 
   await check('[휴지통] 전체 선택 · 일괄 복원 · 일괄 삭제', async () => {
     await page.getByRole('button', { name: /휴지통/ }).first().click();
-    await wait(1500);
+    // 정한 시간만 기다리면 휴지통이 쌓였을 때(점검마다 늘어난다) '불러오는 중…'에 걸린다 - 목록이 뜰 때까지 기다린다
+    await page.getByText(/전체 선택/).first().waitFor({ timeout: 15000 }).catch(() => {});
     for (const t of [/전체 선택/, /일괄 복원/, /일괄 삭제/]) assert((await page.getByText(t).count()) > 0, `${t} 없음`);
     await closeAll();
   });
