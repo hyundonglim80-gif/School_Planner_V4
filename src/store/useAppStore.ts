@@ -269,6 +269,10 @@ interface AppState {
   /** 진도 관리 창에서 먼저 보일 진도 (수업 칸의 진도 줄을 누르면 그 진도) */
   progressModalPlanId: string | null;
   setProgressModalOpen: (isOpen: boolean, planId?: string) => void;
+  /** 주간학습안내 창 (ROADMAP 12-2). 열면 그 주의 아무 날(''이면 다음 주), 닫혀 있으면 null */
+  weeklyGuideDate: string | null;
+  openWeeklyGuide: (dateStr?: string) => void;
+  closeWeeklyGuide: () => void;
 
   // Label Modal State
   isLabelModalOpen: boolean;
@@ -694,6 +698,10 @@ export const useAppStore = create<AppState>()(
       progressModalPlanId: null,
       setProgressModalOpen: (isOpen: boolean, planId?: string) =>
         set({ isProgressModalOpen: isOpen, progressModalPlanId: isOpen ? planId ?? null : null }),
+
+      weeklyGuideDate: null,
+      openWeeklyGuide: (dateStr = '') => set({ weeklyGuideDate: dateStr }),
+      closeWeeklyGuide: () => set({ weeklyGuideDate: null }),
 
       isLabelModalOpen: false,
       labelModalTab: 'event',

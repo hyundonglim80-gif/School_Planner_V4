@@ -235,6 +235,15 @@ export default function WeekScreen() {
         )}
         <button
           type="button"
+          data-week-guide
+          onClick={() => useAppStore.getState().openWeeklyGuide(displayWeekDays[0]?.dateStr || '')}
+          title="보고 있는 주의 주간학습안내(요일 × 교시 + 준비물·알림장)를 만듭니다"
+          className="px-2.5 py-1 rounded-lg text-xs font-bold border bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700 whitespace-nowrap"
+        >
+          📰 주간학습안내
+        </button>
+        <button
+          type="button"
           data-week-print
           onClick={() => {
             if (!printRef.current || displayWeekDays.length === 0) return;

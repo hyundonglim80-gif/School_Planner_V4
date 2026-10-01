@@ -39,6 +39,7 @@ const CalendarSyncModal = lazyWithReload(() => import('./CalendarSyncModal'));
 const StudentRecordModal = lazyWithReload(() => import('./StudentRecordModal'));
 const SeatingModal = lazyWithReload(() => import('./SeatingModal'));
 const EvalOverviewModal = lazyWithReload(() => import('./EvalOverviewModal'));
+const WeeklyGuideModal = lazyWithReload(() => import('./WeeklyGuideModal'));
 
 import MultiEventActionBar from './MultiEventActionBar';
 import MiniCalendarPicker from './MiniCalendarPicker';
@@ -98,6 +99,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     evalPeriod,
     evalSubject,
     evalId,
+    weeklyGuideDate,
     closeEvaluationModal,
     isMultiSelectMode,
     setMultiSelectMode,
@@ -370,6 +372,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       items: [
         { icon: '⏰', label: '시간표 적용 (주간 템플릿)', shortcut: 'timetable', onClick: () => setIsTimetableModalOpen(true) },
         { icon: '📘', label: '진도 관리', shortcut: 'progress', onClick: () => setProgressModalOpen(true) },
+        { icon: '📰', label: '주간학습안내', shortcut: 'weeklyGuide', onClick: () => useAppStore.getState().openWeeklyGuide() },
       ],
     },
     {
@@ -465,6 +468,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       case 'group': setIsGroupModalOpen(true); return;
       case 'timetable': setIsTimetableModalOpen(true); return;
       case 'progress': setProgressModalOpen(true); return;
+      case 'weeklyGuide': useAppStore.getState().openWeeklyGuide(); return;
       case 'backup': setIsBackupModalOpen(true); return;
       case 'help': setIsHelpModalOpen(true); return;
       case 'settings': setIsSettingsModalOpen(true); return;
@@ -512,6 +516,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         setIsSeatingOpen(false);
         setSeatingDrawRequest(0);
         setIsEvalOverviewOpen(false);
+        useAppStore.getState().closeWeeklyGuide();
         setIsMoreMenuOpen(false);
         if (isForwardingModalOpen) {
           setIsForwardingModalOpen(false);
@@ -1125,6 +1130,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         {isEvalOverviewOpen && <EvalOverviewModal isOpen onClose={() => setIsEvalOverviewOpen(false)} />}
+        {weeklyGuideDate !== null && (
+          <WeeklyGuideModal isOpen startDate={weeklyGuideDate || null} onClose={() => useAppStore.getState().closeWeeklyGuide()} />
+        )}
 
         {isTrashModalOpen && (
           <TrashModal isOpen onClose={() => setTrashModalOpen(false)} />

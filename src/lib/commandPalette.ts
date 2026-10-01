@@ -208,6 +208,7 @@ const COMMAND_META: Record<ShortcutId, CommandMeta> = {
   group: { icon: '👥', keywords: ['공유', '그룹', '동학년'] },
   timetable: { icon: '⏰', keywords: ['시간표', '템플릿'] },
   progress: { icon: '📘', keywords: ['진도', '차시', '밀기'] },
+  weeklyGuide: { icon: '📰', keywords: ['주간학습안내', '주간 학습', '안내', '가정통신', '인쇄', '다음 주'] },
   backup: { icon: '💾', keywords: ['백업', '내보내기', '가져오기', 'json', 'csv'] },
   help: { icon: '💡', keywords: ['설명서', '도움말', '사용법', 'help'] },
   settings: { icon: '⚙️', keywords: ['환경설정', '설정', '옵션'] },
