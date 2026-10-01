@@ -260,6 +260,11 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 `lib/shortcuts.SHORTCUT_ACTIONS`가 한 곳이다. Layout의 키 처리, 툴팁, 환경설정, 사용 설명서가 모두 여기서 읽는다.
 **설명서·툴팁에 키 조합을 글로 박지 않는다**(테스트가 잡는다). 글을 치는 중에는 Ctrl·Alt 없는 단축키가 동작하지 않는다.
 
+**명령 창**(`CommandPaletteModal`, 기본 Ctrl+K, ROADMAP 6-2): 적은 글을 `lib/commandPalette.buildPaletteItems`가 날짜(`parseDateQuery` -
+오늘 기준, 달·날만이면 이번 학년도) → 기능(`SHORTCUT_ACTIONS` + 찾을 말·첫소리) → 늘 맨 아래 통합 검색 차례로 늘어놓는다.
+기능은 Layout의 `runShortcut`을 그대로 부르므로 단축키와 늘 같다. `COMMAND_META`가 `Record<ShortcutId, …>`라 **단축키에 기능을 더하면
+찾을 말·그림을 채워야 빌드된다**. 검색은 `SearchModal`의 `initialKeyword`로 넘기고 열자마자 찾는다(다른 길로 열면 빈 칸).
+
 ---
 
 ## 8. 기능별 요점
@@ -311,6 +316,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-scenarios.mjs` | 같은 기능을 여러 조건(공간·날짜·여는 길·자료 모양·칸 상태·두 탭·PC/휴대폰)에서. 점검 자료를 에뮬레이터에 직접 심는다 |
 | `tools/inspect-event-move.mjs` | 일정 날짜 옮기기 - 쓰는 칸·묶음 범위 창·주간/월간 끌기·다중 선택을 크롬으로 누르고 서버를 확인(26항목) |
 | `tools/inspect-undo.mjs` | 안내의 되돌리기 - 일정·기록·메모 지우기, 칸에서 옮기기, 다중 선택 완료·삭제, 메모 완료, 마우스 올려 두기(19항목) |
+| `tools/inspect-command-palette.mjs` | 명령 창 - 날짜로 가기(하루·주간에 남기)·기능 열기(첫소리)·통합 검색 넘기기·⋮ 메뉴·ESC(19항목). 자료를 심지 않는다 |
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번 |
 | `tools/inspect-*.mjs` 나머지 | 지난 신고를 재현하던 것들(이월·뒤로가기·기록 삭제 뒤 빈 화면·V3/V4 한 출처 등) |

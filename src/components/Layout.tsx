@@ -12,6 +12,7 @@ import { formatDateStr, isToday } from '../lib/dateUtils';
 const GroupModal = lazyWithReload(() => import('./GroupModal'));
 const DDayModal = lazyWithReload(() => import('./DDayModal'));
 const SearchModal = lazyWithReload(() => import('./SearchModal'));
+const CommandPaletteModal = lazyWithReload(() => import('./CommandPaletteModal'));
 const RosterModal = lazyWithReload(() => import('./RosterModal'));
 const LabelModal = lazyWithReload(() => import('./LabelModal'));
 const BackupModal = lazyWithReload(() => import('./BackupModal'));
@@ -160,6 +161,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isDDayModalOpen, setIsDDayModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  /** 명령 창에서 넘겨받아 통합 검색을 열 때 넣어 둘 검색어 */
+  const [searchInitial, setSearchInitial] = useState('');
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isRosterModalOpen, setIsRosterModalOpen] = useState(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
@@ -346,7 +350,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     const store = useAppStore.getState();
 
     switch (id) {
-      case 'search': setIsSearchModalOpen(true); return;
+      case 'commandPalette': setIsCommandPaletteOpen(true); return;
+      case 'search': setSearchInitial(''); setIsSearchModalOpen(true); return;
       case 'scopeDay': setScope('day'); return;
       case 'scopeWeek': setScope('week'); return;
       case 'scopeMonth': setScope('month'); return;
@@ -413,7 +418,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       // ESC: 열려있는 모든 모달 및 메뉴 닫기
       if (e.key === 'Escape') {
         setIsHelpModalOpen(false);
-        setIsHelpModalOpen(false);
+        setIsCommandPaletteOpen(false);
         setIsSearchModalOpen(false);
         setIsGroupModalOpen(false);
         setIsBackupModalOpen(false);
@@ -570,7 +575,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div className="flex flex-wrap items-center gap-0.5 sm:gap-2 gap-y-1.5 shrink min-w-0">
               {/* 통합 검색 버튼 */}
             <button
-              onClick={() => setIsSearchModalOpen(true)}
+              onClick={() => { setSearchInitial(''); setIsSearchModalOpen(true); }}
               className="p-1 sm:px-2.5 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md sm:rounded-xl text-xs sm:text-xs font-bold transition-all flex items-center gap-0 sm:gap-1 shrink-0"
               title={withShortcut('통합 검색', 'search')}
             >
@@ -669,6 +674,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       <span>🚪</span> 로그아웃
                     </button>
                   </div>
+
+                  {/* 명령 창: 기능 이름·날짜·검색어를 적어 곧바로 간다. 휴대폰은 키가 없어 여기로 연다. */}
+                  <button
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      setIsCommandPaletteOpen(true);
+                    }}
+                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2 border-b border-dashed border-slate-100"
+                  >
+                    <span>⚡</span> 명령 창 (기능·날짜·검색)
+                    {menuKey('commandPalette')}
+                  </button>
 
                   {/* '스크롤 페이지 이동'은 환경설정으로 옮겼다. 켜고 끄는 자리가
                       두 군데면 어느 쪽이 지금 값인지 헷갈린다. */}
@@ -1036,7 +1053,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         {isSearchModalOpen && (
-          <SearchModal isOpen onClose={() => setIsSearchModalOpen(false)} />
+          <SearchModal isOpen initialKeyword={searchInitial} onClose={() => setIsSearchModalOpen(false)} />
+        )}
+
+        {isCommandPaletteOpen && (
+          <CommandPaletteModal
+            isOpen
+            onClose={() => setIsCommandPaletteOpen(false)}
+            onCommand={runShortcut}
+            onSearch={(text) => {
+              setSearchInitial(text);
+              setIsSearchModalOpen(true);
+            }}
+            keyHint={shortcutHint}
+          />
         )}
 
         {isRosterModalOpen && (

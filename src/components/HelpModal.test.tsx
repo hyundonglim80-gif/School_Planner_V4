@@ -13,6 +13,8 @@ beforeEach(() => {
 
 type User = ReturnType<typeof userEvent.setup>;
 /** 첫 화면의 분류 카드 → 그 분류의 세부 기능 */
+/** 항목 이름의 괄호 등을 글자 그대로 찾게 ('진도 관리 (차시 목록 · 밀기)') */
+const escapeRe = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const openCategory = (user: User, title: string) =>
   user.click(screen.getByRole('button', { name: new RegExp(`${title}.*개 기능`) }));
 
@@ -84,12 +86,12 @@ describe('사용 설명서 - 기능별 분류 → 세부 기능 → 설명·사�
 
     const category = HELP_CATEGORIES.find((c) => c.id === 'find')!;
     await openCategory(user, category.title);
-    await user.click(screen.getByRole('button', { name: new RegExp(category.topics[0].title) }));
+    await user.click(screen.getByRole('button', { name: new RegExp(escapeRe(category.topics[0].title)) }));
 
     // 분류의 첫 항목에는 '이전'이 없다 (앞 분류로 넘어가지 않는다)
     expect(screen.queryByText('‹ 이전')).toBeNull();
     await user.click(screen.getByText('다음 ›'));
-    expect(screen.getByRole('heading', { name: new RegExp(category.topics[1].title) })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: new RegExp(escapeRe(category.topics[1].title)) })).toBeInTheDocument();
   });
 
   it('설명 안의 연결을 누르면 다른 분류의 항목으로도 간다', async () => {
