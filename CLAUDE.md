@@ -102,6 +102,10 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
     (`export JAVA_HOME="/c/Users/user/.jdks/jdk-21.0.12.1+1-jre"`). 임시 폴더에 풀었다가 지워져 에뮬레이터가 안 켜진 적이 있다.
     없으면 `https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse`을 받아 거기에 푼다.
     사이트는 `npx vite preview --port 4173`로 띄웠다(serve-both 대신).
+- **화면의 title·단추 이름을 바꾸면 점검 스크립트도 고친다**: `grep -rn '<옛 글자>' tools/`. 1-4(끌어 옮기기)에서 일정 title을
+  바꿨는데 inspect-manual·inspect-scenarios가 옛 title로 찾아 4항목이 깨진 채 남았다(2026-10-01 발견). 같은 이름의 단추를
+  새로 만들 때도(예: '끄기') 기존 스크립트가 엄격 모드로 깨지니 칸에 `data-…`를 달아 범위를 좁힌다.
+  `MATCH`로 골라 돌리면 앞의 화면 전환 항목이 빠져 엉뚱한 화면에서 찾을 수 있다 - 전환 항목도 MATCH에 넣는다.
 - **에뮬레이터 저장이 문서 하나에서만 6~7초씩 걸리면** 앱 버그가 아니라 에뮬레이터에 남은 잠금이다. 점검 브라우저를
   저장 도중에 강제로 끄면 그 거래의 잠금이 남는다(2026-09-29 D-Day 저장이 6초씩 걸림). 에뮬레이터를 다시 켜고 seed 한다.
 - 이유: 매 작업마다 전체 점검을 2~3번 돌리고 에뮬레이터를 껐다 켜느라 오래 걸렸다.
