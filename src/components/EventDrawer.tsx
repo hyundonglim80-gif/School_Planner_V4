@@ -437,6 +437,19 @@ export default function EventDrawer({
         <div className="flex-1 flex items-center justify-center text-xs text-slate-400">일정을 불러오는 중...</div>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-5" data-scroll-lock>
+          {/* 일정 내용: 칸을 열면 곧바로 적게 맨 위에 둔다 */}
+          <div>
+            <span className="block text-xs font-bold text-slate-500 mb-1">일정 내용</span>
+            <AutoTextarea
+              ref={textRef}
+              autoFocus
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="새로운 일정을 입력하세요..."
+              className="w-full min-h-[84px] px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder-slate-400"
+            />
+          </div>
+
           {/* 날짜: 새 일정은 저장할 날짜가 곧바로 바뀌고, 고치던 일정은 저장할 때 그 날짜로 옮긴다 */}
           <div className="space-y-1.5">
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -609,18 +622,6 @@ export default function EventDrawer({
             </div>
           </div>
 
-          {/* 일정 내용 */}
-          <div>
-            <span className="block text-xs font-bold text-slate-500 mb-1">일정 내용</span>
-            <AutoTextarea
-              ref={textRef}
-              autoFocus
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="새로운 일정을 입력하세요..."
-              className="w-full min-h-[84px] px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder-slate-400"
-            />
-          </div>
         </div>
       )}
 

@@ -125,7 +125,7 @@ const run = async () => {
   await page.getByText(MOVE).first().click();
   const panel = page.getByRole('complementary', { name: '일정 쓰기' });
   await panel.getByLabel('일정 날짜').waitFor({ timeout: 10000 });
-  check('수정 칸 맨 위에 날짜 칸이 있고 그 일정의 날짜다', (await panel.getByLabel('일정 날짜').inputValue()) === today);
+  check('수정 칸에 날짜 칸이 있고 그 일정의 날짜다', (await panel.getByLabel('일정 날짜').inputValue()) === today);
   await panel.getByLabel('일정 날짜').fill(to);
   check("날짜를 바꾸면 '저장하면 … 옮깁니다'가 뜬다", await panel.getByText(/저장하면 .* 옮깁니다/).isVisible());
   await panel.getByRole('button', { name: '옮기고 저장' }).click();
