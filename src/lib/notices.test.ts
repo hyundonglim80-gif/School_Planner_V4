@@ -36,6 +36,23 @@ describe('알림장', () => {
     };
     expect(draftLinesFrom(schedules, events)).toEqual(['미술 준비물: 색연필', '음악 준비물: 리코더', '현장체험학습 동의서 제출']);
   });
+
+  it('진도의 차시 준비물을 그 교시 줄에 합친다 (같은 것은 한 번, V3 옛 수업 문서도)', () => {
+    const schedules = {
+      periods: {
+        1: { subject: '국어', supplies: '공책' },
+        2: { subject: '수학', supplies: '' },
+        3: '과학', // V3 옛 모양 - 교시 값이 과목 글자
+        4: { subject: '미술', supplies: '색연필' },
+      },
+    };
+    expect(draftLinesFrom(schedules, null, { 1: '교과서', 2: '자', 3: '돋보기', 4: '색연필' })).toEqual([
+      '국어 준비물: 공책, 교과서',
+      '수학 준비물: 자',
+      '과학 준비물: 돋보기',
+      '미술 준비물: 색연필',
+    ]);
+  });
 });
 
 describe('알림장 급식 줄 (나이스, 4-3)', () => {

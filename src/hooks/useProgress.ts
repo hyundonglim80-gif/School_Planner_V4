@@ -86,13 +86,18 @@ const NO_MARKS: Record<string, ProgressMark> = {};
 
 /**
  * 하루·주간 수업 칸에 겹쳐 보일 진도 (slotId → 진도). viewDate는 화면에 보이는 마지막 날.
+ * spaceGroupId: 그 칸의 공간 (주지 않으면 지금 보는 공간). 알림장처럼 칸이 제 공간을 들고 있을 때 넘긴다.
  * - 개인 공간에서만 (진도는 개인 공간의 수업으로 센다. 그룹 공간의 수업 칸에는 겹치지 않는다).
  * - 진도가 하나도 없으면 수업·일정 문서를 읽지 않는다.
  * - 읽는 범위는 가장 이른 진도 시작일 ~ 보는 날이 든 학년도 끝. 날짜를 넘길 때마다 다시 읽지 않게 학년도 끝으로 묶는다
  *   (하루·주간이 같은 범위를 구독하면 Firestore가 한 구독으로 나눠 쓴다).
  */
-export function useProgressMarks(viewDate: string): { marks: Record<string, ProgressMark>; plans: ProgressPlan[] } {
-  const inGroup = useAppStore((s) => !!s.selectedGroupId);
+export function useProgressMarks(
+  viewDate: string,
+  spaceGroupId?: string | null
+): { marks: Record<string, ProgressMark>; plans: ProgressPlan[] } {
+  const storeInGroup = useAppStore((s) => !!s.selectedGroupId);
+  const inGroup = spaceGroupId === undefined ? storeInGroup : !!spaceGroupId;
   const { plans } = useProgressPlans();
   const { semesterConfig } = useTimetableTemplate();
   const active = useMemo(

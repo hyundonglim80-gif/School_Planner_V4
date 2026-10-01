@@ -104,16 +104,20 @@ export function nextClassDay(dateStr: string, isOffDay: (d: string) => boolean):
  *   '국어 준비물: 색연필'
  *   '현장체험학습 동의서 제출'
  * 수업 메모는 교사용이라 넣지 않는다. 완료한 일정과 공휴일 표시용 일정도 뺀다.
+ * lessonSupplies: 교시 → 그 교시에 하는 차시의 준비물 (진도 관리, ROADMAP 5-4). 수업 칸의 준비물과 한 줄로 합친다.
  */
-export function draftLinesFrom(schedulesData: any, eventsData: any): string[] {
+export function draftLinesFrom(schedulesData: any, eventsData: any, lessonSupplies: Record<string, string> = {}): string[] {
   const lines: string[] = [];
   const periods = schedulesData?.periods || {};
-  for (const p of Object.keys(periods).map(Number).sort((a, b) => a - b)) {
+  const keys = new Set([...Object.keys(periods), ...Object.keys(lessonSupplies)].filter((k) => /^\d+$/.test(k)));
+  for (const p of [...keys].map(Number).sort((a, b) => a - b)) {
     const v = periods[p];
-    if (!v || typeof v !== 'object') continue;
-    const supplies = String(v.supplies || '').trim();
+    // V3 옛 수업 문서는 교시 값이 과목 글자(문자열)다
+    const cell = v && typeof v === 'object' ? v : { subject: typeof v === 'string' ? v : '', supplies: '' };
+    const parts = [String(cell.supplies || '').trim(), String(lessonSupplies[p] || '').trim()].filter(Boolean);
+    const supplies = [...new Set(parts)].join(', ');
     if (!supplies) continue;
-    const subject = String(v.subject || '').trim();
+    const subject = String(cell.subject || '').trim();
     lines.push(subject ? `${subject} 준비물: ${supplies}` : `준비물: ${supplies}`);
   }
   for (const ev of eventsData ? readEventList(eventsData) : []) {
@@ -135,8 +139,12 @@ export function mealNoticeLines(meals: NeisMeal[], dateStr: string): string[] {
   return today.map((m) => `${label} ${today.length > 1 ? m.kind : '급식'}: ${m.dishes.map((d) => d.name).join(', ')}`);
 }
 
-/** 그날의 수업·일정 문서를 읽어 초안 줄을 만든다 */
-export async function loadDraftLines(groupId: string | null, dateStr: string): Promise<string[]> {
+/** 그날의 수업·일정 문서를 읽어 초안 줄을 만든다 (lessonSupplies: 교시 → 차시 준비물) */
+export async function loadDraftLines(
+  groupId: string | null,
+  dateStr: string,
+  lessonSupplies?: Record<string, string>
+): Promise<string[]> {
   const uid = auth.currentUser?.uid;
   if (!uid) return [];
   const base = groupId ? ['groups', groupId] : ['users', uid];
@@ -144,5 +152,5 @@ export async function loadDraftLines(groupId: string | null, dateStr: string): P
     getDocTrustingServer(doc(db, base[0], base[1], 'schedules', dateStr)),
     getDocTrustingServer(doc(db, base[0], base[1], 'events', dateStr)),
   ]);
-  return draftLinesFrom(sch.snap.exists() ? sch.snap.data() : null, ev.snap.exists() ? ev.snap.data() : null);
+  return draftLinesFrom(sch.snap.exists() ? sch.snap.data() : null, ev.snap.exists() ? ev.snap.data() : null, lessonSupplies);
 }

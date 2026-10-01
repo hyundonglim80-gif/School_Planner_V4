@@ -30,6 +30,8 @@ import { SOURCE_CHANGED_EVENT, type SourceChangedDetail } from '../lib/autoJourn
 import { showToast, showErrorToast } from '../utils/toast';
 import { useSchool } from '../hooks/useSchool';
 import { loadMonthMeals } from '../lib/neis';
+import { useProgressMarks } from '../hooks/useProgress';
+import { suppliesByPeriod } from '../lib/progress';
 
 type Tab = 'write' | 'list';
 type ListRange = 'month' | '30days' | 'year';
@@ -173,6 +175,9 @@ export default function NoticeDrawer({
     return () => window.removeEventListener('keydown', onKey);
   }, [docked]);
 
+  // 진도 관리 - 다음 수업일 차시의 준비물도 불러온다 (개인 공간 알림장만, ROADMAP 5-4)
+  const { marks: progressMarks } = useProgressMarks(date, groupId);
+
   /** 다음 수업일 (주말·공휴일·방학은 건너뜀). 2주 안에 없으면 null */
   const findNextClassDay = async () => {
     const y = parseDateStr(date).getFullYear();
@@ -217,7 +222,7 @@ export default function NoticeDrawer({
         showToast('2주 안에 수업일이 없습니다.');
         return;
       }
-      const draft = await loadDraftLines(groupId, target);
+      const draft = await loadDraftLines(groupId, target, groupId ? undefined : suppliesByPeriod(progressMarks, target));
       if (draft.length === 0) {
         showToast(`${shortDateLabel(target)}에 적힌 준비물·일정이 없습니다.`);
         return;

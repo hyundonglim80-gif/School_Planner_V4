@@ -5,6 +5,7 @@ import {
   offDayChecker,
   parseLessonTable,
   progressMarks,
+  suppliesByPeriod,
   progressUntil,
   sanitizePlan,
   scheduleSubjects,
@@ -224,6 +225,12 @@ describe('수업 칸에 겹쳐 보기', () => {
     expect(m['2026-10-06#2']).toMatchObject({ planId: 'm1', index: 0 });
     expect(m['2026-10-07#1']).toMatchObject({ planId: 'k2', index: 0, total: 1 }); // 10/7부터 다음 국어 진도
     expect(m['2026-10-05#3']).toBeUndefined(); // 차시가 없는 진도
+  });
+
+  it('알림장에 넣을 그날 교시별 차시 준비물 (민 교시·준비물 없는 차시는 뺀다)', () => {
+    const m = progressMarks(plans, subjects);
+    expect(suppliesByPeriod(m, '2026-10-05')).toEqual({ '1': '공책' });
+    expect(suppliesByPeriod(m, '2026-10-06')).toEqual({});
   });
 });
 

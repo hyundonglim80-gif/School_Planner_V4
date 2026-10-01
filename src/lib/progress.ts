@@ -303,6 +303,18 @@ export function progressMarks(
   return out;
 }
 
+/** 그날 교시마다 하는 차시의 준비물 (알림장 '다음 수업일 불러오기', 5-4). 민 교시·준비물 없는 차시는 뺀다 */
+export function suppliesByPeriod(marks: Record<string, ProgressMark>, date: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  const prefix = `${date}#`;
+  for (const [id, m] of Object.entries(marks)) {
+    if (!id.startsWith(prefix) || m.bumped) continue;
+    const supplies = (m.lesson?.supplies || '').trim();
+    if (supplies) out[id.slice(prefix.length)] = supplies;
+  }
+  return out;
+}
+
 /** 밀기를 켜고 끈 목록 (날짜·교시 차례로) */
 export function toggleBump(bumps: string[], date: string, period: string | number): string[] {
   const id = slotId(date, period);

@@ -285,7 +285,8 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   훅은 `hooks/useProgress`. 지우면 휴지통 type `progress`(V3는 'V4에서 복원'으로 둔다).
   수업 칸에 겹쳐 보기는 `useProgressMarks`(slotId → 진도) - 하루 교시 카드·'N교시 수정' 팝업은 `ProgressMarkLine`(밀기·되돌리기),
   주간 교시 칸은 '5/12' 표식만. **개인 공간에서만, 진도가 있을 때만** 수업·일정 문서를 읽고, 범위는 가장 이른 시작일 ~ 보는 날의
-  학년도 끝으로 묶어 날짜를 넘길 때 다시 읽지 않는다.
+  학년도 끝으로 묶어 날짜를 넘길 때 다시 읽지 않는다. 알림장 '다음 수업일 불러오기'는 그 교시 줄에 차시 준비물을 합친다
+  (`suppliesByPeriod` → `notices.draftLinesFrom`, 개인 공간 알림장만).
 - **나이스 급식·학사일정**: 표시만 한다(`hooks/useNeis`, 일정 문서에 쓰지 않는다). 학사일정 이름을 누르면 `SchoolEventModal`
   (store `schoolEventPeek`, Layout이 그린다): 'D-Day로'는 `useDDay.addDDay`, '일정으로 담기'는 새 일정 칸을 `draftText`로 연다 -
   저장은 늘 일정 칸이 한다. 방학 기간 채우기는 `schoolSetting.findVacations`(방학식 다음 날 ~ 개학식 전날, 저장은 따로).
@@ -304,6 +305,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `npx vitest run` | 매 작업. 1000개 남짓. 설명서 연결·단축키 글자·팝업 규칙까지 지킨다 |
 | `tools/inspect-scenarios.mjs` | 같은 기능을 여러 조건(공간·날짜·여는 길·자료 모양·칸 상태·두 탭·PC/휴대폰)에서. 점검 자료를 에뮬레이터에 직접 심는다 |
 | `tools/inspect-event-move.mjs` | 일정 날짜 옮기기 - 쓰는 칸·묶음 범위 창·주간/월간 끌기·다중 선택을 크롬으로 누르고 서버를 확인(26항목) |
+| `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번 |
 | `tools/inspect-*.mjs` 나머지 | 지난 신고를 재현하던 것들(이월·뒤로가기·기록 삭제 뒤 빈 화면·V3/V4 한 출처 등) |
 | `tools/seed.mjs` | 에뮬레이터에 한 학년도치 자료 |

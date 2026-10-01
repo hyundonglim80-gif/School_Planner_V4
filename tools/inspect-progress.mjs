@@ -11,6 +11,8 @@
 //     칸 고치기(화살표·Enter), 지우기 → 휴지통 복원.
 // [5-3 수업 칸] 하루 교시 카드의 '📘 1/5차시 · 내용 🎒 준비물', 카드에서 이 교시 밀기 → 밀림·되돌리기,
 //     주간 교시 칸의 '1/5'·'밀림', 주간에서 교시를 눌러 연 수정 팝업에서 밀기, 진도 줄을 누르면 진도 관리 창.
+// [5-4 알림장·상황별] 알림장 '다음 수업일 불러오기'에 차시 준비물(수업 칸 준비물과 한 줄로), V3 옛 수업 문서(교시 값이
+//     글자)·V3 옛 글 수업X(eventText)로 세기, 그룹 공간에서는 겹치지 않고 진도 관리 창에 안내.
 //
 //   npm run emu / node tools/serve-both.mjs / VITE_USE_EMULATOR=1 npm run build
 //   node tools/inspect-progress.mjs
@@ -68,6 +70,7 @@ async function cleanup() {
     await deleteDoc(ref('schedules', d));
     await deleteDoc(ref('events', d));
   }
+  await deleteDoc(ref('notices', '2027-03-05'));
   await setDoc(holRef, { map: { [WEEK[1]]: deleteField() } }, { merge: true });
   for (const d of (await getDocsFromServer(collection(db, 'users', uid, 'v4_progress'))).docs) {
     if (d.data().key === KEY) await deleteDoc(d.ref);
@@ -85,6 +88,10 @@ page.on('pageerror', (e) => errors.push(e.message.slice(0, 160)));
 
 async function openApp() {
   await page.goto(V4, { waitUntil: 'domcontentloaded' });
+  // 앞 묶음이 주간에 두고 끝났을 수 있다 (보던 화면은 기억된다) - 하루 화면으로
+  const day = page.getByRole('button', { name: '하루', exact: true }).first();
+  await day.waitFor({ timeout: 40000 });
+  await day.click();
   await page.getByRole('heading', { name: '일정' }).first().waitFor({ timeout: 40000 });
   await page.waitForTimeout(1500);
 }
@@ -355,10 +362,91 @@ async function classOverlay() {
   }
 }
 
+// ── 5-4 알림장 차시 준비물·상황별 ───────────────────────────────────
+async function ensurePersonal() {
+  const sel = page.locator('header select');
+  if ((await sel.count()) && (await sel.inputValue()) !== '') {
+    await sel.selectOption('');
+    await page.waitForTimeout(1500);
+  }
+}
+
+async function noticeAndScenarios() {
+  const planRef = await seedPlan();
+  // 3/8 1교시 칸에도 준비물, 2차시에도 준비물 - 알림장 줄 합치기
+  await setDoc(ref('schedules', DAYS[0]), {
+    periods: { 1: { subject: KEY, memo: '', supplies: '색연필' }, 3: { subject: KEY, memo: '', supplies: '' } },
+    updatedAt: Date.now(),
+  });
+  const plan = (await getDocFromServer(planRef)).data();
+  plan.lessons[1].supplies = '활동지';
+  await setDoc(planRef, plan);
+  // V3 옛 수업 문서 (교시 값이 과목 글자) / V3 옛 글만 있는 수업X 날
+  await setDoc(ref('schedules', DAYS[4]), { periods: { 4: KEY }, updatedAt: Date.now() });
+  await setDoc(ref('events', DAYS[2]), { eventText: '[수업X] 점검 행사', updatedAt: Date.now() });
+
+  try {
+    await openApp();
+    await ensurePersonal();
+
+    // 알림장: 3/5(금)에 쓰면 다음 수업일은 3/8(월)
+    await goDate('2027-03-05');
+    await page.getByRole('button', { name: '📢 알림장' }).first().click();
+    const box = page.getByLabel('알림장 내용').last();
+    await box.waitFor({ timeout: 10000 });
+    await page.waitForTimeout(1500); // 진도 읽기
+    await page.getByRole('button', { name: /다음 수업일 불러오기/ }).last().click();
+    await page.getByText(/3\/8\(월\)의 준비물·일정/).first().waitFor({ timeout: 10000 });
+    const lines = (await box.inputValue()).split('\n');
+    check('알림장: 1교시는 칸 준비물과 차시 준비물을 한 줄로', lines.includes(`${KEY} 준비물: 색연필, 공책`), lines.join(' / '));
+    check('알림장: 3교시는 그 차시 준비물', lines.includes(`${KEY} 준비물: 활동지`), lines.join(' / '));
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(800);
+
+    // V3 옛 수업 문서·V3 옛 글 수업X: 3/8 1·3교시 → 1·2, 3/10(수업X) 건너뜀, 3/12 4교시(글자 값) → 3
+    await goDate(DAYS[4]);
+    const m = page.locator(`[data-focus-key="period:${DAYS[4]}:4"] [data-progress-mark]`);
+    await m.waitFor({ timeout: 15000 });
+    const mt = (await m.innerText()).replace(/\s+/g, ' ');
+    check('V3 옛 수업 문서(교시 값이 글자)도 세고, V3 옛 글 수업X 날은 건너뛴다 → 3/12 4교시 3/5차시', /3\/5차시 · 셋째 차시/.test(mt), mt);
+    await goDate(DAYS[2]);
+    await page.locator(`[data-focus-key="period:${DAYS[2]}:2"]`).waitFor({ timeout: 10000 });
+    check('수업X 날(3/10) 2교시에는 진도가 없다', (await page.locator(`[data-focus-key="period:${DAYS[2]}:2"] [data-progress-mark]`).count()) === 0);
+
+    // 그룹 공간
+    const sel = page.locator('header select');
+    if ((await sel.count()) === 0) {
+      await page.getByTitle('더보기 메뉴').click();
+      await page.getByRole('button', { name: /공유 그룹 관리/ }).click();
+      await page.waitForTimeout(800);
+      await page.getByRole('button', { name: /새 그룹 만들기/ }).click();
+      await page.getByPlaceholder(/교과협의회/).fill('진도 점검 그룹');
+      await page.getByRole('button', { name: '그룹 만들기', exact: true }).last().click();
+      await page.waitForTimeout(2500);
+      await page.keyboard.press('Escape');
+    }
+    const gid = (await sel.locator('option').evaluateAll((os) => os.map((o) => o.value))).find((v) => v);
+    await sel.selectOption(gid);
+    await page.waitForTimeout(2000);
+    await goDate(DAYS[0]);
+    check('그룹 공간의 수업 칸에는 진도가 겹치지 않는다', (await page.locator('[data-progress-mark]').count()) === 0);
+    await openMenu(/진도 관리/);
+    const dlg = page.getByRole('dialog').filter({ hasText: '차시 목록' }).first();
+    await dlg.waitFor({ timeout: 10000 });
+    check('그룹 공간에서 진도 관리 창: 개인 공간으로 센다는 안내', (await dlg.getByText('지금은 그룹 공간입니다').count()) === 1);
+    await page.keyboard.press('Escape');
+    await ensurePersonal();
+  } finally {
+    await ensurePersonal().catch(() => {});
+    await cleanup();
+  }
+}
+
 const SECTIONS = [
   ['5-1 시간표 적용', timetableApply],
   ['5-2 진도 관리 창', progressModal],
   ['5-3 수업 칸', classOverlay],
+  ['5-4 알림장·상황별', noticeAndScenarios],
 ];
 await cleanup();
 for (const [name, run] of SECTIONS) {
