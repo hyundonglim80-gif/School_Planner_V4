@@ -537,7 +537,7 @@ if (ONLY !== 'mobile') {
   });
 
   await check('[주간] 일정을 누르면 오른쪽 일정 수정 칸', async () => {
-    await page.locator('[title="클릭하여 상세 보기"]').first().click();
+    await page.locator('[title="클릭하여 상세 보기"], [title^="누르면 고치기"]').first().click();
     await wait(1200);
     assert(await eventPanel().getByRole('heading', { name: '일정 수정' }).isVisible(), '일정 수정 칸이 안 뜸');
     await closeAll();
@@ -581,7 +581,7 @@ if (ONLY !== 'mobile') {
   await check('[월간] 달력 속성이 꺼진 라벨(이월·기간·반복)의 일정은 안 보임', async () => {
     await page.keyboard.press('Shift+Digit3');
     await wait(2500);
-    const chips = await page.$$eval('[title="클릭하여 상세 보기"] span[title^="클릭하여 완료"]', (els) => els.map((e) => e.textContent.trim()));
+    const chips = await page.$$eval(':is([title="클릭하여 상세 보기"], [title^="누르면 고치기"]) span[title^="클릭하여 완료"]', (els) => els.map((e) => e.textContent.trim()));
     const bad = chips.filter((c) => ['이월', '기간', '반복'].includes(c));
     assert(bad.length === 0, `보이면 안 되는 라벨 ${bad.length}건`);
     return `월간 라벨 칩: ${[...new Set(chips)].join(', ')}`;
@@ -1252,7 +1252,7 @@ if (ONLY !== 'mobile') {
   await check('[옆 칸] 주간 일정 칸: 연 채 다른 주로 옮겨도 칸이 남고, 연 날짜에 저장', async () => {
     await page.keyboard.press('Shift+Digit2');
     await wait(2500);
-    await page.locator('[title="클릭하여 상세 보기"]').first().click();
+    await page.locator('[title="클릭하여 상세 보기"], [title^="누르면 고치기"]').first().click();
     await wait(1200);
     const sub = await eventPanel().locator('p.text-primary').innerText();
     const ta = eventPanel().locator('textarea').first();
@@ -1291,7 +1291,7 @@ if (ONLY !== 'mobile') {
   const openCalendarEvent = async (scopeKey) => {
     await page.keyboard.press(`Shift+Digit${scopeKey}`);
     await wait(3000);
-    const ev = page.locator('[title="클릭하여 상세 보기"]').first();
+    const ev = page.locator('[title="클릭하여 상세 보기"], [title^="누르면 고치기"]').first();
     assert((await ev.count()) > 0, '누를 일정이 없음');
     const box = await ev.boundingBox();
     await ev.click({ position: { x: box.width - 3, y: box.height / 2 } });

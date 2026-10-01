@@ -540,7 +540,7 @@ if (ONLY !== 'mobile') {
     await check(`${name} 화면에서 다른 날(${D.ids}) 일정을 고치면 그 날짜에 저장된다`, async () => {
       await goScope(k);
       await goDate(D.ids);
-      const ev = page.locator('[title="클릭하여 상세 보기"]', { hasText: '곁에 있는 다른 일정' }).first();
+      const ev = page.locator('[title="클릭하여 상세 보기"], [title^="누르면 고치기"]', { hasText: '곁에 있는 다른 일정' }).first();
       await ev.waitFor({ timeout: 8000 });
       const b = await ev.boundingBox();
       await ev.click({ position: { x: b.width - 3, y: b.height / 2 } });
@@ -1318,7 +1318,7 @@ if (ONLY !== 'pc') {
     await tab('월간').click();
     await wait(2000);
     await goDate(D.ids);
-    const ev = page.locator('[title="클릭하여 상세 보기"]').first();
+    const ev = page.locator('[title="클릭하여 상세 보기"], [title^="누르면 고치기"]').first();
     await ev.waitFor({ timeout: 8000 });
     const b = await ev.boundingBox();
     await ev.click({ position: { x: b.width - 3, y: b.height / 2 } });
