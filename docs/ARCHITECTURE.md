@@ -283,6 +283,9 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   수업·일정 문서는 범위 쿼리 두 개로 읽기만 한다(`subscribeProgressInputs`, 개인 공간만). 같은 칸 글자의 진도가 둘이면
   늦게 시작하는 쪽이 그날부터 이어받는다(`progressUntil`). 창은 `ProgressModal`(⋮ 메뉴·시간표 설정, store `isProgressModalOpen`),
   훅은 `hooks/useProgress`. 지우면 휴지통 type `progress`(V3는 'V4에서 복원'으로 둔다).
+  수업 칸에 겹쳐 보기는 `useProgressMarks`(slotId → 진도) - 하루 교시 카드·'N교시 수정' 팝업은 `ProgressMarkLine`(밀기·되돌리기),
+  주간 교시 칸은 '5/12' 표식만. **개인 공간에서만, 진도가 있을 때만** 수업·일정 문서를 읽고, 범위는 가장 이른 시작일 ~ 보는 날의
+  학년도 끝으로 묶어 날짜를 넘길 때 다시 읽지 않는다.
 - **나이스 급식·학사일정**: 표시만 한다(`hooks/useNeis`, 일정 문서에 쓰지 않는다). 학사일정 이름을 누르면 `SchoolEventModal`
   (store `schoolEventPeek`, Layout이 그린다): 'D-Day로'는 `useDDay.addDDay`, '일정으로 담기'는 새 일정 칸을 `draftText`로 연다 -
   저장은 늘 일정 칸이 한다. 방학 기간 채우기는 `schoolSetting.findVacations`(방학식 다음 날 ~ 개학식 전날, 저장은 따로).

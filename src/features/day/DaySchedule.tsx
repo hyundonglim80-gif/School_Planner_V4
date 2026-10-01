@@ -12,6 +12,9 @@ import { useClock } from '../../hooks/useClock';
 import { periodStateAt, periodRangeLabel } from '../../lib/periodTimes';
 import { formatDateStr } from '../../lib/dateUtils';
 import DayMeals from './DayMeals';
+import ProgressMarkLine from '../../components/ProgressMarkLine';
+import { useProgressMarks } from '../../hooks/useProgress';
+import { slotId } from '../../lib/progress';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
 
 interface DayScheduleProps {
@@ -56,6 +59,8 @@ export default function DaySchedule({
   const [saving, setSaving] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const { openLinkerModal, openLinkViewerModal, openEvaluationModal, selectedGroupId } = useAppStore();
+  // 진도 관리 - 교시마다 몇 차시인지 겹쳐 보인다 (수업 문서에는 쓰지 않는다, docs/ROADMAP.md 5-3)
+  const { marks: progressMarks } = useProgressMarks(dateStr || '');
   // 수업 옆 알림장·출석부. 그날 날짜로 오른쪽 칸에 연다 (출석부는 개인 공간에만 있다).
   const openNotice = () => dateStr && void openEntryPanel({ kind: 'notice', groupId: selectedGroupId, dateStr });
   const openAttendance = () => dateStr && void openEntryPanel({ kind: 'attendance', groupId: null, dateStr });
@@ -207,6 +212,7 @@ export default function DaySchedule({
           const colorClass = PERIOD_COLORS[(period - 1) % PERIOD_COLORS.length];
           const accentClass = PERIOD_ACCENTS[(period - 1) % PERIOD_ACCENTS.length];
           const linkCount = (item.linkedItems || []).length;
+          const mark = dateStr ? progressMarks[slotId(dateStr, period)] : undefined;
 
           if (isEditing) {
             return (
@@ -264,6 +270,7 @@ export default function DaySchedule({
                     </button>
                   )}
                 </div>
+                {mark && dateStr && <ProgressMarkLine mark={mark} dateStr={dateStr} period={period} alwaysShowAction />}
                 <div 
                   className="grid grid-cols-3 gap-2"
                   onKeyDown={(e) => {
@@ -310,7 +317,7 @@ export default function DaySchedule({
           // 휴대폰에서는 일정 칸이 화면 1.3장 아래로 밀렸다(2026-10-01 재어 봄). 둘 다 비면 한 줄 카드가 된다.
           const memoText = item.memo || item.content || '';
           const suppliesText = item.supplies || '';
-          const hasDetails = !!(memoText || suppliesText);
+          const hasDetails = !!(memoText || suppliesText || mark);
           const isNow = nowState?.kind === 'during' && nowState.period === period;
           const isNext = (nowState?.kind === 'break' || nowState?.kind === 'before') && nowState.next === period;
           const range = periodRangeLabel(periodTimes, period);
@@ -420,7 +427,13 @@ export default function DaySchedule({
                     </div>
                   </div>
 
-                  {hasDetails && (
+                  {mark && dateStr && (
+                    <div className={memoText || suppliesText ? 'mb-2' : ''}>
+                      <ProgressMarkLine mark={mark} dateStr={dateStr} period={period} />
+                    </div>
+                  )}
+
+                  {(memoText || suppliesText) && (
                     <div className={`grid grid-cols-1 ${memoText && suppliesText ? 'sm:grid-cols-2' : ''} gap-3 text-xs`}>
                       {memoText && (
                         <div className="flex flex-col">

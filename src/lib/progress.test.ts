@@ -4,6 +4,7 @@ import {
   lessonAt,
   offDayChecker,
   parseLessonTable,
+  progressMarks,
   progressUntil,
   sanitizePlan,
   scheduleSubjects,
@@ -196,6 +197,33 @@ describe('진도 세기', () => {
       { holidays: { '2026-10-09': '한글날' } }
     );
     expect(['2026-10-06', '2026-10-07', '2026-10-09'].map(isOff)).toEqual([false, true, true]);
+  });
+});
+
+describe('수업 칸에 겹쳐 보기', () => {
+  const base = { bumps: [] as string[], updatedAt: 1 };
+  const plans = [
+    { ...base, id: 'k1', key: '국어', startDate: '2026-10-05', lessons: [L('가', { supplies: '공책' }), L('나')] },
+    { ...base, id: 'm1', key: '수학', startDate: '2026-10-05', lessons: [L('하나')], bumps: ['2026-10-05#2'] },
+    { ...base, id: 'k2', key: '국어', startDate: '2026-10-07', lessons: [L('2학기 첫 차시')] },
+    { ...base, id: 'e', key: '과학', startDate: '2026-10-05', lessons: [] },
+  ];
+  const subjects = {
+    '2026-10-05': { '1': '국어', '2': '수학', '3': '과학' },
+    '2026-10-06': { '1': '국어', '2': '수학', '3': '국어' },
+    '2026-10-07': { '1': '국어' },
+  };
+
+  it('교시마다 그 진도의 차시, 민 교시, 목록이 끝난 뒤는 빈칸, 다음 진도가 이어받음', () => {
+    const m = progressMarks(plans, subjects);
+    expect(m['2026-10-05#1']).toMatchObject({ planId: 'k1', index: 0, total: 2, bumped: false });
+    expect(m['2026-10-05#1'].lesson?.supplies).toBe('공책');
+    expect(m['2026-10-06#1']).toMatchObject({ planId: 'k1', index: 1 });
+    expect(m['2026-10-06#3']).toBeUndefined(); // 국어 목록(2차시)이 끝났다
+    expect(m['2026-10-05#2']).toMatchObject({ planId: 'm1', index: null, bumped: true, lesson: null });
+    expect(m['2026-10-06#2']).toMatchObject({ planId: 'm1', index: 0 });
+    expect(m['2026-10-07#1']).toMatchObject({ planId: 'k2', index: 0, total: 1 }); // 10/7부터 다음 국어 진도
+    expect(m['2026-10-05#3']).toBeUndefined(); // 차시가 없는 진도
   });
 });
 

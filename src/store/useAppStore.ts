@@ -255,9 +255,11 @@ interface AppState {
   // Trash Modal State
   isTrashModalOpen: boolean;
   setTrashModalOpen: (isOpen: boolean) => void;
-  /** 진도 관리 창 (⋮ 메뉴와 시간표 설정 창에서 연다, docs/ROADMAP.md 5-2) */
+  /** 진도 관리 창 (⋮ 메뉴와 시간표 설정 창, 수업 칸의 진도 줄에서 연다, docs/ROADMAP.md 5-2·5-3) */
   isProgressModalOpen: boolean;
-  setProgressModalOpen: (isOpen: boolean) => void;
+  /** 진도 관리 창에서 먼저 보일 진도 (수업 칸의 진도 줄을 누르면 그 진도) */
+  progressModalPlanId: string | null;
+  setProgressModalOpen: (isOpen: boolean, planId?: string) => void;
 
   // Label Modal State
   isLabelModalOpen: boolean;
@@ -666,7 +668,9 @@ export const useAppStore = create<AppState>()(
       setTrashModalOpen: (isOpen: boolean) => set({ isTrashModalOpen: isOpen }),
 
       isProgressModalOpen: false,
-      setProgressModalOpen: (isOpen: boolean) => set({ isProgressModalOpen: isOpen }),
+      progressModalPlanId: null,
+      setProgressModalOpen: (isOpen: boolean, planId?: string) =>
+        set({ isProgressModalOpen: isOpen, progressModalPlanId: isOpen ? planId ?? null : null }),
 
       isLabelModalOpen: false,
       labelModalTab: 'event',

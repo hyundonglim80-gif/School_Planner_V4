@@ -3,6 +3,9 @@ import { showToast, showErrorToastOnce } from '../utils/toast';
 import { useDayData, type EventItem } from '../hooks/useDayData';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
+import { useProgressMarks } from '../hooks/useProgress';
+import { slotId } from '../lib/progress';
+import ProgressMarkLine from './ProgressMarkLine';
 
 import { closeAllModals } from '../hooks/useModalLayer';
 import EventAlarmModal from './EventAlarmModal';
@@ -53,6 +56,9 @@ export default function DetailEditModal({
   const targetGroupId = fId ? (fId === 'personal' ? null : fId) : selectedGroupId;
   const { updateEventItem, deleteEventItem, savePeriod, eventList, schedules } = useDayData(isOpen ? dateStr : '', targetGroupId);
   const { eventLabels } = useLabels();
+  // 진도 관리 - 이 교시의 차시와 밀기 (개인 공간의 수업만, docs/ROADMAP.md 5-3). 일정이면 읽지 않는다.
+  const { marks: progressMarks } = useProgressMarks(isOpen && type === 'schedule' && !targetGroupId ? dateStr : '');
+  const progressMark = type === 'schedule' && !targetGroupId ? progressMarks[slotId(dateStr, itemId)] : undefined;
 
   const [saving, setSaving] = useState(false);
   /**
@@ -393,6 +399,12 @@ export default function DetailEditModal({
                 </>
               )}
             </div>
+
+            {progressMark && (
+              <div className="mb-4">
+                <ProgressMarkLine mark={progressMark} dateStr={dateStr} period={Number(itemId)} alwaysShowAction />
+              </div>
+            )}
 
             <div className="flex flex-col gap-4">
               {type === 'schedule' && (

@@ -71,16 +71,20 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   const { plans, loaded } = useProgressPlans();
   const { templates, semesterConfig } = useTimetableTemplate();
   const inGroup = useAppStore((s) => !!s.selectedGroupId);
+  // 수업 칸의 진도 줄을 눌러 열면 그 진도부터 (열려 있을 때 다른 줄을 눌러도 그리로)
+  const wantedId = useAppStore((s) => s.progressModalPlanId);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLOListElement>(null);
   const today = formatDate(new Date());
 
-  // 처음: 진도가 있으면 첫 것, 없으면 새 진도
+  // 처음: 고른 진도 → 첫 진도 → 새 진도
   useEffect(() => {
-    if (loaded && !draft) setDraft(plans[0] ? toDraft(plans[0]) : newDraft());
-  }, [loaded, plans, draft]);
+    if (!loaded || draft) return;
+    const first = plans.find((p) => p.id === wantedId) || plans[0];
+    setDraft(first ? toDraft(first) : newDraft());
+  }, [loaded, plans, draft, wantedId]);
 
   const saved = draft ? plans.find((p) => p.id === draft.id) : undefined;
   const dirty = !!draft && (saved ? !sameAsSaved(draft, saved) : !!draft.key.trim() || draft.lessons.some(hasText));
@@ -138,6 +142,16 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
     if (dirty && !window.confirm('고치던 진도를 저장하지 않고 옮길까요?')) return;
     setDraft(next);
   };
+
+  // 열린 채로 다른 교시의 진도 줄을 누르면 그 진도로
+  const handledWanted = useRef(wantedId);
+  useEffect(() => {
+    if (!draft || !wantedId || handledWanted.current === wantedId) return;
+    handledWanted.current = wantedId;
+    const plan = plans.find((p) => p.id === wantedId);
+    if (plan && plan.id !== draft.id) switchTo(toDraft(plan));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantedId, draft, plans]);
 
   // ── 표 붙여넣기·칸 고치기 ──────────────────────────────────────────
 

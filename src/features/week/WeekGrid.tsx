@@ -22,6 +22,8 @@ import { useEventDropMove, eventDragSourceProps, DROP_TARGET_CLASS } from '../..
 import { usePeriodTimes } from '../../hooks/usePeriodTimes';
 import { useClock } from '../../hooks/useClock';
 import { periodStateAt } from '../../lib/periodTimes';
+import { useProgressMarks } from '../../hooks/useProgress';
+import { slotId } from '../../lib/progress';
 import { useState } from 'react';
 
 // Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
@@ -80,6 +82,8 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
   const now = useClock(hasToday);
   const nowState = hasToday ? periodStateAt(periodTimes, now, weekPeriodCount) : null;
   const nowPeriod = nowState?.kind === 'during' ? nowState.period : null;
+  // 진도 관리 - 교시 칸 오른쪽에 '5/12' (밀기·되돌리기는 교시를 눌러 여는 'N교시 수정'에서, docs/ROADMAP.md 5-3)
+  const { marks: progressMarks } = useProgressMarks(days[days.length - 1]?.dateStr || '');
 
   const [detailModal, setDetailModal] = useState<{
     isOpen: boolean;
@@ -211,6 +215,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                       ? item.subject?.trim() || item.content?.trim() || item.memo?.trim()
                       : '';
                     const linkCount = (item?.linkedItems || []).length;
+                    const mark = progressMarks[slotId(day.dateStr, p)];
                     return (
                       <div
                         key={p}
@@ -236,6 +241,25 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                         <span className={`truncate text-xs flex-1 ${filled ? 'font-semibold text-slate-800' : 'text-slate-300'}`}>
                           {filled ? periodText : '-'}
                         </span>
+                        {mark && (
+                          <span
+                            data-progress-mark
+                            className={`shrink-0 text-2xs leading-none px-1 py-0.5 rounded font-bold border tabular-nums ${
+                              mark.bumped
+                                ? 'text-amber-700 bg-amber-50 border-amber-200'
+                                : 'text-indigo-700 bg-indigo-50 border-indigo-100'
+                            }`}
+                            title={
+                              mark.bumped
+                                ? `${mark.key} 진도 - 이 교시는 밀어서 차시가 없습니다`
+                                : `${mark.key} ${mark.index! + 1}/${mark.total}차시` +
+                                  (mark.lesson?.content ? ` · ${mark.lesson.content}` : '') +
+                                  (mark.lesson?.supplies ? ` · 준비물 ${mark.lesson.supplies}` : '')
+                            }
+                          >
+                            {mark.bumped ? '밀림' : `${mark.index! + 1}/${mark.total}`}
+                          </span>
+                        )}
                         {linkCount > 0 && (
                           <button
                             type="button"

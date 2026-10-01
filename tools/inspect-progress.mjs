@@ -9,6 +9,8 @@
 //     예전에는 화·수에도 과목이 채워졌다(공휴일은 holidays/{연도}로 옮겨 간 뒤로, V3 라벨은 처음부터 안 봤다).
 // [5-2 진도 관리 창] ⋮ 메뉴·시간표 설정에서 열기, 표 붙여넣기, 미리보기(공휴일 건너뜀), 저장, 밀기·되돌리기,
 //     칸 고치기(화살표·Enter), 지우기 → 휴지통 복원.
+// [5-3 수업 칸] 하루 교시 카드의 '📘 1/5차시 · 내용 🎒 준비물', 카드에서 이 교시 밀기 → 밀림·되돌리기,
+//     주간 교시 칸의 '1/5'·'밀림', 주간에서 교시를 눌러 연 수정 팝업에서 밀기, 진도 줄을 누르면 진도 관리 창.
 //
 //   npm run emu / node tools/serve-both.mjs / VITE_USE_EMULATOR=1 npm run build
 //   node tools/inspect-progress.mjs
@@ -267,9 +269,96 @@ async function progressModal() {
   }
 }
 
+// ── 5-3 수업 칸에 겹쳐 보기 ─────────────────────────────────────────
+async function seedPlan() {
+  const sched = { [DAYS[0]]: { 1: KEY, 3: KEY }, [DAYS[1]]: { 1: KEY }, [DAYS[2]]: { 2: KEY }, [DAYS[4]]: { 4: KEY }, [DAYS[5]]: { 2: KEY } };
+  for (const [d, ps] of Object.entries(sched)) {
+    const periods = Object.fromEntries(Object.entries(ps).map(([p, subject]) => [p, { subject, memo: '', supplies: '' }]));
+    await setDoc(ref('schedules', d), { periods, updatedAt: Date.now() });
+  }
+  await setDoc(holRef, { map: { [WEEK[1]]: '점검 공휴일' } }, { merge: true });
+  const lessons = ['첫 차시', '둘째 차시', '셋째 차시', '넷째 차시', '다섯째 차시'].map((content, i) => ({
+    unit: '1. 점검 단원',
+    no: String(i + 1),
+    content,
+    supplies: i === 0 ? '공책' : '',
+  }));
+  const planRef = ref('v4_progress', 'pg_inspect');
+  await setDoc(planRef, { key: KEY, startDate: DAYS[0], lessons, bumps: [], updatedAt: Date.now() });
+  return planRef;
+}
+
+/** 작은 달력의 '직접 선택'으로 그 날짜로 간다 */
+async function goDate(date) {
+  const direct = page.locator('label', { hasText: '직접 선택' }).locator('input[type=date]');
+  await page.getByTitle(/달력에서 날짜 선택/).first().hover();
+  await page.waitForTimeout(300);
+  if (!(await direct.count())) {
+    await page.getByTitle(/달력에서 날짜 선택/).first().click();
+    await page.waitForTimeout(300);
+  }
+  await direct.fill(date);
+  await page.mouse.move(5, 600);
+  await page.waitForTimeout(1500);
+}
+
+async function classOverlay() {
+  const planRef = await seedPlan();
+  const bumpsNow = async () => ((await getDocFromServer(planRef)).data().bumps || []).join(',');
+  try {
+    await openApp();
+    await goDate(DAYS[0]);
+    const card = (p) => page.locator(`[data-focus-key="period:${DAYS[0]}:${p}"]`);
+    const m1 = card(1).locator('[data-progress-mark]');
+    await m1.waitFor({ timeout: 15000 });
+    const t1 = (await m1.innerText()).replace(/\s+/g, ' ');
+    check('하루 1교시 카드: 1/5차시 · 첫 차시 · 🎒 공책', /1\/5차시 · 첫 차시/.test(t1) && /🎒 공책/.test(t1), t1);
+    const t3 = (await card(3).locator('[data-progress-mark]').innerText()).replace(/\s+/g, ' ');
+    check('하루 3교시 카드: 2/5차시 · 둘째 차시', /2\/5차시 · 둘째 차시/.test(t3), t3);
+    check('과목이 다른 교시(2교시)에는 없다', (await card(2).locator('[data-progress-mark]').count()) === 0);
+
+    await card(3).hover();
+    await card(3).getByRole('button', { name: '이 교시 밀기' }).click();
+    const [b1] = await serverUntil(bumpsNow, (v) => v === `${DAYS[0]}#3`);
+    check('카드에서 이 교시 밀기 → 서버 bumps', b1 === `${DAYS[0]}#3`, b1);
+    await card(3).getByText('밀림').waitFor({ timeout: 10000 });
+    check('민 교시 카드: ⏭ 밀림 + 되돌리기', (await card(3).getByRole('button', { name: '되돌리기' }).count()) === 1);
+    await page.screenshot({ path: 'tools/report/progress-day.png' });
+
+    // 주간
+    await page.getByRole('button', { name: '주간', exact: true }).first().click();
+    await page.waitForTimeout(2500);
+    const badges = await page.locator(`[data-date="${DAYS[0]}"] [data-progress-mark], [data-date="${DAYS[2]}"] [data-progress-mark]`).allInnerTexts();
+    check('주간 교시 칸: 1/5 · 밀림 · 2/5 (3/10)', badges.join(',') === '1/5,밀림,2/5', badges.join(','));
+    await page.screenshot({ path: 'tools/report/progress-week.png' });
+
+    // 주간에서 3/10 2교시를 눌러 수정 팝업 → 이 교시 밀기
+    await page.locator(`[data-date="${DAYS[2]}"] [title^="2교시"]`).first().click();
+    const popup = page.getByRole('dialog').filter({ hasText: '2교시 수정' }).first();
+    await popup.waitFor({ timeout: 10000 });
+    const pm = popup.locator('[data-progress-mark]');
+    await pm.waitFor({ timeout: 10000 });
+    check('수정 팝업에 2/5차시 줄', /2\/5차시/.test(await pm.innerText()), (await pm.innerText()).replace(/\s+/g, ' '));
+    await pm.getByRole('button', { name: '이 교시 밀기' }).click();
+    const [b2] = await serverUntil(bumpsNow, (v) => v.split(',').length === 2);
+    check('팝업에서 밀기 → 서버 bumps 두 칸', b2 === `${DAYS[0]}#3,${DAYS[2]}#2`, b2);
+    await pm.getByRole('button', { name: '되돌리기' }).waitFor({ timeout: 10000 });
+
+    // 진도 줄을 누르면 진도 관리 창이 그 진도로
+    await pm.locator('button').first().click();
+    const dlg = page.getByRole('dialog').filter({ hasText: '차시 목록' }).first();
+    await dlg.waitFor({ timeout: 10000 });
+    check('진도 줄을 누르면 진도 관리 창이 그 진도로', (await dlg.getByLabel('칸 글자').inputValue()) === KEY);
+    await page.keyboard.press('Escape');
+  } finally {
+    await cleanup();
+  }
+}
+
 const SECTIONS = [
   ['5-1 시간표 적용', timetableApply],
   ['5-2 진도 관리 창', progressModal],
+  ['5-3 수업 칸', classOverlay],
 ];
 await cleanup();
 for (const [name, run] of SECTIONS) {

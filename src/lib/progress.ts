@@ -264,6 +264,45 @@ export function lessonAt(
   return lesson ? { index: slot.lesson, lesson } : null;
 }
 
+/** 수업 칸에 겹쳐 보일 한 교시의 진도 */
+export interface ProgressMark {
+  planId: string;
+  key: string;
+  /** 차시 차례 (0부터). 민 교시면 null */
+  index: number | null;
+  total: number;
+  lesson: ProgressLesson | null;
+  bumped: boolean;
+}
+
+/**
+ * 모든 진도를 세어 교시마다 겹쳐 보일 것 (slotId → 진도). 목록이 끝난 뒤의 교시는 넣지 않는다.
+ * 같은 칸 글자의 진도가 둘이면 늦게 시작하는 쪽이 그날부터 이어받는다(progressUntil).
+ */
+export function progressMarks(
+  plans: ProgressPlan[],
+  subjectsByDate: Record<string, Record<string, string>>,
+  isOffDay: (date: string) => boolean = () => false
+): Record<string, ProgressMark> {
+  const out: Record<string, ProgressMark> = {};
+  for (const plan of plans) {
+    if (plan.lessons.length === 0) continue;
+    const t = computeProgress(plan, subjectsByDate, isOffDay, progressUntil(plan, plans));
+    for (const s of t.slots) {
+      if (s.lesson !== null && s.lesson >= plan.lessons.length) break; // 목록이 끝났다
+      out[slotId(s.date, s.period)] = {
+        planId: plan.id,
+        key: plan.key,
+        index: s.lesson,
+        total: plan.lessons.length,
+        lesson: s.lesson === null ? null : plan.lessons[s.lesson],
+        bumped: s.bumped,
+      };
+    }
+  }
+  return out;
+}
+
 /** 밀기를 켜고 끈 목록 (날짜·교시 차례로) */
 export function toggleBump(bumps: string[], date: string, period: string | number): string[] {
   const id = slotId(date, period);
