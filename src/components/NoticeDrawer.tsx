@@ -28,6 +28,7 @@ import {
 } from '../lib/notices';
 import { SOURCE_CHANGED_EVENT, type SourceChangedDetail } from '../lib/autoJournalSync';
 import { showToast, showErrorToast } from '../utils/toast';
+import { canShare, shareText } from '../lib/shareText';
 import { useSchool } from '../hooks/useSchool';
 import { loadMonthMeals } from '../lib/neis';
 import { useProgressMarks } from '../hooks/useProgress';
@@ -60,6 +61,14 @@ async function copyText(text: string) {
     showErrorToast('복사하지 못했습니다. 글을 직접 골라 복사해 주세요.');
   }
 }
+
+/** 보내는 글: 첫 줄에 날짜, 그 아래 번호 붙인 줄 */
+const noticeMessage = (dateStr: string, lines: string[]) =>
+  `[${shortDateLabel(dateStr)} 알림장]\n${numberedNotice(lines)}`;
+
+/** 공유 창으로 보낸다 (카카오톡·문자·메일…). 공유가 막힌 곳이면 복사로 대신한다. */
+const shareNotice = (dateStr: string, lines: string[]) =>
+  shareText(`${shortDateLabel(dateStr)} 알림장`, noticeMessage(dateStr, lines), copyText);
 
 export default function NoticeDrawer({
   dateStr: initialDate,
@@ -390,13 +399,25 @@ export default function NoticeDrawer({
               <div className="p-3 bg-yellow-50/70 border border-yellow-200 rounded-xl">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="font-bold text-yellow-900">미리 보기</span>
-                  <button
-                    type="button"
-                    onClick={() => copyText(`[${shortDateLabel(date)} 알림장]\n${numberedNotice(lines)}`)}
-                    className="px-2 py-0.5 bg-white border border-yellow-300 rounded-lg font-bold text-yellow-900 hover:bg-yellow-100"
-                  >
-                    📋 복사
-                  </button>
+                  <div className="flex gap-1">
+                    {canShare() && (
+                      <button
+                        type="button"
+                        onClick={() => shareNotice(date, lines)}
+                        className="px-2 py-0.5 bg-white border border-yellow-300 rounded-lg font-bold text-yellow-900 hover:bg-yellow-100"
+                        title="카카오톡·문자 등으로 보내기"
+                      >
+                        📤 공유
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => copyText(noticeMessage(date, lines))}
+                      className="px-2 py-0.5 bg-white border border-yellow-300 rounded-lg font-bold text-yellow-900 hover:bg-yellow-100"
+                    >
+                      📋 복사
+                    </button>
+                  </div>
                 </div>
                 <ol className="space-y-0.5 text-sm text-slate-800">
                   {lines.map((l, i) => (
@@ -447,13 +468,25 @@ export default function NoticeDrawer({
                       >
                         {shortDateLabel(n.date)} <span className="font-normal text-slate-400">{n.date.slice(0, 4)}</span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => copyText(`[${shortDateLabel(n.date)} 알림장]\n${numberedNotice(n.lines)}`)}
-                        className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-600 hover:bg-slate-100"
-                      >
-                        📋 복사
-                      </button>
+                      <div className="flex gap-1 shrink-0">
+                        {canShare() && (
+                          <button
+                            type="button"
+                            onClick={() => shareNotice(n.date, n.lines)}
+                            className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-600 hover:bg-slate-100"
+                            title="카카오톡·문자 등으로 보내기"
+                          >
+                            📤 공유
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => copyText(noticeMessage(n.date, n.lines))}
+                          className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-600 hover:bg-slate-100"
+                        >
+                          📋 복사
+                        </button>
+                      </div>
                     </div>
                     <ol className="space-y-0.5 text-sm text-slate-700">
                       {n.lines.map((l, i) => (
