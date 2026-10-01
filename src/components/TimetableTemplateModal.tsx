@@ -12,6 +12,7 @@ import PopupFrame from './PopupFrame';
 import PeriodTimesEditor from './PeriodTimesEditor';
 import { useSchool } from '../hooks/useSchool';
 import { useLabels } from '../hooks/useLabels';
+import { useAppStore } from '../store/useAppStore';
 import { loadMonthSchedule } from '../lib/neis';
 import { filterScheduleByGrade, findVacations, schoolYearOf, vacationMonths } from '../lib/schoolSetting';
 import {
@@ -426,6 +427,16 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
             <span className="text-xl">⏰</span>
             <h2 className="text-base font-extrabold text-slate-800">시간표 마스터 모듈 & 템플릿 설정</h2>
           </div>
+          <div className="flex items-center gap-1.5">
+          {/* 진도는 시간표 칸 글자마다 센다 - 시간표를 만지다 바로 갈 수 있게 (docs/ROADMAP.md 5-2) */}
+          <button
+            type="button"
+            onClick={() => useAppStore.getState().setProgressModalOpen(true)}
+            title="시간표 칸 글자마다 차시 목록을 붙여 넣고 시간표를 따라 몇 차시인지 봅니다"
+            className="px-2.5 py-1.5 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition-colors"
+          >
+            📘 진도 관리
+          </button>
           <button
             title="닫기"
             onClick={onClose}
@@ -433,6 +444,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
           >
             ✕
           </button>
+          </div>
         </div>
 
         {/* 상단 템플릿 선택 및 관리 바 */}

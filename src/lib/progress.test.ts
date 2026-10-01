@@ -4,6 +4,7 @@ import {
   lessonAt,
   offDayChecker,
   parseLessonTable,
+  progressUntil,
   sanitizePlan,
   scheduleSubjects,
   schoolYearEnd,
@@ -168,6 +169,20 @@ describe('진도 세기', () => {
     const t = computeProgress({ ...plan, bumps: [slotId('2026-10-06', '1')] }, subjects);
     expect(t.slots.every((s) => !s.bumped)).toBe(true);
     expect(t.slots[3].lesson).toBe(3);
+  });
+
+  it('같은 칸 글자의 다음 진도가 그 시작일부터 이어받는다', () => {
+    const plans = [
+      { id: 'a', key: '국어', startDate: '2026-03-02' },
+      { id: 'b', key: '국어 ', startDate: '2026-10-07' },
+      { id: 'c', key: '국어', startDate: '2026-12-01' },
+      { id: 'd', key: '수학', startDate: '2026-09-01' },
+    ];
+    expect(progressUntil(plans[0], plans)).toBe('2026-10-07');
+    expect(progressUntil(plans[1], plans)).toBe('2026-12-01');
+    expect(progressUntil(plans[2], plans)).toBeUndefined();
+    const t = computeProgress(plan, subjects, undefined, '2026-10-07');
+    expect(t.slots.map((s) => s.date)).toEqual(['2026-10-05', '2026-10-05', '2026-10-05']);
   });
 
   it('칸 글자나 시작일이 없으면 세지 않는다', () => {

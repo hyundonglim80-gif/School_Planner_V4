@@ -36,6 +36,7 @@ const CONFIRM_ALLOWED: Record<string, string> = {
   'EvaluationModal.tsx': '조사표의 대상 학급 교체 - 학생 명단을 통째로 갈아 끼운다',
   'EntryPanelHost.tsx': 'ESC로 쓰는 칸을 모두 닫을 때 저장 안 한 글이 있으면 - 적던 글이 사라진다',
   'ClipboardPanel.tsx': '클립보드 목록 모두 지우기 - 여러 건, 휴지통에 남지 않는다',
+  'ProgressModal.tsx': '차시 목록을 붙여 넣은 표로 통째로 바꾸기(덮어쓰기), 고치던 진도를 버리고 옮기기 - 적던 것이 사라진다',
 };
 
 describe('삭제 확인 정책', () => {

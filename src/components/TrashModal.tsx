@@ -11,6 +11,7 @@ import { syncAutoSourceAndTell } from '../lib/autoJournalSync';
 import PopupFrame from './PopupFrame';
 import { deleteClipTrash, listClipTrash, restoreClipFromTrash } from '../lib/clipboardHistory';
 import { loadTrashRetention, purgeExpiredTrash } from '../lib/trashRetention';
+import { restoreProgressPlan } from '../lib/progress';
 import { ModalCloseButton } from './ModalShell';
 
 interface TrashModalProps {
@@ -28,6 +29,7 @@ const TYPE_LABELS: Record<string, string> = {
   roster: '명단',
   label: '라벨',
   template: '시간표',
+  progress: '진도',
   clip: '클립보드',
 };
 
@@ -240,6 +242,9 @@ export default function TrashModal({ isOpen, onClose }: TrashModalProps) {
       const name = templates[data.name] ? `${data.name} (복원됨)` : data.name;
       templates[name] = data.template;
       await setDoc(tplRef, { templates, updatedAt: Date.now() }, { merge: true });
+    } else if (type === 'progress') {
+      // 진도 관리 (V4 전용 v4_progress). 같은 id가 이미 있으면 새 id로 되살린다
+      await restoreProgressPlan(user.uid, data);
     } else {
       throw new Error('이 항목 유형은 아직 복원을 지원하지 않습니다.');
     }

@@ -17,6 +17,7 @@ const LabelModal = lazyWithReload(() => import('./LabelModal'));
 const BackupModal = lazyWithReload(() => import('./BackupModal'));
 const HelpModal = lazyWithReload(() => import('./HelpModal'));
 const TimetableTemplateModal = lazyWithReload(() => import('./TimetableTemplateModal'));
+const ProgressModal = lazyWithReload(() => import('./ProgressModal'));
 const SettingsModal = lazyWithReload(() => import('./SettingsModal'));
 const EvaluationModal = lazyWithReload(() => import('./EvaluationModal'));
 const RecurringModal = lazyWithReload(() => import('./RecurringModal'));
@@ -98,6 +99,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     setMultiSelectMode,
     isTrashModalOpen,
     setTrashModalOpen,
+    isProgressModalOpen,
+    setProgressModalOpen,
     linkViewers,
     closeLinkViewerModal,
     isDetailEditOpen,
@@ -378,6 +381,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       case 'studentRecord': setIsStudentRecordOpen(true); return;
       case 'group': setIsGroupModalOpen(true); return;
       case 'timetable': setIsTimetableModalOpen(true); return;
+      case 'progress': setProgressModalOpen(true); return;
       case 'backup': setIsBackupModalOpen(true); return;
       case 'help': setIsHelpModalOpen(true); return;
       case 'settings': setIsSettingsModalOpen(true); return;
@@ -419,6 +423,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         setIsSettingsModalOpen(false);
         setIsRecurringModalOpen(false);
         setIsTimetableModalOpen(false);
+        setProgressModalOpen(false);
         setIsCalendarModalOpen(false);
         setIsStudentRecordOpen(false);
         setIsMoreMenuOpen(false);
@@ -780,6 +785,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     {menuKey('timetable')}
                   </button>
 
+                  <button
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      setProgressModalOpen(true);
+                    }}
+                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
+                  >
+                    <span>📘</span> 진도 관리
+                    {menuKey('progress')}
+                  </button>
+
                   {/* 병합/교체·'지금 화면 기간으로'는 이 창에만 있다 (백업 창의 캘린더 보내기에는 없다) */}
                   <button
                     onClick={() => {
@@ -1122,6 +1138,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {isTimetableModalOpen && (
           <TimetableTemplateModal isOpen onClose={() => setIsTimetableModalOpen(false)} />
         )}
+
+        {isProgressModalOpen && <ProgressModal isOpen onClose={() => setProgressModalOpen(false)} />}
       </Suspense>
 
       {/* 다중 선택 액션 바 */}

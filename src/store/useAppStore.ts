@@ -255,6 +255,9 @@ interface AppState {
   // Trash Modal State
   isTrashModalOpen: boolean;
   setTrashModalOpen: (isOpen: boolean) => void;
+  /** 진도 관리 창 (⋮ 메뉴와 시간표 설정 창에서 연다, docs/ROADMAP.md 5-2) */
+  isProgressModalOpen: boolean;
+  setProgressModalOpen: (isOpen: boolean) => void;
 
   // Label Modal State
   isLabelModalOpen: boolean;
@@ -661,6 +664,9 @@ export const useAppStore = create<AppState>()(
 
       isTrashModalOpen: false,
       setTrashModalOpen: (isOpen: boolean) => set({ isTrashModalOpen: isOpen }),
+
+      isProgressModalOpen: false,
+      setProgressModalOpen: (isOpen: boolean) => set({ isProgressModalOpen: isOpen }),
 
       isLabelModalOpen: false,
       labelModalTab: 'event',

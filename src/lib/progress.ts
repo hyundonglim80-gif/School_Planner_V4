@@ -15,8 +15,10 @@ import {
   arrayRemove,
   arrayUnion,
   collection,
+  deleteDoc,
   doc,
   documentId,
+  getDoc,
   onSnapshot,
   query,
   setDoc,
@@ -26,6 +28,7 @@ import {
 import { db } from './firebase';
 import { parseClipboardGrid } from './gridNav';
 import { classOffReason, type ClassDayRules } from './classDays';
+import { moveToTrash } from '../utils/trashHelper';
 
 export interface ProgressLesson {
   unit: string;
@@ -195,11 +198,13 @@ export interface ProgressTimeline {
 /**
  * 시작일부터 그 칸 글자가 적힌 교시를 차례로 세어 차시를 붙인다.
  * subjectsByDate: 날짜 → (교시 → 과목 글자) - scheduleSubjects로 만든 것. isOffDay: 수업이 없는 날.
+ * until: 이날부터는 세지 않는다 (같은 칸 글자의 다음 진도가 이어받는 날 - progressUntil).
  */
 export function computeProgress(
   plan: Pick<ProgressPlan, 'key' | 'startDate' | 'lessons' | 'bumps'>,
   subjectsByDate: Record<string, Record<string, string>>,
-  isOffDay: (date: string) => boolean = () => false
+  isOffDay: (date: string) => boolean = () => false,
+  until?: string
 ): ProgressTimeline {
   const key = progressKey(plan.key);
   const bumps = new Set(plan.bumps || []);
@@ -209,7 +214,7 @@ export function computeProgress(
   if (!key || !plan.startDate) return { slots, bySlot, last };
 
   const dates = Object.keys(subjectsByDate)
-    .filter((d) => d >= plan.startDate)
+    .filter((d) => d >= plan.startDate && (!until || d < until))
     .sort();
   let next = 0;
   for (const date of dates) {
@@ -227,6 +232,23 @@ export function computeProgress(
     }
   }
   return { slots, bySlot, last };
+}
+
+/**
+ * 같은 칸 글자에 진도가 둘 이상이면(예: 2학기 목록을 따로) 시작일이 늦은 것이 그날부터 이어받는다.
+ * 이 진도를 세지 않기 시작하는 날 - 같은 글자의 다음 진도 시작일. 없으면 undefined.
+ */
+export function progressUntil(
+  plan: Pick<ProgressPlan, 'id' | 'key' | 'startDate'>,
+  plans: Array<Pick<ProgressPlan, 'id' | 'key' | 'startDate'>>
+): string | undefined {
+  const key = progressKey(plan.key);
+  let until: string | undefined;
+  for (const p of plans) {
+    if (p.id === plan.id || progressKey(p.key) !== key || !p.startDate || p.startDate <= plan.startDate) continue;
+    if (!until || p.startDate < until) until = p.startDate;
+  }
+  return until;
 }
 
 /** 그 교시에 하는 차시. 민 교시·목록 밖이면 null */
@@ -349,6 +371,31 @@ export async function setProgressBump(
   const id = slotId(date, period);
   await updateDoc(doc(progressCol(uid), planId), {
     bumps: on ? arrayUnion(id) : arrayRemove(id),
+    updatedAt: Date.now(),
+  });
+}
+
+/** 휴지통에 먼저 넣고 지운다 (휴지통에 못 넣으면 지우지 않는다 - 던진다). 복원은 TrashModal 'progress' */
+export async function deleteProgressPlan(uid: string, plan: ProgressPlan): Promise<void> {
+  const { id, ...data } = plan;
+  await moveToTrash({
+    id,
+    type: 'progress',
+    content: `${plan.key} 진도 (${plan.lessons.length}차시)`,
+    data: { id, ...data },
+  });
+  await deleteDoc(doc(progressCol(uid), id));
+}
+
+/** 휴지통에서 되살린다. 같은 id 문서가 이미 있으면 덮지 않고 새 id로 */
+export async function restoreProgressPlan(uid: string, data: any): Promise<void> {
+  const plan = sanitizePlan(String(data?.id || newProgressId()), data);
+  const taken = (await getDoc(doc(progressCol(uid), plan.id))).exists();
+  await setDoc(doc(progressCol(uid), taken ? newProgressId() : plan.id), {
+    key: plan.key,
+    startDate: plan.startDate,
+    lessons: plan.lessons,
+    bumps: plan.bumps,
     updatedAt: Date.now(),
   });
 }
