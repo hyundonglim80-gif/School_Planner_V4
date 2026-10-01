@@ -678,7 +678,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           title="휴지통 자동 비우기"
           desc="고른 기간이 지난 휴지통 항목을 영구 삭제합니다. 고르는 즉시 저장되고, PC·휴대폰이 같은 값을 씁니다. 앱을 열 때와 휴지통을 열 때 비웁니다. 휴지통에서 '휴지통 비우기'로 바로 지울 수도 있습니다."
         >
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5" data-trash-retention>
             {TRASH_RETENTION_OPTIONS.map((d) => (
               <button
                 key={d}

@@ -87,20 +87,21 @@ export function useAutoBackupRunner() {
   const { settings, loaded } = useAutoBackupSettings();
   const isPc = detectDeviceKind() === 'pc';
   const [snoozed, setSnoozed] = useState(snoozedNow);
-  const [tick, setTick] = useState(0);
+  // 띠와 자동 실행이 보는 '지금' - 30분마다 다시 잰다 (그리는 중에 Date.now()를 부르지 않게)
+  const [now, setNow] = useState(() => Date.now());
   const failedAt = useRef(0);
 
   // 앱을 연 채로 두면 30분마다 다시 본다 (그 사이 토큰이 생겼을 수 있다)
   useEffect(() => {
     if (!isPc) return;
-    const id = window.setInterval(() => setTick((t) => t + 1), RECHECK_MS);
+    const id = window.setInterval(() => setNow(Date.now()), RECHECK_MS);
     return () => window.clearInterval(id);
   }, [isPc]);
 
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!isPc || !loaded || !uid || inFlight) return;
-    if (!isBackupDue(settings, Date.now())) return;
+    if (!isBackupDue(settings, now)) return;
     // 방금 실패했으면 다음 판까지 기다린다 (실패를 되풀이하며 드라이브를 두드리지 않게)
     if (Date.now() - failedAt.current < RECHECK_MS) return;
     let cancelled = false;
@@ -122,8 +123,8 @@ export function useAutoBackupRunner() {
     return () => {
       cancelled = true;
     };
-    // tick: 30분마다 다시 본다
-  }, [isPc, loaded, settings, tick]);
+    // now: 30분마다 다시 본다
+  }, [isPc, loaded, settings, now]);
 
   const snooze = useCallback(() => {
     try {
@@ -134,7 +135,6 @@ export function useAutoBackupRunner() {
     setSnoozed(true);
   }, []);
 
-  const now = Date.now();
   return {
     settings,
     nag: isPc && loaded && !snoozed && shouldNag(settings, now),
