@@ -37,6 +37,8 @@ export interface EntryPanelTarget {
   defaultLabel?: string;
   /** 알림장('write'|'list')·출석부('check'|'summary')를 열 때 처음 보일 탭 */
   tab?: 'write' | 'list' | 'check' | 'summary';
+  /** 출석부를 열 때 고를 학급 (자리표 학생 칸의 '출석부'). 없으면 마지막에 연 학급 */
+  classKey?: string;
   /** 이 칸의 고유 번호 (열 때 붙는다). 여러 칸이 쌓이므로 닫기·id 알리기에 쓴다. */
   openedAt?: number;
   /** 맨 위로 올린 때. 이미 열린 항목을 다시 열면 새로 만들지 않고 이것만 바꿔 맨 위로 올린다. */

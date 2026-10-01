@@ -449,6 +449,7 @@ function ClassroomPanel({ target }: { target: EntryPanelTarget }) {
     <AttendanceDrawer
       dateStr={dateStr}
       initialTab={target.tab === 'summary' ? 'summary' : 'check'}
+      initialClassKey={target.classKey}
       docked={docked}
       flushRef={flushRef}
       unsavedRef={unsavedRef}

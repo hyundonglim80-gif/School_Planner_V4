@@ -20,6 +20,9 @@ import { showToast, showErrorToast } from '../utils/toast';
 interface StudentRecordModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** 처음 보일 학급·학생 (자리표 학생 칸의 '누가기록'). 없으면 마지막에 본 학급 */
+  initialClassKey?: string;
+  initialNum?: number;
 }
 
 interface TimelineItem {
@@ -35,16 +38,16 @@ interface TimelineItem {
 
 const MEMORY_KEY = 'sp4-student-record';
 
-export default function StudentRecordModal({ isOpen, onClose }: StudentRecordModalProps) {
+export default function StudentRecordModal({ isOpen, onClose, initialClassKey, initialNum }: StudentRecordModalProps) {
   const { rosterList, loading: rosterLoading } = useRoster();
   const { groups } = useGroups();
   const { selectedGroupId, setCurrentDate, setScope, setSelectedGroupId, requestFocus } = useAppStore();
 
   const [classKey, setClassKey] = useState<string | null>(null);
-  const [num, setNum] = useState<number | null>(null);
+  const [num, setNum] = useState<number | null>(initialNum ?? null);
   const [tagInput, setTagInput] = useState('');
 
-  // 처음에는 마지막에 본 학급을 연다
+  // 처음에는 넘겨받은 학급, 없으면 마지막에 본 학급을 연다
   useEffect(() => {
     if (rosterLoading || classKey || rosterList.length === 0) return;
     let remembered: string | null = null;
@@ -54,6 +57,7 @@ export default function StudentRecordModal({ isOpen, onClose }: StudentRecordMod
       /* 무시 */
     }
     const pick =
+      (initialClassKey && rosterList.find((c) => classKeyOf(c) === initialClassKey)) ||
       rosterList.find((c) => classKeyOf(c) === remembered) ||
       rosterList.find((c) => (c.students || []).length > 0) ||
       rosterList[0];

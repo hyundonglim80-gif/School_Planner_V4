@@ -310,6 +310,11 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   0줄이 교탁 쪽 앞줄, 교탁 아래면 180도 돌려 그린다), 저장은 `lib/seatingStore`. 섞기는 고정 칸을 두고 앞줄부터 채운 뒤 무작위로 여러 번 놓고
   두 자리씩 바꿔 보며 떨어뜨릴 학생 > 지난 짝 > 남녀 짝 차례로 덜 어기는 쪽을 고른다(`shuffleSeats`). 고칠 때마다 곧바로 저장하고
   화면은 구독으로 최신 자리표를 든다. 섞기·번호 차례는 안내의 되돌리기(섞기 전 seats·history), 지우기는 휴지통 type `seating`.
+  **학생 칸**(8-2, `SeatStudentCard`): '자리 고치기'가 꺼진 채 학생 자리를 누르면 연다. 새 문서 없이 **있는 저장 길만** 쓴다 -
+  출결은 `classHubStore.saveStudentAttendance`(서버에서 그날을 읽어 그 학생만 → `saveAttendanceDay` → `SOURCE_CHANGED_EVENT`),
+  조사표는 지금 공간 오늘 문서를 트랜잭션으로 읽어 그 조사표의 그 학생 칸만(`saveStudentEval`, 두 이름 `evalDocPayload`),
+  관찰 한 줄은 개인 공간 오늘 기록에 `글 #태그` 한 항목(`addJournalLine`). 자리의 오늘 출결은 출석부 문서 구독.
+  저장은 칸 안에서 하나씩 차례로, 누른 값은 덧씌움으로 먼저 보인다(출결은 저장이 끝나면, 조사표는 구독이 같은 값을 받으면 걷는다).
 - **나이스 급식·학사일정**: 표시만 한다(`hooks/useNeis`, 일정 문서에 쓰지 않는다). 학사일정 이름을 누르면 `SchoolEventModal`
   (store `schoolEventPeek`, Layout이 그린다): 'D-Day로'는 `useDDay.addDDay`, '일정으로 담기'는 새 일정 칸을 `draftText`로 연다 -
   저장은 늘 일정 칸이 한다. 방학 기간 채우기는 `schoolSetting.findVacations`(방학식 다음 날 ~ 개학식 전날, 저장은 따로).

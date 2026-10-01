@@ -5,13 +5,18 @@
 // - 바꾸기: PC는 끌어다 놓기. 휴대폰은 '✏️ 자리 고치기'를 켜고 두 자리를 차례로 누른다(그 모드에서 고정·책상 없음도).
 // - 섞기: 떨어뜨릴 학생(학급마다) · 지난 짝 피하기 · 남녀 짝. 고정 칸은 그대로. 안내의 되돌리기로 섞기 전으로.
 // - 고칠 때마다 곧바로 저장한다(저장 단추 없음). 화면은 구독으로 늘 최신 자리표를 들고 있다.
+// - 학급 허브(8-2): '자리 고치기'가 꺼진 채 학생 자리를 누르면 학생 칸(SeatStudentCard) - 오늘 출결·조사표·관찰 한 줄.
+//   자리에는 오늘 출결(결석·지각…)을 적어 보인다(출석부 문서를 구독).
 import React, { useEffect, useMemo, useState } from 'react';
 import ModalShell, { ModalCloseButton } from './ModalShell';
+import SeatStudentCard from './SeatStudentCard';
 import { auth } from '../lib/firebase';
 import { useRoster, type Student } from '../hooks/useRoster';
-import { classKeyOf } from '../lib/attendance';
+import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
+import { KIND_LABEL, classKeyOf, type AttendanceRecord } from '../lib/attendance';
+import { subscribeAttendanceDay } from '../lib/classHubStore';
 import { describeClass } from '../lib/classPicker';
-import { getAcademicYear } from '../lib/dateUtils';
+import { formatDateStr, getAcademicYear } from '../lib/dateUtils';
 import {
   GROUP_COL_CHOICES,
   MAX_COLS,
@@ -50,6 +55,10 @@ import { showErrorToast, showToast } from '../utils/toast';
 interface SeatingModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** 학생 칸의 '누가기록' - 그 학생으로 학생 누가기록을 연다 */
+  onOpenStudentRecord?: (classKey: string, num: number) => void;
+  /** 학생 칸의 '출석부' - 그 학급·날짜로 출석부 칸을 연다 */
+  onOpenAttendance?: (classKey: string, dateStr: string) => void;
 }
 
 const CLASS_MEMORY_KEY = 'sp4-seating-class';
@@ -79,9 +88,13 @@ function writeJson(key: string, value: unknown) {
 
 type Selection = { kind: 'seat'; key: string } | { kind: 'student'; num: number } | null;
 
-export default function SeatingModal({ isOpen, onClose }: SeatingModalProps) {
+export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onOpenAttendance }: SeatingModalProps) {
   const uid = auth.currentUser?.uid;
   const { rosterList, loading: rosterLoading } = useRoster();
+  const { templates, currentTemplateName } = useTimetableTemplate();
+  const maxPeriods = templates[currentTemplateName]?.names.length || 6;
+  /** 학생 칸의 '오늘' - 창을 연 날 */
+  const today = useMemo(() => formatDateStr(new Date()), []);
 
   const [classKey, setClassKey] = useState<string | null>(null);
   const [charts, setCharts] = useState<SeatingChart[] | null>(null);
@@ -95,6 +108,9 @@ export default function SeatingModal({ isOpen, onClose }: SeatingModalProps) {
     readJson(SHUFFLE_MEMORY_KEY, { avoidPast: true, mixGender: false })
   );
   const [busy, setBusy] = useState(false);
+  /** 학생 칸을 연 학생 번호 ('자리 고치기'가 꺼져 있을 때) */
+  const [focusNum, setFocusNum] = useState<number | null>(null);
+  const [todayRecords, setTodayRecords] = useState<Record<string, AttendanceRecord>>({});
 
   // 학급 고르기: 자리표에서 마지막에 본 학급 → 출석부에서 마지막에 연 학급 → 올해 학년도의, 학생이 있는 첫 학급
   useEffect(() => {
@@ -121,6 +137,7 @@ export default function SeatingModal({ isOpen, onClose }: SeatingModalProps) {
   const chooseClass = (key: string) => {
     setClassKey(key);
     setSelected(null);
+    setFocusNum(null);
     try {
       localStorage.setItem(CLASS_MEMORY_KEY, key);
     } catch {
@@ -147,11 +164,21 @@ export default function SeatingModal({ isOpen, onClose }: SeatingModalProps) {
     };
   }, [uid, classKey]);
 
+  // 자리에 오늘 출결을 보인다 (출석부·학생 칸·다른 기기에서 고친 것이 바로 보이게 구독)
+  useEffect(() => {
+    if (!uid || !classKey) return;
+    setTodayRecords({});
+    return subscribeAttendanceDay(uid, classKey, today, setTodayRecords, (err) =>
+      console.warn('오늘 출결을 불러오지 못했습니다:', err)
+    );
+  }, [uid, classKey, today]);
+
   const cls = rosterList.find((c) => classKeyOf(c) === classKey) || null;
   const students: Student[] = useMemo(() => cls?.students || [], [cls]);
   const active = useMemo(() => students.filter((s) => s.isActive !== false), [students]);
   const byNum = useMemo(() => new Map(students.map((s) => [Number(s.num), s])), [students]);
   const chart = charts?.find((c) => c.id === activeId) || charts?.[0] || null;
+  const focusStudent = focusNum !== null ? byNum.get(focusNum) || null : null;
 
   const chooseChart = (id: string) => {
     setActiveId(id);
@@ -259,9 +286,17 @@ export default function SeatingModal({ isOpen, onClose }: SeatingModalProps) {
     void saveSeats(clearSeat(chart.seats, source.slice(5)));
   };
 
+  /** 학생 칸 열기·닫기 (같은 학생을 다시 누르면 닫는다) */
+  const toggleFocus = (num: number) => {
+    if (!byNum.has(num)) return showToast(`${num}번은 명렬표에 없는 번호입니다. 명렬표에서 학생을 넣거나 자리를 비워 주세요.`);
+    setFocusNum(focusNum === num ? null : num);
+  };
+
   const tapSeat = (key: string) => {
     if (!chart) return;
     if (!editMode) {
+      const num = chart.seats[key];
+      if (num !== undefined) return toggleFocus(num);
       showToast('자리를 바꾸려면 끌어다 놓거나, ✏️ 자리 고치기를 켜고 두 자리를 차례로 누릅니다.');
       return;
     }
@@ -279,10 +314,7 @@ export default function SeatingModal({ isOpen, onClose }: SeatingModalProps) {
   };
 
   const tapUnseated = (num: number) => {
-    if (!editMode) {
-      showToast('자리 칸으로 끌어다 놓거나, ✏️ 자리 고치기를 켜고 학생과 자리를 차례로 누릅니다.');
-      return;
-    }
+    if (!editMode) return toggleFocus(num);
     setSelected(selected?.kind === 'student' && selected.num === num ? null : { kind: 'student', num });
   };
 
@@ -373,6 +405,8 @@ export default function SeatingModal({ isOpen, onClose }: SeatingModalProps) {
     const st = num !== undefined ? byNum.get(num) : undefined;
     const gone = num !== undefined && (!st || st.isActive === false);
     const locked = chart.locked.includes(key);
+    const att = num !== undefined ? todayRecords[String(num)] : undefined;
+    const focused = !editMode && num !== undefined && focusNum === num;
     const gender = st?.gender === 'M' || st?.gender === '남' ? 'M' : st?.gender === 'F' || st?.gender === '여' ? 'F' : '';
     return (
       <button
@@ -394,19 +428,24 @@ export default function SeatingModal({ isOpen, onClose }: SeatingModalProps) {
           dropOnSeat(e.dataTransfer.getData('text/plain'), key);
         }}
         onClick={() => tapSeat(key)}
+        aria-pressed={!editMode && num !== undefined ? focused : undefined}
         title={
           num === undefined
             ? '빈 자리'
-            : `${nameOf(num)}${!st ? ' (명렬표에 없는 번호)' : st.isActive === false ? ' (전출)' : ''}${locked ? ' · 고정' : ''}`
+            : `${nameOf(num)}${!st ? ' (명렬표에 없는 번호)' : st.isActive === false ? ' (전출)' : ''}${locked ? ' · 고정' : ''}${
+                att ? ` · 오늘 ${KIND_LABEL[att.kind]}` : ''
+              }`
         }
         className={`relative h-14 min-w-0 rounded-lg border px-1 flex flex-col items-center justify-center transition-colors ${
-          isSelected
+          isSelected || focused
             ? 'border-primary ring-2 ring-primary/40 bg-indigo-50'
             : warn.has(key)
               ? 'border-amber-400 bg-amber-50'
               : num === undefined
                 ? 'border-slate-200 bg-slate-50/60 hover:bg-slate-100'
-                : 'border-slate-200 bg-white hover:border-primary/50 cursor-grab'
+                : att
+                  ? 'border-rose-300 bg-rose-50 hover:border-primary/50 cursor-grab'
+                  : 'border-slate-200 bg-white hover:border-primary/50 cursor-grab'
         }`}
       >
         {num === undefined ? (
@@ -419,6 +458,11 @@ export default function SeatingModal({ isOpen, onClose }: SeatingModalProps) {
               }`}
             >
               {num}
+              {att && (
+                <span className="ml-1 text-rose-600" data-seat-att={att.kind}>
+                  {KIND_LABEL[att.kind]}
+                </span>
+              )}
             </span>
             <span
               className={`w-full truncate text-center text-sm font-black leading-tight ${
@@ -597,6 +641,7 @@ export default function SeatingModal({ isOpen, onClose }: SeatingModalProps) {
                   onClick={() => {
                     setEditMode(!editMode);
                     setSelected(null);
+                    setFocusNum(null);
                   }}
                   aria-pressed={editMode}
                   className={toolBtn(editMode)}
@@ -748,6 +793,20 @@ export default function SeatingModal({ isOpen, onClose }: SeatingModalProps) {
               {warn.size > 0 && (
                 <p className="text-xs text-amber-700 font-bold">⚠️ 떨어뜨릴 학생이 붙어 앉아 있습니다. 섞거나 끌어서 떼어 주세요.</p>
               )}
+              {!editMode && uid && cls && focusStudent && (
+                <SeatStudentCard
+                  key={`${classKey}:${focusStudent.num}`}
+                  uid={uid}
+                  cls={cls}
+                  student={focusStudent}
+                  date={today}
+                  record={todayRecords[String(focusStudent.num)]}
+                  maxPeriods={maxPeriods}
+                  onClose={() => setFocusNum(null)}
+                  onOpenRecord={() => classKey && onOpenStudentRecord?.(classKey, Number(focusStudent.num))}
+                  onOpenAttendance={() => classKey && onOpenAttendance?.(classKey, today)}
+                />
+              )}
 
               <div className="flex flex-col gap-1.5 mx-auto w-full max-w-[560px]" data-seating-grid data-front={chart.front}>
                 {chart.front === 'top' && desk}
@@ -790,19 +849,20 @@ export default function SeatingModal({ isOpen, onClose }: SeatingModalProps) {
                       }}
                       onClick={() => tapUnseated(n)}
                       className={`px-2 py-1 rounded-lg text-xs font-bold border cursor-grab ${
-                        selected?.kind === 'student' && selected.num === n
+                        (selected?.kind === 'student' && selected.num === n) || (!editMode && focusNum === n)
                           ? 'border-primary bg-indigo-50 text-primary'
                           : 'border-slate-200 bg-white text-slate-700'
                       }`}
                     >
                       {nameOf(n)}
+                      {todayRecords[String(n)] && <span className="ml-1 text-rose-600">{KIND_LABEL[todayRecords[String(n)].kind]}</span>}
                     </button>
                   ))}
                 </div>
               </div>
               <p className="text-2xs text-slate-400">
                 재학 {active.length}명 · 번호 색 <span className="text-sky-600 font-bold">남</span>/<span className="text-rose-500 font-bold">여</span>
-                {' '}· 전출한 학생은 회색으로 남고 섞을 때 빠집니다.
+                {' '}· 전출한 학생은 회색으로 남고 섞을 때 빠집니다. 학생 자리를 누르면 오늘 출결·조사표·관찰 한 줄을 적습니다.
               </p>
             </>
           )}

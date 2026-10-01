@@ -41,6 +41,8 @@ const CLASS_MEMORY_KEY = 'sp4-attendance-class';
 interface AttendanceDrawerProps {
   dateStr: string;
   initialTab?: Tab;
+  /** 처음 고를 학급 (자리표 학생 칸에서 열 때). 없으면 마지막에 연 학급 */
+  initialClassKey?: string;
   docked: boolean;
   onClose: () => void;
   /** 다른 항목을 열기 전에 '고친 것 있으면 저장'을 부를 수 있게 넘겨준다 */
@@ -54,6 +56,7 @@ const classLabel = (c: ClassRoster) => `${c.year}학년도 ${c.grade}학년 ${c.
 export default function AttendanceDrawer({
   dateStr: initialDate,
   initialTab = 'check',
+  initialClassKey,
   docked,
   onClose,
   flushRef,
@@ -68,7 +71,7 @@ export default function AttendanceDrawer({
   const [date, setDate] = useState(initialDate);
   const [classKey, setClassKey] = useState<string | null>(null);
 
-  // 학급 고르기: 마지막에 연 학급 → 그 날짜 학년도의, 학생이 있는 첫 학급 → 첫 학급
+  // 학급 고르기: 넘겨받은 학급 → 마지막에 연 학급 → 그 날짜 학년도의, 학생이 있는 첫 학급 → 첫 학급
   useEffect(() => {
     if (rosterLoading || classKey || rosterList.length === 0) return;
     let remembered: string | null = null;
@@ -81,6 +84,7 @@ export default function AttendanceDrawer({
     // 학생이 있는 학급을 먼저 본다 (빈 학급을 열면 체크할 것이 없다)
     const withStudents = rosterList.filter((c) => (c.students || []).length > 0);
     const pick =
+      (initialClassKey && rosterList.find((c) => classKeyOf(c) === initialClassKey)) ||
       rosterList.find((c) => classKeyOf(c) === remembered) ||
       withStudents.find((c) => Number(c.year) === ay) ||
       withStudents[0] ||

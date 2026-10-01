@@ -187,6 +187,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     });
   };
   const [isStudentRecordOpen, setIsStudentRecordOpen] = useState(false);
+  /** 자리표 학생 칸의 '누가기록'으로 열 때 처음 보일 학생 */
+  const [studentRecordStart, setStudentRecordStart] = useState<{ classKey: string; num: number } | null>(null);
   const [isSeatingOpen, setIsSeatingOpen] = useState(false);
 
   // 더보기 드롭다운 상태
@@ -1076,10 +1078,31 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {schoolEventPeek && <SchoolEventPeekHost />}
 
         {isStudentRecordOpen && (
-          <StudentRecordModal isOpen onClose={() => setIsStudentRecordOpen(false)} />
+          <StudentRecordModal
+            key={studentRecordStart ? `${studentRecordStart.classKey}:${studentRecordStart.num}` : 'last'}
+            isOpen
+            initialClassKey={studentRecordStart?.classKey}
+            initialNum={studentRecordStart?.num}
+            onClose={() => {
+              setIsStudentRecordOpen(false);
+              setStudentRecordStart(null);
+            }}
+          />
         )}
 
-        {isSeatingOpen && <SeatingModal isOpen onClose={() => setIsSeatingOpen(false)} />}
+        {isSeatingOpen && (
+          <SeatingModal
+            isOpen
+            onClose={() => setIsSeatingOpen(false)}
+            onOpenStudentRecord={(classKey, num) => {
+              setStudentRecordStart({ classKey, num });
+              setIsStudentRecordOpen(true);
+            }}
+            onOpenAttendance={(classKey, dateStr) =>
+              void openEntryPanel({ kind: 'attendance', groupId: null, dateStr, tab: 'check', classKey })
+            }
+          />
+        )}
 
         {isTrashModalOpen && (
           <TrashModal isOpen onClose={() => setTrashModalOpen(false)} />

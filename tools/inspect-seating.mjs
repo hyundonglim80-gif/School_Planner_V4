@@ -1,6 +1,6 @@
 // tools/inspect-seating.mjs
 //
-// 자리표(docs/ROADMAP.md 8-1)를 실제 크롬으로 누르고 서버를 확인한다.
+// 자리표(docs/ROADMAP.md 8-1)를 실제 크롬으로 누르고 서버를 확인한다. 학생 칸(8-2)은 inspect-seat-student.mjs.
 //   - ⋮ 메뉴 → 자리표, 학급 고르기, 빈 학급은 '+ 자리표 만들기' → 재학생만 번호 차례로 앉는다(전출 빠짐)
 //   - 끌어다 놓기로 맞바꾸기, '자리 고치기'에서 두 자리 눌러 바꾸기·고정·책상 없애기
 //   - 떨어뜨릴 학생 더하기(v4_classHub), 섞기(고정 칸 그대로, 떨어뜨릴 학생 안 붙음, 남녀 짝, 지난 짝 기록) → 되돌리기
@@ -145,9 +145,12 @@ const run = async () => {
     check('자리 없는 학생을 자리로 끌어 앉힌다', ch.seats['0-2'] === 3);
 
     // ── 3. 자리 고치기 (눌러서) ──
+    // 고치기를 켜지 않고 누르면 학생 칸(8-2, 자세한 것은 inspect-seat-student.mjs)
     await seat('0-0').click();
-    check('고치기를 켜지 않고 누르면 안내만', await toast('자리를 바꾸려면').isVisible().catch(() => false));
+    await page.locator('[data-seat-student]').waitFor({ timeout: 5000 }).catch(() => {});
+    check('고치기를 켜지 않고 누르면 학생 칸', (await page.locator('[data-seat-student="2"]').count()) === 1);
     await btn('✏️ 자리 고치기').click();
+    check('고치기를 켜면 학생 칸이 닫힌다', (await page.locator('[data-seat-student]').count()) === 0);
     await seat('0-0').click();
     await seat('1-0').click();
     ch = (await until(serverCharts, (cs) => cs[0]?.seats['1-0'] === 2))[0];
