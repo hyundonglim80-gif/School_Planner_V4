@@ -64,6 +64,7 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
 | `users/{uid}/settings/rosters` | `{ classList, rosters }` (같은 값) | 명렬표 |
 | `users/{uid}/settings/v4_trash` | 휴지통 자동 비우기 기간 | |
 | `users/{uid}/settings/v4_school` | `{ officeCode, schoolCode, officeName, name, kind, grade }` (학교를 지우면 `{ updatedAt }`만) | V4 전용. 우리 학교 - 나이스 급식·학사일정(`lib/schoolSetting`, `lib/neis`) |
+| `users/{uid}/v4_progress/{id}` | `{ key(시간표 칸 글자), startDate, lessons: [{unit, no, content, supplies}], bumps: ['YYYY-MM-DD#교시'] }` | V4 전용. 진도 관리(`lib/progress`). 수업 문서에는 쓰지 않고 화면에서만 겹쳐 본다. 차시 목록은 `saveProgressPlan`(merge, bumps 빼고), 밀기는 `setProgressBump`(arrayUnion/Remove 한 칸) - 다른 기기에서 민 것을 덮지 않게 |
 | `sharedConfig/neis` | `{ key, updatedAt, updatedBy }` | 나이스 인증키. **로그인하면 누구나 읽고** 개발자만 쓴다(`admin/config`는 개발자만 읽어 따로 둠). 없거나 못 읽으면 키 없이 5건씩 나눠 받는다 |
 | `users/{uid}/settings/v4_autoBackup` | `{ enabled, intervalDays, keep, lastAt?, lastName?, lastSummary?, folderLink? }` | V4 전용. 드라이브 자동 백업(`lib/autoBackup`, `hooks/useAutoBackup`). PC에서 토큰이 이미 있을 때만 조용히 백업. '나중에'는 기기별 localStorage `sp4_autoBackupSnoozeUntil` |
 | (메모·기록 항목의) `tables` | 붙인 표 `[{ id, rows: [{ h?, cells: [{ v, cs?, rs?, x?, s? }] }], cols?, styles?, createdAt }]` | V4 전용 칸. `lib/entryTable` |
@@ -274,6 +275,12 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   학생 사진은 공개하지 않고 `Students_Poto/{학년도-학년-반}`에(`lib/studentPhotos`).
 - **공휴일**: `holidays/{year}` 공유본 + V3의 `settings/holidays`. 옛 방식으로 events에 들어 있던 공휴일 일정은 `isHolidayEvent`로 가려 목록에서 뺀다.
 - **학기**: 방학 기간(시간표 설정)에서 계산한다(`lib/semester`). 학년도는 3월~이듬해 2월.
+- **수업이 없는 날**: `lib/classDays.classOffReason` 하나로 정한다 - 방학, 공휴일(`holidays/{연도}`+V3 개인 공휴일, V3 시절 '공휴일'
+  라벨 일정), 수업X 일정(일정의 skip이 먼저, 없으면 라벨 - V3 일정은 labelIds만 있다), 내용에 '휴업'. 시간표 적용과 진도 세기가 쓴다.
+  주말은 부르는 쪽이 정한다. (2026-10-01 전에는 시간표 적용이 공휴일·V3 수업X 라벨을 안 봐서 그날에도 과목을 채웠다)
+- **진도 관리**(`lib/progress`, ROADMAP 5번): 시간표 칸 글자마다 차시 목록. 시작일부터 수업 문서에 **실제로 적힌** 그 글자의 교시를
+  날짜·교시 차례로 세어 k번째 = k번째 차시(`computeProgress`), 수업이 없는 날은 건너뛰고 민 교시(bumps)는 차시를 받지 않는다.
+  수업·일정 문서는 범위 쿼리 두 개로 읽기만 한다(`subscribeProgressInputs`, 개인 공간만).
 - **나이스 급식·학사일정**: 표시만 한다(`hooks/useNeis`, 일정 문서에 쓰지 않는다). 학사일정 이름을 누르면 `SchoolEventModal`
   (store `schoolEventPeek`, Layout이 그린다): 'D-Day로'는 `useDDay.addDDay`, '일정으로 담기'는 새 일정 칸을 `draftText`로 연다 -
   저장은 늘 일정 칸이 한다. 방학 기간 채우기는 `schoolSetting.findVacations`(방학식 다음 날 ~ 개학식 전날, 저장은 따로).

@@ -11,6 +11,7 @@ import { formatDate } from '../lib/dateUtils';
 import PopupFrame from './PopupFrame';
 import PeriodTimesEditor from './PeriodTimesEditor';
 import { useSchool } from '../hooks/useSchool';
+import { useLabels } from '../hooks/useLabels';
 import { loadMonthSchedule } from '../lib/neis';
 import { filterScheduleByGrade, findVacations, schoolYearOf, vacationMonths } from '../lib/schoolSetting';
 import {
@@ -45,6 +46,8 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
     syncToCloud,
     applyTimetableToCalendar,
   } = useTimetableTemplate();
+  // 수업X 라벨 - V3 일정은 수업X를 라벨(labelIds)로만 들고 있다 (lib/classDays)
+  const { eventLabels } = useLabels();
 
   // 현재 편집 중인 템플릿의 로컬 상태
   const [editingTemplates, setEditingTemplates] = useState<Record<string, TimetableTemplateItem>>({});
@@ -386,7 +389,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
       // 먼저 최신 템플릿을 저장
       await syncToCloud(editingTemplates);
 
-      const res = await applyTimetableToCalendar(applyStart, applyEnd, gridData, periodNames);
+      const res = await applyTimetableToCalendar(applyStart, applyEnd, gridData, periodNames, eventLabels);
       showToast(`✅ 시간표 적용 완료 - 수업일 ${res.appliedCount}일, 제외 ${res.skippedCount}일`);
     } catch (e) {
       showErrorToast('시간표 적용 중 오류가 발생했습니다.', e);

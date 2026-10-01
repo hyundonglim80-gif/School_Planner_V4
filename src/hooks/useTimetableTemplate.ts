@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { doc, setDoc, getDocs, query, where, documentId, writeBatch, collection } from 'firebase/firestore';
-import { readEventList } from '../lib/eventText';
+import { classOffReason, type SkipLabel } from '../lib/classDays';
 import { subscribeDocWithServerFallback } from '../lib/firestoreSubscribe';
 import { db, auth } from '../lib/firebase';
 import { formatDate } from '../lib/dateUtils';
@@ -12,6 +12,7 @@ import {
   type SemesterConfig,
 } from '../lib/semester';
 import { moveToTrash } from '../utils/trashHelper';
+import { loadHolidayYears } from './useGovHolidays';
 
 export type WeekDayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri';
 export type WeekTimetable = Record<WeekDayKey, Record<number, string>>;
@@ -120,7 +121,8 @@ export function useTimetableTemplate() {
     startDateStr: string,
     endDateStr: string,
     targetData: WeekTimetable,
-    periodNames: string[]
+    periodNames: string[],
+    eventLabels: SkipLabel[] = []
   ) => {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
@@ -132,9 +134,13 @@ export function useTimetableTemplate() {
     const eventsCol = collection(db, 'users', user.uid, 'events');
     const schedulesCol = collection(db, 'users', user.uid, 'schedules');
 
-    const [eventsSnap, schedulesSnap] = await Promise.all([
+    // 공휴일은 holidays/{연도}에 있다 (기간이 해를 넘을 수 있다 - 겨울방학 12월~2월)
+    const years: number[] = [];
+    for (let y = startObj.getFullYear(); y <= endObj.getFullYear(); y++) years.push(y);
+    const [eventsSnap, schedulesSnap, holidays] = await Promise.all([
       getDocs(query(eventsCol, where(documentId(), '>=', startDateStr), where(documentId(), '<=', endDateStr))),
       getDocs(query(schedulesCol, where(documentId(), '>=', startDateStr), where(documentId(), '<=', endDateStr))),
+      loadHolidayYears(years),
     ]);
 
     const eventMap: Record<string, any> = {};
@@ -163,18 +169,8 @@ export function useTimetableTemplate() {
         const dateStr = formatDate(cur);
         const dayName = days[dayIdx - 1];
 
-        // 방학이면 수업을 채우지 않는다
-        let isSkip = isVacationDay(dateStr, semesterConfig);
-
-        // 공휴일 or 행사 중 'skip' 속성 체크
-        const eData = eventMap[dateStr];
-        if (!isSkip && eData) {
-          // V3 옛 글(eventText)만 있는 날도 읽는다. V4 일정은 본문이 content에 있다.
-          const list = readEventList(eData);
-          if (list.some((item: any) => item.skip || String(item.content || item.text || '').includes('휴업'))) {
-            isSkip = true;
-          }
-        }
+        // 방학·공휴일·수업X 일정·'휴업' 일정이 있는 날은 과목을 비운다 (lib/classDays - 진도 세기와 같은 규칙)
+        const isSkip = classOffReason(dateStr, eventMap[dateStr] || null, { semesterConfig, holidays, eventLabels }) !== null;
 
         const existingPeriods = scheduleMap[dateStr] || {};
         const newPeriods: Record<number, any> = {};
