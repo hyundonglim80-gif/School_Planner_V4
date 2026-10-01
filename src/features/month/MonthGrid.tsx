@@ -7,6 +7,8 @@ import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
 import HolidayName from '../../components/HolidayName';
+import SchoolEventName from '../../components/SchoolEventName';
+import { useSchoolSchedule } from '../../hooks/useNeis';
 import {
   splitHolidayEvents,
   dayToneOf,
@@ -81,6 +83,8 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
 
   const { getLabelColor, eventLabels, labelsLoaded } = useLabels();
   const { holidays } = useGovHolidays();
+  // 우리 학교 학사일정 (나이스 - 표시만, ROADMAP 4-4). 앞뒤 달의 날도 보이므로 그 달들까지
+  const { byDate: schoolEvents } = useSchoolSchedule(days.map((d) => d.dateStr.slice(0, 7)));
   const { templates, currentTemplateName } = useTimetableTemplate();
   
   const maxPeriods = templates[currentTemplateName]?.names.length || 6;
@@ -209,6 +213,12 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
                 {/* 휴대폰에서는 공휴일 이름을 날짜 옆에 둘 자리가 없다.
                     53px 칸에서 '개천절'이 '개…'가 됐다. 제 줄로 내려 칸 너비를
                     다 쓰고, 그래도 길면 글자를 줄인다. */}
+                {/* 학사일정은 제 줄 (날짜 옆은 공휴일 이름과 표식으로 이미 빠듯하다) */}
+                {schoolEvents[dayObj.dateStr] && (
+                  <div className={`w-full mb-0.5 flex min-w-0 ${compact ? 'justify-center' : ''}`}>
+                    <SchoolEventName items={schoolEvents[dayObj.dateStr]} tier="month" />
+                  </div>
+                )}
                 {holidayName && compact && (
                   <div
                     className="w-full mb-0.5 text-center overflow-hidden [container-type:inline-size]"

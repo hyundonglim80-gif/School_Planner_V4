@@ -59,6 +59,13 @@ export async function saveSchoolGrade(uid: string, grade: number): Promise<void>
   await setDoc(schoolSettingRef(uid), { grade, updatedAt: Date.now() }, { merge: true });
 }
 
+/** 학사일정 이름에 마우스를 올리면 보일 글 - 이름·학년·내용, 한 줄에 하나 */
+export function schoolEventTitle(items: NeisScheduleItem[]): string {
+  return items
+    .map((it) => `📚 ${it.name}${it.grades.length ? ` (${it.grades.join('·')}학년)` : ''}${it.content ? ` - ${it.content}` : ''}`)
+    .join('\n');
+}
+
 /** 고른 학년의 학사일정만 (전 학년 행사는 늘 남긴다) */
 export function filterScheduleByGrade(items: NeisScheduleItem[], grade: number): NeisScheduleItem[] {
   if (!grade) return items;

@@ -9,8 +9,6 @@ import { maxGrade, saveSchool, saveSchoolGrade } from '../lib/schoolSetting';
 import { useSchool } from '../hooks/useSchool';
 import { showToast, showErrorToast } from '../utils/toast';
 
-const SHOW_GRADE = false;
-
 const chip = (on: boolean) =>
   `px-3 py-1.5 rounded-lg text-xs font-bold border transition-all disabled:opacity-50 ${
     on ? 'bg-primary text-white border-primary shadow-xs' : 'bg-white text-slate-500 border-slate-200 hover:border-primary hover:text-primary'
@@ -42,7 +40,7 @@ export default function SchoolSettingPanel() {
     if (!uid) return;
     try {
       await saveSchool(uid, s);
-      showToast(s ? `🏫 ${s.name}의 급식을 봅니다.` : '🏫 우리 학교를 지웠습니다.');
+      showToast(s ? `🏫 ${s.name}의 급식·학사일정을 봅니다.` : '🏫 우리 학교를 지웠습니다.');
       setFound(null);
       setQuery('');
       setSearching(!s);
@@ -78,8 +76,7 @@ export default function SchoolSettingPanel() {
         </div>
       )}
 
-      {/* 학사일정 학년 - 학사일정을 화면에 보이는 4-4에서 켠다 */}
-      {school && SHOW_GRADE && (
+      {school && (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-slate-500 mr-1">학사일정 학년</span>
           {Array.from({ length: maxGrade(school.kind) + 1 }, (_, g) => (

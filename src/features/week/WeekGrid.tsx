@@ -7,6 +7,8 @@ import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { useAppStore } from '../../store/useAppStore';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
 import HolidayName from '../../components/HolidayName';
+import SchoolEventName from '../../components/SchoolEventName';
+import { useSchoolSchedule } from '../../hooks/useNeis';
 import { splitHolidayEvents, dayToneOf, DAY_CELL_BG, DAY_NUMBER_COLOR } from '../../lib/holiday';
 import { resolveEventLabel, eventDisplayContent, isForwardLabel } from '../../lib/eventLabels';
 import { BODY_TEXT } from '../../lib/typeScale';
@@ -46,6 +48,8 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
   const { getLabelColor, eventLabels, labelsLoaded } = useLabels();
   const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal, selectedGroupId } = useAppStore();
   const { holidays } = useGovHolidays();
+  // 우리 학교 학사일정 (나이스 - 표시만, ROADMAP 4-4)
+  const { byDate: schoolEvents, hasSchool } = useSchoolSchedule(days.map((d) => d.dateStr.slice(0, 7)));
   // 교시 줄 수는 시간표 설정에서 온다 (하루·월간과 같다).
   const { templates, currentTemplateName } = useTimetableTemplate();
   const maxPeriods = templates[currentTemplateName]?.names.length || 6;
@@ -183,6 +187,13 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                   />
                   <EvalCountBadge dateStr={day.dateStr} count={dataMap[day.dateStr]?.evalCount || 0} />
                 </div>
+                {/* 학사일정은 머리 맨 아래 제 줄 (날짜 옆에 두면 표식을 밀어내 그날만 머리가 높아졌다).
+                    우리 학교를 골랐으면 행사가 없는 날도 자리를 잡아 요일끼리 교시 줄을 맞춘다. */}
+                {hasSchool && (
+                  <div className="w-full h-4 flex min-w-0">
+                    <SchoolEventName items={schoolEvents[day.dateStr]} tier="week" />
+                  </div>
+                )}
               </div>
 
               {showClass && (

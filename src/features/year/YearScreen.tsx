@@ -7,6 +7,7 @@ import { readEvalList } from '../../lib/evalList';
 import { useAppStore } from '../../store/useAppStore';
 import { useLabels } from '../../hooks/useLabels';
 import { useGovHolidays } from '../../hooks/useGovHolidays';
+import { useSchoolSchedule } from '../../hooks/useNeis';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import { getAcademicYear, getAcademicMonths, parseDateStr, formatDateStr } from '../../lib/dateUtils';
 import { runAutoForwarding } from '../../hooks/useDayData';
@@ -89,6 +90,9 @@ export default function YearScreen() {
     if (semesterFilter === 'all') return list;
     return list.filter((m) => m.semester === semesterFilter);
   }, [defaultAcademicYear, semesterFilter]);
+
+  // 우리 학교 학사일정 (나이스 - 표시만, ROADMAP 4-4). 열두 달을 한꺼번에 (달마다 담아 둔다)
+  const { byDate: schoolEvents } = useSchoolSchedule(months.map((m) => `${m.year}-${String(m.month).padStart(2, '0')}`));
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -306,6 +310,7 @@ export default function YearScreen() {
                 journalCountMap={journalCountMap}
                 evalCountMap={evalCountMap}
                 holidays={holidays}
+                schoolEvents={schoolEvents}
                 eventLabels={eventLabels}
                 labelsLoaded={labelsLoaded}
                 labelColorOf={labelColorOf}

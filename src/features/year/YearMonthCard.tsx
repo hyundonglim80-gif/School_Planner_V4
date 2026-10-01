@@ -20,6 +20,8 @@ import EventItemActions from '../../components/EventItemActions';
 import JournalCountBadge from '../../components/JournalCountBadge';
 import EvalCountBadge from '../../components/EvalCountBadge';
 import { dropTargetProps, eventDragSourceProps, DROP_TARGET_CLASS, type DropHandlers } from '../../hooks/useEventDrag';
+import SchoolEventName from '../../components/SchoolEventName';
+import type { SchoolEventsByDate } from '../../hooks/useNeis';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -37,6 +39,8 @@ export interface YearMonthCardProps {
   journalCountMap: Record<string, number>;
   evalCountMap: Record<string, number>;
   holidays: Record<string, string>;
+  /** 우리 학교 학사일정 (날짜별, 표시만) */
+  schoolEvents: SchoolEventsByDate;
   eventLabels: any[];
   labelsLoaded: boolean;
   /** 라벨 빛깔. 판마다 새로 만들어지지 않게 부모가 붙들어 넘긴다. */
@@ -75,6 +79,7 @@ function YearMonthCard({
   journalCountMap,
   evalCountMap,
   holidays,
+  schoolEvents,
   eventLabels,
   labelsLoaded,
   labelColorOf,
@@ -125,7 +130,7 @@ function YearMonthCard({
     const sch = schedulesMap[dObj.dateStr] || {};
     const hasClasses = periodArray.some((p) => sch[p]?.subject?.trim() && sch[p]?.subject?.toUpperCase() !== 'X');
 
-    return evs.length > 0 || (showClass && hasClasses);
+    return evs.length > 0 || (showClass && hasClasses) || !!schoolEvents[dObj.dateStr];
   });
 
   return (
@@ -209,6 +214,7 @@ function YearMonthCard({
                       <span className="shrink-0">{dObj.day}일 ({dayOfWeek})</span>
                       {isTodayEvent && <span className="text-2xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full ml-1 shrink-0">오늘</span>}
                       {holidayName && <span title={holidayName} className="text-2xs text-red-500 bg-red-50 border border-red-100 px-1 py-0.5 rounded ml-1 shrink-0">{holidayName}</span>}
+                      <SchoolEventName items={schoolEvents[dObj.dateStr]} tier="month" className="ml-1" />
                     </div>
                     <div className="flex items-center gap-0.5 shrink-0">
                       <JournalCountBadge
