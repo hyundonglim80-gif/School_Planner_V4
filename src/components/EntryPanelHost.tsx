@@ -127,9 +127,12 @@ function useUnsavedRegistration() {
 function usePanelActions(target: EntryPanelTarget) {
   const closeEntryPanel = useAppStore((s) => s.closeEntryPanel);
   const setEntryPanelIdFor = useAppStore((s) => s.setEntryPanelId);
+  const setEntryPanelDateFor = useAppStore((s) => s.setEntryPanelDate);
   return {
     closeEntryPanel: () => closeEntryPanel(target.openedAt),
     setEntryPanelId: (id: string, initial?: any) => setEntryPanelIdFor(id, initial, target.openedAt),
+    setEntryPanelDate: (dateStr: string, id?: string, initial?: any) =>
+      setEntryPanelDateFor(dateStr, target.openedAt, id, initial),
   };
 }
 
@@ -388,7 +391,7 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
 }
 
 function EventPanel({ target }: { target: EntryPanelTarget }) {
-  const { closeEntryPanel, setEntryPanelId } = usePanelActions(target);
+  const { closeEntryPanel, setEntryPanelId, setEntryPanelDate } = usePanelActions(target);
   const docked = useMinWidth(DOCK_MIN_WIDTH);
   const flushRef = useFlushRegistration();
   const unsavedRef = useUnsavedRegistration();
@@ -405,6 +408,9 @@ function EventPanel({ target }: { target: EntryPanelTarget }) {
         setEntryPanelId(id, item);
         target.onCreated?.({ id, type: 'event', title: item.content || '', date: dateStr, fId: target.groupId || 'personal' });
       }}
+      // 새 일정은 저장할 날짜가 곧바로 바뀌고, 고치던 일정은 옮긴 날짜의 수정 칸으로 이어진다
+      onDateChange={(next) => setEntryPanelDate(next)}
+      onMoved={(next, id, item) => setEntryPanelDate(next, id, item)}
       docked={docked}
       flushRef={flushRef}
       unsavedRef={unsavedRef}

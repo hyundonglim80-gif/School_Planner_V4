@@ -8,6 +8,8 @@
 // 이제 어느 화면에서든 이 칸 하나로 새로 쓰고 고친다.
 //
 // 저장은 열 때의 날짜·공간에 한다. 칸이 열린 채 다른 날짜·화면으로 옮겨 다녀도 그렇다.
+// 날짜를 바꾸려면 칸 맨 위의 날짜 칸에서 고른다: 새 일정은 저장할 날짜가 바뀌고, 고치던 일정은
+// 저장할 때 그 날짜로 옮긴다(lib/eventDocOps.moveEventToDate). 옮긴 뒤 칸은 새 날짜의 수정 칸이 된다.
 import React, { useEffect, useRef, useState } from 'react';
 import { useDayData, type EventItem } from '../hooks/useDayData';
 import { useLabels } from '../hooks/useLabels';
@@ -15,6 +17,10 @@ import { useAppStore } from '../store/useAppStore';
 import { useGroupDelete } from '../hooks/useGroupDelete';
 import { resolveEventLabelNames, eventDisplayContent } from '../lib/eventLabels';
 import { baseContentOf } from '../lib/eventGroups';
+import { moveEventToDate } from '../lib/eventDocOps';
+import { isForwardTarget } from '../lib/forwarding';
+import { addDays, formatDateStr } from '../lib/dateUtils';
+import { shortDateLabel } from '../lib/notices';
 import { showToast, showErrorToastOnce } from '../utils/toast';
 import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
 import { isTopSideItem } from './PopupFrame';
@@ -41,6 +47,10 @@ interface EventDrawerProps {
   flushRef?: React.MutableRefObject<(() => Promise<boolean>) | null>;
   /** 저장 안 한 것이 있나. ESC로 칸을 모두 닫기 전에 묻는다. */
   unsavedRef?: React.MutableRefObject<(() => boolean) | null>;
+  /** 새 일정 칸에서 날짜를 골랐을 때 - 저장할 날짜가 곧바로 바뀐다 */
+  onDateChange?: (dateStr: string) => void;
+  /** 고치던 일정을 다른 날짜로 옮겼을 때 (옮긴 날짜, 옮긴 뒤 id, 옮긴 뒤 모습) */
+  onMoved?: (dateStr: string, id: string, item: EventItem) => void;
 }
 
 interface Attrs {
@@ -75,6 +85,8 @@ export default function EventDrawer({
   subtitle,
   flushRef,
   unsavedRef,
+  onDateChange,
+  onMoved,
 }: EventDrawerProps) {
   const { openLinkerModal, openLinkViewerModal, openLabelModal } = useAppStore();
   const { eventLabels, getLabelColor, labelsLoaded } = useLabels();
@@ -96,6 +108,21 @@ export default function EventDrawer({
   const [newLinks, setNewLinks] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
+  /** 고치던 일정을 옮길 날짜. 칸의 날짜와 다르면 저장할 때 옮긴다 (새 일정은 쓰지 않는다 - 칸의 날짜가 곧바로 바뀐다). */
+  const [moveTo, setMoveTo] = useState(dateStr);
+  // 옮긴 뒤(또는 새 일정 칸에서 날짜를 고른 뒤) 칸의 날짜가 바뀌면 거기에 맞춘다
+  const [moveBase, setMoveBase] = useState(dateStr);
+  if (moveBase !== dateStr) {
+    setMoveBase(dateStr);
+    setMoveTo(dateStr);
+  }
+  const dateChanged = isEditing && !!moveTo && moveTo !== dateStr;
+  /** 날짜 칸에 보이는 날짜 */
+  const shownDate = isEditing ? moveTo : dateStr;
+  const pickDate = (next: string) => {
+    if (isEditing) setMoveTo(next);
+    else onDateChange?.(next);
+  };
   const [alarmModalOpen, setAlarmModalOpen] = useState(false);
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
 
@@ -145,7 +172,8 @@ export default function EventDrawer({
   const snapshotOf = (t: string, l: string[], a: Attrs, alarm: string, links: any[]) =>
     JSON.stringify([t.trim(), l, a, alarm, links.length]);
   const nowSnapshot = snapshotOf(text, labels, attrs, alarmTime, newLinks);
-  const untouched = snapshotRef.current === null || (snapshotRef.current === nowSnapshot && !alarmDirty);
+  const untouched =
+    snapshotRef.current === null || (snapshotRef.current === nowSnapshot && !alarmDirty && !dateChanged);
 
   const fill = (item: EventItem | null) => {
     let t = '';
@@ -249,7 +277,38 @@ export default function EventDrawer({
       skip: attrs.skip,
     };
     try {
-      if (entryId) {
+      if (entryId && dateChanged) {
+        // 다른 날짜로 옮긴다. 고친 내용도 같은 트랜잭션에 함께 쓴다.
+        const to = moveTo;
+        const patch = {
+          content,
+          ...fields,
+          ...(alarmDirty ? { time: alarmTime || '', alarmTriggered: false } : {}),
+        };
+        // 끝내지 않은 이월 일정을 지난 날짜에 두면 다음 이월 때 오늘로 다시 온다 - 미리 알린다
+        const bounces =
+          to < formatDateStr(new Date()) && !current?.completed && isForwardTarget({ ...(current || {}), ...patch }, eventLabels);
+        const moved = await moveEventToDate({
+          fId,
+          fromDate: dateStr,
+          toDate: to,
+          eventId: entryId,
+          patch,
+          // 알림 시각을 새로 정했으면 정한 그대로, 아니면 일정과 같이 옮긴다
+          shiftAlarm: !alarmDirty,
+        });
+        if (!moved) {
+          showToast('옮길 일정을 찾지 못했습니다. 그 사이 지워졌거나 다른 날로 옮겨졌을 수 있습니다.');
+          return false;
+        }
+        snapshotRef.current = snapshotOf(content, labels, attrs, alarmTime, newLinks);
+        setAlarmDirty(false);
+        onMoved?.(to, moved.id, moved.item as EventItem);
+        showToast(
+          `✅ 일정을 ${shortDateLabel(to)}로 옮겼습니다.` +
+            (bounces ? ' 이월 일정이라 끝내지 않으면 다음에 오늘로 다시 옮겨 옵니다.' : '')
+        );
+      } else if (entryId) {
         await updateEventItem(entryId, {
           content,
           ...fields,
@@ -281,7 +340,12 @@ export default function EventDrawer({
       return true;
     } catch (e) {
       // 저장이 안 됐다. 적은 것은 칸에 그대로 두고, '저장된 것'으로 여기지 않는다(ESC가 묻는다)
-      showErrorToastOnce('일정을 저장하지 못했습니다. 적은 내용은 칸에 남아 있습니다.', e);
+      showErrorToastOnce(
+        entryId && dateChanged
+          ? '일정을 옮기지 못했습니다. 적은 내용은 칸에 남아 있습니다.'
+          : '일정을 저장하지 못했습니다. 적은 내용은 칸에 남아 있습니다.',
+        e
+      );
       return false;
     } finally {
       savingRef.current = false;
@@ -369,6 +433,45 @@ export default function EventDrawer({
         <div className="flex-1 flex items-center justify-center text-xs text-slate-400">일정을 불러오는 중...</div>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-5" data-scroll-lock>
+          {/* 날짜: 새 일정은 저장할 날짜가 곧바로 바뀌고, 고치던 일정은 저장할 때 그 날짜로 옮긴다 */}
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs font-bold text-slate-500 mr-1">날짜</span>
+              <button
+                type="button"
+                onClick={() => pickDate(addDays(shownDate, -1))}
+                title="전날로"
+                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-black cursor-pointer"
+              >
+                ◀
+              </button>
+              <input
+                type="date"
+                value={shownDate}
+                onChange={(e) => e.target.value && pickDate(e.target.value)}
+                aria-label="일정 날짜"
+                className="px-2 py-1 text-sm border border-slate-200 rounded-lg font-bold text-slate-700 bg-white"
+              />
+              <button
+                type="button"
+                onClick={() => pickDate(addDays(shownDate, 1))}
+                title="다음 날로"
+                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-black cursor-pointer"
+              >
+                ▶
+              </button>
+            </div>
+            {dateChanged && (
+              <p className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                저장하면 {shortDateLabel(dateStr)} → <b>{shortDateLabel(moveTo)}</b>로 옮깁니다.
+                {current?.groupId ? ' 기간·반복 묶음 가운데 이 날 것만 옮깁니다.' : ''}{' '}
+                <button type="button" onClick={() => setMoveTo(dateStr)} className="underline cursor-pointer">
+                  그대로 두기
+                </button>
+              </p>
+            )}
+          </div>
+
           {/* 버튼 줄 */}
           <div className="flex flex-wrap gap-1.5">
             <button
@@ -545,7 +648,7 @@ export default function EventDrawer({
             disabled={saving || !text.trim()}
             className="px-5 py-2 text-sm font-bold text-white bg-primary hover:bg-blue-600 rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
-            {saving ? '저장 중...' : '저장'}
+            {saving ? '저장 중...' : dateChanged ? '옮기고 저장' : '저장'}
           </button>
         </div>
       </div>
@@ -566,7 +669,7 @@ export default function EventDrawer({
         <EventAlarmModal
           isOpen
           onClose={() => setAlarmModalOpen(false)}
-          dateStr={dateStr}
+          dateStr={shownDate}
           initialTime={alarmTime}
           onSave={(time) => {
             setAlarmTime(time);
@@ -584,7 +687,7 @@ export default function EventDrawer({
         <PeriodModal
           isOpen
           groupId={groupId}
-          startDate={dateStr}
+          startDate={shownDate}
           defaultContent={isEditing ? baseContentOf(text) : text.trim()}
           labels={labels}
           attrs={{ calendar: attrs.calendar, forward: attrs.forward, skip: attrs.skip }}

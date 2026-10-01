@@ -263,6 +263,11 @@ interface AppState {
   openEntryPanel: (target: EntryPanelTarget) => void;
   /** 새로 만든 항목의 id를 알려 준다 (이어서 저장하면 그 항목을 고친다). key는 그 칸의 openedAt. */
   setEntryPanelId: (id: string, initial?: any, key?: number) => void;
+  /**
+   * 칸의 날짜를 바꾼다. 새 일정 칸에서 날짜를 고르거나, 일정을 다른 날짜로 옮긴 뒤 그 날짜의 수정 칸으로 이어질 때.
+   * 옮기며 id가 바뀌었으면(새 날짜에 같은 id가 있었을 때) id도 함께. 칸은 다시 그리지 않아 적던 것이 남는다.
+   */
+  setEntryPanelDate: (dateStr: string, key: number | undefined, id?: string, initial?: any) => void;
   /** key(openedAt)의 칸을 닫는다. 주지 않으면 맨 위 칸. */
   closeEntryPanel: (key?: number) => void;
   /** 이 항목을 고치고 있던 칸을 모두 닫는다 (항목을 지웠을 때) */
@@ -623,6 +628,16 @@ export const useAppStore = create<AppState>()(
           const k = key ?? st.entryPanel?.openedAt;
           const panels = st.entryPanels.map((p) =>
             p.openedAt === k ? { ...p, entryId: id, ...(initial ? { initial } : {}) } : p
+          );
+          return { entryPanels: panels, entryPanel: panels[panels.length - 1] || null };
+        }),
+      setEntryPanelDate: (dateStr, key, id, initial) =>
+        set((st) => {
+          const k = key ?? st.entryPanel?.openedAt;
+          const panels = st.entryPanels.map((p) =>
+            p.openedAt === k
+              ? { ...p, dateStr, ...(id !== undefined ? { entryId: id } : {}), ...(initial ? { initial } : {}) }
+              : p
           );
           return { entryPanels: panels, entryPanel: panels[panels.length - 1] || null };
         }),

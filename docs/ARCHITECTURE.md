@@ -97,6 +97,9 @@ forwardChainId/originalDate(이월 사슬), linkedItems, authorId/authorName`.
 - 하루 화면 밖(주간·월간·년간·미완료 일정 가져오기)에서 일정 하나를 고치거나 지울 때는 `lib/eventDocOps`
   (`updateEventInDoc` / `deleteEventFromDoc`)를 쓴다. 다중 선택(`useAppStore.bulk*`)·기간/반복 등록·묶인 일정 지우기도
   모두 트랜잭션으로 서버의 지금 목록을 읽고 쓴다(날짜가 많으면 나눠서).
+- 일정 날짜 옮기기(`eventDocOps.moveEventToDate`)는 **두 날짜 문서를 한 트랜잭션**에서 서버로 읽고, 옛 날짜에서 그 항목만 빼고
+  새 날짜 끝에 넣는다. id는 그대로(구글 캘린더 `sp_id`·링크가 id로 알아본다) - 새 날짜에 같은 id(V3의 `ev_0` 등)가 있을 때만 새 id.
+  알림은 같은 날 수만큼, 이월 사슬은 그대로. 상대 쪽 역링크는 `applyReverseLink`의 `movedFrom`(옛 id·옛 날짜)으로 그 자리를 고친다.
 - 다중 선택 라벨 바꾸기는 `label`과 함께 `labelIds`도 새로 쓴다. label만 바꾸면 옛 라벨이 id로 남아 칩이 둘이 된다.
 - 조사표(`useEvaluation.upsertEvaluation/removeEvaluation`)도 트랜잭션으로 그 조사표 하나만 넣고·바꾸고·뺀다.
   예전엔 팝업을 열 때 읽은 목록으로 통째로 써서, 날짜를 바꿔 만든 조사표가 그 날 조사표를 덮었다(2026-10-01).
@@ -224,6 +227,8 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   화면(페이지)이 아니라 Layout이 그려서 **다른 날짜·화면으로 옮겨도 남는다.** 여는 것은 반드시 `openEntryPanel(target)`.
   - 새 칸은 위에 쌓이고, 먼저 연 칸은 적던 글째 아래로 간다. 같은 항목을 다시 열면 그 칸을 맨 위로(`raisedAt`).
   - 새 항목을 저장하면 그 항목의 수정 칸이 된다(`onCreated`).
+  - 일정 칸 맨 위의 날짜 칸: 새 일정은 `setEntryPanelDate`로 칸의 날짜(=저장할 날짜)를 곧바로 바꾸고, 고치던 일정은
+    저장할 때 옮긴 뒤(`moveEventToDate`) 같은 것으로 새 날짜의 수정 칸이 된다. 칸은 `openedAt`으로 살아 있어 다시 그리지 않는다.
   - 칸의 틀은 `SidePanelFrame`: 넓은 화면(768px~)은 화면 옆에 붙고, 좁으면 덮는 배너.
 - **링크 배너**(`LinkViewerModal`): `useAppStore.linkViewers`(쌓임)에 넣고 Layout이 모두 그린다. 같은 항목을 다시 열면
   새로 만들지 않고 `raisedAt`으로 맨 위로(`PopupFrame`의 `raise` → `useSideSlot`·`useModalLayer`). 예전에는 한 개뿐이라 교체됐다.
