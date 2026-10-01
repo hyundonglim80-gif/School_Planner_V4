@@ -13,6 +13,9 @@
 //
 // 빠른 입력(ROADMAP 11-1, 새 일정만): 적는 대로 날짜·시각·#라벨·매주 요일을 알아보고(lib/quickInput) 칩으로 보인다.
 // 칩을 누를 때만 칸에 넣고 그 말을 글에서 뺀다(시각은 글에 둔다) - 저장·읽기 경로에서는 본문을 바꾸지 않는다.
+//
+// 기한(ROADMAP 11-2): 일정의 due(V4 전용 칸). 정하면 이월 사슬 id를 붙이고 사슬 기한 문서에도 적는다(lib/eventDueStore) -
+// V3가 이월하며 due를 빼먹어도 사슬 id로 찾는다. 기한을 떼면 due를 ''로 둔다(사슬 기한으로 되살아나지 않게).
 import React, { useEffect, useRef, useState } from 'react';
 import { useDayData, type EventItem } from '../hooks/useDayData';
 import { useLabels } from '../hooks/useLabels';
@@ -33,6 +36,12 @@ import { showDeletedToast, showMovedToast } from '../lib/undoToast';
 import QuickInputChips, { quickLabels, type QuickChip } from './QuickInputChips';
 import RecurringModal from './RecurringModal';
 import { parseQuickInput, stripMatch, type QuickMatch } from '../lib/quickInput';
+import DueBadge from './DueBadge';
+import { useEventDues } from '../hooks/useEventDues';
+import { dueOf, isDueDate, newChainId } from '../lib/eventDue';
+import { setChainDue } from '../lib/eventDueStore';
+import { auth } from '../lib/firebase';
+import { formatDateStr } from '../lib/dateUtils';
 
 interface EventDrawerProps {
   /** 어느 날짜의 일정인가 (YYYY-MM-DD) */
@@ -100,6 +109,8 @@ export default function EventDrawer({
   const { openLinkerModal, openLinkViewerModal, openLabelModal } = useAppStore();
   const { eventLabels, getLabelColor, labelsLoaded } = useLabels();
   const { eventList, addEventItem, updateEventItem, deleteEventItem } = useDayData(dateStr, groupId);
+  const dueMap = useEventDues(groupId);
+  const todayStr = formatDateStr(new Date());
   const fId = groupId || 'personal';
   // 다른 날짜로 옮기기 (묶음이면 범위를 묻는 창까지)
   const { requestMove, groupMoveModal } = useEventMove(groupId);
@@ -113,6 +124,8 @@ export default function EventDrawer({
   const [labels, setLabels] = useState<string[]>([]);
   const [attrs, setAttrs] = useState<Attrs>({ ...NO_ATTRS, calendar: true });
   const [alarmTime, setAlarmTime] = useState('');
+  /** 기한 (YYYY-MM-DD, 없으면 '') */
+  const [due, setDue] = useState('');
   /** 알림을 손댔는가. 손대지 않았으면 저장할 때 알림 값(특히 이미 확인한 표시)을 그대로 둔다. */
   const [alarmDirty, setAlarmDirty] = useState(false);
   /** 새로 쓸 때 담아 두는 링크. 고칠 때는 링크 추가가 곧바로 그 일정에 붙는다. */
@@ -182,8 +195,8 @@ export default function EventDrawer({
    * 다른 항목을 열거나 배경을 눌러 닫을 때, 이것과 달라졌으면 저장한다.
    */
   const snapshotRef = useRef<string | null>(null);
-  const snapshotOf = (t: string, l: string[], a: Attrs, alarm: string, links: any[]) =>
-    JSON.stringify([t.trim(), l, a, alarm, links.length]);
+  const snapshotOf = (t: string, l: string[], a: Attrs, alarm: string, links: any[], d = due) =>
+    JSON.stringify([t.trim(), l, a, alarm, links.length, d]);
   const nowSnapshot = snapshotOf(text, labels, attrs, alarmTime, newLinks);
   const untouched =
     snapshotRef.current === null || (snapshotRef.current === nowSnapshot && !alarmDirty && !dateChanged);
@@ -193,7 +206,9 @@ export default function EventDrawer({
     let l: string[] = [];
     let a: Attrs;
     let alarm = '';
+    let d = '';
     if (item) {
+      d = dueOf(item, dueMap);
       l = resolveEventLabelNames(item, eventLabels, { keepUnknown: !labelsLoaded });
       t = eventDisplayContent(item, eventLabels);
       alarm = item.time || '';
@@ -224,7 +239,8 @@ export default function EventDrawer({
     setAlarmTime(alarm);
     setAlarmDirty(false);
     setNewLinks([]);
-    snapshotRef.current = snapshotOf(t, l, a, alarm, []);
+    setDue(d);
+    snapshotRef.current = snapshotOf(t, l, a, alarm, [], d);
   };
 
   // 라벨·일정은 구독으로 들어와서 칸을 여는 순간에는 아직 없을 수 있다. 도착하면 채운다.
@@ -232,12 +248,14 @@ export default function EventDrawer({
   const untouchedRef = useRef(untouched);
   untouchedRef.current = untouched;
   const itemKey = current ? JSON.stringify(current) : '';
+  // V3가 이월한 일정은 사슬 기한이 늦게 도착한다 - 그때도 채운다
+  const chainDueKey = current?.forwardChainId ? dueMap[current.forwardChainId] || '' : '';
   useEffect(() => {
     if (!untouchedRef.current) return;
     if (isEditing && !current) return;
     fill(current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemKey, eventLabels, labelsLoaded]);
+  }, [itemKey, eventLabels, labelsLoaded, chainDueKey]);
 
   // ─── 고치기 ────────────────────────────────────────────────────
   const setAttr = (key: keyof Attrs, on: boolean) => {
@@ -274,6 +292,10 @@ export default function EventDrawer({
     if (keys.includes('date') && quick.date) {
       date = quick.date.date;
       strips.push(quick.date.match);
+    }
+    if (keys.includes('due') && quick.due) {
+      setDue(quick.due.date);
+      strips.push(quick.due.match);
     }
     if (keys.includes('time') && quick.time) {
       setAlarmTime(`${date}T${quick.time.hhmm}`);
@@ -321,6 +343,15 @@ export default function EventDrawer({
       label: quickLabels.date(quick.date.date),
       title: `저장할 날짜를 ${quick.date.date}로 바꾸고 글에서 '${quick.date.match.text}'를 뺍니다`,
       apply: () => applyQuick(['date']),
+    });
+  }
+  if (quick?.due && quick.due.date !== due) {
+    quickChips.push({
+      key: 'due',
+      icon: '⏳',
+      label: quickLabels.due(quick.due.date),
+      title: `기한을 ${quick.due.date}로 정하고 글에서 '${quick.due.match.text}'를 뺍니다`,
+      apply: () => applyQuick(['due']),
     });
   }
   const quickDate = quick?.date?.date || shownDate;
@@ -371,7 +402,22 @@ export default function EventDrawer({
     const labelIds = labels
       .map((n) => labelDef(n)?.id)
       .filter((id): id is string => !!id);
+    // 기한: 정하면 사슬 id를 붙인다(V3 이월이 due를 빼먹어도 사슬 기한으로 찾게). 떼면 ''로 남긴다.
+    const hadDue = !!current && !!dueOf(current, dueMap);
+    const chainId = isDueDate(due) ? current?.forwardChainId || newChainId() : current?.forwardChainId;
+    const dueFields = isDueDate(due) ? { due, forwardChainId: chainId } : hadDue ? { due: '' } : {};
+    const writeChainDue = async () => {
+      const uid = auth.currentUser?.uid;
+      if (!uid || !chainId || (!isDueDate(due) && !hadDue)) return;
+      try {
+        await setChainDue(uid, groupId, chainId, isDueDate(due) ? due : '');
+      } catch (e) {
+        // 일정 칸의 due는 저장됐다 - 사슬 기한은 V3가 이월한 뒤에만 쓰인다
+        console.warn('사슬 기한을 적지 못했습니다:', e);
+      }
+    };
     const fields = {
+      ...dueFields,
       label: labels.join(','),
       labelIds,
       calendar: attrs.calendar,
@@ -407,6 +453,7 @@ export default function EventDrawer({
         }
         snapshotRef.current = snapshotOf(content, labels, attrs, alarmTime, newLinks);
         setAlarmDirty(false);
+        void writeChainDue();
         onMoved?.(to, result.current.id, result.current.item as EventItem);
         showMovedToast(moveMessage(result, dateStr, to, bounces), groupId, result.trail);
       } else if (entryId) {
@@ -417,6 +464,7 @@ export default function EventDrawer({
         });
         snapshotRef.current = snapshotOf(content, labels, attrs, alarmTime, newLinks);
         setAlarmDirty(false);
+        void writeChainDue();
         showToast('✅ 일정을 저장했습니다.');
       } else {
         const created = await addEventItem(content, {
@@ -424,6 +472,7 @@ export default function EventDrawer({
           linkedItems: newLinks,
           time: alarmTime || undefined,
         });
+        void writeChainDue();
         showToast('✅ 일정을 추가했습니다.');
         if (created && onCreated) {
           // 기록·메모처럼 저장한 뒤에도 적은 것이 남는다 - 방금 만든 일정의 '수정' 칸이 된다
@@ -592,6 +641,33 @@ export default function EventDrawer({
                   그대로 두기
                 </button>
               </p>
+            )}
+            <div className="flex items-center gap-1.5 flex-wrap" data-event-due>
+              <span className="text-xs font-bold text-slate-500 mr-1">기한</span>
+              <input
+                type="date"
+                value={due}
+                onChange={(e) => setDue(e.target.value)}
+                aria-label="기한"
+                className="px-2 py-1 text-sm border border-slate-200 rounded-lg font-bold text-slate-700 bg-white"
+              />
+              {due && (
+                <>
+                  <DueBadge due={due} today={todayStr} />
+                  <button
+                    type="button"
+                    onClick={() => setDue('')}
+                    title="기한 빼기"
+                    aria-label="기한 빼기"
+                    className="w-6 h-6 rounded-full text-slate-400 hover:text-red-500 hover:bg-slate-100 text-xs cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </>
+              )}
+            </div>
+            {due && !attrs.forward && (
+              <p className="text-2xs text-slate-400">이월을 켜면 끝낼 때까지 날마다 따라오며 D-day가 줄어듭니다.</p>
             )}
           </div>
 

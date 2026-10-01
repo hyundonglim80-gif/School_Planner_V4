@@ -328,6 +328,10 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 - **관찰 빨리 적기**(ROADMAP 10): 기록 쓰는 칸의 `@이름` → `#태그`(`lib/mention`, 목록 `StudentMentionList` - 키보드는 글 칸이 받는다).
   관찰 문구 단추(`ObservationPhrases`, 문구는 `settings/v4_observationPhrases`)는 자리표 학생 칸·학생 누가기록 카드에서 개인 공간 오늘 기록에
   `문구 #태그` 한 줄(`classHubStore.addJournalLine`, 되돌리기는 `removeJournalLine`).
+- **빠른 입력·기한**(ROADMAP 11): 새 일정 칸이 적는 대로 `lib/quickInput`으로 날짜·시각·#라벨·매주·…까지를 알아보고 `QuickInputChips`로 보인다 -
+  누를 때만 넣고 그 말을 글에서 뺀다. 기한은 일정 칸 `due`(V4 전용) + 이월 사슬마다 `settings/v4_eventDue`(`lib/eventDueStore`) - V3 이월은
+  정해진 칸만 옮겨 due가 빠지므로 사슬 id로 찾는다(`lib/eventDue.dueOf`). **일정에 새 칸을 더하면** V4 이월 사본(`doAutoForwarding`)·
+  `addEventItem`·주간 요약(`useCalendarData.mapEvents`)이 정해진 칸만 옮기는지 본다.
 - **나이스 급식·학사일정**: 표시만 한다(`hooks/useNeis`, 일정 문서에 쓰지 않는다). 학사일정 이름을 누르면 `SchoolEventModal`
   (store `schoolEventPeek`, Layout이 그린다): 'D-Day로'는 `useDDay.addDDay`, '일정으로 담기'는 새 일정 칸을 `draftText`로 연다 -
   저장은 늘 일정 칸이 한다. 방학 기간 채우기는 `schoolSetting.findVacations`(방학식 다음 날 ~ 개학식 전날, 저장은 따로).

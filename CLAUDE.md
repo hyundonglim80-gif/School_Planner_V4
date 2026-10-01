@@ -56,13 +56,14 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
 **토큰 아끼기**: 긴 대화는 요청마다 앞의 내용을 다시 보내 사용량을 많이 쓴다. 항목 하나를 끝내면 새 대화를 열어
 "이어서"라고 하면 이 파일과 로드맵만 읽고 가볍게 시작한다. 확인은 바뀐 부분만(2장), 큰 파일은 필요한 장만 읽는다.
 
-### 지금 상태 (2026-10-02, 로드맵 약 59%)
+### 지금 상태 (2026-10-02, 로드맵 약 65%)
 
-- 로드맵 17개 중 **1~10번 끝**(일정 날짜 옮기기·수업 칸 압축·드라이브 자동 백업·나이스·진도 관리·작은 것 묶음 7가지·작년 이맘때·자리표 허브·
-  학생 카드와 평가 모아 보기·관찰 빨리 적기). wip 브랜치 없음. 설명서 전체 점검은 9번 끝에 했다(결과는 ROADMAP 9번) - 다음은 12번을 끝낼 때.
-- **11번 빠른 입력 + 기한 하는 중** - 11-1 빠른 입력 칩 끝(`lib/quickInput`·`QuickInputChips`, 새 일정 칸만, 누를 때만 넣고 그 말을 뺀다),
-  다음은 **11-2 기한**. 주의: V3 이월(`School_Planner_V3/js/modules/forwarding.js`)과 V4 이월(`useDayData.doAutoForwarding`)은 정해진 칸만 새 일정에
-  옮긴다 - 새 칸(due)을 더하면 V4 이월 목록에 넣고, V3가 옮긴 것을 위해 `forwardChainId`로 찾는 V4 전용 문서를 둔다. 크롬 `tools/inspect-quick-input.mjs` 20항목.
+- 로드맵 17개 중 **1~11번 끝**(일정 날짜 옮기기·수업 칸 압축·드라이브 자동 백업·나이스·진도 관리·작은 것 묶음 7가지·작년 이맘때·자리표 허브·
+  학생 카드와 평가 모아 보기·관찰 빨리 적기·빠른 입력과 기한). wip 브랜치 없음. 설명서 전체 점검은 9번 끝에 했다(결과는 ROADMAP 9번) - 다음은 12번을 끝낼 때.
+- **다음은 12번 인쇄·주간학습안내** - 단계를 나눠 ROADMAP 12번에 적고 시작한다. 12번을 끝내면 설명서 전체 점검(`df -h /c` 먼저).
+- 11번 빠른 입력·기한(2026-10-02 끝): 빠른 입력 칩(`lib/quickInput`·`QuickInputChips`, 새 일정 칸만, 누를 때만 넣고 그 말을 뺀다). 기한은 일정 칸 `due`
+  + 이월 사슬마다 `settings/v4_eventDue` - **V3 이월(`forwarding.js`)과 V4 이월(`doAutoForwarding`)·`addEventItem`·주간 요약(`mapEvents`)은 정해진 칸만
+  옮긴다**: 일정에 새 칸을 더하면 이 셋을 고치고, V3가 빼먹는 칸은 `forwardChainId`로 찾게 한다. 크롬 `inspect-quick-input`(20)·`inspect-due`(17).
 - 10번 관찰 빨리 적기(2026-10-02 끝): 기록 칸 `@이름` → 태그(`lib/mention`·`StudentMentionList`, 키보드는 글 칸이 받고 Esc는 목록만),
   관찰 문구 단추(`ObservationPhrases`, 문구 `settings/v4_observationPhrases`). 크롬 `tools/inspect-observe.mjs` 22항목.
 - 9번 학생 카드·평가 모아 보기(2026-10-02 끝): 읽기는 `lib/evalArchive.loadClassEvals`(학년도 범위, rosterMeta로 그 학급), 칸 값·학기·CSV 셈은

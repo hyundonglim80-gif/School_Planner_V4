@@ -45,6 +45,9 @@ function mapEvents(data: DocumentData): EventItem[] {
       labelIds: e.labelIds || undefined,
       linkedItems: e.linkedItems || [],
       attachments: e.attachments || [],
+      // 기한 표시(ROADMAP 11-2) - 사슬 기한은 forwardChainId로 찾는다
+      ...(typeof e.due === 'string' ? { due: e.due } : {}),
+      ...(e.forwardChainId ? { forwardChainId: e.forwardChainId } : {}),
     }))
     .filter((e: EventItem) => e.content && e.content.trim().length > 0);
 }

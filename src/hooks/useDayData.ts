@@ -52,6 +52,8 @@ export interface EventItem {
   time?: string;
   // 알림이 이미 한 번 울려서 확인 처리되었는지 여부 (time 값 자체는 보존)
   alarmTriggered?: boolean;
+  /** 기한 'YYYY-MM-DD' (V4 전용, ROADMAP 11-2). ''이면 뗀 것 - lib/eventDue */
+  due?: string;
   // 공동 작업 그룹에서 누가 만든 항목인지. 저장할 때 덮어쓰지 말고 보존해야 한다.
   authorId?: string;
   authorName?: string;
@@ -350,6 +352,8 @@ async function doAutoForwarding(groupId: string | null) {
           period: it.period,
           recur: it.recur,
           skip: it.skip,
+          // 기한은 사슬을 따라간다 (ROADMAP 11-2)
+          ...(it.due !== undefined ? { due: it.due } : {}),
           authorId: it.authorId,
           authorName: it.authorName,
         });
@@ -849,6 +853,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       ...(options?.period !== undefined ? { period: options.period } : {}),
       ...(options?.recur !== undefined ? { recur: options.recur } : {}),
       ...(options?.skip !== undefined ? { skip: options.skip } : {}),
+      // 기한과 그 이월 사슬 (lib/eventDue - V3 이월이 due를 빼먹어도 사슬 기한으로 찾는다)
+      ...(options?.due ? { due: options.due } : {}),
+      ...(options?.forwardChainId ? { forwardChainId: options.forwardChainId } : {}),
     };
 
     const validList = [...eventList, newItem].filter((item) =>

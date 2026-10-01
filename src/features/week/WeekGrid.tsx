@@ -20,6 +20,10 @@ import { useGroupDelete } from '../../hooks/useGroupDelete';
 import { openEntryPanel } from '../../components/EntryPanelHost';
 import { useEventDropMove, eventDragSourceProps, DROP_TARGET_CLASS } from '../../hooks/useEventDrag';
 import { usePeriodTimes } from '../../hooks/usePeriodTimes';
+import DueBadge from '../../components/DueBadge';
+import { useEventDues } from '../../hooks/useEventDues';
+import { dueOf } from '../../lib/eventDue';
+import { formatDateStr } from '../../lib/dateUtils';
 import { useClock } from '../../hooks/useClock';
 import { periodStateAt } from '../../lib/periodTimes';
 import { useProgressMarks } from '../../hooks/useProgress';
@@ -62,6 +66,9 @@ interface WeekGridProps {
 export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onToggleEvent, onDeleteEvent, lastYear }: WeekGridProps) {
   const { getLabelColor, eventLabels, labelsLoaded } = useLabels();
   const { showClass, showEvents, isMultiSelectMode, selectedEventIds, toggleEventSelection, openLinkViewerModal, selectedGroupId } = useAppStore();
+  // 기한 (ROADMAP 11-2)
+  const dueMap = useEventDues(selectedGroupId || null);
+  const todayStr = formatDateStr(new Date());
   const { holidays } = useGovHolidays();
   // 우리 학교 학사일정 (나이스 - 표시만, ROADMAP 4-4)
   const { byDate: schoolEvents, hasSchool } = useSchoolSchedule(days.map((d) => d.dateStr.slice(0, 7)));
@@ -379,6 +386,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                               {labelName}
                             </span>
                           )}
+                          <DueBadge due={dueOf(ev, dueMap)} today={todayStr} completed={ev.completed} small />
                           <span className={`inline align-middle ${ev.completed ? 'line-through text-slate-400' : ''}`}>
                             {eventDisplayContent(ev, eventLabels)}
                           </span>

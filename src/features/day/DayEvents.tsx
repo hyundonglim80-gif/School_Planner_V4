@@ -11,6 +11,9 @@ import EventAlarmModal from '../../components/EventAlarmModal';
 import EventItemActions from '../../components/EventItemActions';
 import { openEntryPanel } from '../../components/EntryPanelHost';
 import { showDeletedToast } from '../../lib/undoToast';
+import DueBadge from '../../components/DueBadge';
+import { useEventDues } from '../../hooks/useEventDues';
+import { dueOf } from '../../lib/eventDue';
 
 interface DayEventsProps {
   events: EventItem[];
@@ -39,6 +42,9 @@ export default function DayEvents({
   const { openLinkViewerModal, openLabelModal, currentDate, selectedGroupId, isMultiSelectMode, selectedEventIds, toggleEventSelection } = useAppStore();
   const { eventLabels, getLabelColor, labelsLoaded } = useLabels();
   const formattedDate = formatDateStr(new Date(currentDate));
+  // 기한 (ROADMAP 11-2) - V3가 이월한 일정은 사슬 기한으로 찾는다
+  const dueMap = useEventDues(selectedGroupId || null);
+  const todayStr = formatDateStr(new Date());
 
   // 오른쪽 칸에서 고치고 있는 일정들. 목록에서 어느 것인지 짚어 준다 (칸이 여럿 쌓일 수 있다).
   const panels = useAppStore((s) => s.entryPanels);
@@ -262,6 +268,8 @@ export default function DayEvents({
                         ⏰ {formatAlarmBadge(event.time)}
                       </button>
                     )}
+
+                    <DueBadge due={dueOf(event, dueMap)} today={todayStr} completed={event.completed} />
 
                     {/* 본문 텍스트: 항목을 클릭하면 오른쪽 칸에서 고친다 */}
                     <span
