@@ -4,7 +4,7 @@
 `git pull`로 기기끼리 맞춰진다. 기기마다 따로 쌓이는 Claude 기억(이 기기의
 `~/.claude/projects/<작업 폴더>/memory/`)과는 아래 '기억 합치기' 절차로 하나로 맞춘다.
 
-마지막 합침: 2026-10-02 (클라우드 세션) - S4~S10을 마치고 main에 배포
+마지막 합침: 2026-10-02 (클라우드 세션) - S4~S10을 마치고 main에 배포, 사용자 확인 반영
 
 ---
 
@@ -62,10 +62,10 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
   끝난 기능의 코드 자리·함정은 **ARCHITECTURE 6~8장**, 점검 스크립트는 **9장**, 새 기능을 더할 때 확인할 것은 **10장 체크리스트**에 있다.
 - **18번 교과 전담 모드 S1~S10 끝(10-02)** - 자세한 것은 ARCHITECTURE 8장 '교과 전담 모드', 계획·결과는 `docs/ROADMAP-SUBJECT.md`.
   점검 계정 `teacher3`(`?as=3`)는 seed가 만든다. S4~S10은 클라우드 세션에서 만들어 2026-10-02 main에 합쳐 배포했다(사용자가 '배포해').
-  **실제 사이트·PC 크롬에서 볼 것**: inspect-manual 백업 항목·inspect-eval-overview CSV 이름(컨테이너 Chromium은 내려받은 파일 이름을 'download'로 준다).
+  백업 JSON·평가 모아 보기 CSV 파일 이름, 담임 모드 그대로인지는 사용자가 실제 사이트 PC 크롬에서 확인(10-02 정상).
 - 이 절에는 **진행 중인 것·사용자에게 부탁한 것만** 둔다(이 파일은 모든 대화가 처음에 읽는다 - 길면 매번 비싸다).
   기능을 끝내면 자세한 메모는 ARCHITECTURE로 옮기고 여기서는 지운다.
-- `C:\HDL` PC의 C:가 에뮬레이터 로그로 다시 꽉 찼었다(2026-10-02) - **사용자에게 C: 정리를 부탁했다.** 긴 점검 전후로 `df -h /c`와 로그 크기를 본다(2장).
+- `C:\HDL` PC의 C:는 사용자가 정리했다(10-02). 긴 점검 전후로 `df -h /c`와 로그 크기를 본다(2장).
 - 에뮬레이터·serve-both는 대화 도구의 백그라운드 2시간 제한으로 다음 대화에서는 꺼져 있을 수 있다. 켜져 있는지 먼저 보고,
   다시 켰으면 seed.
 
@@ -109,6 +109,8 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
   `../School_Planner_V3/js/api/firebaseInit.js`에 import 두 줄짜리 빈 자리를 만들고, 스크립트의 `channel:'chrome'`용으로
   `ln -sf /opt/pw-browsers/chromium-*/chrome-linux/chrome /opt/google/chrome/chrome`. `npm install`이 package-lock을 바꾸면 되돌린다.
   푸시는 세션이 정한 브랜치로 한다(main이 아니다 - 배포는 사용자가 합칠 때).
+  컨테이너 Chromium은 내려받은 파일 이름을 모두 `download`로 준다 - 파일 이름 점검 항목의 실패는 앱 버그가 아니다
+  (백업 JSON·평가 CSV 이름을 사용자 PC 크롬에서 보니 정상, 2026-10-02). 파일 이름은 사용자 PC에서 본다.
 - **화면의 title·단추 이름을 바꾸면 점검 스크립트도 고친다**: `grep -rn '<옛 글자>' tools/`. 1-4(끌어 옮기기)에서 일정 title을
   바꿨는데 inspect-manual·inspect-scenarios가 옛 title로 찾아 4항목이 깨진 채 남았다(2026-10-01 발견). 같은 이름의 단추를
   새로 만들 때도(예: '끄기') 기존 스크립트가 엄격 모드로 깨지니 칸에 `data-…`를 달아 범위를 좁힌다.

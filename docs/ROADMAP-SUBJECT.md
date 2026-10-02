@@ -436,6 +436,6 @@ DaySchedule 카드에서 `ProgressMarkLine`을 그리는 자리, ProgressModal�
 - [x] S10 끝 (2026-10-02) - 명령 창 '교사 유형 바꾸기'·'과정 만들기'('교과 출결 누계'는 S7), 설명서 '교사 유형'에 처음 쓰는 순서, 390px 한 번(`inspect-subject-finish`).
   전체 회귀(클라우드 컨테이너): S1~S10 점검 모두 통과, inspect-progress 39/39·class-screen 12/12·more-menu 33/33·command-palette 19/19,
   설명서 전체 점검 88/89 - 실패 1은 '[백업] JSON 내보내기 파일 이름'이 'download'로 오는 것(컨테이너 Chromium의 blob 내려받기 이름, inspect-eval-overview CSV 이름과 같다).
-  **사용자 PC 크롬에서 다시 볼 것**: inspect-manual 백업 항목, inspect-eval-overview CSV 이름.
+  사용자 PC 크롬 확인(2026-10-02): 실제 사이트에서 백업 JSON·평가 모아 보기 CSV 파일 이름 정상, 초등 담임 화면 그대로 - 컨테이너만의 문제였다.
   (S6에 적은 inspect-scenarios '[휴대폰] 알림장·출석부 칸 … 저장된다' 실패는 버그가 아니었다 - `MATCH`로 그 항목만 돌려 날짜를 옮기는 앞 항목이 빠졌다.
   `MATCH='기록 카드를 눌러 고치고|알림장·출석부 칸이'`로 함께 돌리면 2/2 - CLAUDE.md 2장 함정 그대로.)
