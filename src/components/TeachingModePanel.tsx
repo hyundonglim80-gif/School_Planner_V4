@@ -9,19 +9,13 @@ import {
   presetPatch,
   removeTeachingSubject,
   saveTeachingMode,
-  type TeacherPreset,
+  TEACHER_PRESETS,
 } from '../lib/teachingMode';
 import { schoolYearOf } from '../lib/schoolSetting';
 import { formatDateStr } from '../lib/dateUtils';
 import { useTeachingMode } from '../hooks/useTeachingMode';
 import { useRoster } from '../hooks/useRoster';
 import { showToast, showErrorToast } from '../utils/toast';
-
-export const TEACHER_PRESETS: { value: TeacherPreset; label: string; desc: string }[] = [
-  { value: 'homeroom', label: '초등 담임', desc: '한 반의 여러 과목 - 지금까지의 V4' },
-  { value: 'subject', label: '교과 전담', desc: '여러 반에 한두 과목 - 알림장·출석부를 숨깁니다' },
-  { value: 'subjectHomeroom', label: '교과 + 담임', desc: '여러 반에 과목 + 내 담임반 (중등 담임)' },
-];
 
 const chip = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border border-primary/30 bg-primary/5 text-primary';
 

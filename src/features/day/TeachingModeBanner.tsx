@@ -4,9 +4,8 @@
 // 단추를 누르면 그 유형을, '나중에'는 초등 담임을 저장한다 - 그래야 다른 기기에도 다시 뜨지 않는다.
 import { useState } from 'react';
 import { auth } from '../../lib/firebase';
-import { presetPatch, saveTeachingMode, type TeacherPreset } from '../../lib/teachingMode';
+import { TEACHER_PRESETS, presetPatch, saveTeachingMode, type TeacherPreset } from '../../lib/teachingMode';
 import { useTeachingMode } from '../../hooks/useTeachingMode';
-import { TEACHER_PRESETS } from '../../components/TeachingModePanel';
 import { showToast, showErrorToast } from '../../utils/toast';
 
 export default function TeachingModeBanner() {
