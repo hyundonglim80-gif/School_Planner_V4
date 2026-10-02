@@ -17,12 +17,13 @@ export const USING_EMULATOR = import.meta.env.VITE_USE_EMULATOR === '1';
 /**
  * 점검용 계정. 시드 스크립트가 같은 값으로 만든다.
  * 공유 그룹을 둘이서 써 보려면 창마다 다른 계정으로 들어가야 한다.
- * 주소에 ?as=2 를 붙이면 두 번째 계정으로 들어간다.
+ * 주소에 ?as=2 를 붙이면 두 번째 계정, ?as=3 이면 교과 전담 계정으로 들어간다.
  */
 function emulatorEmail(): string {
   try {
     const who = new URLSearchParams(window.location.search).get('as');
     if (who === '2') return 'teacher2@example.com';
+    if (who === '3') return 'teacher3@example.com'; // 교과 전담 (docs/ROADMAP-SUBJECT.md)
   } catch {
     /* 주소를 못 읽으면 기본 계정 */
   }

@@ -43,7 +43,7 @@
 
 | 세션 | 내용 | 크기 | 권장 노력 | 상태 |
 |---|---|---|---|---|
-| S1 | 교사 유형 설정 + 점검 계정 teacher3 | 중간 | 중간 | 할 일 |
+| S1 | 교사 유형 설정 + 점검 계정 teacher3 | 중간 | 중간 | 끝 |
 | S2 | 반 표기 읽기(`lib/teachingSlot`) + 시간표·수업 칸 입력 | 중간 | 중간 | 할 일 |
 | S3 | 반 중심 수업 칸(하루·주간) + 담임 도구 숨기기 | 중간 | 중간 | 할 일 |
 | S4 | 과정: 차시 목록 하나를 여러 반에 (진도 확장) | 큼 | **높음** | 할 일 |
@@ -128,7 +128,10 @@ SettingsModal 테스트가 있으면(`SettingsModal.test.tsx`) 셋이 그려지�
 **설명서**: '설정 · 단축키' 장의 '환경설정'에 '교사 유형' 줄, 그리고 새 주제 `id:'teaching-mode'`('교사 유형 (담임 · 교과 전담)', '수업 · 시간표' 장 맨 앞) -
 셋의 차이 표, 저장은 계정에 하나(PC·휴대폰 같다), 바꿔도 자료는 그대로. **ARCHITECTURE 3장** 표에 `v4_teaching` 줄.
 
-- [ ] S1 끝
+- [x] S1 끝 (2026-10-02, 클라우드 세션). `inspect-teaching-mode` 16/16, 회귀 `inspect-more-menu` 33/33 · `inspect-class-screen` 12/12.
+  메모: 처음 안내 띠는 '없음'을 서버에 한 번 물어 확인한 뒤에만 뜬다(캐시가 비어 번쩍이지 않게). 서버가 답하지 않으면 띠를 띄우지 않는다.
+  `TEACHER_PRESETS`(카드 글)는 `lib/teachingMode`, 저장+안내 `saveTeachingPatch`는 `hooks/useTeachingMode`.
+  `inspect-class-screen`은 teacher 계정에 명렬표가 있어야 돈다(seed는 teacher에 명렬표를 심지 않는다 - 새 에뮬레이터면 먼저 학급을 만든다).
 
 ---
 

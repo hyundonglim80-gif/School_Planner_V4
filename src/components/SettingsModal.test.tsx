@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import SettingsModal from './SettingsModal';
 import { useAppStore } from '../store/useAppStore';
 import { auth } from '../lib/firebase';
+import { DEFAULT_TEACHING_MODE } from '../lib/teachingMode';
 
 const setUser = (email: string | null) => {
   (auth as any).currentUser = { uid: 'test-uid', displayName: '테스트', email };
@@ -82,5 +83,32 @@ describe('환경설정 - 저장과 닫기', () => {
     await user.click(screen.getByRole('button', { name: '저장' }));
 
     await waitFor(() => expect(useAppStore.getState().forwardLookbackDays).toBe(60));
+  });
+});
+
+describe('환경설정 - 교사 유형', () => {
+  it('셋이 그려지고, 문서가 없으면 초등 담임이 골라져 있다', async () => {
+    useAppStore.setState({ teachingMode: DEFAULT_TEACHING_MODE, teachingModeLoaded: true, teachingModeExists: false });
+    const { container } = render(<SettingsModal isOpen onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('교사 유형')).toBeInTheDocument());
+
+    const cards = container.querySelectorAll('[data-teacher-preset]');
+    expect([...cards].map((c) => c.getAttribute('data-teacher-preset'))).toEqual(['homeroom', 'subject', 'subjectHomeroom']);
+    expect(container.querySelector('[data-teacher-preset="homeroom"]')).toHaveAttribute('aria-checked', 'true');
+    expect(container.querySelector('[data-teaching-subjects]')).toBeNull();
+  });
+
+  it('교과 전담이면 과목 칩이 보이고 담임반 고르기는 없다', async () => {
+    useAppStore.setState({
+      teachingMode: { ...DEFAULT_TEACHING_MODE, unit: 'class', hasHomeroom: false, subjects: ['과학'] },
+      teachingModeLoaded: true,
+      teachingModeExists: true,
+    });
+    const { container } = render(<SettingsModal isOpen onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('교사 유형')).toBeInTheDocument());
+
+    expect(container.querySelector('[data-teacher-preset="subject"]')).toHaveAttribute('aria-checked', 'true');
+    expect(container.querySelector('[data-teaching-subject="과학"]')).not.toBeNull();
+    expect(container.querySelector('[data-teaching-homeroom]')).toBeNull();
   });
 });

@@ -14,6 +14,7 @@ import { applyFontScale, DEFAULT_FONT_SCALE, type FontScale } from '../lib/fontS
 import type { PopupStyle } from '../lib/preferenceSync';
 import type { FocusTarget } from '../lib/searchFocus';
 import type { NeisScheduleItem } from '../lib/neis';
+import { DEFAULT_TEACHING_MODE, type TeachingMode } from '../lib/teachingMode';
 
 type Scope = 'day' | 'week' | 'month' | 'year' | 'memo' | 'class';
 
@@ -242,6 +243,15 @@ interface AppState {
 
   /** 날짜 칸의 학사일정 이름을 눌러 여는 창 (나이스, 'D-Day로'·'일정으로 담기') */
   schoolEventPeek: { dateStr: string; items: NeisScheduleItem[] } | null;
+  /**
+   * 교사 유형 (lib/teachingMode, 계정 문서 v4_teaching). App이 로그인 뒤 한 번 구독해 넣는다.
+   * 기기에 남기지 않는다(persist 아님). 읽기는 hooks/useTeachingMode로만.
+   */
+  teachingMode: TeachingMode;
+  teachingModeLoaded: boolean;
+  /** 문서가 있었나 - 없으면 하루 화면에 처음 안내 띠 */
+  teachingModeExists: boolean;
+  setTeachingMode: (mode: TeachingMode, exists: boolean) => void;
   openSchoolEventPeek: (dateStr: string, items: NeisScheduleItem[]) => void;
   closeSchoolEventPeek: () => void;
 
@@ -668,6 +678,10 @@ export const useAppStore = create<AppState>()(
       closeJournalPeek: () => set({ journalPeek: null }),
 
       schoolEventPeek: null,
+      teachingMode: DEFAULT_TEACHING_MODE,
+      teachingModeLoaded: false,
+      teachingModeExists: false,
+      setTeachingMode: (mode, exists) => set({ teachingMode: mode, teachingModeLoaded: true, teachingModeExists: exists }),
       openSchoolEventPeek: (dateStr, items) => set({ schoolEventPeek: { dateStr, items } }),
       closeSchoolEventPeek: () => set({ schoolEventPeek: null }),
 

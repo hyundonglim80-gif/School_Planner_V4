@@ -66,6 +66,7 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
 | `users/{uid}/v4_classHub/{학급키}` | `{ classKey, apart: ["3-15"] }` | V4 전용. 학급마다 하나 - 떨어뜨릴 학생(arrayUnion/Remove로 한 쌍씩). 뽑기·모둠도 여기에 더한다(ROADMAP 8-3·8-4) |
 | `users/{uid}/settings/v4_trash` | 휴지통 자동 비우기 기간 | |
 | `users/{uid}/settings/v4_school` | `{ officeCode, schoolCode, officeName, name, kind, grade }` (학교를 지우면 `{ updatedAt }`만) | V4 전용. 우리 학교 - 나이스 급식·학사일정(`lib/schoolSetting`, `lib/neis`) |
+| `users/{uid}/settings/v4_teaching` | `{ unit: 'subject' · 'class', hasHomeroom, homeroomClass, subjects[], classColors{}, updatedAt }` | V4 전용. 교사 유형(`lib/teachingMode`, 18번 교과 전담 모드). 문서가 없으면 초등 담임(`unit:'subject'`) - 하루 화면에 처음 안내 띠(`features/day/TeachingModeBanner`). App이 store에 구독해 넣고 읽기는 `hooks/useTeachingMode`로만. 새 동작은 `unit === 'class'`일 때만 |
 | `users/{uid}/v4_progress/{id}` | `{ key(시간표 칸 글자), startDate, lessons: [{unit, no, content, supplies}], bumps: ['YYYY-MM-DD#교시'] }` | V4 전용. 진도 관리(`lib/progress`). 수업 문서에는 쓰지 않고 화면에서만 겹쳐 본다. 차시 목록은 `saveProgressPlan`(merge, bumps 빼고), 밀기는 `setProgressBump`(arrayUnion/Remove 한 칸) - 다른 기기에서 민 것을 덮지 않게 |
 | `sharedConfig/neis` | `{ key, updatedAt, updatedBy }` | 나이스 인증키. **로그인하면 누구나 읽고** 개발자만 쓴다(`admin/config`는 개발자만 읽어 따로 둠). 없거나 못 읽으면 키 없이 5건씩 나눠 받는다 |
 | `users/{uid}/settings/v4_autoBackup` | `{ enabled, intervalDays, keep, lastAt?, lastName?, lastSummary?, folderLink? }` | V4 전용. 드라이브 자동 백업(`lib/autoBackup`, `hooks/useAutoBackup`). PC에서 토큰이 이미 있을 때만 조용히 백업. '나중에'는 기기별 localStorage `sp4_autoBackupSnoozeUntil` |
@@ -395,6 +396,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-undo.mjs` | 안내의 되돌리기 - 일정·기록·메모 지우기, 칸에서 옮기기, 다중 선택 완료·삭제, 메모 완료, 마우스 올려 두기(19항목) |
 | `tools/inspect-command-palette.mjs` | 명령 창 - 날짜로 가기(하루·주간에 남기)·기능 열기(첫소리)·통합 검색 넘기기·⋮ 메뉴·ESC(19항목). 자료를 심지 않는다 |
 | `tools/inspect-more-menu.mjs` | ⋮ 메뉴 구역(`Layout.moreMenuSections`) - 구역 차례·제목·항목, 항목마다 창이 열리는지(29항목). 자료를 심지 않는다 |
+| `tools/inspect-teaching-mode.mjs` | 교사 유형(18번 S1) - teacher3(교과 전담, `?as=3`)의 환경설정·과목·담임반 저장, 문서가 없는 teacher2의 처음 안내 띠와 '나중에', teacher는 그대로(16항목). 끝에 seed 값으로 되돌린다 |
 | `tools/inspect-event-panel-order.mjs` | 일정 칸 차례 - 새 일정·수정 칸 모두 내용 칸이 맨 위, 열자마자 커서(7항목). 만든 일정은 지운다 |
 | `tools/inspect-check-lines.mjs` | 메모 카드의 ☐/☑ 줄 - 누르면 서버 글에서 그 줄 글자만 바뀌는지, 쓰는 칸이 안 열리는지(10항목). 메모를 심고 지운다 |
 | `tools/inspect-notice-share.mjs` | 알림장 📤 공유 - 넘기는 제목·글, 창을 닫을 때·막힐 때(복사)·공유 창이 없을 때(10항목). 공유 창은 흉내, 저장하지 않는다 |
@@ -415,7 +417,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번 |
 | `tools/inspect-*.mjs` 나머지 | 지난 신고를 재현하던 것들(이월·뒤로가기·기록 삭제 뒤 빈 화면·V3/V4 한 출처 등) |
-| `tools/seed.mjs` | 에뮬레이터에 한 학년도치 자료 |
+| `tools/seed.mjs` | 에뮬레이터에 한 학년도치 자료. 세 계정: teacher(초등 담임) · teacher2(`?as=2`, 공유 그룹) · teacher3(`?as=3`, 교과 전담 5학년 과학 - 5-1~5-4 명렬표, 2026-11-02~27 반+과목 시간표). 셋 다 `v4_teaching` 문서를 심어 처음 안내 띠가 뜨지 않는다 |
 | `tools/check-rules.mjs` | 보안 규칙 |
 
 - 환경은 `CLAUDE.md` 2장(에뮬레이터·JDK·사이트 주소). 크롬, PC 1400px / 휴대폰 390px만 본다.

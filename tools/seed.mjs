@@ -17,6 +17,8 @@ const PASSWORD = 'test1234';
 // 공유 그룹을 둘이서 써 보려면 계정이 두 개 필요하다.
 // 두 번째 계정은 데이터를 심지 않는다 (그룹에 들어가기만 한다).
 const SECOND_EMAIL = 'teacher2@example.com';
+// 교과 전담 점검 계정 (docs/ROADMAP-SUBJECT.md, 앱 주소 ?as=3)
+const SUBJECT_EMAIL = 'teacher3@example.com';
 // 개발자 전용 화면(공휴일, 공유 그룹 점검)을 확인하려면 이 계정으로 들어가야 한다.
 // src/lib/developers.ts 의 목록과 같아야 한다.
 const DEVELOPER_EMAIL = 'hyundonglim80@gmail.com';
@@ -37,6 +39,9 @@ const rnd = () => {
   return seed / 2147483648;
 };
 const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
+
+const HOMEROOM_TEACHING = { unit: 'subject', hasHomeroom: true, homeroomClass: '', subjects: [], classColors: {} };
+const SUBJECT_TEACHING = { unit: 'class', hasHomeroom: false, homeroomClass: '', subjects: ['과학'], classColors: {} };
 
 const SUBJECTS = ['국어', '수학', '사회', '과학', '영어', '체육', '음악', '미술', '실과', '창체'];
 const EVENTS = [
@@ -71,6 +76,9 @@ async function main() {
   // 드라이브 자동 백업: 방금 한 것으로 둔다. 점검 계정에는 구글 토큰이 없어, 비워 두면 PC 화면마다
   // '지금 백업' 띠가 떠서 다른 점검의 화면을 밀어낸다. 띠는 tools/inspect-auto-backup.mjs가 따로 본다.
   await setDoc(doc(db, 'users', uid, 'settings', 'v4_autoBackup'), { lastAt: Date.now() }, { merge: true });
+  // 교사 유형: 초등 담임. 문서가 없으면 하루 화면에 처음 안내 띠가 떠서 다른 점검의 화면을 밀어낸다
+  // (띠는 tools/inspect-teaching-mode.mjs가 따로 본다).
+  await setDoc(doc(db, 'users', uid, 'settings', 'v4_teaching'), HOMEROOM_TEACHING);
   await setDoc(doc(db, 'users', uid, 'settings', 'labels'), {
     eventLabels: [
       { id: 'ev_1', name: '달력', color: 'red', calendar: true, skip: false, forward: false, period: false, recur: false },
@@ -200,6 +208,19 @@ async function main() {
   } catch {
     console.log(`두 번째 계정은 이미 있습니다: ${SECOND_EMAIL}`);
   }
+  {
+    const u2 = (await signInWithEmailAndPassword(auth, SECOND_EMAIL, PASSWORD)).user.uid;
+    await setDoc(doc(db, 'users', u2, 'settings', 'v4_teaching'), HOMEROOM_TEACHING);
+  }
+
+  // ── 교과 전담 계정 (5학년 과학, 네 반) ─────────────────────────
+  try {
+    await createUserWithEmailAndPassword(auth, SUBJECT_EMAIL, PASSWORD);
+    console.log(`교과 전담 계정을 만들었습니다: ${SUBJECT_EMAIL}`);
+  } catch {
+    console.log(`교과 전담 계정은 이미 있습니다: ${SUBJECT_EMAIL}`);
+  }
+  await seedSubjectTeacher((await signInWithEmailAndPassword(auth, SUBJECT_EMAIL, PASSWORD)).user.uid);
 
   try {
     await createUserWithEmailAndPassword(auth, DEVELOPER_EMAIL, PASSWORD);
@@ -212,6 +233,45 @@ async function main() {
     `심었습니다 — 날짜 ${days}일 / 일정 ${events}건 / 기록 ${journals}건 / 수업 ${schedules}일 / 메모 ${memoCount}건`
   );
   process.exit(0);
+}
+
+/**
+ * teacher3: 교과 전담(5학년 과학). 2026학년도 5-1~5-4 명렬표(반마다 5명, 이름이 반마다 다르다)와
+ * 2026-11-02 ~ 11-27 평일의 요일별 고정 시간표('5-2 과학' 칸 글자)를 심는다.
+ */
+async function seedSubjectTeacher(uid3) {
+  await setDoc(doc(db, 'users', uid3, 'settings', 'v4_autoBackup'), { lastAt: Date.now() }, { merge: true });
+  await setDoc(doc(db, 'users', uid3, 'settings', 'v4_teaching'), SUBJECT_TEACHING);
+  const classList = ['가', '나', '다', '라'].map((head, i) => ({
+    year: 2026,
+    grade: '5',
+    classNum: String(i + 1),
+    students: [1, 2, 3, 4, 5].map((n) => ({ num: n, name: `${head}${n}`, gender: n % 2 ? 'M' : 'F', isActive: true, note: '' })),
+  }));
+  await setDoc(doc(db, 'users', uid3, 'settings', 'rosters'), { classList, rosters: classList, updatedAt: Date.now() });
+
+  // 요일(1=월 … 5=금) → { 교시: 반 }
+  const WEEK = {
+    1: { 1: '5-1', 3: '5-2' },
+    2: { 2: '5-3', 4: '5-4' },
+    3: { 1: '5-2', 2: '5-1' },
+    4: { 3: '5-4', 5: '5-3' },
+    5: { 1: '5-1', 2: '5-2', 3: '5-3', 4: '5-4' },
+  };
+  const b = writeBatch(db);
+  let n = 0;
+  for (let d = new Date(2026, 10, 2); d <= new Date(2026, 10, 27); d.setDate(d.getDate() + 1)) {
+    const slots = WEEK[d.getDay()];
+    if (!slots) continue;
+    const periods = {};
+    for (const [p, cls] of Object.entries(slots)) {
+      periods[p] = { subject: `${cls} 과학`, memo: '', supplies: '' };
+    }
+    b.set(doc(db, 'users', uid3, 'schedules', dateStr(d)), { periods, updatedAt: Date.now() });
+    n++;
+  }
+  await b.commit();
+  console.log(`교과 전담 계정: 명렬표 4반 / 수업 ${n}일`);
 }
 
 main().catch((e) => {
