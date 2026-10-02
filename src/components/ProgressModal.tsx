@@ -5,6 +5,8 @@
 // 시간표 칸 글자(예: '국어', '3-2 국어')마다 차시 목록을 둔다. 엑셀·한셀의 표를 붙여 넣고 칸에서 고친다.
 // 시작일부터 수업 문서에 적힌 그 글자의 교시를 차례로 세어 어느 날 몇 교시에 몇 차시인지 미리 본다(lib/progress).
 // 저장은 V4 전용 v4_progress - 수업 문서(V3와 함께 씀)에는 쓰지 않는다. 진도는 개인 공간의 수업으로 센다.
+// 교과 모드에서는 '과정 (여러 반)'도 만든다(docs/ROADMAP-SUBJECT.md S4): 과목 하나 + 반 여럿, 차시 목록은 하나이고
+// 반마다 제 수업 칸에서 따로 센다. 미리보기·밀기는 반 탭을 골라 그 반으로 본다.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 import { auth } from '../lib/firebase';
@@ -14,10 +16,14 @@ import { shortDateLabel } from '../lib/notices';
 import { getSemesterRanges } from '../lib/semester';
 import {
   computeProgress,
+  courseTitle,
   deleteProgressPlan,
+  isCourse,
   newProgressId,
   parseLessonTable,
   progressKey,
+  planKeys,
+  planLabel,
   progressUntil,
   saveProgressPlan,
   schoolYearEnd,
@@ -27,6 +33,10 @@ import {
 } from '../lib/progress';
 import { useProgressInputs, useProgressPlans } from '../hooks/useProgress';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
+import { useTeachingMode } from '../hooks/useTeachingMode';
+import { useRoster } from '../hooks/useRoster';
+import { schoolYearOf } from '../lib/schoolSetting';
+import { classesForYear, formatSlot, normalizeSlotText } from '../lib/teachingSlot';
 import { useAppStore } from '../store/useAppStore';
 import { showErrorToast, showToast } from '../utils/toast';
 import { showDeletedToast } from '../lib/undoToast';
@@ -41,6 +51,10 @@ interface Draft {
   key: string;
   startDate: string;
   lessons: ProgressLesson[];
+  /** 과정(여러 반)의 과목 */
+  subject: string;
+  /** 과정이면 고른 반들(고르는 중이면 빈 배열), 칸 글자 하나의 진도면 null */
+  classes: string[] | null;
 }
 
 const FIELDS: Array<{ key: keyof ProgressLesson; label: string }> = [
@@ -60,12 +74,29 @@ const cleanLessons = (lessons: ProgressLesson[]): ProgressLesson[] =>
   lessons
     .map((l) => ({ unit: l.unit.trim(), no: l.no.trim(), content: l.content.trim(), supplies: l.supplies.trim() }))
     .filter(hasText);
-const toDraft = (p: ProgressPlan): Draft => ({ id: p.id, key: p.key, startDate: p.startDate, lessons: p.lessons });
-const newDraft = (key = ''): Draft => ({ id: newProgressId(), key, startDate: formatDate(new Date()), lessons: [] });
+const toDraft = (p: ProgressPlan): Draft => ({
+  id: p.id,
+  key: p.key,
+  startDate: p.startDate,
+  lessons: p.lessons,
+  subject: p.subject || '',
+  classes: isCourse(p) ? [...p.classes!] : null,
+});
+const newDraft = (key = ''): Draft => ({
+  id: newProgressId(),
+  key,
+  startDate: formatDate(new Date()),
+  lessons: [],
+  subject: '',
+  classes: null,
+});
+const newCourseDraft = (subject = ''): Draft => ({ ...newDraft(), subject, classes: [] });
 const sameAsSaved = (d: Draft, p: ProgressPlan) =>
-  progressKey(d.key) === p.key &&
   d.startDate === p.startDate &&
-  JSON.stringify(cleanLessons(d.lessons)) === JSON.stringify(p.lessons);
+  JSON.stringify(cleanLessons(d.lessons)) === JSON.stringify(p.lessons) &&
+  (d.classes
+    ? isCourse(p) && d.subject.trim() === (p.subject || '') && d.classes.join(',') === p.classes!.join(',')
+    : !isCourse(p) && progressKey(d.key) === p.key);
 
 export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   const uid = auth.currentUser?.uid;
@@ -74,7 +105,13 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   const inGroup = useAppStore((s) => !!s.selectedGroupId);
   // 수업 칸의 진도 줄을 눌러 열면 그 진도부터 (열려 있을 때 다른 줄을 눌러도 그리로)
   const wantedId = useAppStore((s) => s.progressModalPlanId);
+  const wantedClass = useAppStore((s) => s.progressModalClass);
+  const { mode, isClassUnit } = useTeachingMode();
+  // 과정의 반 고르기는 명렬표의 반 - 교과 모드에서만 읽는다(초등 담임은 읽기가 늘지 않게)
+  const { rosterList } = useRoster(isClassUnit);
   const [draft, setDraft] = useState<Draft | null>(null);
+  // 과정 미리보기에서 보는 반
+  const [previewClass, setPreviewClass] = useState<string>(wantedClass || '');
   const [saving, setSaving] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLOListElement>(null);
@@ -84,11 +121,34 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   useEffect(() => {
     if (!loaded || draft) return;
     const first = plans.find((p) => p.id === wantedId) || plans[0];
-    setDraft(first ? toDraft(first) : newDraft());
-  }, [loaded, plans, draft, wantedId]);
+    setDraft(first ? toDraft(first) : isClassUnit ? newCourseDraft(mode.subjects[0] || '') : newDraft());
+  }, [loaded, plans, draft, wantedId, isClassUnit, mode.subjects]);
 
   const saved = draft ? plans.find((p) => p.id === draft.id) : undefined;
-  const dirty = !!draft && (saved ? !sameAsSaved(draft, saved) : !!draft.key.trim() || draft.lessons.some(hasText));
+  const courseDraft = !!draft?.classes;
+  const dirty =
+    !!draft &&
+    (saved
+      ? !sameAsSaved(draft, saved)
+      : courseDraft
+        ? draft.classes!.length > 0 || draft.lessons.some(hasText)
+        : !!draft.key.trim() || draft.lessons.some(hasText));
+
+  // 과정: 고를 수 있는 반 (시작일이 든 학년도의 명렬표) + 이미 고른 반 가운데 명렬표에 없는 것
+  const classOptions = useMemo(() => {
+    if (!courseDraft) return [];
+    const year = schoolYearOf(isDay(draft!.startDate) ? draft!.startDate : formatDate(new Date()));
+    const labels = classesForYear(rosterList, year).map((c) => c.label);
+    for (const c of draft!.classes!) if (!labels.includes(c)) labels.push(c);
+    return labels;
+  }, [courseDraft, draft, rosterList]);
+  const draftClasses = draft?.classes || [];
+  const viewClass = draftClasses.includes(previewClass) ? previewClass : draftClasses[0] || '';
+  const subjectOptions = useMemo(() => {
+    const set = new Set(mode.subjects.map((x) => x.trim()).filter(Boolean));
+    if (draft?.subject.trim()) set.add(draft.subject.trim());
+    return [...set];
+  }, [mode.subjects, draft?.subject]);
 
   const from = draft && isDay(draft.startDate) ? draft.startDate : '';
   const { inputs, isOffDay } = useProgressInputs(from, from ? schoolYearEnd(from) : '', semesterConfig);
@@ -109,16 +169,34 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   }, [templates, inputs]);
 
   const lessons = useMemo(() => cleanLessons(draft?.lessons || []), [draft?.lessons]);
-  const until = draft ? progressUntil({ id: draft.id, key: draft.key, startDate: draft.startDate }, plans) : undefined;
+  // 세는 열쇠: 칸 글자, 과정이면 보는 반의 '5-2 과학' (과목·반이 없으면 '')
+  const key = !draft
+    ? ''
+    : courseDraft
+      ? viewClass && draft.subject.trim()
+        ? formatSlot(viewClass, draft.subject)
+        : ''
+      : progressKey(draft.key);
+  const planRef = draft
+    ? {
+        id: draft.id,
+        key: draft.key,
+        startDate: draft.startDate,
+        ...(courseDraft ? { subject: draft.subject.trim(), classes: draftClasses } : {}),
+      }
+    : null;
+  const until = planRef && key ? progressUntil(planRef, plans, key) : undefined;
   const timeline = useMemo(() => {
-    if (!draft || !inputs || !progressKey(draft.key) || !from) return null;
+    if (!planRef || !inputs || !key || !from) return null;
     return computeProgress(
-      { key: draft.key, startDate: from, lessons, bumps: saved?.bumps || [] },
+      { ...planRef, startDate: from, lessons, bumps: saved?.bumps || [] },
       inputs.subjectsByDate,
       isOffDay,
-      until
+      until,
+      key
     );
-  }, [draft, inputs, from, lessons, saved?.bumps, isOffDay, until]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, key, inputs, from, lessons, saved?.bumps, isOffDay, until]);
 
   // 미리보기는 마지막 차시까지 (민 교시 포함). 목록이 안 끝나면 읽은 데까지
   const rows = useMemo(() => {
@@ -144,15 +222,39 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
     setDraft(next);
   };
 
-  // 열린 채로 다른 교시의 진도 줄을 누르면 그 진도로
-  const handledWanted = useRef(wantedId);
+  // 열린 채로 다른 교시의 진도 줄을 누르면 그 진도로 (과정이면 그 반 탭으로)
+  const wantedToken = `${wantedId || ''}|${wantedClass || ''}`;
+  const handledWanted = useRef(wantedToken);
   useEffect(() => {
-    if (!draft || !wantedId || handledWanted.current === wantedId) return;
-    handledWanted.current = wantedId;
+    if (!draft || !wantedId || handledWanted.current === wantedToken) return;
+    handledWanted.current = wantedToken;
     const plan = plans.find((p) => p.id === wantedId);
     if (plan && plan.id !== draft.id) switchTo(toDraft(plan));
+    if (wantedClass) setPreviewClass(wantedClass);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wantedId, draft, plans]);
+  }, [wantedToken, draft, plans]);
+
+  /** 새 진도·새 과정: 저장한 진도를 보고 있으면 새로 열고, 아직 저장 안 한 것이면 적던 것을 두고 종류만 바꾼다 */
+  const startNew = (course: boolean) => {
+    if (!draft) return;
+    if (saved) return switchTo(course ? newCourseDraft(mode.subjects[0] || '') : newDraft());
+    if (course === courseDraft) return;
+    update(course ? { classes: [], subject: draft.subject || mode.subjects[0] || '' } : { classes: null });
+  };
+
+  const toggleClass = (cls: string) => {
+    if (!draft?.classes) return;
+    const on = draft.classes.includes(cls);
+    const next = on ? draft.classes.filter((c) => c !== cls) : [...draft.classes, cls];
+    // 명렬표 차례(학년·반 숫자)로 둔다
+    next.sort((a, b) => {
+      const ia = classOptions.indexOf(a);
+      const ib = classOptions.indexOf(b);
+      return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+    });
+    update({ classes: next });
+    if (!on) setPreviewClass(cls);
+  };
 
   // ── 표 붙여넣기·칸 고치기 ──────────────────────────────────────────
 
@@ -238,19 +340,34 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
 
   const handleSave = async () => {
     if (!uid || !draft || saving) return;
-    const key = progressKey(draft.key);
     const clean = cleanLessons(draft.lessons);
-    if (!key) return showErrorToast('시간표 칸 글자를 고르거나 적어 주세요.');
+    const subject = draft.subject.trim().replace(/\s+/g, ' ');
+    if (courseDraft) {
+      if (!subject) return showErrorToast('과목을 고르거나 적어 주세요.');
+      if (draftClasses.length === 0) return showErrorToast('이 과정을 배우는 반을 하나 이상 골라 주세요.');
+    } else if (!progressKey(draft.key)) return showErrorToast('시간표 칸 글자를 고르거나 적어 주세요.');
     if (!isDay(draft.startDate)) return showErrorToast('시작일을 정해 주세요.');
     if (clean.length === 0) return showErrorToast('차시 목록을 붙여 넣거나 적어 주세요.');
-    if (plans.some((p) => p.id !== draft.id && p.key === key && p.startDate === draft.startDate)) {
-      return showErrorToast(`'${key}' 진도가 같은 시작일로 이미 있습니다.`);
-    }
+    const next = courseDraft
+      ? { id: draft.id, key: '', startDate: draft.startDate, lessons: clean, subject, classes: draftClasses }
+      : { id: draft.id, key: progressKey(draft.key), startDate: draft.startDate, lessons: clean };
+    // 같은 열쇠(과정이면 반마다)에 같은 시작일의 진도가 이미 있으면 둘이 같은 교시를 다툰다
+    const mine = planKeys(next).map(normalizeSlotText);
+    const clash = plans.find(
+      (p) =>
+        p.id !== draft.id &&
+        p.startDate === draft.startDate &&
+        (courseDraft || isCourse(p)
+          ? planKeys(p).some((k) => mine.includes(normalizeSlotText(k)))
+          : p.key === next.key)
+    );
+    if (clash) return showErrorToast(`'${planLabel(clash)}' 진도가 같은 반·시작일로 이미 있습니다.`);
+    const label = planLabel(next);
     setSaving(true);
     try {
-      await saveProgressPlan(uid, { id: draft.id, key, startDate: draft.startDate, lessons: clean });
-      setDraft({ ...draft, key, lessons: clean });
-      showToast(`✅ '${key}' 진도를 저장했습니다.`);
+      await saveProgressPlan(uid, next);
+      setDraft({ ...draft, key: planKeys(next)[0], subject, lessons: clean });
+      showToast(`✅ '${label}' 진도를 저장했습니다.`);
     } catch (e) {
       showErrorToast('진도를 저장하지 못했습니다.', e);
     } finally {
@@ -262,7 +379,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
     if (!uid || !saved) return;
     try {
       const trashId = await deleteProgressPlan(uid, saved);
-      showDeletedToast(`🗑️ '${saved.key}' 진도를 지웠습니다. 휴지통에서 복원할 수 있습니다.`, trashId);
+      showDeletedToast(`🗑️ '${planLabel(saved)}' 진도를 지웠습니다. 휴지통에서 복원할 수 있습니다.`, trashId);
       const rest = plans.filter((p) => p.id !== saved.id);
       setDraft(rest[0] ? toDraft(rest[0]) : newDraft());
     } catch (e) {
@@ -282,11 +399,13 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   // ── 그리기 ──────────────────────────────────────────────────────
 
   const ranges = getSemesterRanges(semesterConfig);
-  const key = draft ? progressKey(draft.key) : '';
 
   let summary: React.ReactNode = null;
   if (draft) {
-    if (!key) summary = '칸 글자를 고르면 시간표를 따라 몇 차시인지 보입니다.';
+    if (!key)
+      summary = courseDraft
+        ? '과목과 반을 고르면 반마다 시간표를 따라 몇 차시인지 보입니다.'
+        : '칸 글자를 고르면 시간표를 따라 몇 차시인지 보입니다.';
     else if (!from) summary = '시작일을 정해 주세요.';
     else if (!inputs) summary = '수업을 세는 중...';
     else if (lessons.length === 0) summary = '차시 목록을 붙여 넣으면 어느 날 몇 교시에 몇 차시인지 보입니다.';
@@ -353,6 +472,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
               <button
                 key={p.id}
                 type="button"
+                data-progress-plan={p.id}
                 onClick={() => p.id !== draft.id && switchTo(toDraft(p))}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${
                   p.id === draft.id
@@ -361,18 +481,42 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
                 }`}
                 title={`${p.startDate}부터 · ${p.lessons.length}차시`}
               >
-                {p.key} <span className="font-medium opacity-75">{p.lessons.length}차시</span>
+                {isCourse(p) ? (
+                  <>
+                    {courseTitle(p)} <span className="font-medium opacity-75">· {p.classes!.join(', ')}</span>
+                  </>
+                ) : (
+                  p.key
+                )}{' '}
+                <span className="font-medium opacity-75">{p.lessons.length}차시</span>
               </button>
             ))}
             <button
               type="button"
-              onClick={() => saved && switchTo(newDraft())}
+              onClick={() => startNew(false)}
               className={`px-2.5 py-1 rounded-lg text-xs font-bold border border-dashed ${
-                saved ? 'text-indigo-700 border-indigo-300 hover:bg-indigo-50' : 'bg-indigo-50 text-indigo-700 border-indigo-400'
+                saved || courseDraft
+                  ? 'text-indigo-700 border-indigo-300 hover:bg-indigo-50'
+                  : 'bg-indigo-50 text-indigo-700 border-indigo-400'
               }`}
             >
-              {saved ? '+ 새 진도' : '✏️ 새 진도'}
+              {saved || courseDraft ? '+ 새 진도' : '✏️ 새 진도'}
             </button>
+            {(isClassUnit || courseDraft) && (
+              <button
+                type="button"
+                data-new-course
+                onClick={() => startNew(true)}
+                title="차시 목록 하나를 여러 반에 - 반마다 제 수업 칸에서 따로 셉니다"
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold border border-dashed ${
+                  saved || !courseDraft
+                    ? 'text-emerald-700 border-emerald-300 hover:bg-emerald-50'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-400'
+                }`}
+              >
+                {saved || !courseDraft ? '+ 과정 (여러 반)' : '✏️ 과정 (여러 반)'}
+              </button>
+            )}
           </div>
 
           {inGroup && (
@@ -381,46 +525,118 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
             </div>
           )}
 
-          {/* 칸 글자 */}
-          <section className="space-y-1.5">
-            <label className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-600 shrink-0 w-14">칸 글자</span>
-              <input
-                value={draft.key}
-                onChange={(e) => update({ key: e.target.value })}
-                placeholder="시간표 칸에 적힌 그대로 (예: 국어, 3-2 국어)"
-                aria-label="칸 글자"
-                className="flex-1 min-w-0 px-2.5 py-1.5 text-sm font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </label>
-            {keyOptions.length > 0 ? (
-              <div className="flex flex-wrap gap-1 pl-16" data-progress-keys>
-                {keyOptions.map((k) => {
-                  const has = plans.some((p) => p.key === k);
-                  return (
+          {courseDraft ? (
+            /* 과정: 과목 + 반 */
+            <section className="space-y-2" data-course-form>
+              <label className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-600 shrink-0 w-14">과목</span>
+                <input
+                  value={draft.subject}
+                  onChange={(e) => update({ subject: e.target.value })}
+                  placeholder="예: 과학"
+                  aria-label="과정 과목"
+                  className="flex-1 min-w-0 px-2.5 py-1.5 text-sm font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </label>
+              {subjectOptions.length > 0 && (
+                <div className="flex flex-wrap gap-1 pl-16">
+                  {subjectOptions.map((sub) => (
                     <button
-                      key={k}
+                      key={sub}
                       type="button"
-                      onClick={() => update({ key: k })}
+                      data-course-subject={sub}
+                      onClick={() => update({ subject: sub })}
                       className={`px-2 py-0.5 rounded-md text-xs border ${
-                        key === k
+                        draft.subject.trim() === sub
                           ? 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold'
                           : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-300'
                       }`}
-                      title={has ? '이 글자의 진도가 이미 있습니다' : '이 글자로 세기'}
                     >
-                      {k}
-                      {has && ' ✓'}
+                      {sub}
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
+              )}
+              <div className="flex items-start gap-2">
+                <span className="text-xs font-bold text-slate-600 shrink-0 w-14 pt-1">반</span>
+                {classOptions.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {classOptions.map((c) => {
+                      const on = draftClasses.includes(c);
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          data-course-class-toggle={c}
+                          aria-pressed={on}
+                          onClick={() => toggleClass(c)}
+                          className={`px-2.5 py-1 rounded-md text-xs font-bold border ${
+                            on
+                              ? 'bg-emerald-600 text-white border-emerald-600'
+                              : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400'
+                          }`}
+                        >
+                          {on ? '✓ ' : ''}
+                          {c}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 pt-1">명렬표에서 학급을 먼저 만드세요 (그 학년도의 반을 고릅니다).</p>
+                )}
               </div>
-            ) : (
-              <p className="pl-16 text-xs text-slate-400">
-                시간표 설정에서 시간표를 만들면 칸 글자를 여기서 고를 수 있습니다.
-              </p>
-            )}
-          </section>
+              {draftClasses.length > 0 && draft.subject.trim() && (
+                <p className="pl-16 text-xs text-slate-400">
+                  {courseTitle({ subject: draft.subject, classes: draftClasses })} - 반마다 수업 칸의 '
+                  {formatSlot(draftClasses[0], draft.subject)}' 같은 칸을 따로 셉니다.
+                </p>
+              )}
+            </section>
+          ) : (
+            <>
+            {/* 칸 글자 */}
+            <section className="space-y-1.5">
+              <label className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-600 shrink-0 w-14">칸 글자</span>
+                <input
+                  value={draft.key}
+                  onChange={(e) => update({ key: e.target.value })}
+                  placeholder="시간표 칸에 적힌 그대로 (예: 국어, 3-2 국어)"
+                  aria-label="칸 글자"
+                  className="flex-1 min-w-0 px-2.5 py-1.5 text-sm font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </label>
+              {keyOptions.length > 0 ? (
+                <div className="flex flex-wrap gap-1 pl-16" data-progress-keys>
+                  {keyOptions.map((k) => {
+                    const has = plans.some((p) => p.key === k);
+                    return (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => update({ key: k })}
+                        className={`px-2 py-0.5 rounded-md text-xs border ${
+                          key === k
+                            ? 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold'
+                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-300'
+                        }`}
+                        title={has ? '이 글자의 진도가 이미 있습니다' : '이 글자로 세기'}
+                      >
+                        {k}
+                        {has && ' ✓'}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="pl-16 text-xs text-slate-400">
+                  시간표 설정에서 시간표를 만들면 칸 글자를 여기서 고를 수 있습니다.
+                </p>
+              )}
+            </section>
+            </>
+          )}
 
           {/* 시작일 */}
           <div className="flex items-center gap-2 flex-wrap">
@@ -515,6 +731,27 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
           {/* 미리보기 */}
           <section className="space-y-2 border-t border-slate-100 pt-3" data-progress-preview>
             <h3 className="text-xs font-black text-slate-700">미리보기</h3>
+            {courseDraft && draftClasses.length > 1 && (
+              <div className="flex flex-wrap gap-1" role="tablist" aria-label="미리 볼 반">
+                {draftClasses.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    role="tab"
+                    aria-selected={c === viewClass}
+                    data-course-preview={c}
+                    onClick={() => setPreviewClass(c)}
+                    className={`px-2 py-0.5 rounded-md text-xs font-bold border ${
+                      c === viewClass
+                        ? 'bg-slate-700 text-white border-slate-700'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
             <p className="text-xs text-slate-600 leading-relaxed" data-progress-summary>
               {summary}
             </p>

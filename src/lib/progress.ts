@@ -9,6 +9,9 @@
 // - 수업이 빠진 교시는 '밀기'(Planbook의 Bump): 그 교시는 차시를 받지 않고 뒤가 한 칸씩 밀린다. 되돌리면 다시 당겨진다.
 //
 // 저장: users/{uid}/v4_progress/{id} = { key, startDate, lessons: [{unit, no, content, supplies}], bumps: ['YYYY-MM-DD#교시'], updatedAt }
+// 과정(교과 모드, docs/ROADMAP-SUBJECT.md S4): { …, subject: '과학', classes: ['5-1','5-2'] } - 차시 목록 하나를 여러 반이
+// 반마다 따로 센다. 반 열쇠는 '5-1 과학'(planKeys)이고 칸 글자는 정규화해 견준다(lib/teachingSlot). key에는 첫 열쇠를 채워 둔다.
+// bumps는 과정 하나에 한 배열 - 같은 날·교시에 두 반을 가르칠 수 없으니 '날짜#교시'가 반마다 저절로 다르다.
 // V4 전용 문서다. 수업 문서(schedules)는 V3와 함께 쓰고 한 교시 저장이 다른 교시를 덮은 사고가 있어(10-01) 진도는 거기에
 // 쓰지 않는다 - 화면에서만 겹쳐 보인다. users/{uid}/** 규칙으로 덮인다. 그룹 공간은 아직 없다(개인 것만).
 import {
@@ -29,6 +32,7 @@ import { db } from './firebase';
 import { parseClipboardGrid } from './gridNav';
 import { classOffReason, type ClassDayRules } from './classDays';
 import { moveToTrash } from '../utils/trashHelper';
+import { formatSlot, normalizeSlotText, parseSlot } from './teachingSlot';
 
 export interface ProgressLesson {
   unit: string;
@@ -47,8 +51,14 @@ export interface ProgressPlan {
   lessons: ProgressLesson[];
   /** 민 교시 'YYYY-MM-DD#교시' */
   bumps: string[];
+  /** 과정(여러 반): 과목. classes와 함께 있다 */
+  subject?: string;
+  /** 과정(여러 반): 반 '5-2' 목록. 있으면 과정 */
+  classes?: string[];
   updatedAt?: number;
 }
+
+type CourseFields = Partial<Pick<ProgressPlan, 'subject' | 'classes'>>;
 
 /** 칸 글자를 견줄 모양으로 (앞뒤 공백만 뗀다 - 사용자가 정함) */
 export function progressKey(subject: unknown): string {
@@ -75,6 +85,38 @@ export function scheduleSubjects(periods: unknown): Record<string, string> {
 }
 
 export const slotId = (date: string, period: string | number) => `${date}#${period}`;
+
+// ── 과정 (여러 반) ──────────────────────────────────────────────────────
+
+/** 반 하나 이상을 가진 과정인가 */
+export function isCourse(plan: CourseFields): boolean {
+  return Array.isArray(plan.classes) && plan.classes.length > 0;
+}
+
+/** 이 진도가 세는 열쇠들. 과정이면 반마다 '5-1 과학', 아니면 [칸 글자] */
+export function planKeys(plan: Pick<ProgressPlan, 'key'> & CourseFields): string[] {
+  if (isCourse(plan)) return plan.classes!.map((c) => formatSlot(c, plan.subject || ''));
+  return [progressKey(plan.key)];
+}
+
+/** 열쇠를 견줄 모양 - 과정은 반 표기를 맞추고(lib/teachingSlot), 옛 진도는 앞뒤 공백만 */
+const matchKey = (text: unknown, course: boolean) =>
+  course ? normalizeSlotText(String(text ?? '')) : progressKey(text);
+
+/** 과정 이름: 반이 모두 같은 학년이면 '5학년 과학', 섞이면 '과학 (5-1 외 3)' */
+export function courseTitle(plan: CourseFields): string {
+  const classes = plan.classes || [];
+  const subject = (plan.subject || '').trim();
+  const grades = new Set(classes.map((c) => parseSlot(c).grade));
+  if (grades.size === 1) return `${[...grades][0]}학년 ${subject}`.trim();
+  const who = classes.length > 1 ? `${classes[0]} 외 ${classes.length - 1}` : classes[0] || '';
+  return subject ? `${subject} (${who})` : who;
+}
+
+/** 목록·안내에 쓰는 진도 이름 - 과정이면 courseTitle, 아니면 칸 글자 */
+export function planLabel(plan: Pick<ProgressPlan, 'key'> & CourseFields): string {
+  return isCourse(plan) ? courseTitle(plan) : plan.key;
+}
 
 // ── 표 붙여넣기 ─────────────────────────────────────────────────────────
 
@@ -201,12 +243,15 @@ export interface ProgressTimeline {
  * until: 이날부터는 세지 않는다 (같은 칸 글자의 다음 진도가 이어받는 날 - progressUntil).
  */
 export function computeProgress(
-  plan: Pick<ProgressPlan, 'key' | 'startDate' | 'lessons' | 'bumps'>,
+  plan: Pick<ProgressPlan, 'key' | 'startDate' | 'lessons' | 'bumps'> & CourseFields,
   subjectsByDate: Record<string, Record<string, string>>,
   isOffDay: (date: string) => boolean = () => false,
-  until?: string
+  until?: string,
+  /** 과정이면 셀 반의 열쇠('5-1 과학', planKeys 가운데 하나). 주지 않으면 첫 열쇠 */
+  keyOverride?: string
 ): ProgressTimeline {
-  const key = progressKey(plan.key);
+  const course = isCourse(plan);
+  const key = matchKey(keyOverride ?? planKeys(plan)[0], course);
   const bumps = new Set(plan.bumps || []);
   const slots: ProgressSlot[] = [];
   const bySlot: Record<string, ProgressSlot> = {};
@@ -220,7 +265,7 @@ export function computeProgress(
   for (const date of dates) {
     const periods = subjectsByDate[date] || {};
     const matching = Object.keys(periods)
-      .filter((p) => progressKey(periods[p]) === key)
+      .filter((p) => matchKey(periods[p], course) === key)
       .sort((a, b) => Number(a) - Number(b));
     if (matching.length === 0 || isOffDay(date)) continue;
     for (const period of matching) {
@@ -236,16 +281,25 @@ export function computeProgress(
 
 /**
  * 같은 칸 글자에 진도가 둘 이상이면(예: 2학기 목록을 따로) 시작일이 늦은 것이 그날부터 이어받는다.
- * 이 진도를 세지 않기 시작하는 날 - 같은 글자의 다음 진도 시작일. 없으면 undefined.
+ * 이 진도를 세지 않기 시작하는 날 - 같은 열쇠의 다음 진도 시작일. 없으면 undefined.
+ * key: 과정이면 셀 반의 열쇠(주지 않으면 첫 열쇠). 과정이 끼면 반 열쇠를 정규화해 견주고(과정·옛 진도 모두),
+ * 옛 진도끼리는 지금처럼 칸 글자를 견준다.
  */
 export function progressUntil(
-  plan: Pick<ProgressPlan, 'id' | 'key' | 'startDate'>,
-  plans: Array<Pick<ProgressPlan, 'id' | 'key' | 'startDate'>>
+  plan: Pick<ProgressPlan, 'id' | 'key' | 'startDate'> & CourseFields,
+  plans: Array<Pick<ProgressPlan, 'id' | 'key' | 'startDate'> & CourseFields>,
+  key?: string
 ): string | undefined {
-  const key = progressKey(plan.key);
+  const mine = key ?? planKeys(plan)[0];
+  const course = isCourse(plan);
   let until: string | undefined;
   for (const p of plans) {
-    if (p.id === plan.id || progressKey(p.key) !== key || !p.startDate || p.startDate <= plan.startDate) continue;
+    if (p.id === plan.id || !p.startDate || p.startDate <= plan.startDate) continue;
+    const shares =
+      course || isCourse(p)
+        ? planKeys(p).some((k) => normalizeSlotText(k) === normalizeSlotText(mine))
+        : progressKey(p.key) === progressKey(mine);
+    if (!shares) continue;
     if (!until || p.startDate < until) until = p.startDate;
   }
   return until;
@@ -267,7 +321,10 @@ export function lessonAt(
 /** 수업 칸에 겹쳐 보일 한 교시의 진도 */
 export interface ProgressMark {
   planId: string;
+  /** 센 열쇠 - 옛 진도는 칸 글자, 과정은 그 반의 '5-1 과학' */
   key: string;
+  /** 과정이면 그 반 '5-1' */
+  cls?: string;
   /** 차시 차례 (0부터). 민 교시면 null */
   index: number | null;
   total: number;
@@ -287,17 +344,23 @@ export function progressMarks(
   const out: Record<string, ProgressMark> = {};
   for (const plan of plans) {
     if (plan.lessons.length === 0) continue;
-    const t = computeProgress(plan, subjectsByDate, isOffDay, progressUntil(plan, plans));
-    for (const s of t.slots) {
-      if (s.lesson !== null && s.lesson >= plan.lessons.length) break; // 목록이 끝났다
-      out[slotId(s.date, s.period)] = {
-        planId: plan.id,
-        key: plan.key,
-        index: s.lesson,
-        total: plan.lessons.length,
-        lesson: s.lesson === null ? null : plan.lessons[s.lesson],
-        bumped: s.bumped,
-      };
+    const course = isCourse(plan);
+    // 과정은 반마다 따로 센다 - 목록이 끝나 멈추는 것도 반마다
+    for (const key of planKeys(plan)) {
+      const t = computeProgress(plan, subjectsByDate, isOffDay, progressUntil(plan, plans, key), key);
+      const cls = course ? parseSlot(key).cls : undefined;
+      for (const s of t.slots) {
+        if (s.lesson !== null && s.lesson >= plan.lessons.length) break; // 목록이 끝났다
+        out[slotId(s.date, s.period)] = {
+          planId: plan.id,
+          key: course ? key : plan.key,
+          ...(cls ? { cls } : {}),
+          index: s.lesson,
+          total: plan.lessons.length,
+          lesson: s.lesson === null ? null : plan.lessons[s.lesson],
+          bumped: s.bumped,
+        };
+      }
     }
   }
   return out;
@@ -359,14 +422,31 @@ export function sanitizePlan(id: string, raw: any): ProgressPlan {
         .filter((l: any) => l && typeof l === 'object')
         .map((l: any) => ({ unit: str(l.unit), no: str(l.no), content: str(l.content), supplies: str(l.supplies) }))
     : [];
+  const classes = sanitizeClasses(raw?.classes);
+  const course = classes.length > 0 ? { subject: str(raw?.subject).trim().replace(/\s+/g, ' '), classes } : null;
   return {
     id,
-    key: progressKey(raw?.key),
+    key: progressKey(raw?.key) || (course ? planKeys({ key: '', ...course })[0] : ''),
     startDate: /^\d{4}-\d{2}-\d{2}$/.test(str(raw?.startDate)) ? str(raw.startDate) : '',
     lessons,
     bumps: Array.isArray(raw?.bumps) ? raw.bumps.filter((b: unknown) => typeof b === 'string') : [],
+    ...(course || {}),
     updatedAt: typeof raw?.updatedAt === 'number' ? raw.updatedAt : undefined,
   };
+}
+
+/** 과정의 반 목록: '5-2' 모양만(앞뒤 공백·'05-02'는 맞춘다), 중복은 하나로, 차례는 그대로 */
+export function sanitizeClasses(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const v of raw) {
+    if (typeof v !== 'string') continue;
+    const m = /^\s*(\d{1,2})\s*-\s*(\d{1,2})\s*$/.exec(v);
+    if (!m || Number(m[1]) < 1 || Number(m[2]) < 1) continue;
+    const c = `${Number(m[1])}-${Number(m[2])}`;
+    if (!out.includes(c)) out.push(c);
+  }
+  return out;
 }
 
 /** 새 진도 문서 id */
@@ -397,12 +477,15 @@ export function subscribeProgressPlans(
  */
 export async function saveProgressPlan(
   uid: string,
-  plan: Pick<ProgressPlan, 'id' | 'key' | 'startDate' | 'lessons'>
+  plan: Pick<ProgressPlan, 'id' | 'key' | 'startDate' | 'lessons'> & CourseFields
 ): Promise<void> {
+  const course = isCourse(plan);
   await setDoc(
     doc(progressCol(uid), plan.id),
     {
-      key: progressKey(plan.key),
+      // 과정도 key를 채워 둔다 - 옛 코드가 key를 읽어도 깨지지 않게
+      key: course ? planKeys(plan)[0] : progressKey(plan.key),
+      ...(course ? { subject: (plan.subject || '').trim(), classes: sanitizeClasses(plan.classes) } : {}),
       startDate: plan.startDate,
       lessons: plan.lessons.map((l) => ({ unit: l.unit, no: l.no, content: l.content, supplies: l.supplies })),
       updatedAt: Date.now(),
@@ -435,7 +518,7 @@ export async function deleteProgressPlan(uid: string, plan: ProgressPlan): Promi
   const trashId = await moveToTrash({
     id,
     type: 'progress',
-    content: `${plan.key} 진도 (${plan.lessons.length}차시)`,
+    content: `${planLabel(plan)} 진도 (${plan.lessons.length}차시)`,
     data: { id, ...data },
   });
   await deleteDoc(doc(progressCol(uid), id));
@@ -451,6 +534,7 @@ export async function restoreProgressPlan(uid: string, data: any): Promise<void>
     startDate: plan.startDate,
     lessons: plan.lessons,
     bumps: plan.bumps,
+    ...(isCourse(plan) ? { subject: plan.subject || '', classes: plan.classes } : {}),
     updatedAt: Date.now(),
   });
 }

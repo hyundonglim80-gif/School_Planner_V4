@@ -60,7 +60,7 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
 
 - 로드맵 1~17번과 Web Share Target(공유받기) **모두 끝**, 실제 사이트·휴대폰 확인까지 마쳤다. wip 브랜치 없음. 설명서 전체 점검은 17번 끝에 89/89.
   끝난 기능의 코드 자리·함정은 **ARCHITECTURE 6~8장**, 점검 스크립트는 **9장**, 새 기능을 더할 때 확인할 것은 **10장 체크리스트**에 있다.
-- **하는 일: 18번 교과 전담 모드** (2026-10-02 사용자와 정함) - 계획은 `docs/ROADMAP-SUBJECT.md`, **세션(새 대화) 하나에 S 하나**. **S1~S3 끝(10-02), 다음 S4 (권장 노력: 높음 - 진도 셈을 바꾼다).**
+- **하는 일: 18번 교과 전담 모드** (2026-10-02 사용자와 정함) - 계획은 `docs/ROADMAP-SUBJECT.md`, **세션(새 대화) 하나에 S 하나**. **S1~S4 끝(10-02), 다음 S5 (권장 노력: 중간).**
   점검 계정 `teacher3`(`?as=3`, 교과 전담)는 seed가 만든다. seed는 모든 계정에 `v4_teaching`을 심어 처음 안내 띠가 다른 점검을 가리지 않는다.
   "이어서"면 ROADMAP '지금 하는 일'의 S 번호 → 그 파일의 공통 규칙과 그 S 절만 읽는다. 세션 표에 권장 노력 수준(중간/높음)이 있다.
 - 이 절에는 **진행 중인 것·사용자에게 부탁한 것만** 둔다(이 파일은 모든 대화가 처음에 읽는다 - 길면 매번 비싸다).
@@ -107,6 +107,10 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
     없으면 `https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse`을 받아 거기에 푼다.
     사이트는 다른 PC와 같게 `node tools/serve-both.mjs`(4190)로 띄운다. `vite preview`(4173)는 앱을 `/`에 두어 점검 스크립트의
     `/School_Planner_V4/` 주소에서 스크립트가 404로 떠 화면이 비었다(2026-10-01).
+- **클라우드 세션(claude.ai/code 컨테이너)** (2026-10-02): Java·크롬(Playwright chromium)이 있어 점검이 돈다. V3가 없으니 serve-both용으로
+  `../School_Planner_V3/js/api/firebaseInit.js`에 import 두 줄짜리 빈 자리를 만들고, 스크립트의 `channel:'chrome'`용으로
+  `ln -sf /opt/pw-browsers/chromium-*/chrome-linux/chrome /opt/google/chrome/chrome`. `npm install`이 package-lock을 바꾸면 되돌린다.
+  푸시는 세션이 정한 브랜치로 한다(main이 아니다 - 배포는 사용자가 합칠 때).
 - **화면의 title·단추 이름을 바꾸면 점검 스크립트도 고친다**: `grep -rn '<옛 글자>' tools/`. 1-4(끌어 옮기기)에서 일정 title을
   바꿨는데 inspect-manual·inspect-scenarios가 옛 title로 찾아 4항목이 깨진 채 남았다(2026-10-01 발견). 같은 이름의 단추를
   새로 만들 때도(예: '끄기') 기존 스크립트가 엄격 모드로 깨지니 칸에 `data-…`를 달아 범위를 좁힌다.

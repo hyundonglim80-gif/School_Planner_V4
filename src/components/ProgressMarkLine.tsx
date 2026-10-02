@@ -24,7 +24,7 @@ export default function ProgressMarkLine({ mark, dateStr, period, alwaysShowActi
 
   const openPlan = (e: React.MouseEvent) => {
     e.stopPropagation();
-    useAppStore.getState().setProgressModalOpen(true, mark.planId);
+    useAppStore.getState().setProgressModalOpen(true, mark.planId, mark.cls);
   };
 
   const toggleBump = async (e: React.MouseEvent) => {
