@@ -9,7 +9,9 @@
 //   도구 창은 Layout이 연다(lib/appActions). 새 학급 도구를 만들면 여기 TOOLS에도 한 줄 더한다.
 //   교과 모드(ROADMAP-SUBJECT S7): 올해 반을 학년별 줄의 반 색 칩으로 고르고, '교과 출결' 도구(누계)가 붙는다.
 //   교과 + 담임은 담임반이 아닌 반에서 출석부·알림장·오늘 출결 대신 교과 출결.
-import { useEffect, useMemo, useState } from 'react';
+//   학생 명단은 '이름 / 사진'으로 본다(2026-10-02 사용자 요청 - 명렬표 관리의 사진 보기와 같게). 사진은 켤 때만 드라이브를 부른다
+//   (useStudentPhotos). 사진을 누르면 크게(ImageViewerModal, 아래 '사진 바꾸기'), 이름을 누르면 누가기록.
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRoster, type ClassRoster } from '../../hooks/useRoster';
 import { classKeyOf, KIND_LABEL, type AttendanceRecord } from '../../lib/attendance';
 import { loadAttendanceDay } from '../../lib/attendanceStore';
@@ -21,6 +23,21 @@ import type { ShortcutId } from '../../lib/shortcuts';
 import { useTeachingMode } from '../../hooks/useTeachingMode';
 import { useClassColorOf } from '../../hooks/useClassColor';
 import { classesForYear, classLabelOf, normalizeSlotText } from '../../lib/teachingSlot';
+import { useStudentPhotos } from '../../hooks/useStudentPhotos';
+import StudentPhoto from '../../components/roster/StudentPhoto';
+import ImageViewerModal from '../../components/ImageViewerModal';
+import type { Student } from '../../hooks/useRoster';
+import { showErrorToast, showToast } from '../../utils/toast';
+
+/** 학급 화면의 사진 보기 켬/끔 - 이 기기에만 (명렬표 관리의 'sp4-roster-photos'와 따로) */
+const PHOTOS_KEY = 'sp4-class-photos';
+function readShowPhotos(): boolean {
+  try {
+    return localStorage.getItem(PHOTOS_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 // homeroom: 담임 도구 - 교과 전담(담임반 없음)은 숨긴다 (docs/ROADMAP-SUBJECT.md S3)
 // classUnit: 교과 모드 도구 - 초등 담임은 숨긴다 (S7)
@@ -77,6 +94,37 @@ export default function ClassScreen() {
     () => (cls?.students || []).filter((s) => s.isActive !== false).sort((a, b) => Number(a.num) - Number(b.num)),
     [cls],
   );
+
+  // ── 사진 (명렬표 관리의 사진 보기와 같은 훅 - 켤 때만 드라이브를 부른다) ──
+  const [showPhotos, setShowPhotos] = useState<boolean>(readShowPhotos);
+  const photoState = useStudentPhotos(cls, students, showPhotos);
+  const [photoViewer, setPhotoViewer] = useState<{ student: Student; url: string } | null>(null);
+  const replaceInputRef = useRef<HTMLInputElement>(null);
+  const setPhotoMode = (next: boolean) => {
+    if (next === showPhotos) return;
+    try {
+      localStorage.setItem(PHOTOS_KEY, next ? '1' : '0');
+    } catch {
+      /* 시크릿 모드 등 - 이번 판에서만 */
+    }
+    setShowPhotos(next);
+    // 권한 창은 누른 그 자리에서만 열린다 - 상태가 바뀌기를 기다리지 않고 바로 부른다 (RosterModal.togglePhotos와 같다)
+    if (next) photoState.authorize().catch((e: any) => showErrorToast(e?.message || '사진을 불러오지 못했습니다.'));
+  };
+  const authorizePhotos = () =>
+    photoState.authorize().catch((e: any) => showErrorToast(e?.message || '사진을 불러오지 못했습니다.'));
+  const uploadPhoto = async (student: Student, file: File) => {
+    try {
+      await photoState.upload(student, file);
+      showToast(`✅ ${student.name || student.num + '번'} 사진을 올렸습니다.`);
+    } catch (e: any) {
+      showErrorToast(e?.message || '사진을 올리지 못했습니다.');
+    }
+  };
+  const openRecord = (num: number) => {
+    if (classKey) rememberHubClass(classKey);
+    runAppAction({ id: 'studentRecord', classKey: classKey || undefined, num });
+  };
   /** 학년도 최근 것부터 */
   const sortedClasses = useMemo(
     () => [...rosterList].sort((a, b) => Number(b.year) - Number(a.year) || String(a.grade).localeCompare(String(b.grade)) || Number(a.classNum) - Number(b.classNum)),
@@ -221,13 +269,104 @@ export default function ClassScreen() {
         ))}
       </div>
 
-      {/* 학생 명단 - 누르면 그 학생의 누가기록 */}
-      <section className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4">
-        <h3 className="font-black text-sm text-slate-700 mb-2">
-          🧑‍🎓 학생 {students.length}명 <span className="text-xs font-semibold text-slate-400">- 누르면 그 학생의 누가기록</span>
-        </h3>
+      {/* 학생 명단 - 이름 / 사진. 이름을 누르면 그 학생의 누가기록 */}
+      <section className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4" data-class-students>
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <h3 className="font-black text-sm text-slate-700">
+            🧑‍🎓 학생 {students.length}명{' '}
+            <span className="text-xs font-semibold text-slate-400">
+              - {showPhotos ? '사진을 누르면 크게, 이름을 누르면 누가기록' : '누르면 그 학생의 누가기록'}
+            </span>
+          </h3>
+          {showPhotos && photoState.status === 'ready' && students.length > 0 && (
+            <span className="text-xs font-semibold text-slate-400" data-class-photo-count>
+              사진 {students.length - photoState.missing.length}/{students.length}명
+            </span>
+          )}
+          <div className="ml-auto flex gap-1 bg-slate-100 rounded-lg p-1" role="group" aria-label="명단 보기">
+            {([false, true] as const).map((on) => (
+              <button
+                key={String(on)}
+                type="button"
+                data-class-view={on ? 'photo' : 'name'}
+                aria-pressed={showPhotos === on}
+                onClick={() => setPhotoMode(on)}
+                title={on ? '구글 드라이브의 학생 사진으로 봅니다 (명렬표 관리의 사진과 같습니다)' : '번호와 이름으로 봅니다'}
+                className={`rounded-md px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer ${
+                  showPhotos === on ? 'bg-white text-slate-800 shadow-2xs' : 'text-slate-500'
+                }`}
+              >
+                {on ? '📷 사진' : '이름'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 사진을 불러오지 못한 까닭 (명단은 그대로 보인다) */}
+        {showPhotos && students.length > 0 && (
+          photoState.status === 'needs-auth' ? (
+            <div className="mb-2 flex items-center justify-between gap-2 text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 flex-wrap">
+              <span>구글 연결이 끊겨 사진을 불러오지 못했습니다.</span>
+              <button
+                type="button"
+                data-class-photo-auth
+                onClick={authorizePhotos}
+                className="px-2.5 py-1 bg-primary hover:bg-primary/90 rounded text-xs font-bold text-white cursor-pointer shrink-0"
+              >
+                구글 연결하고 사진 불러오기
+              </button>
+            </div>
+          ) : photoState.status === 'error' ? (
+            <div className="mb-2 flex items-center justify-between gap-2 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-2 flex-wrap">
+              <span>{photoState.error || '사진 폴더를 읽지 못했습니다.'}</span>
+              <button
+                type="button"
+                onClick={() => open('roster')}
+                className="px-2.5 py-1 bg-white border border-red-300 rounded text-xs font-bold text-red-700 hover:bg-red-100 cursor-pointer shrink-0"
+              >
+                명렬표 관리에서 사진 폴더 보기
+              </button>
+            </div>
+          ) : photoState.status === 'checking' || photoState.status === 'loading' || photoState.resolving ? (
+            <p className="mb-2 text-xs text-slate-400 font-semibold">
+              사진을 불러오는 중... ({students.length - photoState.missing.length}/{students.length})
+            </p>
+          ) : null
+        )}
+
         {students.length === 0 ? (
           <p className="text-sm text-slate-400">이 학급에 학생이 없습니다. 명렬표 관리에서 더합니다.</p>
+        ) : showPhotos ? (
+          /* 명렬표 관리의 타일 보기와 같은 카드. 휴대폰 세 칸(한 칸이 너무 좁으면 얼굴·이름을 못 읽는다) */
+          <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-8 gap-2" data-class-photo-grid>
+            {students.map((s) => {
+              const photo = photoState.photos.get(Number(s.num));
+              return (
+                <div key={s.num} className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs" data-class-photo-card={s.num}>
+                  <StudentPhoto
+                    url={photo?.url}
+                    name={s.name}
+                    shape="card"
+                    canUpload
+                    uploading={photoState.uploading === Number(s.num)}
+                    onUpload={(file) => uploadPhoto(s, file)}
+                    loose={photo?.exact === false}
+                    onOpen={photo?.url ? () => setPhotoViewer({ student: s, url: photo.url }) : undefined}
+                  />
+                  <button
+                    type="button"
+                    data-class-student={s.num}
+                    onClick={() => openRecord(Number(s.num))}
+                    title="이 학생의 누가기록"
+                    className="w-full flex items-center gap-1 px-1.5 py-1.5 sm:gap-1.5 sm:px-2 hover:bg-primary/5 text-left min-w-0"
+                  >
+                    <span className="bg-blue-50 text-primary rounded text-2xs font-extrabold px-1 sm:px-1.5 py-0.5 shrink-0">{s.num}</span>
+                    <span className="text-xs font-extrabold text-slate-800 truncate">{s.name}</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-8 gap-1.5">
             {students.map((s) => (
@@ -235,10 +374,7 @@ export default function ClassScreen() {
                 key={s.num}
                 type="button"
                 data-class-student={s.num}
-                onClick={() => {
-                  if (classKey) rememberHubClass(classKey);
-                  runAppAction({ id: 'studentRecord', classKey: classKey || undefined, num: Number(s.num) });
-                }}
+                onClick={() => openRecord(Number(s.num))}
                 className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-primary/5 hover:border-primary/40 text-sm text-left min-w-0"
               >
                 <span className="text-xs font-bold text-slate-400 tabular-nums shrink-0">{s.num}</span>
@@ -248,6 +384,40 @@ export default function ClassScreen() {
           </div>
         )}
       </section>
+
+      {/* 학생 사진을 크게 띄운 창 - 명렬표 관리와 같다. 바꾸는 단추는 아래에 */}
+      {photoViewer && (
+        <>
+          <ImageViewerModal
+            isOpen
+            onClose={() => setPhotoViewer(null)}
+            images={[{ url: photoViewer.url, name: `${photoViewer.student.num}번 ${photoViewer.student.name}` }]}
+            footer={
+              <button
+                type="button"
+                onClick={() => replaceInputRef.current?.click()}
+                disabled={photoState.uploading === Number(photoViewer.student.num)}
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-white/15 text-white hover:bg-white/25 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {photoState.uploading === Number(photoViewer.student.num) ? '올리는 중...' : '📷 사진 바꾸기'}
+              </button>
+            }
+          />
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            ref={replaceInputRef}
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (!file) return;
+              await uploadPhoto(photoViewer.student, file);
+              setPhotoViewer(null);
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }

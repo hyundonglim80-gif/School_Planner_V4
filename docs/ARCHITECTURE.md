@@ -264,6 +264,9 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   폭에 따라 바꾸면 팝업이 붙어 본문이 좁아지는 순간 다시 읽으며 화면이 '불러오는 중'으로 바뀌어 팝업이 닫혔다(`dc8a3ad`).
 - **메모** `MemoScreen` = 왼쪽 라벨 거르개 + 메이슨리 카드. `useMemos(groupId)`.
 - **학급** `ClassScreen`(ROADMAP 16) = 학급 고르기 + 오늘 출결 + 학급 도구 + 학생 명단. 날짜가 없다(날짜 이동 줄·위아래 밀어 날짜 넘기기 없음).
+  학생 명단은 '이름 / 📷 사진'(`data-class-view`, 켬/끔은 이 기기 localStorage `sp4-class-photos` - 명렬표 관리의 `sp4-roster-photos`와 따로).
+  사진은 명렬표 관리와 같은 `useStudentPhotos`(켤 때만 드라이브, 켜는 단추에서 `authorize`)·`StudentPhoto` 카드·`ImageViewerModal`('📷 사진 바꾸기').
+  카드의 사진은 크게, 이름은 누가기록. 토큰이 없으면 저절로 로그인 창을 띄우지 않고 '구글 연결하고 사진 불러오기' 띠(2026-10-02).
   도구 창의 열림 상태는 Layout이 쥐므로 화면은 `lib/appActions.runAppAction({ id: 단축키 이름, classKey, num })`으로 부탁한다.
   고른 학급은 `lib/classMemory.rememberHubClass`가 도구들(자리표·뽑기·출석부 등)의 '마지막 학급' 기억에도 넣는다 - 도구를 특정 학급으로
   열려면 먼저 이것을 부르고 `runAppAction`.
@@ -460,6 +463,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-year-sheet.mjs` | 년간 학사력(19). 날마다의 표식을 보는 다른 점검은 `[data-year-view="detail"]`을 먼저 누른다 |
 | `tools/inspect-mobile-month.mjs` | 휴대폰 월간(12, 390px - 휴대폰 항목이라 이 폭만) |
 | `tools/inspect-class-screen.mjs` | 학급 탭(13). 올해 학급이 없으면(seed 직후) 점검용 9-1·9-2를 심고 끝에 뺀다 |
+| `tools/inspect-class-photos.mjs` | 학급 탭 명단 사진 보기(13) - googleapis를 흉내 내 사진 카드·n/n명·크게 보기·이름 → 누가기록·다시 열어도 남음·토큰 없을 때 띠 |
 | `tools/inspect-teaching-mode.mjs` | 교사 유형(12) - teacher3 환경설정·서버 값, teacher2 처음 안내 띠·'나중에', teacher 그대로. 끝에 seed 값으로 되돌린다 |
 | `tools/inspect-subject-timetable.mjs` | 교과 모드 칸 입력(13) - teacher3 시간표 창 제안·정규화·붙여 넣기·저장 안 하고 닫기, 하루 2026-11-03 저장 → 서버 '5-1 과학', 주간 팝업 제안, teacher '3 - 2 국어' 그대로. 시간표·수업 문서를 끝에 되돌린다 |
 | `tools/inspect-dark.mjs` | 다크 모드(11) |
