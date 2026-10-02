@@ -96,9 +96,9 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
 - 7번 작년 이맘때(2026-10-01 끝): 같은 주는 **학년도 몇째 주**(`lib/lastYearWeek`, 364일 빼기 X). 가져오기는 `lib/lastYearImport` -
   **복사본에 첨부를 넣지 않는다**(같은 드라이브 파일을 두 항목이 가리키면 영구 삭제 때 함께 지워진다). 크롬 `tools/inspect-last-year.mjs` 33항목.
 - 3번 드라이브 실제 업로드와 4번 나이스 규칙 배포·키 넣기는 사용자가 실제 사이트에서 마쳤다(2026-10-02).
-- 6-7에서 뺀 **Web Share Target**(다른 앱의 공유를 V4가 받기): 사용자가 추천을 부탁해 Claude가 추천했다(2026-10-02) - 받은 것은
-  **새 메모 쓰는 칸**에 채워 연다(저장은 사용자가 누를 때만). 1단계 글·주소(GET), 2단계 사진·파일(POST, sw.js가 받아 첨부로).
-  안드로이드 설치 PWA만 된다. 사용자가 하자고 하면 그대로 만든다.
+- **Web Share Target**(다른 앱의 공유를 V4가 받기, 2026-10-02 끝, 결정은 Claude 추천): 받은 글·주소·파일을 **개인 공간 새 메모 칸**에 채워 연다
+  (저장은 사용자가 누를 때만). 글과 파일을 한 번에 POST로 받는다(sw.js `receiveShare` → 캐시 `sp4share-inbox` → `lib/shareTarget`·`useShareReceiver`).
+  파일은 칸의 '드라이브에 올려 첨부'를 눌러야 올린다. 안드로이드 설치본만. 크롬 `inspect-share-target`(16). **실제 휴대폰 공유는 사용자 확인을 부탁했다.**
 - 6-3 메뉴 구역(2026-10-01 끝): ⋮ 메뉴는 `Layout`의 `moreMenuSections` 표로 그린다 - **새 기능은 알맞은 구역에 한 줄 더한다**
   (명령 창 `COMMAND_META`·단축키에도). 크롬 `tools/inspect-more-menu.mjs` 29항목.
 - 6-2 명령 창(2026-10-01 끝): `lib/commandPalette`·`CommandPaletteModal`, 단축키 id `commandPalette`(기본 Ctrl+K). **단축키에 기능을 더하면

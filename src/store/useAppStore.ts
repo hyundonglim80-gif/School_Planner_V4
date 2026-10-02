@@ -31,8 +31,10 @@ export interface EntryPanelTarget {
   entryId?: string;
   /** 고칠 때 넘기는 그 순간의 항목 (구독이 도착하기 전 빈 칸이 보이지 않게) */
   initial?: any;
-  /** 새로 쓸 때 미리 적어 둘 글 (학사일정 '일정으로 담기') */
+  /** 새로 쓸 때 미리 적어 둘 글 (학사일정 '일정으로 담기', 다른 앱에서 공유받은 글) */
   draftText?: string;
+  /** 새 메모에 붙일 파일 (다른 앱에서 공유받은 것). 칸에서 '드라이브에 올려 첨부'를 눌러야 올라간다 */
+  draftFiles?: File[];
   /** 새로 쓸 때 미리 골라 둘 라벨 */
   defaultLabel?: string;
   /** 알림장('write'|'list')·출석부('check'|'summary')를 열 때 처음 보일 탭 */

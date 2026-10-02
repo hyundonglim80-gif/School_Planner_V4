@@ -45,6 +45,7 @@ import MultiEventActionBar from './MultiEventActionBar';
 import MiniCalendarPicker from './MiniCalendarPicker';
 import MobileTabBar from './MobileTabBar';
 import EntryPanelHost, { DOCK_MIN_WIDTH, openEntryPanel, closeAllEntryPanels } from './EntryPanelHost';
+import { useShareReceiver } from '../hooks/useShareReceiver';
 import { useSidePopups, RIGHT_COLUMN_CSS_WIDTH } from './PopupFrame';
 import { closeAllModals } from '../hooks/useModalLayer';
 import ClipboardPanel, { useClipboardCapture, LEFT_COLUMN_CSS_WIDTH } from './ClipboardPanel';
@@ -151,6 +152,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       setSelectedGroupId(null);
     }
   }, [groupsLoading, groups, selectedGroupId, setSelectedGroupId]);
+
+  // 다른 앱에서 공유받은 것 (안드로이드 설치본) → 새 메모 칸
+  useShareReceiver();
 
   // 휴지통 자동 비우기 (환경설정에서 기간을 정했을 때만, 하루 한 번)
   useEffect(() => {

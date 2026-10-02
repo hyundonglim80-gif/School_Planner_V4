@@ -1,5 +1,35 @@
 // sw.js for School Planner V4
 const CACHE_NAME = 'sp4-offline-cache-v1';
+// 다른 앱에서 공유받은 것을 앱이 꺼낼 때까지 두는 곳 (src/lib/shareTarget.ts와 같은 이름·열쇠)
+const SHARE_CACHE = 'sp4share-inbox';
+const shareKey = (id, part) => `${self.location.origin}/__sp4share/${id}/${part}`;
+
+// 공유받기 (Web Share Target - manifest.json의 share_target). 글과 파일을 캐시에 넣고
+// 앱을 '?share=<id>'로 연다. 앱이 로그인한 뒤 꺼내 새 메모 칸에 채운다.
+async function receiveShare(request) {
+  const scope = self.registration.scope;
+  try {
+    const form = await request.formData();
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const cache = await caches.open(SHARE_CACHE);
+    const str = v => (typeof v === 'string' ? v : '');
+    const files = [];
+    const list = form.getAll('files');
+    for (let i = 0; i < list.length; i++) {
+      const f = list[i];
+      if (!f || typeof f === 'string' || !f.size) continue;
+      const key = shareKey(id, `file${i}`);
+      await cache.put(key, new Response(f, { headers: { 'Content-Type': f.type || 'application/octet-stream' } }));
+      files.push({ key, name: f.name || `공유 파일 ${i + 1}`, type: f.type || '' });
+    }
+    const meta = { title: str(form.get('title')), text: str(form.get('text')), url: str(form.get('url')), files, at: Date.now() };
+    await cache.put(shareKey(id, 'meta'), new Response(JSON.stringify(meta), { headers: { 'Content-Type': 'application/json' } }));
+    return Response.redirect(`${scope}index.html?share=${id}`, 303);
+  } catch (err) {
+    console.log('[SP4] 공유받기 실패:', err);
+    return Response.redirect(`${scope}index.html?share=error`, 303);
+  }
+}
 
 self.addEventListener('install', event => {
   self.skipWaiting();
@@ -46,6 +76,11 @@ self.addEventListener('fetch', event => {
   const url = event.request.url;
 
   if (!url.startsWith('http')) return;
+
+  if (event.request.method === 'POST' && new URL(url).pathname.endsWith('/share-target')) {
+    event.respondWith(receiveShare(event.request));
+    return;
+  }
 
   // Firebase 및 외부 API는 서비스 워커 캐시 제외
   if (url.includes('firestore') || url.includes('googleapis') || url.includes('googleusercontent') || url.includes('identitytoolkit')) {

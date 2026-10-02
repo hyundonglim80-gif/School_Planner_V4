@@ -364,6 +364,10 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   저장은 늘 일정 칸이 한다. 방학 기간 채우기는 `schoolSetting.findVacations`(방학식 다음 날 ~ 개학식 전날, 저장은 따로).
 - **외부 연동**: 구글 캘린더 보내기(`lib/calendarSync`, V3와 같은 캘린더·표시), 구글 시트(`lib/sheetsSync`, V3와 같은 칸 모양),
   JSON·CSV 백업(`BackupModal`), Keep 가져오기(Takeout 파일만, `lib/keepImport`).
+- **다른 앱에서 공유받기**(Web Share Target, 안드로이드 설치본만): `manifest.json`의 `share_target`(POST multipart, title·text·url·files) →
+  `public/sw.js`의 `receiveShare`가 캐시 `sp4share-inbox`에 넣고 `index.html?share=<id>`로 넘긴다 → `Layout`의 `useShareReceiver`가
+  `lib/shareTarget.takeSharedPayload`로 꺼내(주소·캐시에서 지운다) **개인 공간 새 메모 칸**을 `draftText`·`draftFiles`로 연다. 저장은 늘 칸이 한다.
+  파일은 `EntryDrawer`의 '📥 공유받은 파일'에서 사용자가 눌러야 드라이브에 올린다(누르지 않은 때 구글 로그인 창이 막히므로). 캐시 이름·열쇠는 sw.js와 같아야 한다.
 - **계정**: V3와 V4는 앱 이름이 달라 한 브라우저에서 다른 계정으로 들어가 있을 수 있다(`lib/peerAccount`).
   "자료가 통째로 없다"는 신고는 먼저 계정·공간을 의심한다.
 - **설정 동기화**: `lib/preferenceSync`의 `SYNCED_PREFERENCE_KEYS`만 계정에 올린다. 지금 보는 화면·날짜는 올리지 않는다.

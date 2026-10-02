@@ -86,6 +86,10 @@ interface EntryDrawerProps {
    */
   onMove?: (draft: EntryDraft) => void;
   defaultLabel?: string;
+  /** 새로 쓸 때 미리 채울 글 (다른 앱에서 공유받은 글). 열 때의 값만 쓴다 */
+  draftText?: string;
+  /** 새로 쓸 때 붙일 파일 (공유받은 것). 칸에서 '드라이브에 올려 첨부'를 눌러야 올라간다 */
+  draftFiles?: File[];
   /**
    * 화면 옆에 붙는 칸으로 그린다 (어두운 배경 없이, 화면을 가리지 않고).
    * 이때는 팝업이 아니므로 화면의 다른 곳을 눌러도, 다른 화면으로 옮겨도 닫히지 않는다.
@@ -168,6 +172,8 @@ export default function EntryDrawer({
   onDelete,
   onMove,
   defaultLabel,
+  draftText,
+  draftFiles,
   docked = false,
   subtitle,
   flushRef,
@@ -190,6 +196,13 @@ export default function EntryDrawer({
   /** 미리 골라 둘 라벨. 배너를 여는 그 순간의 값만 쓴다. */
   const defaultLabelRef = useRef(defaultLabel);
   defaultLabelRef.current = defaultLabel;
+  /** 공유받은 글·파일도 배너를 여는 그 순간의 값만 쓴다 (저장 뒤 고치는 칸이 되면 넘어오지 않는다) */
+  const draftTextRef = useRef(draftText);
+  draftTextRef.current = draftText;
+  const draftFilesRef = useRef(draftFiles);
+  draftFilesRef.current = draftFiles;
+  /** 공유받았지만 아직 드라이브에 올리지 않은 파일 */
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [attachments, setAttachments] = useState<EntryAttachment[]>([]);
   const [linkedItems, setLinkedItems] = useState<any[]>([]);
   const [tables, setTables] = useState<EntryTable[]>([]);
@@ -284,7 +297,9 @@ export default function EntryDrawer({
       baseLinksRef.current = k;
       openedLabelsRef.current = JSON.stringify(l);
     } else {
-      setContent('');
+      // 공유받은 글은 채워 두되 기준(snapshot)은 빈 칸으로 둔다 - 저장하지 않고 닫으면 묻는다
+      setContent(draftTextRef.current || '');
+      setPendingFiles(draftFilesRef.current || []);
       // 미리 골라 둘 라벨은 '열 때'의 값으로 정한다. 라벨은 구독으로 들어와서
       // 열고 나서 바뀔 수 있는데, 그 변화를 좇아 여기가 다시 돌면 적고 있던
       // 내용까지 함께 지워진다. 그래서 ref로 읽고 deps에서는 뺀다.
@@ -435,16 +450,30 @@ export default function EntryDrawer({
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = '';
+    await uploadFiles(files);
+  };
+
+  /** 공유받은 파일을 올린다. 올라간 것만 목록에서 뺀다 */
+  const uploadPendingFiles = async () => {
+    const files = pendingFiles;
+    const done = await uploadFiles(files);
+    setPendingFiles((prev) => prev.filter((f) => !done.includes(f)));
+  };
+
+  /** 파일을 드라이브에 올려 첨부에 붙인다. 올라간 파일을 돌려준다 */
+  const uploadFiles = async (files: File[]): Promise<File[]> => {
+    if (files.length === 0) return [];
 
     const user = auth.currentUser;
     if (!user) {
       showToast('로그인이 필요합니다.');
-      return;
+      return [];
     }
 
     const uploaded: EntryAttachment[] = [];
+    const done: File[] = [];
     try {
       setUploadingFiles(true);
       for (let i = 0; i < files.length; i++) {
@@ -455,6 +484,7 @@ export default function EntryDrawer({
         uploaded.push(
           makeAttachment(file.name, driveUrlToStore(file.type, drive), file.type, file.size, i, drive.id)
         );
+        done.push(file);
       }
       setAttachments((prev) => [...prev, ...uploaded]);
     } catch (error) {
@@ -469,8 +499,8 @@ export default function EntryDrawer({
       }
     } finally {
       setUploadingFiles(false);
-      e.target.value = '';
     }
+    return done;
   };
 
   const handleRemoveAttachment = (index: number) => {
@@ -547,11 +577,18 @@ export default function EntryDrawer({
   // 닫기 단추·✕·ESC는 지금처럼 '저장 없이 닫기'다.
   const saveIfChanged = async (): Promise<boolean> => {
     if (uploadingFiles || pasting) return false;
+    // 공유받은 파일은 칸을 닫으면 사라진다 - 올리거나 빼기 전에는 닫지 않는다
+    if (pendingFiles.length > 0) {
+      showToast('📥 공유받은 파일을 먼저 드라이브에 올리거나 빼 주세요.');
+      return false;
+    }
     const changed = formSnapshot(content, selectedLabels, attachments, linkedItems, tables) !== snapshotRef.current;
     return changed ? handleSubmit() : true;
   };
   if (flushRef) flushRef.current = saveIfChanged;
-  if (unsavedRef) unsavedRef.current = () => formSnapshot(content, selectedLabels, attachments, linkedItems, tables) !== snapshotRef.current;
+  if (unsavedRef)
+    unsavedRef.current = () =>
+      pendingFiles.length > 0 || formSnapshot(content, selectedLabels, attachments, linkedItems, tables) !== snapshotRef.current;
 
   // 배경을 누르면 이 칸만 닫는다. 칸이 여럿 쌓여 있을 때 아래 칸까지 적던 것째 닫히면 안 된다.
   backdropCloseRef.current = async () => {
@@ -709,6 +746,37 @@ export default function EntryDrawer({
                 <span className="text-xs font-bold text-primary">⏳ 붙여넣은 이미지 업로드 중...</span>
               )}
             </div>
+
+            {pendingFiles.length > 0 && (
+              <div data-shared-files className="rounded-xl border border-sky-200 bg-sky-50 p-2.5 space-y-2">
+                <div className="text-xs font-bold text-sky-800">📥 공유받은 파일 {pendingFiles.length}개 - 아직 첨부되지 않았습니다</div>
+                <ul className="text-xs text-slate-600 space-y-0.5">
+                  {pendingFiles.map((f, i) => (
+                    <li key={`${f.name}-${i}`} className="truncate">
+                      · {f.name} <span className="text-slate-400">{formatFileSize(f.size)}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void uploadPendingFiles()}
+                    disabled={uploadingFiles}
+                    className="flex-1 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold disabled:opacity-60"
+                  >
+                    {uploadingFiles ? '⏳ 올리는 중...' : '드라이브에 올려 첨부'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingFiles([])}
+                    disabled={uploadingFiles}
+                    className="px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50"
+                  >
+                    빼기
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-2">
               <label className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer border border-dashed border-slate-300 shadow-2xs">

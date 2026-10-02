@@ -374,6 +374,8 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
           : undefined
       }
       defaultLabel={target.defaultLabel}
+      draftText={target.entryId ? undefined : target.draftText}
+      draftFiles={target.entryId ? undefined : target.draftFiles}
       subtitle={`메모 · ${spaceName}`}
     />
     {moveDraft && (
