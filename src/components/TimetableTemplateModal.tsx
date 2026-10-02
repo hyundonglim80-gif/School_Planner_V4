@@ -22,6 +22,9 @@ import {
   clipboardWrites,
   type CellPos,
 } from '../lib/gridNav';
+import { useTeachingMode } from '../hooks/useTeachingMode';
+import { normalizeSlotText } from '../lib/teachingSlot';
+import SlotOptionsList, { SLOT_OPTIONS_ID } from './SlotOptionsList';
 
 interface TimetableTemplateModalProps {
   isOpen: boolean;
@@ -49,6 +52,9 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   } = useTimetableTemplate();
   // 수업X 라벨 - V3 일정은 수업X를 라벨(labelIds)로만 들고 있다 (lib/classDays)
   const { eventLabels } = useLabels();
+  // 교과 모드: 칸에 '5-2 과학' - 제안 목록을 달고, 어떻게 적어도 한 모양으로 맞춘다 (lib/teachingSlot).
+  // 초등 담임은 손대지 않는다 ('3-2 국어'를 그대로 쓰는 담임이 있다).
+  const { isClassUnit } = useTeachingMode();
 
   // 현재 편집 중인 템플릿의 로컬 상태
   const [editingTemplates, setEditingTemplates] = useState<Record<string, TimetableTemplateItem>>({});
@@ -266,7 +272,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
         names[w.row] = w.value;
       } else {
         const day = DAYS[w.col - 1].key;
-        data[day] = { ...(data[day] || {}), [w.row + 1]: w.value };
+        data[day] = { ...(data[day] || {}), [w.row + 1]: isClassUnit ? normalizeSlotText(w.value) : w.value };
       }
     }
 
@@ -509,7 +515,8 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
 
             <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-center border-collapse">
+                {isClassUnit && <SlotOptionsList />}
+                <table className={`w-full text-xs text-center border-collapse ${isClassUnit ? 'min-w-[44rem]' : ''}`}>
                   <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
                     <tr>
                       <th className="p-2.5 w-24">교시명</th>
@@ -545,9 +552,15 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
                                   value={val}
                                   data-cell={`${pIdx}-${dIdx + 1}`}
                                   onChange={(e) => handleUpdateSubject(d.key, periodNum, e.target.value)}
+                                  onBlur={(e) => {
+                                    if (!isClassUnit) return;
+                                    const norm = normalizeSlotText(e.target.value);
+                                    if (norm !== e.target.value) handleUpdateSubject(d.key, periodNum, norm);
+                                  }}
                                   onKeyDown={(e) => handleCellKeyDown(e, pIdx, dIdx + 1)}
                                   onPaste={(e) => handleCellPaste(e, pIdx, dIdx + 1)}
-                                  placeholder="과목"
+                                  list={isClassUnit ? SLOT_OPTIONS_ID : undefined}
+                                  placeholder={isClassUnit ? '5-2 과학' : '과목'}
                                   className="w-full text-center bg-white border border-transparent hover:border-slate-200 focus:border-blue-500 rounded px-1 py-1 font-bold text-slate-800 focus:outline-none"
                                 />
                               </td>

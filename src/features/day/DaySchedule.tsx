@@ -15,6 +15,9 @@ import DayMeals from './DayMeals';
 import ProgressMarkLine from '../../components/ProgressMarkLine';
 import { useProgressMarks } from '../../hooks/useProgress';
 import { slotId } from '../../lib/progress';
+import { useTeachingMode } from '../../hooks/useTeachingMode';
+import { normalizeSlotText } from '../../lib/teachingSlot';
+import SlotOptionsList from '../../components/SlotOptionsList';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
 
 interface DayScheduleProps {
@@ -66,6 +69,9 @@ export default function DaySchedule({
   const openAttendance = () => dateStr && void openEntryPanel({ kind: 'attendance', groupId: null, dateStr });
   // 어느 교시에 조사표를 만들어 두었는지 교시 옆에 숫자로 보여 준다
   const evalCounts = useDayEvalCounts(dateStr || '', selectedGroupId);
+  // 교과 모드: 과목 칸에 '5-2 과학' 제안, 저장할 때 한 모양으로 (lib/teachingSlot). 초등 담임은 적은 그대로.
+  const { isClassUnit } = useTeachingMode();
+  const subjectToSave = (text: string) => (isClassUnit ? normalizeSlotText(text) : text.trim());
 
   const startEdit = (period: number) => {
     const current = schedules[period] || { subject: '', content: '' };
@@ -80,7 +86,7 @@ export default function DaySchedule({
       setSaving(true);
       const current = schedules[period] || { linkedItems: [] };
       await onSavePeriod(period, {
-        subject: editSubject.trim(),
+        subject: subjectToSave(editSubject),
         content: editMemo.trim(),
         memo: editMemo.trim(),
         supplies: editSupplies.trim(),
@@ -109,7 +115,7 @@ export default function DaySchedule({
     if (editingPeriod === null || saving) return;
     const cur = schedules[editingPeriod] || { subject: '', content: '' };
     const changed =
-      editSubject.trim() !== (cur.subject || '').trim() ||
+      subjectToSave(editSubject) !== (cur.subject || '').trim() ||
       editMemo.trim() !== (cur.memo || cur.content || '').trim() ||
       editSupplies.trim() !== (cur.supplies || '').trim();
     if (changed) handleSave(editingPeriod);
@@ -285,10 +291,12 @@ export default function DaySchedule({
                     type="text"
                     value={editSubject}
                     onChange={(e) => setEditSubject(e.target.value)}
-                    placeholder="과목"
+                    list={isClassUnit ? 'sp4-slot-options-day' : undefined}
+                    placeholder={isClassUnit ? '5-2 과학' : '과목'}
                     className="col-span-1 px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
                     autoFocus
                   />
+                  {isClassUnit && <SlotOptionsList id="sp4-slot-options-day" dateStr={dateStr} />}
                   <input
                     type="text"
                     value={editSupplies}
