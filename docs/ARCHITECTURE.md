@@ -66,6 +66,7 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
 | `users/{uid}/v4_classHub/{학급키}` | `{ classKey, apart: ["3-15"] }` | V4 전용. 학급마다 하나 - 떨어뜨릴 학생(arrayUnion/Remove로 한 쌍씩). 뽑기·모둠도 여기에 더한다(ROADMAP 8-3·8-4) |
 | `users/{uid}/settings/v4_trash` | 휴지통 자동 비우기 기간 | |
 | `users/{uid}/settings/v4_school` | `{ officeCode, schoolCode, officeName, name, kind, grade }` (학교를 지우면 `{ updatedAt }`만) | V4 전용. 우리 학교 - 나이스 급식·학사일정(`lib/schoolSetting`, `lib/neis`) |
+| `users/{uid}/settings/v4_teaching` | `{ unit: 'subject'\|'class', hasHomeroom, homeroomClass: '5-2'\|'', subjects: [], classColors: {'5-2': 색} }` | V4 전용. 교사 유형(`lib/teachingMode`, ROADMAP-SUBJECT). 없으면 초등 담임(`unit:'subject', hasHomeroom:true`) + 하루 화면 처음 안내 띠. App이 한 번 구독해 store에 넣고 읽기는 `useTeachingMode()`만. '없음'은 서버에 확인한 뒤에만 알린다(띠의 '나중에'가 저장된 유형을 덮지 않게). 과목은 arrayUnion/Remove |
 | `users/{uid}/v4_progress/{id}` | `{ key(시간표 칸 글자), startDate, lessons: [{unit, no, content, supplies}], bumps: ['YYYY-MM-DD#교시'] }` | V4 전용. 진도 관리(`lib/progress`). 수업 문서에는 쓰지 않고 화면에서만 겹쳐 본다. 차시 목록은 `saveProgressPlan`(merge, bumps 빼고), 밀기는 `setProgressBump`(arrayUnion/Remove 한 칸) - 다른 기기에서 민 것을 덮지 않게 |
 | `sharedConfig/neis` | `{ key, updatedAt, updatedBy }` | 나이스 인증키. **로그인하면 누구나 읽고** 개발자만 쓴다(`admin/config`는 개발자만 읽어 따로 둠). 없거나 못 읽으면 키 없이 5건씩 나눠 받는다 |
 | `users/{uid}/settings/v4_autoBackup` | `{ enabled, intervalDays, keep, lastAt?, lastName?, lastSummary?, folderLink? }` | V4 전용. 드라이브 자동 백업(`lib/autoBackup`, `hooks/useAutoBackup`). PC에서 토큰이 이미 있을 때만 조용히 백업. '나중에'는 기기별 localStorage `sp4_autoBackupSnoozeUntil` |
@@ -413,9 +414,10 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-dark.mjs` | 다크 모드(11) |
 | `tools/inspect-share-target.mjs` | 다른 앱에서 공유받기 - 서비스 워커 POST·새 메모 칸·파일 목록·GET·새로고침(16). 안드로이드 공유 창 대신 같은 모양의 양식을 보낸다 |
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
+| `tools/inspect-teaching-mode.mjs` | 교사 유형 - teacher3(교과 전담 `?as=3`) 설정·담임반·과목 칩, 문서 없는 teacher2의 처음 안내 띠·'나중에', teacher 그대로(16항목). 바꾼 문서는 되돌린다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번 |
 | `tools/inspect-*.mjs` 나머지 | 지난 신고를 재현하던 것들(이월·뒤로가기·기록 삭제 뒤 빈 화면·V3/V4 한 출처 등) |
-| `tools/seed.mjs` | 에뮬레이터에 한 학년도치 자료 |
+| `tools/seed.mjs` | 에뮬레이터에 한 학년도치 자료. teacher·teacher2에 초등 담임 `v4_teaching`, teacher3(교과 전담)에 5-1~5-4 명렬표와 2026-11-02~27 '5-2 과학' 시간표 |
 | `tools/check-rules.mjs` | 보안 규칙 |
 
 - 환경은 `CLAUDE.md` 2장(에뮬레이터·JDK·사이트 주소). 크롬, PC 1400px / 휴대폰 390px만 본다.

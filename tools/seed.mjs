@@ -20,6 +20,10 @@ const SECOND_EMAIL = 'teacher2@example.com';
 // 개발자 전용 화면(공휴일, 공유 그룹 점검)을 확인하려면 이 계정으로 들어가야 한다.
 // src/lib/developers.ts 의 목록과 같아야 한다.
 const DEVELOPER_EMAIL = 'hyundonglim80@gmail.com';
+// 교과 전담 점검 계정 (docs/ROADMAP-SUBJECT.md). 5학년 네 반에 과학을 가르친다. 주소 ?as=3.
+const SUBJECT_EMAIL = 'teacher3@example.com';
+// 초등 담임 교사 유형 문서 - 이것이 없으면 하루 화면에 처음 안내 띠가 떠서 다른 점검의 화면을 밀어낸다.
+const HOMEROOM_MODE = { unit: 'subject', hasHomeroom: true, homeroomClass: '', subjects: [], classColors: {} };
 
 const app = initializeApp({ projectId: 'schoolplannerv3', apiKey: 'fake-api-key' }, 'seed');
 const db = getFirestore(app);
@@ -71,6 +75,7 @@ async function main() {
   // 드라이브 자동 백업: 방금 한 것으로 둔다. 점검 계정에는 구글 토큰이 없어, 비워 두면 PC 화면마다
   // '지금 백업' 띠가 떠서 다른 점검의 화면을 밀어낸다. 띠는 tools/inspect-auto-backup.mjs가 따로 본다.
   await setDoc(doc(db, 'users', uid, 'settings', 'v4_autoBackup'), { lastAt: Date.now() }, { merge: true });
+  await setDoc(doc(db, 'users', uid, 'settings', 'v4_teaching'), { ...HOMEROOM_MODE, updatedAt: Date.now() });
   await setDoc(doc(db, 'users', uid, 'settings', 'labels'), {
     eventLabels: [
       { id: 'ev_1', name: '달력', color: 'red', calendar: true, skip: false, forward: false, period: false, recur: false },
@@ -201,6 +206,13 @@ async function main() {
     console.log(`두 번째 계정은 이미 있습니다: ${SECOND_EMAIL}`);
   }
 
+  {
+    const cred2 = await signInWithEmailAndPassword(auth, SECOND_EMAIL, PASSWORD);
+    await setDoc(doc(db, 'users', cred2.user.uid, 'settings', 'v4_teaching'), { ...HOMEROOM_MODE, updatedAt: Date.now() });
+  }
+
+  await seedSubjectTeacher();
+
   try {
     await createUserWithEmailAndPassword(auth, DEVELOPER_EMAIL, PASSWORD);
     console.log(`개발자 계정을 만들었습니다: ${DEVELOPER_EMAIL}`);
@@ -212,6 +224,57 @@ async function main() {
     `심었습니다 — 날짜 ${days}일 / 일정 ${events}건 / 기록 ${journals}건 / 수업 ${schedules}일 / 메모 ${memoCount}건`
   );
   process.exit(0);
+}
+
+// ── 교과 전담 계정 (docs/ROADMAP-SUBJECT.md S1) ─────────────────
+// 5학년 네 반(반마다 학생 5명)에 과학. 2026-11-02 ~ 11-27 평일에 요일마다 같은 시간표.
+// 수업 칸 글자는 '5-2 과학'(반-과목) - V3에도 그 글자로 보인다.
+const SUBJECT_WEEK = {
+  1: { 1: '5-1 과학', 3: '5-2 과학' },
+  2: { 2: '5-3 과학', 4: '5-4 과학' },
+  3: { 1: '5-2 과학', 2: '5-1 과학' },
+  4: { 3: '5-4 과학', 5: '5-3 과학' },
+  5: { 1: '5-1 과학', 2: '5-2 과학', 3: '5-3 과학', 4: '5-4 과학' },
+};
+
+async function seedSubjectTeacher() {
+  try {
+    await createUserWithEmailAndPassword(auth, SUBJECT_EMAIL, PASSWORD);
+    console.log(`교과 전담 계정을 만들었습니다: ${SUBJECT_EMAIL}`);
+  } catch {
+    console.log(`교과 전담 계정은 이미 있습니다: ${SUBJECT_EMAIL}`);
+  }
+  const { user } = await signInWithEmailAndPassword(auth, SUBJECT_EMAIL, PASSWORD);
+  const settings = (id) => doc(db, 'users', user.uid, 'settings', id);
+  await setDoc(settings('v4_autoBackup'), { lastAt: Date.now() }, { merge: true });
+  await setDoc(settings('v4_teaching'), {
+    unit: 'class', hasHomeroom: false, homeroomClass: '', subjects: ['과학'], classColors: {}, updatedAt: Date.now(),
+  });
+  // 반마다 이름이 다르다 (5-1 가1~가5, 5-2 나1~나5 …) - 반을 잘못 고르면 바로 드러나게
+  const classList = ['가', '나', '다', '라'].map((head, i) => ({
+    year: 2026,
+    grade: '5',
+    classNum: String(i + 1),
+    students: Array.from({ length: 5 }, (_, j) => ({
+      num: j + 1, name: `${head}${j + 1}`, gender: j % 2 ? 'F' : 'M', isActive: true, note: '',
+    })),
+  }));
+  await setDoc(settings('rosters'), { classList, rosters: classList, updatedAt: Date.now() });
+
+  const b = writeBatch(db);
+  let n = 0;
+  for (let d = new Date(2026, 10, 2); d <= new Date(2026, 10, 27); d.setDate(d.getDate() + 1)) {
+    const week = SUBJECT_WEEK[d.getDay()];
+    if (!week) continue;
+    const periods = {};
+    for (const [p, subject] of Object.entries(week)) {
+      periods[p] = { subject, content: '', memo: '', supplies: '', linkedItems: [], attachments: [] };
+    }
+    b.set(doc(db, 'users', user.uid, 'schedules', dateStr(d)), { periods, updatedAt: Date.now() });
+    n++;
+  }
+  await b.commit();
+  console.log(`교과 전담 계정에 심었습니다 — 5학년 4반 명렬표 / 수업 ${n}일`);
 }
 
 main().catch((e) => {

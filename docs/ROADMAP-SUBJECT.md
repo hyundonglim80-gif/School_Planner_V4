@@ -43,7 +43,7 @@
 
 | 세션 | 내용 | 크기 | 권장 노력 | 상태 |
 |---|---|---|---|---|
-| S1 | 교사 유형 설정 + 점검 계정 teacher3 | 중간 | 중간 | 할 일 |
+| S1 | 교사 유형 설정 + 점검 계정 teacher3 | 중간 | 중간 | 끝 (2026-10-02) |
 | S2 | 반 표기 읽기(`lib/teachingSlot`) + 시간표·수업 칸 입력 | 중간 | 중간 | 할 일 |
 | S3 | 반 중심 수업 칸(하루·주간) + 담임 도구 숨기기 | 중간 | 중간 | 할 일 |
 | S4 | 과정: 차시 목록 하나를 여러 반에 (진도 확장) | 큼 | **높음** | 할 일 |
@@ -128,7 +128,8 @@ SettingsModal 테스트가 있으면(`SettingsModal.test.tsx`) 셋이 그려지�
 **설명서**: '설정 · 단축키' 장의 '환경설정'에 '교사 유형' 줄, 그리고 새 주제 `id:'teaching-mode'`('교사 유형 (담임 · 교과 전담)', '수업 · 시간표' 장 맨 앞) -
 셋의 차이 표, 저장은 계정에 하나(PC·휴대폰 같다), 바꿔도 자료는 그대로. **ARCHITECTURE 3장** 표에 `v4_teaching` 줄.
 
-- [ ] S1 끝
+- [x] S1 끝 (2026-10-02) - `lib/teachingMode`·`hooks/useTeachingMode`·`TeachingModePanel`·`features/day/TeachingModeBanner`, seed teacher3, `inspect-teaching-mode` 16/16.
+  '없음'은 서버에 확인한 뒤에만 알린다(캐시의 '없음'으로 띠가 떠 '나중에'가 교과 전담을 덮지 않게). 과목 칩은 arrayUnion/Remove.
 
 ---
 

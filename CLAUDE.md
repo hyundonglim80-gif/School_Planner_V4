@@ -62,6 +62,7 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
   끝난 기능의 코드 자리·함정은 **ARCHITECTURE 6~8장**, 점검 스크립트는 **9장**, 새 기능을 더할 때 확인할 것은 **10장 체크리스트**에 있다.
 - **다음 일: 18번 교과 전담 모드** (2026-10-02 사용자와 정함) - 계획은 `docs/ROADMAP-SUBJECT.md`, **세션(새 대화) 하나에 S 하나**.
   "이어서"면 ROADMAP '지금 하는 일'의 S 번호 → 그 파일의 공통 규칙과 그 S 절만 읽는다. 세션 표에 권장 노력 수준(중간/높음)이 있다.
+  - S1 끝(2026-10-02, 클라우드 세션 - 브랜치 `claude/gallant-ride-ecbex7`에 푸시, main 합치기는 사용자). 다음은 S2.
 - 이 절에는 **진행 중인 것·사용자에게 부탁한 것만** 둔다(이 파일은 모든 대화가 처음에 읽는다 - 길면 매번 비싸다).
   기능을 끝내면 자세한 메모는 ARCHITECTURE로 옮기고 여기서는 지운다.
 - `C:\HDL` PC의 C:가 에뮬레이터 로그로 다시 꽉 찼었다(2026-10-02) - **사용자에게 C: 정리를 부탁했다.** 긴 점검 전후로 `df -h /c`와 로그 크기를 본다(2장).
@@ -117,6 +118,10 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
   `firebase-debug.log`·`firestore-debug.log`(git 무시)에 요청을 모두 적어 하루 반에 2GB가 넘었다. 증상: 점검이 아무 말 없이 멈춤, vitest
   워커가 죽음, 'No space left on device', 인증 에뮬레이터(9099)만 꺼지고 8080은 살아 있음. 처리: 두 로그를 비운다(내용만 비우면 된다 -
   `[IO.File]::WriteAllText(경로,'')`), 8080을 쥔 java를 끄고 `npm run emu` → `npm run seed`. 긴 점검 전에 `df -h /c`로 남은 자리를 본다.
+- **클라우드(리눅스) 세션에서 점검하기** (2026-10-02): Java·Chromium이 있어 에뮬레이터와 크롬 점검이 돈다. `npm ci` →
+  `ln -sf /opt/pw-browsers/chromium /opt/google/chrome/chrome`(점검 스크립트의 `channel:'chrome'`) → V3가 없으면 `../School_Planner_V3/js/api/firebaseInit.js`에
+  serve-both가 찾는 두 import 줄만 둔 빈 틀 → `npm run emu`·seed·build·serve-both. 새 에뮬레이터의 teacher에는 명렬표가 없어 `inspect-class-screen`이
+  '학급 고르기'에서 깨진다 - 그 학년도 학급을 잠시 심고 돌린 뒤 지운다.
 - **점검 스크립트는 심은 자료를 끝에 되돌린다** (2026-10-02): `inspect-add-forward.mjs`가 점검 계정 라벨을 덮고 두어 seed '이월' 라벨이
   사라졌고, 설명서 점검의 라벨 항목이 '버튼을 못 찾음'으로 깨졌다. 점검이 이상하게 깨지면 앱보다 먼저 자료(라벨·설정 문서)를 본다.
 - **에뮬레이터 저장이 문서 하나에서만 6~7초씩 걸리면** 앱 버그가 아니라 에뮬레이터에 남은 잠금이다. 점검 브라우저를

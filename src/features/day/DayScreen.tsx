@@ -8,6 +8,7 @@ import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import DayEvents from './DayEvents';
 import DaySchedule from './DaySchedule';
 import DayJournal from './DayJournal';
+import TeachingModeBanner from './TeachingModeBanner';
 
 export default function DayScreen() {
   const { currentDate, setCurrentDate, selectedGroupId, showClass, showEvents } = useAppStore();
@@ -40,6 +41,7 @@ export default function DayScreen() {
 
   return (
     <div className="animate-fade-in pb-12">
+      <TeachingModeBanner />
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-primary" />

@@ -84,3 +84,17 @@ describe('환경설정 - 저장과 닫기', () => {
     await waitFor(() => expect(useAppStore.getState().forwardLookbackDays).toBe(60));
   });
 });
+
+describe('환경설정 - 교사 유형', () => {
+  it('셋이 그려지고 문서가 없으면 초등 담임이 골라져 있다', async () => {
+    useAppStore.setState({ teachingModeLoaded: true, teachingModeExists: false });
+    render(<SettingsModal isOpen onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('교사 유형')).toBeInTheDocument());
+
+    const radios = screen.getAllByRole('radio');
+    expect(radios.map((r) => r.getAttribute('data-teacher-preset'))).toEqual(['homeroom', 'subject', 'subjectHomeroom']);
+    expect(radios[0]).toHaveAttribute('aria-checked', 'true');
+    // 초등 담임에는 과목 칸이 없다
+    expect(screen.queryByLabelText('가르치는 과목 더하기')).not.toBeInTheDocument();
+  });
+});
