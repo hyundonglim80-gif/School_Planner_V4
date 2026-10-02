@@ -99,6 +99,9 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
 - **Web Share Target**(다른 앱의 공유를 V4가 받기, 2026-10-02 끝, 결정은 Claude 추천): 받은 글·주소·파일을 **개인 공간 새 메모 칸**에 채워 연다
   (저장은 사용자가 누를 때만). 글과 파일을 한 번에 POST로 받는다(sw.js `receiveShare` → 캐시 `sp4share-inbox` → `lib/shareTarget`·`useShareReceiver`).
   파일은 칸의 '드라이브에 올려 첨부'를 눌러야 올린다. 안드로이드 설치본만. 크롬 `inspect-share-target`(16). **실제 휴대폰 공유는 사용자 확인을 부탁했다.**
+  첫 배포 뒤 휴대폰 공유 목록에 안 나왔다(2026-10-02): 매니페스트는 크롬이 오류 없이 읽었다(CDP `Page.getAppManifest`). 아이콘이 SVG뿐이라
+  WebAPK(진짜 앱)가 아닌 바로가기로 깔렸을 수 있어 PNG 아이콘(`tools/gen-icons.mjs`)을 더했고, 이미 깔린 앱은 크롬이 매니페스트를 하루쯤 뒤에 받아 오므로
+  **지우고 크롬에서 다시 설치**하라고 안내했다. 매니페스트를 바꾸는 기능은 '다시 설치해야 보인다'를 함께 알린다.
 - 6-3 메뉴 구역(2026-10-01 끝): ⋮ 메뉴는 `Layout`의 `moreMenuSections` 표로 그린다 - **새 기능은 알맞은 구역에 한 줄 더한다**
   (명령 창 `COMMAND_META`·단축키에도). 크롬 `tools/inspect-more-menu.mjs` 29항목.
 - 6-2 명령 창(2026-10-01 끝): `lib/commandPalette`·`CommandPaletteModal`, 단축키 id `commandPalette`(기본 Ctrl+K). **단축키에 기능을 더하면
