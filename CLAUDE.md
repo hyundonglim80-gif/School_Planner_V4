@@ -4,7 +4,7 @@
 `git pull`로 기기끼리 맞춰진다. 기기마다 따로 쌓이는 Claude 기억(이 기기의
 `~/.claude/projects/<작업 폴더>/memory/`)과는 아래 '기억 합치기' 절차로 하나로 맞춘다.
 
-마지막 합침: 2026-10-02 (클라우드 세션) - S4~S10을 마치고 브랜치에 올림
+마지막 합침: 2026-10-02 (클라우드 세션) - S4~S10을 마치고 main에 배포
 
 ---
 
@@ -61,8 +61,8 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
 - 로드맵 1~17번과 Web Share Target(공유받기) **모두 끝**, 실제 사이트·휴대폰 확인까지 마쳤다. wip 브랜치 없음. 설명서 전체 점검은 17번 끝에 89/89.
   끝난 기능의 코드 자리·함정은 **ARCHITECTURE 6~8장**, 점검 스크립트는 **9장**, 새 기능을 더할 때 확인할 것은 **10장 체크리스트**에 있다.
 - **18번 교과 전담 모드 S1~S10 끝(10-02)** - 자세한 것은 ARCHITECTURE 8장 '교과 전담 모드', 계획·결과는 `docs/ROADMAP-SUBJECT.md`.
-  점검 계정 `teacher3`(`?as=3`)는 seed가 만든다. **S4~S10은 클라우드 세션이 브랜치 `claude/jolly-goldberg-5hbksv`에 올렸다 - 사용자가 main에 합치면 배포된다.**
-  합친 뒤 PC 크롬에서 볼 것: inspect-manual 백업 항목·inspect-eval-overview CSV 이름(컨테이너 Chromium은 'download'로 받는다), inspect-scenarios 휴대폰 알림장 저장.
+  점검 계정 `teacher3`(`?as=3`)는 seed가 만든다. S4~S10은 클라우드 세션에서 만들어 2026-10-02 main에 합쳐 배포했다(사용자가 '배포해').
+  **실제 사이트·PC 크롬에서 볼 것**: inspect-manual 백업 항목·inspect-eval-overview CSV 이름(컨테이너 Chromium은 'download'로 받는다), inspect-scenarios 휴대폰 알림장 저장.
 - 이 절에는 **진행 중인 것·사용자에게 부탁한 것만** 둔다(이 파일은 모든 대화가 처음에 읽는다 - 길면 매번 비싸다).
   기능을 끝내면 자세한 메모는 ARCHITECTURE로 옮기고 여기서는 지운다.
 - `C:\HDL` PC의 C:가 에뮬레이터 로그로 다시 꽉 찼었다(2026-10-02) - **사용자에게 C: 정리를 부탁했다.** 긴 점검 전후로 `df -h /c`와 로그 크기를 본다(2장).
