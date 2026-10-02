@@ -97,6 +97,24 @@ export function rosterForSlot(rosters: ClassRoster[], text: string, schoolYear: 
   return classesForYear(rosters, schoolYear).find((c) => c.label === cls)?.roster ?? null;
 }
 
+/**
+ * 수업 칸에서 조사표를 새로 만들 때 고를 학급·과목 (S8). 칸 글자 '5-2 과학' → 그 날짜 학년도의 5-2 명렬표 차례(rosters 안의 자리)와 '과학'.
+ * 반이 없거나 명렬표에 없으면 null (지금처럼 골라 둔 학급·적힌 과목 그대로).
+ */
+export function evalDefaultsForSlot(
+  rosters: ClassRoster[],
+  text: string,
+  date: string
+): { rosterIndex: number; subject: string } | null {
+  const { cls, subject } = parseSlot(text);
+  if (!cls) return null;
+  const y = Number(date.slice(0, 4));
+  const schoolYear = Number(date.slice(5, 7)) >= 3 ? y : y - 1;
+  const roster = rosterForSlot(rosters, text, schoolYear);
+  if (!roster) return null;
+  return { rosterIndex: rosters.indexOf(roster), subject };
+}
+
 // ── 지난 시간 (S5) ──────────────────────────────────────────────────────────
 
 /**

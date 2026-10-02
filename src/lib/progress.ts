@@ -382,6 +382,51 @@ export function progressMarks(
   return out;
 }
 
+/** 그 차시(index, 0부터)를 하는 첫 교시. 밀린 교시는 건너뛴다. 읽은 범위에 없으면 null (S8) */
+export function slotOfLesson(timeline: ProgressTimeline, index: number): ProgressSlot | null {
+  return timeline.slots.find((s) => s.lesson === index) || null;
+}
+
+/** 과정의 반 열쇠마다 센 결과 (progressMarks와 같은 규칙 - 반마다 이어받는 날까지) */
+export function courseTimelines(
+  plan: ProgressPlan,
+  plans: ProgressPlan[],
+  subjectsByDate: Record<string, Record<string, string>>,
+  isOffDay: (date: string) => boolean = () => false
+): Record<string, ProgressTimeline> {
+  const out: Record<string, ProgressTimeline> = {};
+  for (const key of planKeys(plan)) {
+    out[key] = computeProgress(plan, subjectsByDate, isOffDay, progressUntil(plan, plans, key), key);
+  }
+  return out;
+}
+
+export interface CourseEvalTarget {
+  cls: string;
+  key: string;
+  /** 같은 차시를 하는 교시. 아직 시간표에 없으면(읽은 범위 안에서 그 차시에 닿지 않으면) null */
+  slot: ProgressSlot | null;
+}
+
+/**
+ * '같은 과정의 다른 반에도 조사표 만들기'(S8): 이 교시(mark)와 **같은 차시**를 하는 다른 반의 첫 교시.
+ * mark가 과정의 표식이 아니거나 민 교시면 빈 목록. 이 반(mark.key)은 뺀다.
+ */
+export function planCourseEvals(
+  mark: Pick<ProgressMark, 'key' | 'index' | 'cls'>,
+  plan: Pick<ProgressPlan, 'key' | 'subject' | 'classes'>,
+  timelinesByKey: Record<string, ProgressTimeline>
+): CourseEvalTarget[] {
+  if (!isCourse(plan) || !mark.cls || mark.index === null) return [];
+  const mine = normalizeSlotText(mark.key);
+  return planKeys(plan)
+    .filter((k) => normalizeSlotText(k) !== mine)
+    .map((key) => {
+      const t = timelinesByKey[key];
+      return { cls: parseSlot(key).cls, key, slot: t ? slotOfLesson(t, mark.index!) : null };
+    });
+}
+
 /** 과정 현황표의 한 반 (ROADMAP-SUBJECT S5) */
 export interface CourseClassStatus {
   cls: string;

@@ -8,7 +8,7 @@ import {
   slotSuggestions,
   rosterForSlot,
   classColor,
-  CLASS_COLORS, previousSlotOf } from './teachingSlot';
+  CLASS_COLORS, previousSlotOf, evalDefaultsForSlot } from './teachingSlot';
 import type { ClassRoster } from '../hooks/useRoster';
 
 const roster = (year: number, grade: string, classNum: string): ClassRoster => ({ year, grade, classNum, students: [] });
@@ -181,5 +181,20 @@ describe('지난 시간 (S5)', () => {
       date: '2026-11-04',
       period: '4',
     });
+  });
+});
+
+describe('조사표 학급·과목 고르기 (S8)', () => {
+  const R = (year: number, grade: string, classNum: string) => ({ year, grade, classNum, students: [] });
+  const rosters = [R(2025, '5', '2'), R(2026, '5', '1'), R(2026, '5', '2')];
+
+  it('칸 글자의 반 → 그 날짜 학년도 명렬표 자리와 과목', () => {
+    expect(evalDefaultsForSlot(rosters, '5-2 과학', '2026-11-02')).toEqual({ rosterIndex: 2, subject: '과학' });
+    expect(evalDefaultsForSlot(rosters, '5학년 2반 과학', '2026-02-10')).toEqual({ rosterIndex: 0, subject: '과학' }); // 2월은 지난 학년도
+  });
+
+  it('반이 없거나 명렬표에 없으면 null', () => {
+    expect(evalDefaultsForSlot(rosters, '과학', '2026-11-02')).toBeNull();
+    expect(evalDefaultsForSlot(rosters, '6-1 과학', '2026-11-02')).toBeNull();
   });
 });

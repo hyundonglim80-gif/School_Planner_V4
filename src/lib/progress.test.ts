@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   computeProgress,
   courseStatus,
+  courseTimelines,
+  planCourseEvals,
+  slotOfLesson,
   courseTitle,
   isCourse,
   lessonAt,
@@ -412,5 +415,43 @@ describe('과정 반별 현황과 지난 시간 메모 (ROADMAP-SUBJECT S5)', ()
         note: { memo: 'x' },
       })
     ).toEqual({ '1': '실험 2모둠 못 끝냄', '2': '옛 메모' });
+  });
+});
+
+describe('같은 과정의 다른 반에 조사표 (ROADMAP-SUBJECT S8)', () => {
+  const lessons = [L('가'), L('나'), L('다')];
+  const plan = {
+    id: 'c',
+    key: '5-1 과학',
+    subject: '과학',
+    classes: ['5-1', '5-2', '5-3'],
+    startDate: '2026-11-02',
+    lessons,
+    bumps: ['2026-11-02#3'], // 5-2 첫 수업을 밀었다
+  };
+  const subjects = {
+    '2026-11-02': { '1': '5-1 과학', '3': '5-2 과학' },
+    '2026-11-04': { '1': '5-2 과학', '2': '5-1 과학' },
+    '2026-11-06': { '1': '5-1 과학', '2': '5-2 과학' },
+  };
+  const timelines = courseTimelines(plan, [plan], subjects);
+
+  it('차시 → 그 차시를 하는 첫 교시 (민 교시는 건너뛴다)', () => {
+    expect(slotOfLesson(timelines['5-2 과학'], 0)).toMatchObject({ date: '2026-11-04', period: '1' });
+    expect(slotOfLesson(timelines['5-1 과학'], 2)).toMatchObject({ date: '2026-11-06', period: '1' });
+    expect(slotOfLesson(timelines['5-1 과학'], 5)).toBeNull();
+  });
+
+  it('다른 반마다 같은 차시의 교시, 밀린 반은 뒤로, 시간표에 없는 반은 null, 이 반은 뺀다', () => {
+    const mark = { key: '5-1 과학', cls: '5-1', index: 1 };
+    expect(planCourseEvals(mark, plan, timelines).map((t) => [t.cls, t.slot && `${t.slot.date}#${t.slot.period}`])).toEqual([
+      ['5-2', '2026-11-06#2'], // 밀려서 2차시가 11-06
+      ['5-3', null], // 5-3은 시간표에 없다
+    ]);
+  });
+
+  it('과정이 아니거나 민 교시면 빈 목록', () => {
+    expect(planCourseEvals({ key: '국어', index: 0 }, { key: '국어' }, {})).toEqual([]);
+    expect(planCourseEvals({ key: '5-2 과학', cls: '5-2', index: null }, plan, timelines)).toEqual([]);
   });
 });

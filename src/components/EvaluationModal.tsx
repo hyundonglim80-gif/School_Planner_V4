@@ -13,6 +13,12 @@ import { printNode } from '../lib/print';
 import { classKeyOf } from '../lib/attendance';
 import { subscribeClassHub } from '../lib/seatingStore';
 import { evalGroupsFrom, groupSetSummary, type GroupSet } from '../lib/groups';
+import { useTeachingMode } from '../hooks/useTeachingMode';
+import { useProgressMarks } from '../hooks/useProgress';
+import { evalDefaultsForSlot, rosterForSlot } from '../lib/teachingSlot';
+import { courseTimelines, planCourseEvals, slotId, type CourseEvalTarget } from '../lib/progress';
+import { schoolYearOf } from '../lib/schoolSetting';
+import { shortDateLabel } from '../lib/notices';
 
 interface EvaluationModalProps {
   isOpen: boolean;
@@ -28,6 +34,19 @@ interface EvaluationModalProps {
 const SUBJECTS = ['국어','도덕','사회','수학','과학','실과','체육','음악','미술','영어','창체'];
 const DEFAULT_STEPS = ['우수', '보통', '노력요함', '미흡', '매우미흡'];
 
+/** 번호 차례로 n조 (V3와 같은 모양 {name, members}) */
+function groupsByNumber(nums: number[], groupCount: number): { name: string; members: number[] }[] {
+  const groups: { name: string; members: number[] }[] = [];
+  let idx = 0;
+  for (let i = 0; i < groupCount; i++) {
+    const size = Math.floor(nums.length / groupCount) + (i < nums.length % groupCount ? 1 : 0);
+    const members: number[] = [];
+    for (let j = 0; j < size; j++) if (idx < nums.length) members.push(nums[idx++]);
+    groups.push({ name: String.fromCharCode(65 + i) + '조', members });
+  }
+  return groups;
+}
+
 // 교시를 넘기지 않고 열면 그날 조사표 전체를 맡는다. 달력에서 날짜 표식을
 // 눌렀을 때가 그렇다. 그 자리에서는 어느 교시 것인지 알 수가 없다.
 export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSource = 'schedule', defaultPeriod = '', defaultSubject = '', initialEvalId }: EvaluationModalProps) {
@@ -36,6 +55,11 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
   const periodNames = templates[currentTemplateName]?.names || ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시'];
   const { loadEvaluations, upsertEvaluation, removeEvaluation, deleteEvaluation } = useEvaluation(selectedGroupId);
   const { rosterList: rosters } = useRoster();
+  // 교과 모드(ROADMAP-SUBJECT S8): 수업 칸('5-2 과학')에서 새로 만들면 그 반 명렬표·과목을 골라 두고,
+  // 그 교시가 과정의 차시면 '같은 과정의 다른 반에도' 같은 차시 교시에 같은 조사표를 만들 수 있다.
+  const { isClassUnit } = useTeachingMode();
+  const appliedSlotDefaults = useRef(false);
+  const [alsoOtherClasses, setAlsoOtherClasses] = useState(false);
 
   // 모드: 'create' | 'view'
   // 목록은 한 자리에 조사표가 여럿일 때만 나온다. 하나뿐인데 늘어놓으면
@@ -101,8 +125,33 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
       // 시작하게 둔다. 빈 값이면 위치 칸이 아무것도 안 고른 채로 뜬다.
       setPeriod(defaultSource === 'journal' ? 'journal' : String(defaultPeriod || 1));
       setSubject(defaultSubject);
+      appliedSlotDefaults.current = false;
+      setAlsoOtherClasses(false);
     }
   }, [isOpen, dateStr]);
+
+  // 교과 모드: 칸 글자의 반으로 학급, 반 글자를 뺀 과목 (새로 만들 때 한 번 - 이미 있는 조사표는 건드리지 않는다).
+  // 명렬표는 구독으로 늦게 오므로 올 때까지 기다린다.
+  useEffect(() => {
+    if (!isOpen || !isClassUnit || appliedSlotDefaults.current || rosters.length === 0 || !defaultSubject) return;
+    appliedSlotDefaults.current = true;
+    const d = evalDefaultsForSlot(rosters, defaultSubject, dateStr);
+    if (!d) return;
+    setRosterIdx(String(d.rosterIndex));
+    setSubject(d.subject);
+  }, [isOpen, isClassUnit, rosters, defaultSubject, dateStr]);
+
+  // 이 교시의 과정 표식 → 같은 차시를 하는 다른 반의 교시 (개인 공간의 진도만 - 그룹 공간에서는 표식이 없다)
+  const { marks: courseMarks, plans: progressPlans, inputs: progressInputs, isOffDay } = useProgressMarks(
+    isOpen && isClassUnit && /^\d+$/.test(period) ? evalDate : ''
+  );
+  const courseMark = /^\d+$/.test(period) ? courseMarks[slotId(evalDate, period)] : undefined;
+  const coursePlan = courseMark?.cls ? progressPlans.find((p) => p.id === courseMark.planId) : undefined;
+  const courseTargets: CourseEvalTarget[] = React.useMemo(() => {
+    if (!courseMark || !coursePlan || !progressInputs) return [];
+    const timelines = courseTimelines(coursePlan, progressPlans, progressInputs.subjectsByDate, isOffDay);
+    return planCourseEvals(courseMark, coursePlan, timelines);
+  }, [courseMark, coursePlan, progressPlans, progressInputs, isOffDay]);
 
   // 명렬표는 구독으로 들어와서, 조사표를 열 때 아직 비어 있을 수 있다. 그때는
   // 맞출 것이 없어 그냥 지나가므로, 명렬표가 도착하면 한 번 더 맞춘다.
@@ -208,17 +257,7 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
         // 자리표에서 저장한 모둠 (ROADMAP 8-4) - 지금 재학생만, 빈 모둠은 뺀다. 모양은 V3 조와 같다 {name, members}
         groups = evalGroupsFrom(savedGroupSet, activeStudents.map((s: any) => Number(s.num)));
       } else if (useGroup) {
-        const totalStudents = activeStudents.length;
-        let currentIdx = 0;
-        for (let i = 0; i < groupCount; i++) {
-          const gName = String.fromCharCode(65 + i) + '조';
-          const groupSize = Math.floor(totalStudents / groupCount) + (i < (totalStudents % groupCount) ? 1 : 0);
-          const members: number[] = [];
-          for (let j = 0; j < groupSize; j++) {
-            if (currentIdx < totalStudents) members.push(activeStudents[currentIdx++].num);
-          }
-          groups.push({ name: gName, members });
-        }
+        groups = groupsByNumber(activeStudents.map((s: any) => s.num), groupCount);
       }
     }
 
@@ -246,6 +285,56 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
     setEvalList(evalDate === dateStr ? saved : [...evalList, newEval]);
     setTitle('');
     void openViewer(newEval);
+    if (alsoOtherClasses && courseTargets.length > 0) void createForOtherClasses(newEval);
+  };
+
+  /**
+   * 같은 과정의 다른 반에도 (S8): 반마다 같은 차시를 하는 교시의 날짜 문서에 기존 저장 길(트랜잭션)로 하나씩 더한다.
+   * 명단은 그 반 명렬표로, 저장한 모둠은 반마다 달라 번호 차례로 다시 나눈다. 하나가 실패해도 되돌리지 않고 알린다.
+   */
+  const createForOtherClasses = async (base: EvaluationItem) => {
+    const made: string[] = [];
+    const later: string[] = [];
+    const failed: string[] = [];
+    let n = 0;
+    for (const t of courseTargets) {
+      if (!t.slot) {
+        later.push(t.cls);
+        continue;
+      }
+      const roster = rosterForSlot(rosters, t.key, schoolYearOf(t.slot.date));
+      if (!roster) {
+        failed.push(`${t.cls}(명렬표 없음)`);
+        continue;
+      }
+      const active = (roster.students || []).filter((s: any) => s.isActive !== false);
+      const p = parseInt(t.slot.period, 10);
+      const clone: EvaluationItem = {
+        ...base,
+        id: `${base.id}_${++n}`,
+        dateStr: t.slot.date,
+        periodStr: p,
+        context: { source: 'schedule', period: p },
+        rosterMeta: { year: roster.year, grade: roster.grade, classNum: roster.classNum },
+        studentsSnapshot: active.map((s: any) => ({ num: s.num, name: s.name, gender: s.gender || '' })),
+        groups: base.methodObj?.group ? groupsByNumber(active.map((s: any) => Number(s.num)), Math.max(1, base.groups.length || groupCount)) : [],
+        records: {},
+      };
+      try {
+        await upsertEvaluation(t.slot.date, clone);
+        made.push(`${t.cls}(${shortDateLabel(t.slot.date)} ${p}교시)`);
+      } catch (e) {
+        console.error('다른 반 조사표 만들기 실패:', t.cls, e);
+        failed.push(t.cls);
+      }
+    }
+    const parts = [
+      made.length ? `${made.join('·')}에도 만들었습니다` : '',
+      later.length ? `${later.join('·')}는 아직 시간표에 그 차시가 없습니다` : '',
+      failed.length ? `${failed.join('·')}에는 만들지 못했습니다` : '',
+    ].filter(Boolean);
+    if (failed.length) showErrorToast(parts.join(' · '));
+    else showToast(`✅ ${parts.join(' · ')}`);
   };
 
   /**
@@ -562,7 +651,7 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
               {/* 명렬표 선택 */}
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1">적용할 명렬표</label>
-                <select value={rosterIdx} onChange={e => setRosterIdx(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none">
+                <select value={rosterIdx} onChange={e => setRosterIdx(e.target.value)} aria-label="적용할 명렬표" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none">
                   {rosters && rosters.length > 0 ? rosters.map((r: any, i: number) => (
                     <option key={i} value={i}>{r.year}학년도 {r.grade}학년 {r.classNum}반 ({(r.students || []).length}명)</option>
                   )) : (
@@ -594,9 +683,11 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-600 block mb-1">교과</label>
-                  <select value={subject} onChange={e => setSubject(e.target.value)} className="w-full px-2 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none">
+                  <select value={subject} onChange={e => setSubject(e.target.value)} aria-label="교과" className="w-full px-2 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none">
                     <option value="">선택 안함</option>
                     {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                    {/* 칸 글자에서 온 과목이 목록에 없으면(교과 모드 '물리' 등) 그것도 고를 수 있게 */}
+                    {subject && !SUBJECTS.includes(subject) && <option value={subject}>{subject}</option>}
                   </select>
                 </div>
                 <div>
@@ -673,6 +764,26 @@ export default function EvaluationModal({ isOpen, onClose, dateStr, defaultSourc
                     </div>
                   )}
                 </div>
+              )}
+
+              {courseTargets.length > 0 && (
+                <label className="flex items-start gap-2 bg-emerald-50/60 border border-emerald-200 rounded-xl p-3 text-xs cursor-pointer" data-course-evals>
+                  <input
+                    type="checkbox"
+                    checked={alsoOtherClasses}
+                    onChange={(e) => setAlsoOtherClasses(e.target.checked)}
+                    className="accent-emerald-600 mt-0.5"
+                  />
+                  <span>
+                    <b className="text-emerald-800">같은 과정의 다른 반에도 만들기</b>
+                    <span className="block text-slate-500 mt-0.5">
+                      {courseMark?.index != null && `${courseMark.index + 1}차시를 하는 교시: `}
+                      {courseTargets
+                        .map((t) => (t.slot ? `${t.cls} ${shortDateLabel(t.slot.date)} ${t.slot.period}교시` : `${t.cls} 아직 시간표에 없음`))
+                        .join(' · ')}
+                    </span>
+                  </span>
+                </label>
               )}
 
               <button onClick={handleCreate} className="w-full py-2.5 bg-primary text-white rounded-xl font-bold text-sm shadow-xs hover:bg-primary/90 transition-all">생성</button>

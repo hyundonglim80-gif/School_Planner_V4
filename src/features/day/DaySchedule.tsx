@@ -23,6 +23,8 @@ import { schoolYearOf } from '../../lib/schoolSetting';
 import { classKeyOf } from '../../lib/attendance';
 import { periodSummary } from '../../lib/subjectAttendance';
 import { useSubjectAttendanceDate } from '../../hooks/useSubjectAttendance';
+import { rememberHubClass } from '../../lib/classMemory';
+import { runAppAction } from '../../lib/appActions';
 import { useClassColorOf } from '../../hooks/useClassColor';
 import SlotOptionsList from '../../components/SlotOptionsList';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
@@ -354,11 +356,11 @@ export default function DaySchedule({
               ? previousSlotOf(progressInputs.subjectsByDate, item.subject, dateStr, period, isOffDay)
               : null;
           const prevNote = prevSlot ? progressInputs?.notesByDate[prevSlot.date]?.[prevSlot.period] || '' : '';
-          const hasDetails = !!(memoText || suppliesText || mark || prevNote);
           // 교과 출결: 개인 공간에서, 칸의 반이 그 학년도 명렬표에 있을 때만
           const slotRoster =
             slot?.cls && dateStr && !selectedGroupId ? rosterForSlot(rosterList, item.subject, schoolYearOf(dateStr)) : null;
           const slotClassKey = slotRoster ? classKeyOf(slotRoster) : '';
+          const hasDetails = !!(memoText || suppliesText || mark || prevNote || slotClassKey);
           const attSummary = slotClassKey ? periodSummary(subjectAttendance[slotClassKey]?.periods[String(period)]) : '';
           return (
             <div
@@ -481,7 +483,7 @@ export default function DaySchedule({
                           한다. 없을 때만 숨었다가 마우스를 올리면 나타난다. */}
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); dateStr && openEvaluationModal(dateStr, 'schedule', period); }}
+                        onClick={(e) => { e.stopPropagation(); dateStr && openEvaluationModal(dateStr, 'schedule', period, isClassUnit ? item.subject : undefined); }}
                         className={`p-1 rounded hover:bg-slate-100 text-xs transition-all ${
                           evalCounts.byPeriod[String(period)]
                             ? 'text-blue-700 bg-blue-50 border border-blue-200 font-bold'
@@ -506,6 +508,37 @@ export default function DaySchedule({
                     </div>
                   </div>
 
+                  {/* 교과 모드: 이 반으로 바로 가는 학급 도구 (S8) - 자리표·뽑기는 이 반을 학급 기억에 적고 연다 */}
+                  {slotClassKey && (
+                    <div data-class-tools className="flex flex-wrap items-center gap-1 mb-1.5 -mt-0.5">
+                      {(
+                        [
+                          ['seating', '🪑 자리표'],
+                          ['drawStudent', '🎯 뽑기'],
+                          ['eval', '📊 조사표'],
+                        ] as const
+                      ).map(([id, label]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          data-class-tool-btn={id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (id === 'eval') {
+                              if (dateStr) openEvaluationModal(dateStr, 'schedule', period, item.subject);
+                              return;
+                            }
+                            rememberHubClass(slotClassKey);
+                            runAppAction({ id });
+                          }}
+                          title={`${slot?.cls} ${label.slice(2).trim()}`}
+                          className="text-2xs font-bold text-slate-500 bg-slate-50 hover:bg-slate-100 hover:text-slate-700 border border-slate-200 rounded-md px-1.5 py-0.5"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {prevNote && prevSlot && (
                     <button
                       type="button"

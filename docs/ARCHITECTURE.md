@@ -410,6 +410,10 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   `summaryCsvRows`, 학기는 `evalSummary.semesterOf`. 학급 탭(`ClassScreen`)은 교과 모드에서 `classesForYear`를 학년별 줄 칩
   (`data-class-chip`)으로, TOOLS의 `classUnit` 도구, 교과 + 담임은 담임반이 아닌 반에서 담임 도구·오늘 출결을 숨긴다.
   학생 누가기록은 교과 모드면 `subjectHistoryOf`로 `kind: 'subjectAttendance'` 줄을 섞는다.
+  **S8 반 도구·조사표**: 하루 카드의 `data-class-tools`(자리표·뽑기는 `rememberHubClass(classKey)` 뒤 `runAppAction`, 조사표는 칸 글자를 넘긴다).
+  `EvaluationModal`은 교과 모드에서 새로 만들 때 한 번 `teachingSlot.evalDefaultsForSlot`(학년도 명렬표 자리·과목). 그 교시가 과정 표식이면
+  `progress.courseTimelines`→`planCourseEvals`(같은 차시 `slotOfLesson`)로 다른 반 교시를 보이고, 체크하면 반마다 **기존 `upsertEvaluation`
+  트랜잭션**(evalDocPayload 두 이름)으로 하나씩 - id는 `원본_n`, 명단·rosterMeta는 그 반, 조별이면 번호 차례로 다시 나눈다. 실패해도 되돌리지 않고 알린다.
 - **계정**: V3와 V4는 앱 이름이 달라 한 브라우저에서 다른 계정으로 들어가 있을 수 있다(`lib/peerAccount`).
   "자료가 통째로 없다"는 신고는 먼저 계정·공간을 의심한다.
 - **설정 동기화**: `lib/preferenceSync`의 `SYNCED_PREFERENCE_KEYS`만 계정에 올린다. 지금 보는 화면·날짜는 올리지 않는다.
@@ -449,6 +453,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-course-status.mjs` | 지난 시간 줄·반별 현황표(9) - teacher3 11-02 메모 → 11-04 5-2 카드 줄·누르면 그날로, 과정을 2026-09-07~18 수업에 심고 현황표 4줄·5-3 두 번 밀면 '2차시 늦음'·다음 수업 밀기, teacher 줄 없음. 오늘이 9/19~11/1일 때 맞게 짰다 |
 | `tools/inspect-subject-attendance.mjs` | 교과 출결(13) - teacher3 11-02 1교시(5-1) 칸 머리·2번 결과 → periods.1.2, 같은 문서 다른 교시 그대로, 3교시(5-2) 칸 함께 열기, 사유, 새로고침, 출석으로 되돌리기, teacher 단추 없음. 문서를 끝에 지운다 |
 | `tools/inspect-subject-attendance-summary.mjs` | 교과 출결 누계·학급 탭(16) - teacher3 5-2에 출결을 심고 학급 탭 학년 줄 칩·교과 출결 도구, 누계 학기별 수·내역·CSV, 누가기록 줄, 칸의 📊 누계, teacher ⋮ 메뉴 없음. CSV 이름은 이 컨테이너 Chromium이 'download'로 줘서 그때는 보지 않는다 |
+| `tools/inspect-course-evals.mjs` | 반 도구·조사표(11) - teacher3 과정을 심고 11-02 1교시 반 도구 줄, 조사표 5-1·과학 자동, 다른 반 교시 안내, 만들기 → 서버 11-02·11-03 네 반(명단·두 이름), 자리표 5-1, teacher 줄 없음. 조사표 문서를 끝에 되돌린다 |
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번 |
 | `tools/inspect-*.mjs` 나머지 | 지난 신고를 재현하던 것들(이월·뒤로가기·기록 삭제 뒤 빈 화면·V3/V4 한 출처 등) |
