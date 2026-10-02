@@ -63,7 +63,8 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
   wip 브랜치 없음. 다음 일은 사용자와 새로 정한다. 설명서 전체 점검은 12번 끝에 했다(결과는 ROADMAP 12번) - 다음은 15번을 끝낼 때.
 - 17번 다크 모드(2026-10-02 끝): `html.dark`에서 Tailwind 색 변수만 바꾼다. **`src/dark.css`는 `tools/gen-dark-css.mjs`로 만든다**(손으로 X).
   **style에 색을 적을 때 hex 대신 `var(--color-…)`** (hex는 어둡게 안 따라간다). 설정은 이 기기 `sp4_theme`. 크롬 `inspect-dark`(11).
-- 설명서 전체 점검은 단위 테스트와 **함께 돌리지 않는다** - 같은 때 돌리니 백업 JSON 항목이 30초를 넘겨 깨졌다(2026-10-02).
+- 2026-10-02 설명서 전체 점검을 세 번 돌리는 사이 C:가 다시 꽉 찼다(로그 2.1GB, 남은 자리 4MB) - 증상은 '백업 JSON 내려받기' 시간 초과와
+  휴대폰 묶음에서 멈춤. 로그를 비워도 남는 자리가 2GB뿐이다: **사용자에게 C: 정리를 부탁했다.** 긴 점검 전후로 `df -h /c`와 로그 크기를 본다.
 - 16번 학급 탭(2026-10-02 끝, 결정은 Claude 추천 - 휴대폰 탭 여섯): 화면 종류 'class' `ClassScreen`, 도구는 `lib/appActions`로 Layout에 부탁,
   고른 학급은 `lib/classMemory`로 도구 기억에도. **화면 종류를 더하면 ARCHITECTURE 7장 목록을 다 고친다.** 크롬 `inspect-class-screen`(13).
 - 15번 휴대폰 월간(2026-10-02 끝, 결정은 Claude 추천): 휴대폰 칸에 과목 칩 없음, 날짜를 누르면 탭바 위 그날 목록(`MonthDaySheet`, 팝업 아님).
