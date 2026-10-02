@@ -32,6 +32,7 @@ import { showDeletedToast } from '../lib/undoToast';
 // 알림장·출석부는 열 때만 내려받는다 (학급 운영을 안 쓰는 날에는 필요 없다)
 const NoticeDrawer = lazyWithReload(() => import('./NoticeDrawer'));
 const AttendanceDrawer = lazyWithReload(() => import('./AttendanceDrawer'));
+const SubjectAttendancePanel = lazyWithReload(() => import('./SubjectAttendancePanel'));
 
 /** 이 폭 이상이면 화면 옆에 붙인다. 그보다 좁으면(휴대폰) 예전처럼 화면을 덮는 배너. */
 export const DOCK_MIN_WIDTH = 768;
@@ -68,6 +69,13 @@ export default function EntryPanelHost() {
 
 function PanelFor({ target }: { target: EntryPanelTarget }) {
   if (target.kind === 'event') return <EventPanel target={target} />;
+  if (target.kind === 'subjectAttendance') {
+    return (
+      <Suspense fallback={null}>
+        <SubjectAttendanceHost target={target} />
+      </Suspense>
+    );
+  }
   if (target.kind === 'notice' || target.kind === 'attendance') {
     return (
       <Suspense fallback={null}>
@@ -455,6 +463,22 @@ function ClassroomPanel({ target }: { target: EntryPanelTarget }) {
       docked={docked}
       flushRef={flushRef}
       unsavedRef={unsavedRef}
+      onClose={closeEntryPanel}
+    />
+  );
+}
+
+/** 교과 출결 칸 (교과 모드 수업 칸의 '출결', ROADMAP-SUBJECT S6). 누를 때마다 저장하므로 저장 안 한 것이 없다 */
+function SubjectAttendanceHost({ target }: { target: EntryPanelTarget }) {
+  const { closeEntryPanel } = usePanelActions(target);
+  const docked = useMinWidth(DOCK_MIN_WIDTH);
+  return (
+    <SubjectAttendancePanel
+      dateStr={target.dateStr || ''}
+      period={target.period || 1}
+      classKey={target.classKey || ''}
+      subject={target.slotSubject}
+      docked={docked}
       onClose={closeEntryPanel}
     />
   );

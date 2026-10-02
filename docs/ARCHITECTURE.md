@@ -68,6 +68,7 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
 | `users/{uid}/settings/v4_trash` | 휴지통 자동 비우기 기간 | |
 | `users/{uid}/settings/v4_school` | `{ officeCode, schoolCode, officeName, name, kind, grade }` (학교를 지우면 `{ updatedAt }`만) | V4 전용. 우리 학교 - 나이스 급식·학사일정(`lib/schoolSetting`, `lib/neis`) |
 | `users/{uid}/settings/v4_teaching` | `{ unit:'subject'\|'class', hasHomeroom, homeroomClass:'5-2', subjects:[], classColors:{} }` | V4 전용. 교사 유형(`lib/teachingMode`) - 문서가 없으면 초등 담임(`unit:'subject', hasHomeroom:true`)이고 하루 화면에 처음 안내 띠. App이 한 번 구독해 store에 넣고 화면은 `useTeachingMode()`로만 읽는다. 과목은 `arrayUnion/Remove`. 반은 문서에 두지 않고 시간표·수업 칸 글자 `5-2 과학`에 담는다 - `lib/teachingSlot`(`parseSlot`·`normalizeSlotText`·`classesForYear`)로 읽고, 교과 모드에서만 시간표 창·하루 수업 칸·수업 수정 팝업이 저장 전에 정규화한다(`SlotOptionsList` 제안). 초등 담임은 적은 그대로 |
+| `users/{uid}/v4_subjectAttendance/{classKey}_{date}` | `{ classKey, year, grade, classNum, date, periods: { '교시': { '번호': { num, name, kind: 'absent'(결과)·'late'·'early', reason, note? } } }, updatedAt }` | V4 전용. 교과 출결(`lib/subjectAttendance`·`subjectAttendanceStore`, 교과 모드 S6). 담임 출석부(`attendance`)와 따로 - 기록 칸을 만들지 않는다. 쓰기는 `saveSubjectRecord`가 학생 한 칸(`FieldPath('periods', 교시, 번호)`)만 mergeFields, 지우기는 deleteField |
 | `users/{uid}/v4_progress/{id}` | `{ key(시간표 칸 글자), startDate, lessons: [{unit, no, content, supplies}], bumps: ['YYYY-MM-DD#교시'], subject?, classes?: ['5-1',…] }` (subject·classes가 있으면 과정 - key에는 첫 반 열쇠) | V4 전용. 진도 관리(`lib/progress`). 수업 문서에는 쓰지 않고 화면에서만 겹쳐 본다. 차시 목록은 `saveProgressPlan`(merge, bumps 빼고), 밀기는 `setProgressBump`(arrayUnion/Remove 한 칸) - 다른 기기에서 민 것을 덮지 않게 |
 | `sharedConfig/neis` | `{ key, updatedAt, updatedBy }` | 나이스 인증키. **로그인하면 누구나 읽고** 개발자만 쓴다(`admin/config`는 개발자만 읽어 따로 둠). 없거나 못 읽으면 키 없이 5건씩 나눠 받는다 |
 | `users/{uid}/settings/v4_autoBackup` | `{ enabled, intervalDays, keep, lastAt?, lastName?, lastSummary?, folderLink? }` | V4 전용. 드라이브 자동 백업(`lib/autoBackup`, `hooks/useAutoBackup`). PC에서 토큰이 이미 있을 때만 조용히 백업. '나중에'는 기기별 localStorage `sp4_autoBackupSnoozeUntil` |
@@ -400,6 +401,10 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   교과 + 담임의 출석부는 `AttendanceDrawer`가 넘겨받은 학급이 없을 때 담임반(`rosterForSlot(homeroomClass)`)을 먼저 고른다.
   반 색 고르기는 환경설정 `TeachingModePanel`(`classColors: {반: 색}` merge).
   **S4 과정**: 진도 관리의 차시 목록 하나를 여러 반에 - 위 '진도 관리'의 과정 단락.
+  **S6 교과 출결**: 하루 카드의 '🙋 출결'(`data-subject-attendance`, 개인 공간·반의 명렬표가 있을 때) → 오른쪽 칸
+  `SubjectAttendancePanel`(EntryPanelTarget kind `subjectAttendance` + `classKey`·`period`·`slotSubject`, entryId `sa:…`로 같은 칸은 올리기만).
+  칸은 문서를 구독하고 누를 때마다 한 칸 저장(저장 단추·unsaved 없음). 카드 요약은 `useSubjectAttendanceDate`(그날 `where date ==` 쿼리, 교과 모드만).
+  교과 + 담임의 담임반이면 그날 담임 출석부 결석을 읽기만 해 흐리게 보인다.
 - **계정**: V3와 V4는 앱 이름이 달라 한 브라우저에서 다른 계정으로 들어가 있을 수 있다(`lib/peerAccount`).
   "자료가 통째로 없다"는 신고는 먼저 계정·공간을 의심한다.
 - **설정 동기화**: `lib/preferenceSync`의 `SYNCED_PREFERENCE_KEYS`만 계정에 올린다. 지금 보는 화면·날짜는 올리지 않는다.
@@ -437,6 +442,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-share-target.mjs` | 다른 앱에서 공유받기 - 서비스 워커 POST·새 메모 칸·파일 목록·GET·새로고침(16). 안드로이드 공유 창 대신 같은 모양의 양식을 보낸다 |
 | `tools/inspect-course.mjs` | 과정(여러 반, 17) - teacher3 '과정 (여러 반)' 만들기·반 탭 미리보기·서버 subject·classes, 11-02·11-04 반마다 차시, 5-2만 밀기·진도 줄 → 5-2 탭·되돌리기, 반 빼기, 지우기·복원, teacher에는 단추 없음. 만든 진도·휴지통을 끝에 지운다 |
 | `tools/inspect-course-status.mjs` | 지난 시간 줄·반별 현황표(9) - teacher3 11-02 메모 → 11-04 5-2 카드 줄·누르면 그날로, 과정을 2026-09-07~18 수업에 심고 현황표 4줄·5-3 두 번 밀면 '2차시 늦음'·다음 수업 밀기, teacher 줄 없음. 오늘이 9/19~11/1일 때 맞게 짰다 |
+| `tools/inspect-subject-attendance.mjs` | 교과 출결(13) - teacher3 11-02 1교시(5-1) 칸 머리·2번 결과 → periods.1.2, 같은 문서 다른 교시 그대로, 3교시(5-2) 칸 함께 열기, 사유, 새로고침, 출석으로 되돌리기, teacher 단추 없음. 문서를 끝에 지운다 |
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번 |
 | `tools/inspect-*.mjs` 나머지 | 지난 신고를 재현하던 것들(이월·뒤로가기·기록 삭제 뒤 빈 화면·V3/V4 한 출처 등) |

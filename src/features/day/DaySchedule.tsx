@@ -17,7 +17,12 @@ import ProgressMarkLine from '../../components/ProgressMarkLine';
 import { useProgressMarks } from '../../hooks/useProgress';
 import { slotId } from '../../lib/progress';
 import { useTeachingMode } from '../../hooks/useTeachingMode';
-import { normalizeSlotText, parseSlot, previousSlotOf } from '../../lib/teachingSlot';
+import { normalizeSlotText, parseSlot, previousSlotOf, rosterForSlot } from '../../lib/teachingSlot';
+import { useRoster } from '../../hooks/useRoster';
+import { schoolYearOf } from '../../lib/schoolSetting';
+import { classKeyOf } from '../../lib/attendance';
+import { periodSummary } from '../../lib/subjectAttendance';
+import { useSubjectAttendanceDate } from '../../hooks/useSubjectAttendance';
 import { useClassColorOf } from '../../hooks/useClassColor';
 import SlotOptionsList from '../../components/SlotOptionsList';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
@@ -77,6 +82,9 @@ export default function DaySchedule({
   const { isClassUnit, showHomeroomTools } = useTeachingMode();
   const subjectToSave = (text: string) => (isClassUnit ? normalizeSlotText(text) : text.trim());
   const classColorOf = useClassColorOf(dateStr);
+  // 교과 출결 (S6): 반의 명렬표가 있는 교시에 '출결' 단추와 적힌 것 요약. 교과 모드에서만 읽는다.
+  const { rosterList } = useRoster(isClassUnit);
+  const subjectAttendance = useSubjectAttendanceDate(dateStr || '', isClassUnit && !selectedGroupId);
 
   const startEdit = (period: number) => {
     const current = schedules[period] || { subject: '', content: '' };
@@ -347,6 +355,11 @@ export default function DaySchedule({
               : null;
           const prevNote = prevSlot ? progressInputs?.notesByDate[prevSlot.date]?.[prevSlot.period] || '' : '';
           const hasDetails = !!(memoText || suppliesText || mark || prevNote);
+          // 교과 출결: 개인 공간에서, 칸의 반이 그 학년도 명렬표에 있을 때만
+          const slotRoster =
+            slot?.cls && dateStr && !selectedGroupId ? rosterForSlot(rosterList, item.subject, schoolYearOf(dateStr)) : null;
+          const slotClassKey = slotRoster ? classKeyOf(slotRoster) : '';
+          const attSummary = slotClassKey ? periodSummary(subjectAttendance[slotClassKey]?.periods[String(period)]) : '';
           return (
             <div
               key={period}
@@ -408,6 +421,32 @@ export default function DaySchedule({
                         >
                           {item.subject || <span className="text-slate-300 font-normal">과목 미등록</span>}
                         </span>
+                      )}
+                      {slotClassKey && (
+                        <button
+                          type="button"
+                          data-subject-attendance
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void openEntryPanel({
+                              kind: 'subjectAttendance',
+                              groupId: null,
+                              dateStr,
+                              classKey: slotClassKey,
+                              period,
+                              slotSubject: slot?.subject,
+                              entryId: `sa:${slotClassKey}_${dateStr}#${period}`,
+                            });
+                          }}
+                          title={`${slot?.cls} ${period}교시 교과 출결 (결과·지각·조퇴)`}
+                          className={`shrink-0 text-2xs font-bold rounded-full px-1.5 py-0.5 border transition-colors ${
+                            attSummary
+                              ? 'text-rose-700 bg-rose-50 border-rose-200 hover:bg-rose-100'
+                              : 'text-slate-400 bg-white border-slate-200 hover:text-slate-600 hover:border-slate-400'
+                          }`}
+                        >
+                          {attSummary ? <span data-subject-att-summary>{attSummary}</span> : '🙋 출결'}
+                        </button>
                       )}
                       {isNow && nowState?.kind === 'during' && (
                         <span className="shrink-0 text-2xs font-black text-white bg-primary rounded-full px-1.5 py-0.5">

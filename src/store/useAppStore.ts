@@ -23,7 +23,7 @@ export type StartupScope = 'last' | Scope;
 
 /** 오른쪽 칸이 무엇을 쓰고 있는가 */
 export interface EntryPanelTarget {
-  kind: 'memo' | 'journal' | 'event' | 'notice' | 'attendance';
+  kind: 'memo' | 'journal' | 'event' | 'notice' | 'attendance' | 'subjectAttendance';
   /** 어느 공간의 것인가 (null = 개인). 열 때의 공간을 붙들어, 공간을 바꿔도 제자리에 저장한다. */
   groupId: string | null;
   /** 기록·일정의 날짜 (메모에는 없다) */
@@ -40,8 +40,11 @@ export interface EntryPanelTarget {
   defaultLabel?: string;
   /** 알림장('write'|'list')·출석부('check'|'summary')를 열 때 처음 보일 탭 */
   tab?: 'write' | 'list' | 'check' | 'summary';
-  /** 출석부를 열 때 고를 학급 (자리표 학생 칸의 '출석부'). 없으면 마지막에 연 학급 */
+  /** 출석부를 열 때 고를 학급 (자리표 학생 칸의 '출석부'). 없으면 마지막에 연 학급. 교과 출결은 그 반 */
   classKey?: string;
+  /** 교과 출결(ROADMAP-SUBJECT S6)의 교시와 과목 (머리줄) */
+  period?: number;
+  slotSubject?: string;
   /** 이 칸의 고유 번호 (열 때 붙는다). 여러 칸이 쌓이므로 닫기·id 알리기에 쓴다. */
   openedAt?: number;
   /** 맨 위로 올린 때. 이미 열린 항목을 다시 열면 새로 만들지 않고 이것만 바꿔 맨 위로 올린다. */
