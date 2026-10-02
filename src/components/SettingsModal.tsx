@@ -33,6 +33,7 @@ import ModalShell, { ModalCloseButton } from './ModalShell';
 import { runDriveMigration, CORS_HELP, type MigrationProgress } from '../lib/driveMigration';
 import { useAutoBackupSettings, backupNow } from '../hooks/useAutoBackup';
 import { INTERVAL_CHOICES, KEEP_CHOICES, saveAutoBackupSettings, type AutoBackupSettings } from '../lib/autoBackup';
+import { readThemeMode, setThemeMode, type ThemeMode } from '../lib/theme';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -105,8 +106,16 @@ function Section({ title, desc, children }: { title: string; desc?: string; chil
   );
 }
 
+const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
+  { value: 'system', label: '🖥️ 기기 설정 따라' },
+  { value: 'light', label: '☀️ 밝게' },
+  { value: 'dark', label: '🌙 어둡게' },
+];
+
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const developer = isDeveloper(auth.currentUser?.email);
+  // 화면 밝기는 이 기기에만, 누르는 즉시 바뀐다 ('저장'과 상관없다)
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(readThemeMode);
 
   // 창 안에서만 쓰는 임시 값. '저장'을 눌러야 store/Firestore로 넘어간다.
   const [showWeekend, setShowWeekend] = useState(true);
@@ -836,6 +845,30 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           desc="학교를 고르면 나이스(교육정보 개방 포털)에서 그 학교의 급식과 학사일정을 불러와 보여 줍니다. 학사일정은 날짜 칸에 이름만 보이고 일정으로 들어가지 않습니다. 고르는 즉시 저장되고 PC·휴대폰이 같은 학교를 씁니다."
         >
           <SchoolSettingPanel />
+        </Section>
+
+        <Section title="화면 밝기" desc="어둡게 하면 밤이나 어두운 교실에서 눈이 덜 부십니다. 이 기기에만 남고, 누르는 즉시 바뀝니다. 인쇄는 늘 밝게 찍힙니다.">
+          <div className="flex flex-wrap gap-1.5" data-theme-options>
+            {THEME_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                data-theme-mode={opt.value}
+                onClick={() => {
+                  setThemeMode(opt.value);
+                  setThemeModeState(opt.value);
+                }}
+                aria-pressed={themeMode === opt.value}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                  themeMode === opt.value
+                    ? 'bg-primary text-white border-primary shadow-xs'
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-primary hover:text-primary'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </Section>
 
         <Section title="시작 화면" desc="앱을 열었을 때 처음 보여줄 화면입니다.">

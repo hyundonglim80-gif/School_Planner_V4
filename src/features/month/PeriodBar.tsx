@@ -32,7 +32,7 @@ interface PeriodBarProps {
 
 /** 라벨이 없을 때의 막대 빛깔 (보통 일정 칩보다 한 단계 짙게 - 칸 바탕과 갈리게) */
 const DEFAULT_COLOR = { bg: '#dbeafe', text: '#1e3a8a', border: '#bfdbfe' };
-const DONE_BG = '#f1f5f9';
+const DONE_BG = 'var(--color-slate-100)';
 
 export default function PeriodBar({
   bar,
@@ -72,7 +72,7 @@ export default function PeriodBar({
       <div
         className="absolute inset-0 flex overflow-hidden border"
         style={{
-          borderColor: allDone ? '#e2e8f0' : color.border,
+          borderColor: allDone ? 'var(--color-slate-200)' : color.border,
           borderTopLeftRadius: bar.startsPeriod ? radius : 0,
           borderBottomLeftRadius: bar.startsPeriod ? radius : 0,
           borderTopRightRadius: bar.endsPeriod ? radius : 0,
@@ -125,11 +125,11 @@ export default function PeriodBar({
         className={`relative pointer-events-none flex items-center gap-1 whitespace-nowrap overflow-hidden ${
           compact ? 'h-full px-1 text-2xs leading-none' : `px-1.5 py-0.5 ${BODY_TEXT.month} leading-tight`
         } font-bold`}
-        style={{ color: allDone ? '#94a3b8' : color.text }}
+        style={{ color: allDone ? 'var(--color-slate-400)' : color.text }}
       >
         {!bar.startsPeriod && <span className="shrink-0 opacity-60">◂</span>}
         {labelName && !compact && (
-          <span className="shrink-0 px-1 rounded bg-white/70 text-2xs font-bold" style={{ color: allDone ? '#94a3b8' : color.text }}>
+          <span className="shrink-0 px-1 rounded bg-white/70 text-2xs font-bold" style={{ color: allDone ? 'var(--color-slate-400)' : color.text }}>
             {labelName}
           </span>
         )}

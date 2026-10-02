@@ -66,6 +66,7 @@ import {
 import { showToast, showErrorToast } from '../utils/toast';
 import { useSearchFocusRunner } from '../lib/searchFocus';
 import { APP_ACTION_EVENT, type AppActionDetail } from '../lib/appActions';
+import { isDarkMode, toggleThemeMode, THEME_CHANGED_EVENT } from '../lib/theme';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user } = useAuth();
@@ -205,6 +206,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   // 더보기 드롭다운 상태
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  // 지금 어둡게 보이나 (⋮ 메뉴의 '어둡게/밝게 보기' 글) - 설정이나 기기 밝기가 바뀌면 다시 읽는다
+  const [darkOn, setDarkOn] = useState(() => isDarkMode());
+  useEffect(() => {
+    const update = () => setDarkOn(document.documentElement.classList.contains('dark'));
+    window.addEventListener(THEME_CHANGED_EVENT, update);
+    const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
+    mq?.addEventListener('change', update);
+    return () => {
+      window.removeEventListener(THEME_CHANGED_EVENT, update);
+      mq?.removeEventListener('change', update);
+    };
+  }, []);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
@@ -402,6 +415,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       title: '설정 · 도움말',
       items: [
         { icon: '⚙️', label: '환경설정', shortcut: 'settings', onClick: () => setIsSettingsModalOpen(true) },
+        // 화면 밝기 (ROADMAP 17). 자세한 것(기기 설정 따라)은 환경설정에
+        { icon: darkOn ? '☀️' : '🌙', label: darkOn ? '밝게 보기' : '어둡게 보기', shortcut: 'toggleTheme', onClick: toggleThemeMode },
         { icon: '💡', label: '사용 설명서', shortcut: 'help', onClick: () => setIsHelpModalOpen(true) },
         { icon: '📱', label: '앱 설치하기 (PWA)', tone: 'install', onClick: () => void handleInstallPWA() },
       ],
@@ -474,6 +489,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       case 'backup': setIsBackupModalOpen(true); return;
       case 'help': setIsHelpModalOpen(true); return;
       case 'settings': setIsSettingsModalOpen(true); return;
+      case 'toggleTheme': toggleThemeMode(); return;
       case 'clipboard': {
         const s = useAppStore.getState();
         s.setClipboardOpen(!s.clipboardOpen);

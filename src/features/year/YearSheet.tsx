@@ -139,7 +139,7 @@ function YearSheetMonth({
                 const isToday = d === realTodayStr;
                 const dots = [
                   ...(schoolEvents[d]?.length ? [SCHOOL_DOT] : []),
-                  ...(layout.rest[d] || []).map((ev: any) => (ev.completed ? '#cbd5e1' : colorOf(ev)?.border || DEFAULT_DOT)),
+                  ...(layout.rest[d] || []).map((ev: any) => (ev.completed ? 'var(--color-slate-300)' : colorOf(ev)?.border || DEFAULT_DOT)),
                 ];
                 return (
                   <button
@@ -189,7 +189,7 @@ function YearSheetMonth({
                       top: 18 + bar.lane * LANE,
                       height: 3,
                       borderRadius: `${bar.startsPeriod ? 2 : 0}px ${bar.endsPeriod ? 2 : 0}px ${bar.endsPeriod ? 2 : 0}px ${bar.startsPeriod ? 2 : 0}px`,
-                      backgroundColor: done ? '#cbd5e1' : color?.border || DEFAULT_DOT,
+                      backgroundColor: done ? 'var(--color-slate-300)' : color?.border || DEFAULT_DOT,
                     }}
                   />
                 );
@@ -222,7 +222,7 @@ function YearSheetMonth({
                     className="shrink-0 mt-[4px] w-[6px] h-[6px] rounded-full"
                     style={{
                       backgroundColor:
-                        it.kind === 'holiday' ? '#ef4444' : it.kind === 'dday' ? '#f59e0b' : it.kind === 'school' ? SCHOOL_DOT : it.done ? '#cbd5e1' : color?.border || DEFAULT_DOT,
+                        it.kind === 'holiday' ? '#ef4444' : it.kind === 'dday' ? '#f59e0b' : it.kind === 'school' ? SCHOOL_DOT : it.done ? 'var(--color-slate-300)' : color?.border || DEFAULT_DOT,
                     }}
                   />
                   <span

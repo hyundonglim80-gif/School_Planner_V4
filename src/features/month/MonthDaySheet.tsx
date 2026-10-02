@@ -134,9 +134,9 @@ export default function MonthDaySheet({
                       <span
                         className="shrink-0 text-2xs font-bold px-1.5 py-0.5 rounded"
                         style={{
-                          backgroundColor: ev.completed ? '#f1f5f9' : color.bg,
-                          color: ev.completed ? '#94a3b8' : color.text,
-                          border: `1px solid ${ev.completed ? '#e2e8f0' : color.border}`,
+                          backgroundColor: ev.completed ? 'var(--color-slate-100)' : color.bg,
+                          color: ev.completed ? 'var(--color-slate-400)' : color.text,
+                          border: `1px solid ${ev.completed ? 'var(--color-slate-200)' : color.border}`,
                         }}
                       >
                         {def.name}

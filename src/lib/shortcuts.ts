@@ -54,7 +54,8 @@ export type ShortcutId =
   | 'progress'
   | 'backup'
   | 'help'
-  | 'settings';
+  | 'settings'
+  | 'toggleTheme';
 
 export interface ShortcutAction {
   id: ShortcutId;
@@ -125,6 +126,8 @@ export const SHORTCUT_ACTIONS: ShortcutAction[] = [
   { id: 'backup', label: '내보내기 / 가져오기 (백업)', group: '메뉴 열기', def: b('') },
   { id: 'help', label: '사용 설명서', group: '메뉴 열기', def: b('') },
   { id: 'settings', label: '환경설정', group: '메뉴 열기', def: b('') },
+  // 화면 밝기 (ROADMAP 17) - 어둡게 ↔ 밝게
+  { id: 'toggleTheme', label: '어둡게 / 밝게 보기', group: '메뉴 열기', def: b('') },
 ];
 
 /** 바꾸지 않는 단축키. 목록에는 보여주되 고칠 수 없다. */

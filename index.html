@@ -19,6 +19,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=yes" />
     <meta name="theme-color" content="#2563eb" />
     <title>School Planner V4</title>
+    <!-- 화면 밝기 (ROADMAP 17): 그리기 전에 dark를 붙여 밝은 화면이 번쩍이지 않게 한다. 규칙은 src/lib/theme.ts와 같다. -->
+    <script>
+      try {
+        var m = localStorage.getItem('sp4_theme');
+        if (m === 'dark' || (m !== 'light' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    </script>
     
     <script>
       if ('serviceWorker' in navigator) {

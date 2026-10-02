@@ -242,9 +242,9 @@ export default function DayEvents({
                           title={isMultiSelectMode ? '' : (isForward ? '클릭하여 완료 처리 (이월 정지)' : '클릭하여 완료 처리')}
                           className={`inline-block align-middle mr-1.5 text-xs font-bold px-2 py-0.5 rounded-md shadow-2xs whitespace-nowrap ${isMultiSelectMode ? '' : 'cursor-pointer'}`}
                           style={{
-                            backgroundColor: event.completed ? '#f1f5f9' : color.bg,
-                            color: event.completed ? '#94a3b8' : color.text,
-                            border: '1px solid ' + (event.completed ? '#e2e8f0' : color.border)
+                            backgroundColor: event.completed ? 'var(--color-slate-100)' : color.bg,
+                            color: event.completed ? 'var(--color-slate-400)' : color.text,
+                            border: '1px solid ' + (event.completed ? 'var(--color-slate-200)' : color.border)
                           }}
                         >
                           {name}

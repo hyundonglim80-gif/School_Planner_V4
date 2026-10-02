@@ -17,7 +17,7 @@ const SECTIONS = [
   ['수업', ['시간표 적용', '진도 관리', '주간학습안내']],
   ['학급 운영', ['학급 정보(명렬표) 관리', '출석부', '알림장 모아 보기', '학생 누가기록', '자리표', '발표자 뽑기', '평가 모아 보기']],
   ['공유 · 연동 · 백업', ['공유 그룹 관리', '구글 캘린더로 보내기', '내보내기 / 가져오기']],
-  ['설정 · 도움말', ['환경설정', '사용 설명서', '앱 설치하기']],
+  ['설정 · 도움말', ['환경설정', '어둡게 보기', '사용 설명서', '앱 설치하기']],
 ];
 
 const results = [];
@@ -70,7 +70,8 @@ const run = async () => {
   // ── 2. 항목마다 누르면 메뉴가 닫히고 창이 열린다 ──
   await page.keyboard.press('Escape');
   await page.locator('body').click({ position: { x: 5, y: 300 } });
-  const opens = SECTIONS.flatMap(([, items]) => items).filter((t) => !/다중 선택|앱 설치/.test(t));
+  // 다중 선택·앱 설치·어둡게 보기(화면 밝기만 바꾼다 - inspect-dark가 본다)는 창을 열지 않는다
+  const opens = SECTIONS.flatMap(([, items]) => items).filter((t) => !/다중 선택|앱 설치|어둡게 보기/.test(t));
   for (const name of opens) {
     await closeAll();
     await openMenu();

@@ -190,9 +190,9 @@ function YearMonthCard({
           <span
             className="inline-block align-middle mr-1.5 text-2xs font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap"
             style={{
-              backgroundColor: allDone ? '#f1f5f9' : labelColor.bg,
-              color: allDone ? '#94a3b8' : labelColor.text,
-              border: '1px solid ' + (allDone ? '#e2e8f0' : labelColor.border),
+              backgroundColor: allDone ? 'var(--color-slate-100)' : labelColor.bg,
+              color: allDone ? 'var(--color-slate-400)' : labelColor.text,
+              border: '1px solid ' + (allDone ? 'var(--color-slate-200)' : labelColor.border),
             }}
           >
             {labelName}
@@ -414,9 +414,9 @@ function YearMonthCard({
                                   title={forwardLabel ? '클릭하여 완료 처리 (이월 정지)' : '클릭하여 완료 처리'}
                                   className="inline-block align-middle mr-1.5 text-2xs font-bold px-1.5 py-0.5 rounded shadow-2xs whitespace-nowrap cursor-pointer"
                                   style={{
-                                    backgroundColor: ev.completed ? '#f1f5f9' : labelColor.bg,
-                                    color: ev.completed ? '#94a3b8' : labelColor.text,
-                                    border: '1px solid ' + (ev.completed ? '#e2e8f0' : labelColor.border)
+                                    backgroundColor: ev.completed ? 'var(--color-slate-100)' : labelColor.bg,
+                                    color: ev.completed ? 'var(--color-slate-400)' : labelColor.text,
+                                    border: '1px solid ' + (ev.completed ? 'var(--color-slate-200)' : labelColor.border)
                                   }}
                                 >
                                   {labelName}

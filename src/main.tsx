@@ -1,11 +1,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './dark.css'
 import App from './App.tsx'
 import { auth, db } from './lib/firebase'
 import { autoSignIn } from './lib/emulator'
 import { flushPendingToast } from './utils/toast'
 import { watchForBrokenPersistence, watchForLeaseFailure } from './lib/firestoreRecovery'
+import { applyTheme, watchSystemTheme } from './lib/theme'
 
 // 점검용 에뮬레이터에서만 동작한다(운영 빌드에서는 통째로 빠진다).
 // Firestore의 로컬 저장소가 깨지면(사이트 데이터를 앱이 떠 있는 채로 지울 때
@@ -19,6 +21,10 @@ autoSignIn(auth)
 
 // 새로고침을 건너오며 맡겨 둔 알림이 있으면 띄운다 (백업 복원 등)
 flushPendingToast()
+
+// 화면 밝기 (ROADMAP 17). index.html이 먼저 붙였고, 여기서는 '시스템 따라'일 때 기기 설정이 바뀌는 것을 따라간다.
+applyTheme()
+watchSystemTheme()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

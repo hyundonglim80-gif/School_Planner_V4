@@ -213,6 +213,7 @@ const COMMAND_META: Record<ShortcutId, CommandMeta> = {
   backup: { icon: '💾', keywords: ['백업', '내보내기', '가져오기', 'json', 'csv'] },
   help: { icon: '💡', keywords: ['설명서', '도움말', '사용법', 'help'] },
   settings: { icon: '⚙️', keywords: ['환경설정', '설정', '옵션'] },
+  toggleTheme: { icon: '🌙', keywords: ['다크 모드', '어둡게', '밝게', '야간', '화면 밝기', 'dark'] },
 };
 
 export interface PaletteCommand {

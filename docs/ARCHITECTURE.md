@@ -225,6 +225,12 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 휴대폰(`useIsMobile`, 639px 이하) 월간 칸에는 과목 칩이 없다. 날짜·칸 안 일정·기간 막대를 누르면 `MonthScreen`이 `sheetDate`를 정하고
 탭바 바로 위에 그날 목록을 띄운다(팝업이 아니라 화면의 일부). 같은 날을 한 번 더 누르면 하루 화면. PC는 그대로.
 
+### 다크 모드 (`src/dark.css`, `lib/theme`, ROADMAP 17)
+`html.dark`일 때 Tailwind 색 변수(`--color-*`)의 값만 바꾼다 - 컴포넌트는 그대로. **`src/dark.css`는 손으로 고치지 않고
+`node tools/gen-dark-css.mjs`를 고쳐 다시 만든다.** 새 화면에 색을 줄 때는 Tailwind 색 클래스를 쓰고, 꼭 style에 적어야 하면 hex 대신
+`var(--color-slate-100)`처럼 변수로 (hex는 어둡게 따라가지 않는다 - 라벨 색처럼 자료인 것은 예외). 흰 글자를 얹는 진한 바탕은 600~900을 쓴다.
+설정은 이 기기(`sp4_theme`), 처음 그리기는 `index.html`의 작은 스크립트가 같은 규칙으로 먼저 붙인다.
+
 ### 년간 학사력 (`lib/yearSheet`, `features/year/YearSheet`, ROADMAP 14)
 년간은 '📅 학사력'(처음)과 '📋 자세히'(예전 `YearMonthCard`) 두 모양이고 고른 것은 이 기기(`sp4_yearView`)에 남는다. 학사력은 읽기 전용에
 가깝다: 날짜 칸은 점·막대만(공휴일·D-Day·학사일정·'달력' 일정), 달 아래 목록을 누르면 오른쪽 일정 칸. 수업·기록 표식·끌기·여러 개 고르기는
