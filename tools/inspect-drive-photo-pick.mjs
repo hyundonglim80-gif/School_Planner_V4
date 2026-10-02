@@ -4,7 +4,7 @@
 //   - 선택창은 드라이브처럼 폴더를 열어 들어가는 탭(지난번 폴더·내 드라이브·공유 문서함·공유 드라이브·모든 사진)
 //   - 학급 탭 사진 보기: 빈 칸의 '☁️ 드라이브에서' → 사진 하나 고르기 → 받아서 '학년도-학년-반-번호-이름' 이름으로 학급 폴더에 올라가고 칸에 보인다
 //   - 크게 보기의 '☁️ 드라이브에서 고르기'로 바꾸기
-//   - 명렬표 관리 '☁️ 드라이브에서 여러 장' → 여러 장 고르기 → 파일 이름으로 짝지어 올리기, 짝 없는 파일은 결과 띠에
+//   - 명렬표 관리 '사진 여러 장 업로드'의 '☁️ 구글 드라이브' → 여러 장 고르기 → 파일 이름으로 짝지어 올리기, 짝 없는 파일은 결과 띠에
 // 에뮬레이터에는 드라이브도 구글 선택창도 없어 둘 다 흉내 낸다(선택창은 window.__pickDocs를 고른 것으로 돌려준다).
 // 실제 선택창이 뜨는지·실제 드라이브 사진이 받아지는지는 실제 사이트에서 본다.
 // 올해 학급이 없으면 점검용 9-1을 심었다가 끝에 뺀다. 사진 보기 켬/끔도 끝에 끈다.
@@ -206,7 +206,9 @@ try {
   if ((await photoToggle.getAttribute('title')).includes('사진 칸을 내고')) await photoToggle.click();
   const many = roster.locator('[data-photo-drive-many]');
   await many.waitFor({ timeout: 10000 }).catch(() => {});
-  check('명렬표 관리에 \'☁️ 드라이브에서 여러 장\'', (await many.count()) === 1);
+  const group = roster.locator('[data-photo-bulk-group]');
+  check('명렬표 관리 \'사진 여러 장 업로드\' 묶음에 📁 기기 · ☁️ 구글 드라이브', (await many.count()) === 1
+    && (await group.innerText()).replace(/\s+/g, ' ').includes('사진 여러 장 업로드 📁 기기 ☁️ 구글 드라이브'), (await group.innerText()).replace(/\s+/g, ' '));
   await setPick([
     { id: 'drv-2', name: `${FOLDER}-${pad(S2.num)}-${S2.name}.jpg`, mimeType: 'image/jpeg' },
     { id: 'drv-3', name: `${FOLDER}-${pad(S3.num)}-${S3.name}.jpg`, mimeType: 'image/jpeg' },

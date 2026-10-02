@@ -1288,30 +1288,46 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                   }}
                   className="hidden"
                 />
-                <button
-                  onClick={() => bulkPhotoInputRef.current?.click()}
-                  disabled={!!photoState.bulk}
-                  className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold shadow-2xs transition-all flex items-center gap-1 cursor-pointer disabled:opacity-60"
+                {/* '사진 여러 장 업로드' 한 묶음에 어디서 고를지 두 단추 (2026-10-02 사용자 요청 - '사진 여러 장'과
+                    '드라이브에서 여러 장'이 나란히 있으면 기기에서 고르는지 드라이브에서 고르는지 잘 안 읽혔다).
+                    둘 다 고른 뒤는 같다: 파일 이름으로 학생을 짝지어 올린다. */}
+                <div
+                  data-photo-bulk-group
+                  className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-lg px-1.5 py-1"
                   title="사진 여러 장을 한꺼번에 고르면 파일 이름으로 학생을 짝지어 올립니다"
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                    <circle cx="12" cy="12.5" r="3.5" />
-                  </svg>
-                  {photoState.bulk
-                    ? `올리는 중 ${photoState.bulk.done}/${photoState.bulk.total}`
-                    : '사진 여러 장'}
-                </button>
-                <button
-                  type="button"
-                  data-photo-drive-many
-                  onClick={handleBulkFromDrive}
-                  disabled={!!photoState.bulk || !!driveFetching}
-                  className="px-2.5 py-1 bg-white hover:bg-amber-50 text-amber-700 border border-amber-300 rounded-lg text-xs font-bold shadow-2xs transition-all cursor-pointer disabled:opacity-60"
-                  title="구글 드라이브에 이미 있는 사진을 여러 장 골라, 파일 이름으로 학생을 짝지어 올립니다"
-                >
-                  {driveFetching ? `드라이브에서 받는 중 ${driveFetching.done}/${driveFetching.total}` : '☁️ 드라이브에서 여러 장'}
-                </button>
+                  <span className="flex items-center gap-1 text-xs font-bold text-amber-800 px-0.5">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                      <circle cx="12" cy="12.5" r="3.5" />
+                    </svg>
+                    {photoState.bulk
+                      ? `올리는 중 ${photoState.bulk.done}/${photoState.bulk.total}`
+                      : driveFetching
+                        ? `드라이브에서 받는 중 ${driveFetching.done}/${driveFetching.total}`
+                        : '사진 여러 장 업로드'}
+                  </span>
+                  <button
+                    type="button"
+                    data-photo-bulk-device
+                    onClick={() => bulkPhotoInputRef.current?.click()}
+                    disabled={!!photoState.bulk || !!driveFetching}
+                    className="px-2 py-0.5 bg-white text-amber-800 border border-amber-300 rounded text-xs font-bold hover:bg-amber-100 transition-colors shadow-2xs cursor-pointer disabled:opacity-60"
+                    title="이 기기(컴퓨터·휴대폰)에 있는 사진을 여러 장 골라 올립니다"
+                  >
+                    📁 기기
+                  </button>
+                  <button
+                    type="button"
+                    data-photo-drive-many
+                    onClick={handleBulkFromDrive}
+                    disabled={!!photoState.bulk || !!driveFetching}
+                    className="px-2 py-0.5 bg-white text-amber-800 border border-amber-300 rounded text-xs font-bold hover:bg-amber-100 transition-colors shadow-2xs cursor-pointer disabled:opacity-60"
+                    title="구글 드라이브에 이미 있는 사진을 여러 장 골라 올립니다"
+                  >
+                    ☁️ 구글 드라이브
+                  </button>
+                </div>
                 </>
                 )}
 
