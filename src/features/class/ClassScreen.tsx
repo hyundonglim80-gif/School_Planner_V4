@@ -16,10 +16,12 @@ import { getAcademicYear, formatDateStr } from '../../lib/dateUtils';
 import { readHubClass, rememberHubClass } from '../../lib/classMemory';
 import { runAppAction } from '../../lib/appActions';
 import type { ShortcutId } from '../../lib/shortcuts';
+import { useTeachingMode } from '../../hooks/useTeachingMode';
 
-const TOOLS: { id: ShortcutId; icon: string; label: string; desc: string }[] = [
-  { id: 'attendance', icon: '📋', label: '출석부', desc: '오늘 출결 체크 · 누계' },
-  { id: 'notices', icon: '📢', label: '알림장', desc: '모아 보기 · 쓰기' },
+// homeroom: 담임 도구 - 교과 전담(담임반 없음)은 숨긴다 (docs/ROADMAP-SUBJECT.md S3)
+const TOOLS: { id: ShortcutId; icon: string; label: string; desc: string; homeroom?: true }[] = [
+  { id: 'attendance', icon: '📋', label: '출석부', desc: '오늘 출결 체크 · 누계', homeroom: true },
+  { id: 'notices', icon: '📢', label: '알림장', desc: '모아 보기 · 쓰기', homeroom: true },
   { id: 'seating', icon: '🪑', label: '자리표', desc: '자리 · 학생 칸 · 모둠' },
   { id: 'drawStudent', icon: '🎯', label: '발표자 뽑기', desc: '겹치지 않게 차례로' },
   { id: 'studentRecord', icon: '🧑‍🎓', label: '학생 누가기록', desc: '학생마다 기록 · 출결 · 평가' },
@@ -29,6 +31,7 @@ const TOOLS: { id: ShortcutId; icon: string; label: string; desc: string }[] = [
 
 export default function ClassScreen() {
   const { rosterList, loading } = useRoster();
+  const { showHomeroomTools } = useTeachingMode();
   const [classKey, setClassKey] = useState<string | null>(null);
 
   // 처음 학급: 학급 화면에서 마지막에 고른 것 → 출석부·자리표에서 마지막에 연 것 → 올해 학년도의, 학생이 있는 첫 학급
@@ -61,7 +64,7 @@ export default function ClassScreen() {
   const today = formatDateStr(new Date());
   const [todayRecords, setTodayRecords] = useState<AttendanceRecord[] | null>(null);
   useEffect(() => {
-    if (!cls) return;
+    if (!cls || !showHomeroomTools) return;
     let alive = true;
     setTodayRecords(null);
     loadAttendanceDay({ classKey: classKeyOf(cls), year: Number(cls.year), grade: String(cls.grade), classNum: String(cls.classNum) }, today)
@@ -74,7 +77,7 @@ export default function ClassScreen() {
     return () => {
       alive = false;
     };
-  }, [cls, today]);
+  }, [cls, today, showHomeroomTools]);
 
   const choose = (key: string) => {
     setClassKey(key);
@@ -126,7 +129,8 @@ export default function ClassScreen() {
         <span className="text-xs text-slate-400">고른 학급으로 아래 도구가 열립니다.</span>
       </div>
 
-      {/* 오늘 출결 한 줄 */}
+      {/* 오늘 출결 한 줄 (교과 전담은 출석부를 숨긴다) */}
+      {showHomeroomTools && (
       <button
         type="button"
         data-class-today
@@ -150,10 +154,11 @@ export default function ClassScreen() {
         )}
         <span className="ml-auto text-xs font-bold text-primary">출석부 열기 →</span>
       </button>
+      )}
 
       {/* 도구 */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-        {TOOLS.map((t) => (
+        {TOOLS.filter((t) => showHomeroomTools || !t.homeroom).map((t) => (
           <button
             key={t.id}
             type="button"

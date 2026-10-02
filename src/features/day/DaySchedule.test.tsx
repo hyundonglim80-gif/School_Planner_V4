@@ -3,6 +3,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DaySchedule from './DaySchedule';
 import type { PeriodSchedule } from '../../hooks/useDayData';
+import { useAppStore } from '../../store/useAppStore';
+import { DEFAULT_TEACHING_MODE, presetPatch, type TeacherPreset } from '../../lib/teachingMode';
 
 const schedules: Record<number, PeriodSchedule> = {
   1: { subject: '국어', content: '받아쓰기', memo: '받아쓰기', supplies: '공책', linkedItems: [] },
@@ -119,5 +121,53 @@ describe('DaySchedule - 촘촘한 수업 칸 (docs/ROADMAP.md 2-1)', () => {
     expect(first.textContent).not.toMatch(/준비물/);
     expect(second.textContent).toMatch(/준비물.*돋보기/);
     expect(second.textContent).not.toMatch(/수업 메모/);
+  });
+});
+
+describe('DaySchedule - 교과 모드의 반 중심 수업 칸 (ROADMAP-SUBJECT S3)', () => {
+  const setPreset = (p: TeacherPreset) =>
+    useAppStore.getState().setTeachingModeState({ ...DEFAULT_TEACHING_MODE, ...presetPatch(p) }, true);
+  const classSchedules: Record<number, PeriodSchedule> = {
+    1: { subject: '5-1 과학', content: '', memo: '', supplies: '', linkedItems: [] },
+    2: { subject: '창체', content: '', memo: '', supplies: '', linkedItems: [] },
+  };
+  const renderWith = (s: Record<number, PeriodSchedule>) =>
+    render(
+      <DaySchedule schedules={s} onSavePeriod={vi.fn(async () => {})} onReorderPeriods={vi.fn(async () => {})} dateStr="2026-11-02" maxPeriods={2} />
+    );
+
+  it('교과 전담: 반을 크게, 과목은 따로, 막대는 반 색. 알림장·출석부 단추가 없다', () => {
+    setPreset('subject');
+    const { container } = renderWith(classSchedules);
+    expect(container.querySelector('[data-slot-class]')?.textContent).toBe('5-1');
+    expect(container.querySelector('[data-slot-subject]')?.textContent).toBe('과학');
+    const card = container.querySelector('[data-slot-color]')!;
+    // 명렬표가 없는 시험 환경이라 반 이름으로 고른 색 - 막대가 그 색이면 된다
+    expect(card.className).toContain(`border-l-${card.getAttribute('data-slot-color')}-500`);
+    expect(card.className).not.toContain('border-l-blue-400');
+    // 반이 없는 칸은 지금 모양 그대로
+    expect(screen.getByText('창체').hasAttribute('data-subject')).toBe(true);
+    expect(screen.queryByText('📢 알림장')).not.toBeInTheDocument();
+    expect(screen.queryByText('📋 출석부')).not.toBeInTheDocument();
+    setPreset('homeroom');
+  });
+
+  it('교과 + 담임: 반 중심 칸이고 알림장·출석부 단추가 있다', () => {
+    setPreset('subjectHomeroom');
+    const { container } = renderWith(classSchedules);
+    expect(container.querySelector('[data-slot-class]')?.textContent).toBe('5-1');
+    expect(screen.getByText('📢 알림장')).toBeInTheDocument();
+    expect(screen.getByText('📋 출석부')).toBeInTheDocument();
+    setPreset('homeroom');
+  });
+
+  it("초등 담임: '3-2 국어'도 적은 그대로 data-subject 한 칸, 교시 색 막대", () => {
+    setPreset('homeroom');
+    const { container } = renderWith({ 1: { subject: '3-2 국어', content: '', memo: '', supplies: '', linkedItems: [] } });
+    expect(container.querySelector('[data-slot-class]')).toBeNull();
+    const subject = screen.getByText('3-2 국어');
+    expect(subject.hasAttribute('data-subject')).toBe(true);
+    expect(subject.closest('[title="클릭하여 수정"]')!.className).toContain('border-l-blue-400');
+    expect(screen.getByText('📋 출석부')).toBeInTheDocument();
   });
 });

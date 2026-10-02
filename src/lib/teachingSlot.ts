@@ -96,3 +96,44 @@ export function rosterForSlot(rosters: ClassRoster[], text: string, schoolYear: 
   if (!cls) return null;
   return classesForYear(rosters, schoolYear).find((c) => c.label === cls)?.roster ?? null;
 }
+
+// ── 반 색 (S3) ──────────────────────────────────────────────────────────────
+// 교과 모드의 수업 칸은 반마다 색이 다르다. 환경설정 '교사 유형'에서 반마다 고르고(classColors),
+// 고르지 않은 반은 그 학년도 반 차례로 8색을 돌려쓴다. Tailwind 클래스만 돌려준다(hex X - 다크 모드는 dark.css가 바꾼다).
+// 클래스 이름은 통째로 적어 둔다 - 문자열을 이어 붙이면 Tailwind가 만들지 않는다.
+
+export interface ClassColorClasses {
+  /** 색 이름 'sky' */
+  name: string;
+  /** 카드 왼쪽 막대 */
+  bar: string;
+  /** 반 칩 (배경+글자) */
+  chip: string;
+  /** 색 고르기 점 */
+  dot: string;
+}
+
+export const CLASS_COLORS: ClassColorClasses[] = [
+  { name: 'sky', bar: 'border-l-sky-500', chip: 'bg-sky-100 text-sky-800', dot: 'bg-sky-500' },
+  { name: 'emerald', bar: 'border-l-emerald-500', chip: 'bg-emerald-100 text-emerald-800', dot: 'bg-emerald-500' },
+  { name: 'amber', bar: 'border-l-amber-500', chip: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500' },
+  { name: 'rose', bar: 'border-l-rose-500', chip: 'bg-rose-100 text-rose-800', dot: 'bg-rose-500' },
+  { name: 'violet', bar: 'border-l-violet-500', chip: 'bg-violet-100 text-violet-800', dot: 'bg-violet-500' },
+  { name: 'teal', bar: 'border-l-teal-500', chip: 'bg-teal-100 text-teal-800', dot: 'bg-teal-500' },
+  { name: 'orange', bar: 'border-l-orange-500', chip: 'bg-orange-100 text-orange-800', dot: 'bg-orange-500' },
+  { name: 'indigo', bar: 'border-l-indigo-500', chip: 'bg-indigo-100 text-indigo-800', dot: 'bg-indigo-500' },
+];
+
+/**
+ * 반 '5-2'의 색. 정한 색(classColors) → 그 학년도 반 차례(allLabels)로 돌려쓰기 →
+ * 명렬표에 없는 반은 반 이름으로 고른 색(늘 같은 색). 모르는 색 이름은 정하지 않은 것으로 본다.
+ */
+export function classColor(label: string, classColors: Record<string, string>, allLabels: string[]): ClassColorClasses {
+  const picked = CLASS_COLORS.find((c) => c.name === classColors[label]);
+  if (picked) return picked;
+  const i = allLabels.indexOf(label);
+  if (i >= 0) return CLASS_COLORS[i % CLASS_COLORS.length];
+  let h = 0;
+  for (const ch of label) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return CLASS_COLORS[h % CLASS_COLORS.length];
+}

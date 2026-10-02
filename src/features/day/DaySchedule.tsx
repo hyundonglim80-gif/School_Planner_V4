@@ -16,7 +16,8 @@ import ProgressMarkLine from '../../components/ProgressMarkLine';
 import { useProgressMarks } from '../../hooks/useProgress';
 import { slotId } from '../../lib/progress';
 import { useTeachingMode } from '../../hooks/useTeachingMode';
-import { normalizeSlotText } from '../../lib/teachingSlot';
+import { normalizeSlotText, parseSlot } from '../../lib/teachingSlot';
+import { useClassColorOf } from '../../hooks/useClassColor';
 import SlotOptionsList from '../../components/SlotOptionsList';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
 
@@ -70,8 +71,10 @@ export default function DaySchedule({
   // 어느 교시에 조사표를 만들어 두었는지 교시 옆에 숫자로 보여 준다
   const evalCounts = useDayEvalCounts(dateStr || '', selectedGroupId);
   // 교과 모드: 과목 칸에 '5-2 과학' 제안, 저장할 때 한 모양으로 (lib/teachingSlot). 초등 담임은 적은 그대로.
-  const { isClassUnit } = useTeachingMode();
+  // 교과 전담(담임반 없음)은 알림장·출석부 단추를 숨긴다. 교과 모드의 카드는 반을 크게, 반 색 막대 (S3).
+  const { isClassUnit, showHomeroomTools } = useTeachingMode();
   const subjectToSave = (text: string) => (isClassUnit ? normalizeSlotText(text) : text.trim());
+  const classColorOf = useClassColorOf(dateStr);
 
   const startEdit = (period: number) => {
     const current = schedules[period] || { subject: '', content: '' };
@@ -174,7 +177,9 @@ export default function DaySchedule({
           </button>
           <span className="text-xl">⏰</span>
           <h3 className="text-base font-extrabold text-slate-800">수업</h3>
-          {/* 알림장·출석부는 수업과 함께 매일 쓰는 것이라 수업 제목 바로 옆에 둔다 */}
+          {/* 알림장·출석부는 수업과 함께 매일 쓰는 것이라 수업 제목 바로 옆에 둔다 (교과 전담은 숨긴다) */}
+          {showHomeroomTools && (
+          <>
           <button
             type="button"
             onClick={openNotice}
@@ -191,6 +196,8 @@ export default function DaySchedule({
           >
             📋 출석부
           </button>
+          </>
+          )}
         </div>
 
         {!isCollapsed && (
@@ -329,6 +336,9 @@ export default function DaySchedule({
           const isNow = nowState?.kind === 'during' && nowState.period === period;
           const isNext = (nowState?.kind === 'break' || nowState?.kind === 'before') && nowState.next === period;
           const range = periodRangeLabel(periodTimes, period);
+          // 교과 모드에서 칸 글자에 반이 있으면('5-2 과학') 반을 크게, 막대는 반 색. 반이 없는 칸('창체')은 그대로.
+          const slot = isClassUnit && item.subject ? parseSlot(item.subject) : null;
+          const slotColor = slot?.cls ? classColorOf(slot.cls) : null;
           return (
             <div
               key={period}
@@ -337,8 +347,9 @@ export default function DaySchedule({
               title="클릭하여 수정"
               // 과목이 눈에 띄게 (2026-09-30 사용자 요청): 과목이 있는 교시는 왼쪽에 교시 색 막대
               data-now={isNow ? 'true' : isNext ? 'next' : undefined}
+              data-slot-color={slotColor?.name}
               className={`group ${hasDetails ? 'p-3.5' : 'px-3.5 py-2'} rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[40px] hover:border-primary/50 hover:bg-slate-50/50 cursor-pointer ${
-                item.subject ? `border-l-4 ${accentClass}` : ''
+                item.subject ? `border-l-4 ${slotColor ? slotColor.bar : accentClass}` : ''
               } ${isNow ? 'ring-2 ring-primary/60 bg-blue-50/40' : isNext ? 'ring-1 ring-primary/30' : ''}`}
             >
               <div className="flex gap-3 h-full items-stretch">
@@ -369,14 +380,27 @@ export default function DaySchedule({
                         {period}교시
                       </span>
                       {range && <span className="shrink-0 text-2xs font-semibold text-slate-400 tabular-nums">{range}</span>}
-                      <span
-                        data-subject
-                        className={`truncate leading-tight ${
-                          item.subject ? 'font-black text-base sm:text-lg text-slate-900' : 'text-sm'
-                        }`}
-                      >
-                        {item.subject || <span className="text-slate-300 font-normal">과목 미등록</span>}
-                      </span>
+                      {slot?.cls ? (
+                        <span data-subject className="flex items-baseline gap-1.5 min-w-0 leading-tight">
+                          <span data-slot-class className="shrink-0 font-black text-base sm:text-lg text-slate-900 tabular-nums">
+                            {slot.cls}
+                          </span>
+                          {slot.subject && (
+                            <span data-slot-subject className="truncate text-xs sm:text-sm font-bold text-slate-500">
+                              {slot.subject}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span
+                          data-subject
+                          className={`truncate leading-tight ${
+                            item.subject ? 'font-black text-base sm:text-lg text-slate-900' : 'text-sm'
+                          }`}
+                        >
+                          {item.subject || <span className="text-slate-300 font-normal">과목 미등록</span>}
+                        </span>
+                      )}
                       {isNow && nowState?.kind === 'during' && (
                         <span className="shrink-0 text-2xs font-black text-white bg-primary rounded-full px-1.5 py-0.5">
                           지금 · {nowState.minutesLeft}분 남음

@@ -68,9 +68,11 @@ import { showToast, showErrorToast } from '../utils/toast';
 import { useSearchFocusRunner } from '../lib/searchFocus';
 import { APP_ACTION_EVENT, type AppActionDetail } from '../lib/appActions';
 import { isDarkMode, toggleThemeMode, THEME_CHANGED_EVENT } from '../lib/theme';
+import { useTeachingMode } from '../hooks/useTeachingMode';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user } = useAuth();
+  const { showHomeroomTools } = useTeachingMode();
   const {
     scope,
     setScope,
@@ -372,7 +374,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
   // ⋮ 메뉴 구역. 기능이 15개를 넘어 한 줄로 늘어서 있으니 찾기 어려워 구역 제목을 붙였다(로드맵 6-3).
   // 항목을 더할 때는 알맞은 구역에 넣는다. 명령 창(Ctrl+K)과 단축키 목록에도 같은 기능이 있어야 한다.
-  type MoreMenuItem = { icon: string; label: string; shortcut?: ShortcutId; tone?: 'install'; onClick: () => void };
+  // homeroom: 담임 도구 - 교과 전담(담임반 없음)에서는 메뉴에서 숨긴다. 단축키·명령 창으로는 그대로 연다(자료가 남아 있으니, S3).
+  type MoreMenuItem = { icon: string; label: string; shortcut?: ShortcutId; tone?: 'install'; homeroom?: true; onClick: () => void };
   const moreMenuSections: Array<{ title: string; items: MoreMenuItem[] }> = [
     {
       title: '일정 · 라벨',
@@ -390,7 +393,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       items: [
         { icon: '⏰', label: '시간표 적용 (주간 템플릿)', shortcut: 'timetable', onClick: () => setIsTimetableModalOpen(true) },
         { icon: '📘', label: '진도 관리', shortcut: 'progress', onClick: () => setProgressModalOpen(true) },
-        { icon: '📰', label: '주간학습안내', shortcut: 'weeklyGuide', onClick: () => useAppStore.getState().openWeeklyGuide() },
+        { icon: '📰', label: '주간학습안내', shortcut: 'weeklyGuide', homeroom: true, onClick: () => useAppStore.getState().openWeeklyGuide() },
       ],
     },
     {
@@ -398,8 +401,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       title: '학급 운영',
       items: [
         { icon: '🧑‍🤝‍🧑', label: '학급 정보(명렬표) 관리', shortcut: 'roster', onClick: () => setIsRosterModalOpen(true) },
-        { icon: '📋', label: '출석부', shortcut: 'attendance', onClick: () => openClassroomPanel('attendance') },
-        { icon: '📢', label: '알림장 모아 보기', shortcut: 'notices', onClick: () => openClassroomPanel('notice', 'list') },
+        { icon: '📋', label: '출석부', shortcut: 'attendance', homeroom: true, onClick: () => openClassroomPanel('attendance') },
+        { icon: '📢', label: '알림장 모아 보기', shortcut: 'notices', homeroom: true, onClick: () => openClassroomPanel('notice', 'list') },
         { icon: '🧑‍🎓', label: '학생 누가기록', shortcut: 'studentRecord', onClick: () => setIsStudentRecordOpen(true) },
         { icon: '🪑', label: '자리표', shortcut: 'seating', onClick: () => setIsSeatingOpen(true) },
         { icon: '🎯', label: '발표자 뽑기', shortcut: 'drawStudent', onClick: openStudentDraw },
@@ -832,7 +835,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       <div className="px-4 pt-1.5 pb-0.5 text-2xs font-black text-slate-500 tracking-wide select-none">
                         {section.title}
                       </div>
-                      {section.items.map((item) => (
+                      {section.items.filter((item) => showHomeroomTools || !item.homeroom).map((item) => (
                         <button
                           key={item.icon}
                           onClick={() => {

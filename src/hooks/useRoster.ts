@@ -18,13 +18,14 @@ export interface ClassRoster {
   students: Student[];
 }
 
-export function useRoster() {
+/** enabled=false면 구독하지 않는다 (교과 모드에서만 명렬표가 필요한 화면 - 초등 담임은 읽기가 늘지 않게) */
+export function useRoster(enabled = true) {
   const [rosterList, setRosterList] = useState<ClassRoster[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const user = auth.currentUser;
-    if (!user) {
+    if (!user || !enabled) {
       setRosterList([]);
       setLoading(false);
       return;
@@ -82,7 +83,7 @@ export function useRoster() {
     });
 
     return () => unsubscribe();
-  }, [auth.currentUser?.uid]);
+  }, [auth.currentUser?.uid, enabled]);
 
   const saveRosterList = useCallback(async (newList: ClassRoster[]) => {
     const user = auth.currentUser;

@@ -32,6 +32,9 @@ import LastYearDay from './LastYearDay';
 import type { LastYearDay as LastYearDayData } from '../../hooks/useLastYearWeek';
 import type { ImportPick } from '../../lib/lastYearImport';
 import { useState } from 'react';
+import { useTeachingMode } from '../../hooks/useTeachingMode';
+import { useClassColorOf } from '../../hooks/useClassColor';
+import { parseSlot } from '../../lib/teachingSlot';
 
 // Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
 // 편집기가 첫 화면 묶음에 함께 실려 온다. 그래서 여기서도 필요할 때 불러온다.
@@ -104,6 +107,9 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
   const nowPeriod = nowState?.kind === 'during' ? nowState.period : null;
   // 진도 관리 - 교시 칸 오른쪽에 '5/12' (밀기·되돌리기는 교시를 눌러 여는 'N교시 수정'에서, docs/ROADMAP.md 5-3)
   const { marks: progressMarks } = useProgressMarks(days[days.length - 1]?.dateStr || '');
+  // 교과 모드: 칸 글자의 반('5-2 과학')을 반 색 칩으로 굵게, 과목은 작게 (docs/ROADMAP-SUBJECT.md S3)
+  const { isClassUnit } = useTeachingMode();
+  const classColorOf = useClassColorOf(days[0]?.dateStr);
 
   const [detailModal, setDetailModal] = useState<{
     isOpen: boolean;
@@ -241,6 +247,7 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                       : '';
                     const linkCount = (item?.linkedItems || []).length;
                     const mark = progressMarks[slotId(day.dateStr, p)];
+                    const slot = isClassUnit && item?.subject?.trim() ? parseSlot(item.subject) : null;
                     return (
                       <div
                         key={p}
@@ -263,9 +270,21 @@ export default function WeekGrid({ days, dataMap, onSelectDate, onQuickAdd, onTo
                         } ${day.isToday && nowPeriod === p ? 'ring-2 ring-primary/60 bg-blue-50' : ''}`}
                       >
                         <span className={`font-bold text-xs shrink-0 ${filled ? 'text-primary' : 'text-slate-300'}`}>{p}교시</span>
-                        <span className={`truncate text-xs flex-1 ${filled ? 'font-semibold text-slate-800' : 'text-slate-300'}`}>
-                          {filled ? periodText : '-'}
-                        </span>
+                        {slot?.cls ? (
+                          <span className="flex-1 min-w-0 flex items-center gap-1">
+                            <span
+                              data-slot-class
+                              className={`shrink-0 px-1 rounded font-black text-xs tabular-nums ${classColorOf(slot.cls).chip}`}
+                            >
+                              {slot.cls}
+                            </span>
+                            {slot.subject && <span className="truncate text-2xs font-semibold text-slate-600">{slot.subject}</span>}
+                          </span>
+                        ) : (
+                          <span className={`truncate text-xs flex-1 ${filled ? 'font-semibold text-slate-800' : 'text-slate-300'}`}>
+                            {filled ? periodText : '-'}
+                          </span>
+                        )}
                         {mark && (
                           <span
                             data-progress-mark

@@ -2,7 +2,7 @@
 //
 // 환경설정 '교사 유형' 칸 (docs/ROADMAP-SUBJECT.md S1). 셋 중 하나를 고르면 곧바로 계정에 저장한다.
 // 교과 전담·교과+담임이면 가르치는 과목, 초등 담임·교과+담임이면 담임반을 고른다.
-// 고르는 것만으로는 아직 화면이 바뀌지 않는다 (반 중심 수업 칸은 S3부터).
+// 교과 모드면 반마다 색을 고른다 (S3 - 하루·주간 수업 칸의 반 색. 고르지 않으면 반 차례 색).
 import { useState } from 'react';
 import { auth } from '../lib/firebase';
 import {
@@ -18,6 +18,7 @@ import { schoolYearOf } from '../lib/schoolSetting';
 import { formatDateStr } from '../lib/dateUtils';
 import { useTeachingMode } from '../hooks/useTeachingMode';
 import { useRoster } from '../hooks/useRoster';
+import { CLASS_COLORS, classColor, classesForYear } from '../lib/teachingSlot';
 import { showToast, showErrorToast } from '../utils/toast';
 
 const chip = (on: boolean) =>
@@ -35,6 +36,7 @@ export default function TeachingModePanel() {
 
   const schoolYear = schoolYearOf(formatDateStr(new Date()));
   const classOptions = homeroomClassOptions(rosterList, schoolYear);
+  const classLabels = classesForYear(rosterList, schoolYear).map((c) => c.label);
 
   const choosePreset = async (p: TeacherPreset) => {
     if (!uid) return;
@@ -77,6 +79,16 @@ export default function TeachingModePanel() {
     try {
       await saveTeachingMode(uid, { homeroomClass: cls });
       showToast(cls ? `🏠 담임반을 ${cls}(으)로 저장했습니다.` : '🏠 담임반을 비웠습니다.');
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  /** 반 하나의 색만 덧쓴다 (setDoc merge가 classColors 안의 다른 반을 남긴다) */
+  const chooseColor = async (cls: string, name: string) => {
+    if (!uid) return;
+    try {
+      await saveTeachingMode(uid, { classColors: { [cls]: name } });
     } catch (e) {
       fail(e);
     }
@@ -148,6 +160,36 @@ export default function TeachingModePanel() {
             />
           </div>
           <p className="text-xs text-slate-400">쉼표나 Enter로 더합니다. 시간표 칸을 채울 때 먼저 보여 줍니다.</p>
+        </div>
+      )}
+
+      {loaded && preset !== 'homeroom' && classLabels.length > 0 && (
+        <div className="space-y-1.5" data-teaching-colors>
+          <span className="text-xs font-bold text-slate-600">반 색 (하루·주간 수업 칸)</span>
+          <div className="flex flex-col gap-1">
+            {classLabels.map((cls) => {
+              const current = classColor(cls, mode.classColors, classLabels).name;
+              return (
+                <div key={cls} className="flex items-center gap-2" data-class-color-row={cls}>
+                  <span className="w-10 text-xs font-black text-slate-700 tabular-nums">{cls}</span>
+                  <div className="flex items-center gap-1">
+                    {CLASS_COLORS.map((c) => (
+                      <button
+                        key={c.name}
+                        type="button"
+                        data-class-color={c.name}
+                        aria-pressed={current === c.name}
+                        aria-label={`${cls} ${c.name}`}
+                        onClick={() => void chooseColor(cls, c.name)}
+                        className={`w-4 h-4 rounded-full ${c.dot} ${current === c.name ? 'ring-2 ring-offset-1 ring-slate-500' : 'opacity-60 hover:opacity-100'}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs text-slate-400">고르지 않은 반은 반 차례대로 색이 정해집니다.</p>
         </div>
       )}
 

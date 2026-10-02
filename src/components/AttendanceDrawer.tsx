@@ -33,6 +33,8 @@ import { SOURCE_CHANGED_EVENT, type SourceChangedDetail } from '../lib/autoJourn
 import { shortDateLabel } from '../lib/notices';
 import { showToast, showErrorToast } from '../utils/toast';
 import { printNode } from '../lib/print';
+import { useTeachingMode } from '../hooks/useTeachingMode';
+import { rosterForSlot } from '../lib/teachingSlot';
 
 type Tab = 'check' | 'summary';
 type SummaryRange = 'year' | 'sem1' | 'sem2' | 'month';
@@ -64,6 +66,8 @@ export default function AttendanceDrawer({
   unsavedRef,
 }: AttendanceDrawerProps) {
   const { rosterList, loading: rosterLoading } = useRoster();
+  // 교과 + 담임: 넘겨받은 학급이 없으면 담임반으로 연다 (마지막에 연 학급이 수업하는 다른 반이어도, S3)
+  const { mode: teachingMode, preset: teacherPreset } = useTeachingMode();
   const { templates, currentTemplateName, semesterConfig } = useTimetableTemplate();
   const maxPeriods = templates[currentTemplateName]?.names.length || 6;
   const panelRef = useRef<HTMLElement>(null);
@@ -72,7 +76,7 @@ export default function AttendanceDrawer({
   const [date, setDate] = useState(initialDate);
   const [classKey, setClassKey] = useState<string | null>(null);
 
-  // 학급 고르기: 넘겨받은 학급 → 마지막에 연 학급 → 그 날짜 학년도의, 학생이 있는 첫 학급 → 첫 학급
+  // 학급 고르기: 넘겨받은 학급 → (교과 + 담임) 담임반 → 마지막에 연 학급 → 그 날짜 학년도의, 학생이 있는 첫 학급 → 첫 학급
   useEffect(() => {
     if (rosterLoading || classKey || rosterList.length === 0) return;
     let remembered: string | null = null;
@@ -86,12 +90,15 @@ export default function AttendanceDrawer({
     const withStudents = rosterList.filter((c) => (c.students || []).length > 0);
     const pick =
       (initialClassKey && rosterList.find((c) => classKeyOf(c) === initialClassKey)) ||
+      (teacherPreset === 'subjectHomeroom' && teachingMode.homeroomClass
+        ? rosterForSlot(rosterList, teachingMode.homeroomClass, ay)
+        : null) ||
       rosterList.find((c) => classKeyOf(c) === remembered) ||
       withStudents.find((c) => Number(c.year) === ay) ||
       withStudents[0] ||
       rosterList[0];
     setClassKey(classKeyOf(pick));
-  }, [rosterLoading, rosterList, classKey, initialDate]);
+  }, [rosterLoading, rosterList, classKey, initialDate, teacherPreset, teachingMode.homeroomClass]);
 
   const cls = rosterList.find((c) => classKeyOf(c) === classKey) || null;
   const info: ClassInfo | null = cls

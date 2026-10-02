@@ -381,6 +381,15 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   진짜 앱(WebAPK)이 아닌 바로가기로 깔아 공유 목록에 안 나올 수 있다. 이미 깔린 앱은 크롬이 바뀐 매니페스트를 하루쯤 뒤에야 받아 오므로
   **매니페스트를 바꾼 기능은 '지우고 크롬에서 다시 설치'를 함께 안내한다**(2026-10-02 공유 목록에 안 나오다 다시 설치하니 보였다).
   매니페스트 점검은 크롬 CDP `Page.getAppManifest`(오류·share_target·아이콘을 그대로 보여 준다).
+- **교과 전담 모드**(ROADMAP 18, 계획 `docs/ROADMAP-SUBJECT.md`): 모드는 `useTeachingMode()` 하나로만 읽는다 - 새 동작은
+  `isClassUnit`(unit 'class')일 때만, 담임 도구 숨기기는 `showHomeroomTools`(교과 전담만 false). 반은 칸 글자 `5-2 과학`에서
+  `parseSlot`으로 읽는다. **S3 반 중심 칸**: 하루 카드(`DaySchedule`)는 반이 있는 칸만 `data-slot-class`(크게)·`data-slot-subject`(작게)와
+  반 색 막대(`data-slot-color`), 반이 없는 칸·초등 담임은 예전 `data-subject` 한 칸. 주간(`WeekGrid`)은 반 색 칩. 색은
+  `teachingSlot.classColor`(정한 색 `classColors` → 그 학년도 반 차례 8색 → 반 이름 해시) - Tailwind 클래스를 `CLASS_COLORS`에 통째로 적어 둔다.
+  `hooks/useClassColor`가 명렬표를 **교과 모드일 때만** 구독한다(`useRoster(enabled)`). 숨기는 담임 도구: 하루 수업 머리줄 알림장·출석부,
+  ⋮ 메뉴 항목의 `homeroom: true`(주간학습안내·출석부·알림장 모아 보기), 학급 탭 `TOOLS`의 `homeroom`·오늘 출결 줄. 단축키·명령 창은 그대로.
+  교과 + 담임의 출석부는 `AttendanceDrawer`가 넘겨받은 학급이 없을 때 담임반(`rosterForSlot(homeroomClass)`)을 먼저 고른다.
+  반 색 고르기는 환경설정 `TeachingModePanel`(`classColors: {반: 색}` merge).
 - **계정**: V3와 V4는 앱 이름이 달라 한 브라우저에서 다른 계정으로 들어가 있을 수 있다(`lib/peerAccount`).
   "자료가 통째로 없다"는 신고는 먼저 계정·공간을 의심한다.
 - **설정 동기화**: `lib/preferenceSync`의 `SYNCED_PREFERENCE_KEYS`만 계정에 올린다. 지금 보는 화면·날짜는 올리지 않는다.
@@ -419,6 +428,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번 |
 | `tools/inspect-*.mjs` 나머지 | 지난 신고를 재현하던 것들(이월·뒤로가기·기록 삭제 뒤 빈 화면·V3/V4 한 출처 등) |
+| `tools/inspect-subject-view.mjs` | 반 중심 수업 칸(14) - teacher3 하루 2026-11-02 큰 반·작은 과목·반 색 막대, 알림장·출석부·⋮·학급 탭 숨김, 주간 반 칩, 환경설정 반 색 → 서버·카드, 교과 + 담임(5-3)이면 다시 보이고 출석부가 담임반으로. 교사 유형 문서를 끝에 되돌린다 |
 | `tools/seed.mjs` | 에뮬레이터에 한 학년도치 자료. 교과 전담 계정 `teacher3`(`?as=3`): 5-1~5-4 명렬표, 2026-11-02~27 `5-2 과학` 수업. 모든 계정에 `v4_teaching` |
 | `tools/check-rules.mjs` | 보안 규칙 |
 

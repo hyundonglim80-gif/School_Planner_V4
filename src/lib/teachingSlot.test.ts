@@ -7,6 +7,8 @@ import {
   classesForYear,
   slotSuggestions,
   rosterForSlot,
+  classColor,
+  CLASS_COLORS,
 } from './teachingSlot';
 import type { ClassRoster } from '../hooks/useRoster';
 
@@ -119,5 +121,39 @@ describe('rosterForSlot', () => {
     expect(rosterForSlot(list, '과학', 2026)).toBeNull();
     expect(rosterForSlot(list, '5-4 과학', 2026)).toBeNull();
     expect(rosterForSlot(list, '5-3 과학', 2026)).toBeNull();
+  });
+});
+
+describe('classColor (S3)', () => {
+  const labels = ['5-1', '5-2', '5-3', '5-4', '5-5', '5-6', '5-7', '5-8', '5-9'];
+
+  it('정한 색이 없으면 반 차례로 8색을 돌려쓴다', () => {
+    expect(classColor('5-1', {}, labels).name).toBe('sky');
+    expect(classColor('5-2', {}, labels).name).toBe('emerald');
+    expect(classColor('5-8', {}, labels).name).toBe('indigo');
+    expect(classColor('5-9', {}, labels).name).toBe('sky');
+  });
+
+  it('정한 색이 차례 색보다 앞선다', () => {
+    expect(classColor('5-1', { '5-1': 'rose' }, labels).name).toBe('rose');
+    expect(classColor('5-2', { '5-1': 'rose' }, labels).name).toBe('emerald');
+  });
+
+  it('모르는 색 이름은 정하지 않은 것으로 본다', () => {
+    expect(classColor('5-2', { '5-2': '#ff0000' }, labels).name).toBe('emerald');
+  });
+
+  it('명렬표에 없는 반도 늘 같은 색', () => {
+    const a = classColor('6-3', {}, labels);
+    expect(CLASS_COLORS).toContain(a);
+    expect(classColor('6-3', {}, labels)).toBe(a);
+  });
+
+  it('클래스는 통째로 적혀 있다 (Tailwind가 만들게)', () => {
+    for (const c of CLASS_COLORS) {
+      expect(c.bar).toBe(`border-l-${c.name}-500`);
+      expect(c.chip).toBe(`bg-${c.name}-100 text-${c.name}-800`);
+      expect(c.dot).toBe(`bg-${c.name}-500`);
+    }
   });
 });
