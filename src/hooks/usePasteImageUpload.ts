@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
 import type React from 'react';
 import { auth } from '../lib/firebase';
-import { uploadToDrive, driveUrlToStore } from '../lib/driveApi';
+import { uploadToDrive, driveUrlToStore, uploadFailReason } from '../lib/driveApi';
 
 export interface PastedImage {
   name: string;
@@ -81,11 +81,13 @@ export function usePasteImageUpload(onUploaded: (images: PastedImage[]) => void)
     } catch (err) {
       console.error('붙여넣은 이미지 업로드 실패:', err);
       // 앞서 올라간 그림은 붙여 둔다 (버리면 드라이브에만 남는다)
+      const reason = uploadFailReason(err);
+      const why = reason ? `\n${reason}` : '';
       if (uploaded.length > 0) {
         onUploadedRef.current(uploaded);
-        showErrorToast(`그림 ${files.length}개 중 ${uploaded.length}개만 올렸습니다. 나머지를 다시 붙여 주세요.`);
+        showErrorToast(`그림 ${files.length}개 중 ${uploaded.length}개만 올렸습니다. 나머지를 다시 붙여 주세요.${why}`);
       } else {
-        showErrorToast('이미지 업로드에 실패했습니다.');
+        showErrorToast(`이미지 업로드에 실패했습니다.${why}`);
       }
     } finally {
       setPasting(false);

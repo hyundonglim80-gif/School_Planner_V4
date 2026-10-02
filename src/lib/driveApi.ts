@@ -13,7 +13,7 @@
 //    오기도 한다). 화면에 펼쳐 보여줄 때는 thumbnail 주소를 쓴다. 이쪽은 공식
 //    문서에 있는 경로는 아니라서, 구글이 바꾸면 깨질 수 있다. 그때는 이미지만
 //    다시 Storage로 되돌리면 된다(드라이브에 원본이 남아 있으므로 되돌릴 수 있다).
-import { getValidGoogleToken } from './googleApi';
+import { getValidGoogleToken, forgetGoogleToken } from './googleApi';
 
 export const DRIVE_FOLDER_NAME = 'School_Planner';
 
@@ -46,13 +46,36 @@ export function isStorageUrl(url: string | undefined | null): boolean {
   return !!url && /firebasestorage\.googleapis\.com|\.firebasestorage\.app/.test(url);
 }
 
+/**
+ * 올리기 실패를 사용자에게 알릴 때 붙일 까닭. 예전엔 무엇이든 '파일 업로드에 실패했습니다'로만 떠서
+ * 로그인이 만료된 것인지 알 수 없었다. 우리가 만든 안내(한글)만 붙이고, 알 수 없는 것은 비운다.
+ */
+export function uploadFailReason(e: unknown): string {
+  if (e instanceof TypeError) return '인터넷 연결을 확인해 주세요.';
+  const m = e instanceof Error ? e.message : '';
+  return /[가-힣]/.test(m) ? m.slice(0, 120) : '';
+}
+
+/** 드라이브가 토큰을 받지 않았다 (만료·취소·권한 모자람). 토큰을 새로 받아 다시 하면 된다. */
+export class DriveAuthError extends Error {
+  constructor(status: number) {
+    super(`구글 드라이브가 로그인을 받지 않았습니다 (${status}).`);
+    this.name = 'DriveAuthError';
+  }
+}
+
 async function driveFetch(url: string, token: string, init?: RequestInit) {
   const res = await fetch(url, {
     ...init,
     headers: { Authorization: `Bearer ${token}`, ...(init?.headers || {}) },
   });
   if (!res.ok) {
+    if (res.status === 401) throw new DriveAuthError(401);
     if (res.status === 403) {
+      const body = await res.text().catch(() => '');
+      // 로그인할 때 드라이브 권한 칸을 빼고 허용한 토큰 - 다시 로그인하면서 허용하면 된다
+      if (/insufficient/i.test(body)) throw new DriveAuthError(403);
+      if (/storageQuotaExceeded/i.test(body)) throw new Error('구글 드라이브 저장 공간이 가득 찼습니다.');
       throw new Error(
         '구글 드라이브 접근 권한이 없습니다. 로그아웃 후 다시 로그인하실 때 ' +
           '드라이브 권한을 허용해 주세요.'
@@ -100,8 +123,23 @@ export async function getOrCreateFolder(token: string): Promise<string> {
  * 넣어 둔 주소로 이미지가 보이고, 공유 그룹의 다른 선생님도 열 수 있다.
  */
 export async function uploadToDrive(file: File | Blob, name: string): Promise<DriveFile> {
+  try {
+    return await uploadOnce(file, name, await driveToken());
+  } catch (e) {
+    // 토큰이 겉보기엔 살아 있었는데 드라이브가 거절했다 - 잊고 다시 받아(로그인 창을 묻고) 한 번 더
+    if (!(e instanceof DriveAuthError)) throw e;
+    forgetGoogleToken();
+    return uploadOnce(file, name, await driveToken());
+  }
+}
+
+async function driveToken(): Promise<string> {
   const token = await getValidGoogleToken();
   if (!token) throw new Error('구글 계정 연결이 필요합니다.');
+  return token;
+}
+
+async function uploadOnce(file: File | Blob, name: string, token: string): Promise<DriveFile> {
   const folderId = await getOrCreateFolder(token);
 
   const metadata = {
@@ -123,6 +161,7 @@ export async function uploadToDrive(file: File | Blob, name: string): Promise<Dr
   if (!uploadUrl) throw new Error('업로드 주소를 받지 못했습니다.');
 
   const uploadRes = await fetch(uploadUrl, { method: 'PUT', body: file });
+  if (uploadRes.status === 401) throw new DriveAuthError(401);
   if (!uploadRes.ok) throw new Error(`구글 드라이브 업로드 실패 ${uploadRes.status}`);
   const fileData = await uploadRes.json();
 

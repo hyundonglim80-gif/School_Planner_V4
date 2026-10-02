@@ -25,6 +25,7 @@ import {
   type ExistingMemo,
 } from '../lib/keepImport';
 import { uploadToDrive, driveUrlToStore } from '../lib/driveApi';
+import { GoogleAuthError } from '../lib/googleApi';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 
 interface MemoDraft {
@@ -234,6 +235,8 @@ export default function KeepImportModal({
     let skippedSame = 0;
     let uploaded = 0;
     let failedUpload = 0;
+    // 구글 로그인을 묻는 창을 닫았으면 남은 파일마다 또 묻지 않는다 (이름만 남긴다)
+    let loginRefused = false;
     let labelsAdded = 0;
     // 같은 파일을 두 메모가 함께 달고 있을 수 있다. 한 번만 올린다.
     const cache = new Map<string, { name: string; url: string; type?: string; size?: number }>();
@@ -265,6 +268,11 @@ export default function KeepImportModal({
             attachments.push(already);
             continue;
           }
+          if (loginRefused) {
+            failedUpload += 1;
+            missing.push(raw);
+            continue;
+          }
           try {
             setStep(`사진·파일 올리는 중... ${file.name}`);
             const drive = await uploadToDrive(file, file.name);
@@ -280,6 +288,7 @@ export default function KeepImportModal({
           } catch (err) {
             // 올리기가 막혀도 메모는 들어가야 한다. 어떤 파일이었는지는 글로 남긴다.
             console.error('Keep 첨부 올리기 실패:', err);
+            if (err instanceof GoogleAuthError) loginRefused = true;
             failedUpload += 1;
             missing.push(raw);
           }

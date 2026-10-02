@@ -440,6 +440,10 @@ if (ONLY !== 'mobile') {
     }
     await wait(2500);
     const uploading = await page.getByText(/붙여넣은 이미지 업로드 중|업로드에 실패|드라이브|권한|로그인/).count();
+    // 에뮬레이터에는 구글 토큰이 없어 '구글 로그인이 필요합니다' 창이 뜬다 - 취소로 닫고 기록 칸을 닫는다
+    const prompt = page.locator('[role=dialog]', { has: page.locator('[data-google-login-prompt]') });
+    if (await prompt.count()) await prompt.getByRole('button', { name: '취소', exact: true }).click();
+    await wait(300);
     await page.getByTitle('닫기').first().click();
     assert(uploading > 0, '붙여넣기에 아무 반응이 없음');
     return '붙여넣기 → 업로드 시도까지 확인 (실제 드라이브 업로드는 에뮬레이터 밖)';

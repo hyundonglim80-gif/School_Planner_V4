@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { showToast, showErrorToast, showErrorToastOnce } from '../utils/toast';
 import { auth } from '../lib/firebase';
-import { uploadToDrive, attachmentImageSrc, driveUrlToStore } from '../lib/driveApi';
+import { uploadToDrive, attachmentImageSrc, driveUrlToStore, uploadFailReason } from '../lib/driveApi';
 import { useAppStore } from '../store/useAppStore';
 import { formatDateStr } from '../lib/dateUtils';
 import { closeAllModals } from '../hooks/useModalLayer';
@@ -491,11 +491,13 @@ export default function EntryDrawer({
       console.error('파일 업로드 에러:', error);
       // 앞서 올라간 파일은 붙여 둔다. 예전엔 하나라도 실패하면 이미 올린 것까지 버려서, 드라이브에만 남고
       // 다시 올리면 두 벌이 됐다.
+      const reason = uploadFailReason(error);
+      const why = reason ? `\n${reason}` : '';
       if (uploaded.length > 0) {
         setAttachments((prev) => [...prev, ...uploaded]);
-        showErrorToast(`파일 ${files.length}개 중 ${uploaded.length}개만 올렸습니다. 나머지를 다시 올려 주세요.`);
+        showErrorToast(`파일 ${files.length}개 중 ${uploaded.length}개만 올렸습니다. 나머지를 다시 올려 주세요.${why}`);
       } else {
-        showErrorToast('파일 업로드에 실패했습니다.');
+        showErrorToast(`파일 업로드에 실패했습니다.${why}`);
       }
     } finally {
       setUploadingFiles(false);

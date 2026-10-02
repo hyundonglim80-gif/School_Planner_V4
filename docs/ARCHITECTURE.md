@@ -322,6 +322,15 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 - **메모 ↔ 기록 옮기기**: `lib/moveEntry`. 새 항목 → 역링크 갈아끼우기 → 원본 휴지통. 일정은 옮기지 않는다.
 - **첨부·캡처**: 구글 드라이브 `School_Planner` 폴더(`lib/driveApi`). 화면에 그림은 thumbnail 주소로 보인다.
   학생 사진은 공개하지 않고 `Students_Poto/{학년도-학년-반}`에(`lib/studentPhotos`).
+- **구글 토큰**(드라이브·캘린더·시트, `lib/googleApi`): 토큰은 한 시간쯤에 만료되고 탭(sessionStorage)마다 따로다. 사용자가 시킨 일은
+  `getValidGoogleToken`, 화면을 그리려는 일은 `getGoogleTokenQuietly`(창을 띄우지 않는다). **브라우저는 방금 누른 때가 아니면
+  로그인 창을 막는다** - 파일 고르기 창에서 고른 뒤·드라이브에 물은 뒤에는 막혀, 첨부가 '파일 업로드에 실패했습니다'로만 끝났다(2026-10-02).
+  그래서 `getValidGoogleToken`은 `navigator.userActivation.isActive`일 때만 로그인 창을 바로 열고, 아니면(또는 사용자가 닫은 것 말고
+  다른 까닭으로 못 열면) **'구글 로그인이 필요합니다' 창**(`GoogleLoginPrompt`, 상태 `lib/googleLoginPrompt`, Layout에 하나)을 띄워
+  그 단추에서 연다(단추 onClick에서 곧바로 `renewGoogleToken` - 앞에 await를 두면 다시 막힌다). 여러 파일이 함께 물어도 창은 하나,
+  닫으면 `GoogleAuthError`(사용자에게 그대로 보여 줄 문구). 드라이브가 401(또는 권한 모자람 403)로 거절하면 `uploadToDrive`가
+  `forgetGoogleToken` 뒤 한 번 더 한다. 실패 안내에는 `uploadFailReason`으로 까닭을 붙인다. 여러 파일을 차례로 올리는 곳(Keep 가져오기)은
+  로그인을 거절하면 남은 파일마다 다시 묻지 않는다. 클라우드 컨테이너는 apis.google.com을 막아 로그인 창 자체는 열리지 않는다(실제 사이트에서 본다).
 - **공휴일**: `holidays/{year}` 공유본 + V3의 `settings/holidays`. 옛 방식으로 events에 들어 있던 공휴일 일정은 `isHolidayEvent`로 가려 목록에서 뺀다.
 - **학기**: 방학 기간(시간표 설정)에서 계산한다(`lib/semester`). 학년도는 3월~이듬해 2월.
 - **수업이 없는 날**: `lib/classDays.classOffReason` 하나로 정한다 - 방학, 공휴일(`holidays/{연도}`+V3 개인 공휴일, V3 시절 '공휴일'
@@ -454,6 +463,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-teaching-mode.mjs` | 교사 유형(12) - teacher3 환경설정·서버 값, teacher2 처음 안내 띠·'나중에', teacher 그대로. 끝에 seed 값으로 되돌린다 |
 | `tools/inspect-subject-timetable.mjs` | 교과 모드 칸 입력(13) - teacher3 시간표 창 제안·정규화·붙여 넣기·저장 안 하고 닫기, 하루 2026-11-03 저장 → 서버 '5-1 과학', 주간 팝업 제안, teacher '3 - 2 국어' 그대로. 시간표·수업 문서를 끝에 되돌린다 |
 | `tools/inspect-dark.mjs` | 다크 모드(11) |
+| `tools/inspect-google-login.mjs` | 구글 토큰이 없을 때 첨부·붙여넣기 → '구글 로그인이 필요합니다' 창·취소 안내·기록 칸 그대로(10). 로그인 창이 열리는지는 컨테이너가 apis.google.com을 막아 실제 사이트에서 |
 | `tools/inspect-share-target.mjs` | 다른 앱에서 공유받기 - 서비스 워커 POST·새 메모 칸·파일 목록·GET·새로고침(16). 안드로이드 공유 창 대신 같은 모양의 양식을 보낸다 |
 | `tools/inspect-course.mjs` | 과정(여러 반, 17) - teacher3 '과정 (여러 반)' 만들기·반 탭 미리보기·서버 subject·classes, 11-02·11-04 반마다 차시, 5-2만 밀기·진도 줄 → 5-2 탭·되돌리기, 반 빼기, 지우기·복원, teacher에는 단추 없음. 만든 진도·휴지통을 끝에 지운다 |
 | `tools/inspect-course-status.mjs` | 지난 시간 줄·반별 현황표(9) - teacher3 11-02 메모 → 11-04 5-2 카드 줄·누르면 그날로, 과정을 2026-09-07~18 수업에 심고 현황표 4줄·5-3 두 번 밀면 '2차시 늦음'·다음 수업 밀기, teacher 줄 없음. 오늘이 9/19~11/1일 때 맞게 짰다 |
