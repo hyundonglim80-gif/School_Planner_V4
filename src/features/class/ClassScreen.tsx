@@ -7,6 +7,8 @@
 //   학생 이름을 누르면 그 학생의 누가기록. 오늘 출결은 한 줄로 미리 보인다.
 //
 //   도구 창은 Layout이 연다(lib/appActions). 새 학급 도구를 만들면 여기 TOOLS에도 한 줄 더한다.
+//   교과 모드(ROADMAP-SUBJECT S7): 올해 반을 학년별 줄의 반 색 칩으로 고르고, '교과 출결' 도구(누계)가 붙는다.
+//   교과 + 담임은 담임반이 아닌 반에서 출석부·알림장·오늘 출결 대신 교과 출결.
 import { useEffect, useMemo, useState } from 'react';
 import { useRoster, type ClassRoster } from '../../hooks/useRoster';
 import { classKeyOf, KIND_LABEL, type AttendanceRecord } from '../../lib/attendance';
@@ -17,11 +19,15 @@ import { readHubClass, rememberHubClass } from '../../lib/classMemory';
 import { runAppAction } from '../../lib/appActions';
 import type { ShortcutId } from '../../lib/shortcuts';
 import { useTeachingMode } from '../../hooks/useTeachingMode';
+import { useClassColorOf } from '../../hooks/useClassColor';
+import { classesForYear, classLabelOf, normalizeSlotText } from '../../lib/teachingSlot';
 
 // homeroom: 담임 도구 - 교과 전담(담임반 없음)은 숨긴다 (docs/ROADMAP-SUBJECT.md S3)
-const TOOLS: { id: ShortcutId; icon: string; label: string; desc: string; homeroom?: true }[] = [
+// classUnit: 교과 모드 도구 - 초등 담임은 숨긴다 (S7)
+const TOOLS: { id: ShortcutId; icon: string; label: string; desc: string; homeroom?: true; classUnit?: true }[] = [
   { id: 'attendance', icon: '📋', label: '출석부', desc: '오늘 출결 체크 · 누계', homeroom: true },
   { id: 'notices', icon: '📢', label: '알림장', desc: '모아 보기 · 쓰기', homeroom: true },
+  { id: 'subjectAttendance', icon: '🙋', label: '교과 출결', desc: '반별 결과 · 지각 · 조퇴 누계', classUnit: true },
   { id: 'seating', icon: '🪑', label: '자리표', desc: '자리 · 학생 칸 · 모둠' },
   { id: 'drawStudent', icon: '🎯', label: '발표자 뽑기', desc: '겹치지 않게 차례로' },
   { id: 'studentRecord', icon: '🧑‍🎓', label: '학생 누가기록', desc: '학생마다 기록 · 출결 · 평가' },
@@ -31,8 +37,9 @@ const TOOLS: { id: ShortcutId; icon: string; label: string; desc: string; homero
 
 export default function ClassScreen() {
   const { rosterList, loading } = useRoster();
-  const { showHomeroomTools } = useTeachingMode();
+  const { showHomeroomTools: modeHomeroomTools, isClassUnit, preset, mode } = useTeachingMode();
   const [classKey, setClassKey] = useState<string | null>(null);
+  const colorOf = useClassColorOf();
 
   // 처음 학급: 학급 화면에서 마지막에 고른 것 → 출석부·자리표에서 마지막에 연 것 → 올해 학년도의, 학생이 있는 첫 학급
   useEffect(() => {
@@ -50,6 +57,22 @@ export default function ClassScreen() {
   }, [loading, rosterList, classKey]);
 
   const cls: ClassRoster | null = rosterList.find((c) => classKeyOf(c) === classKey) || null;
+  // 교과 + 담임: 담임반이 아닌 반에서는 담임 도구를 숨긴다 (그 반은 교과 출결로)
+  const showHomeroomTools =
+    modeHomeroomTools &&
+    !(preset === 'subjectHomeroom' && cls && normalizeSlotText(mode.homeroomClass) !== classLabelOf(cls));
+  // 교과 모드: 올해 반을 학년별로 (학년·반 차례)
+  const gradeRows = useMemo(() => {
+    if (!isClassUnit) return [];
+    const rows: { grade: string; classes: { label: string; key: string }[] }[] = [];
+    for (const c of classesForYear(rosterList, getAcademicYear())) {
+      const grade = c.label.split('-')[0];
+      let row = rows.find((r) => r.grade === grade);
+      if (!row) rows.push((row = { grade, classes: [] }));
+      row.classes.push({ label: c.label, key: classKeyOf(c.roster) });
+    }
+    return rows;
+  }, [isClassUnit, rosterList]);
   const students = useMemo(
     () => (cls?.students || []).filter((s) => s.isActive !== false).sort((a, b) => Number(a.num) - Number(b.num)),
     [cls],
@@ -129,6 +152,31 @@ export default function ClassScreen() {
         <span className="text-xs text-slate-400">고른 학급으로 아래 도구가 열립니다.</span>
       </div>
 
+      {/* 교과 모드: 올해 반을 학년별 줄의 반 색 칩으로 */}
+      {gradeRows.length > 0 && (
+        <div className="flex flex-col gap-1.5" data-class-grade-rows>
+          {gradeRows.map((row) => (
+            <div key={row.grade} className="flex flex-wrap items-center gap-1.5" data-class-grade={row.grade}>
+              <span className="w-12 shrink-0 text-xs font-black text-slate-500">{row.grade}학년</span>
+              {row.classes.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  data-class-chip={c.label}
+                  aria-pressed={c.key === classKey}
+                  onClick={() => choose(c.key)}
+                  className={`px-3 py-1 rounded-lg text-sm font-black border border-transparent ${colorOf(c.label).chip} ${
+                    c.key === classKey ? 'ring-2 ring-offset-1 ring-slate-500' : 'opacity-70 hover:opacity-100'
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* 오늘 출결 한 줄 (교과 전담은 출석부를 숨긴다) */}
       {showHomeroomTools && (
       <button
@@ -158,7 +206,7 @@ export default function ClassScreen() {
 
       {/* 도구 */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-        {TOOLS.filter((t) => showHomeroomTools || !t.homeroom).map((t) => (
+        {TOOLS.filter((t) => (showHomeroomTools || !t.homeroom) && (isClassUnit || !t.classUnit)).map((t) => (
           <button
             key={t.id}
             type="button"

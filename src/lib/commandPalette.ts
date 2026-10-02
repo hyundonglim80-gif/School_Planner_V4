@@ -202,6 +202,7 @@ const COMMAND_META: Record<ShortcutId, CommandMeta> = {
   roster: { icon: '🧑‍🤝‍🧑', keywords: ['명렬표', '학생', '학급', '명단', '사진'] },
   notices: { icon: '📢', keywords: ['알림장'] },
   attendance: { icon: '✅', keywords: ['출석', '출결', '결석', '지각', '조퇴'] },
+  subjectAttendance: { icon: '🙋', keywords: ['교과 출결', '결과', '교과 전담', '반별 출결'] },
   studentRecord: { icon: '🧑‍🎓', keywords: ['누가기록', '학생', '관찰', '상담'] },
   seating: { icon: '🪑', keywords: ['자리표', '자리', '자리 바꾸기', '좌석', '짝', '섞기'] },
   drawStudent: { icon: '🎯', keywords: ['뽑기', '발표', '발표자', '랜덤', '무작위', '추첨', '제비뽑기'] },

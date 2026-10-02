@@ -11,6 +11,9 @@ import {
   sanitizeSubjectPeriods,
   sanitizeSubjectRecord,
   studentTotals,
+  subjectHistoryOf,
+  subjectHistoryText,
+  summaryCsvRows,
   type SubjectAttendanceDay,
   type SubjectAttendanceRecord,
 } from './subjectAttendance';
@@ -48,6 +51,32 @@ describe('학생 누계', () => {
     expect(t['2'].items.map((i) => `${i.date}#${i.period}`)).toEqual(['2026-11-02#1', '2026-11-02#3', '2026-11-04#1']);
     expect(t['4']).toMatchObject({ early: 1 });
     expect(studentTotals(days)['2'].absent).toBe(3);
+  });
+});
+
+describe('누계 CSV와 누가기록 (S7)', () => {
+  const days: Array<Pick<SubjectAttendanceDay, 'date' | 'periods'>> = [
+    { date: '2026-11-02', periods: { '3': { '2': R(2, 'absent', { note: '보건실' }) } } },
+    { date: '2026-11-04', periods: { '1': { '2': R(2, 'late'), '9': R(9, 'early', { name: '전출생' }) } } },
+  ];
+
+  it('명렬표 차례, 기록 없는 학생은 0, 명렬표에 없는 번호는 끝에', () => {
+    const rows = summaryCsvRows([{ num: 1, name: '가' }, { num: 2, name: '나' }], studentTotals(days));
+    expect(rows).toEqual([
+      ['번호', '이름', '결과', '지각', '조퇴', '합계'],
+      [1, '가', 0, 0, 0, 0],
+      [2, '나', 1, 1, 0, 2],
+      [9, '전출생', 0, 0, 1, 1],
+    ]);
+  });
+
+  it('한 학생의 내역 줄', () => {
+    const h = subjectHistoryOf(days, 2);
+    expect(h.map((x) => `${x.date} ${subjectHistoryText(x, { sick: '질병', unexcused: '미인정', other: '기타', approved: '출석인정' })}`)).toEqual([
+      '2026-11-02 3교시 결과(질병) - 보건실',
+      '2026-11-04 1교시 지각(질병)',
+    ]);
+    expect(subjectHistoryOf(days, 5)).toEqual([]);
   });
 });
 

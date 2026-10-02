@@ -127,3 +127,42 @@ export function studentTotals(
 export function subjectRecordText(r: SubjectAttendanceRecord, reasonLabel: Record<AttendanceReason, string>): string {
   return `${SUBJECT_KIND_LABEL[r.kind]}(${reasonLabel[r.reason]})${r.note ? ` - ${r.note}` : ''}`;
 }
+
+/** 한 학생의 교과 출결 내역 (날짜·교시 차례) - 학생 누가기록에 섞는다 (S7) */
+export function subjectHistoryOf(
+  days: Array<Pick<SubjectAttendanceDay, 'date' | 'periods'>>,
+  num: number | string
+): Array<{ date: string; period: number; record: SubjectAttendanceRecord }> {
+  return studentTotals(days)[String(num)]?.items || [];
+}
+
+/** 누가기록 한 줄 '11/2 3교시 결과(질병) - 보건실' 의 날짜 뒤 부분 */
+export function subjectHistoryText(
+  item: { period: number; record: SubjectAttendanceRecord },
+  reasonLabel: Record<AttendanceReason, string>
+): string {
+  return `${item.period}교시 ${subjectRecordText(item.record, reasonLabel)}`;
+}
+
+/**
+ * 누계 CSV 줄 (S7): 머리 한 줄 + 학생마다 '번호, 이름, 결과, 지각, 조퇴, 합계'.
+ * students: 명렬표 차례(전출 학생도 기록이 있으면 넣는다). 명렬표에 없는 번호의 기록은 끝에 붙인다.
+ */
+export function summaryCsvRows(
+  students: Array<{ num: number; name: string }>,
+  totals: Record<string, SubjectStudentTotal>
+): (string | number)[][] {
+  const rows: (string | number)[][] = [['번호', '이름', '결과', '지각', '조퇴', '합계']];
+  const seen = new Set<string>();
+  const line = (num: number, name: string) => {
+    const t = totals[String(num)];
+    const a = t?.absent || 0;
+    const l = t?.late || 0;
+    const e = t?.early || 0;
+    rows.push([num, name || t?.name || '', a, l, e, a + l + e]);
+    seen.add(String(num));
+  };
+  for (const s of students) line(Number(s.num), s.name);
+  for (const t of Object.values(totals).sort((x, y) => x.num - y.num)) if (!seen.has(String(t.num))) line(t.num, t.name);
+  return rows;
+}

@@ -30,6 +30,9 @@ import { addJournalLine, removeJournalLine } from '../lib/classHubStore';
 import { formatDateStr } from '../lib/dateUtils';
 import { showUndoToast } from '../lib/undoToast';
 import { showToast, showErrorToast } from '../utils/toast';
+import { useTeachingMode } from '../hooks/useTeachingMode';
+import { loadSubjectAttendanceForClass } from '../lib/subjectAttendanceStore';
+import { subjectHistoryOf, subjectHistoryText } from '../lib/subjectAttendance';
 
 interface StudentRecordModalProps {
   isOpen: boolean;
@@ -41,7 +44,8 @@ interface StudentRecordModalProps {
 
 interface TimelineItem {
   date: string;
-  kind: 'journal' | 'attendance';
+  /** subjectAttendance: 교과 출결 (교과 모드, ROADMAP-SUBJECT S7) */
+  kind: 'journal' | 'attendance' | 'subjectAttendance';
   text: string;
   /** 기록일 때: 어느 공간의 어느 항목인가 (눌러서 그 자리로 간다) */
   journalId?: string;
@@ -64,6 +68,7 @@ function photosWanted(): boolean {
 
 export default function StudentRecordModal({ isOpen, onClose, initialClassKey, initialNum }: StudentRecordModalProps) {
   const { rosterList, loading: rosterLoading } = useRoster();
+  const { isClassUnit } = useTeachingMode();
   const { groups } = useGroups();
   const { selectedGroupId, setCurrentDate, setScope, setSelectedGroupId, requestFocus, openEvaluationModal } = useAppStore();
 
@@ -166,18 +171,27 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
       return out;
     };
 
-    Promise.all([...spaces.map(readJournals), loadAttendanceForClass(classKeyOf(cls))])
-      .then((results) => {
+    // 교과 모드면 이 반의 교과 출결도 날짜 차례에 섞는다 (그 학년도 것만)
+    const subjectDays = isClassUnit ? loadSubjectAttendanceForClass(classKeyOf(cls)).catch(() => []) : Promise.resolve([]);
+    Promise.all([Promise.all(spaces.map(readJournals)), loadAttendanceForClass(classKeyOf(cls)), subjectDays])
+      .then(([journalLists, days, sDays]) => {
         if (!alive) return;
-        const days = results.pop() as Awaited<ReturnType<typeof loadAttendanceForClass>>;
-        const journals = (results as TimelineItem[][]).flat();
+        const journals = journalLists.flat();
         const att = historyOf(days, num).map((h) => ({
           date: h.date,
           kind: 'attendance' as const,
           text: recordText(h.record),
         }));
+        const subjectAtt = subjectHistoryOf(sDays, num)
+          .filter((h) => h.date >= start && h.date <= end)
+          .map((h) => ({
+            date: h.date,
+            kind: 'subjectAttendance' as const,
+            text: subjectHistoryText(h, REASON_LABEL),
+          }));
+        const order = (k: TimelineItem['kind']) => (k === 'attendance' ? 0 : k === 'subjectAttendance' ? 1 : 2);
         setAttendanceDays(days);
-        setItems([...journals, ...att].sort((a, b) => a.date.localeCompare(b.date) || (a.kind === 'attendance' ? -1 : 1)));
+        setItems([...journals, ...att, ...subjectAtt].sort((a, b) => a.date.localeCompare(b.date) || order(a.kind) - order(b.kind)));
       })
       .catch((err) => {
         if (!alive) return;
@@ -189,7 +203,7 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
     };
     // tag는 cls·num에서 나온다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, classKey, num, selectedGroupId, reloadTick]);
+  }, [isOpen, classKey, num, selectedGroupId, reloadTick, isClassUnit]);
 
   useEffect(() => {
     const uid = auth.currentUser?.uid;
@@ -284,7 +298,7 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
     const lines = [
       ...items.map((it) => ({
         date: it.date,
-        line: `${it.date} [${it.kind === 'attendance' ? '출결' : '기록'}] ${it.text.replace(/\n+/g, ' / ')}`,
+        line: `${it.date} [${it.kind === 'attendance' ? '출결' : it.kind === 'subjectAttendance' ? '교과 출결' : '기록'}] ${it.text.replace(/\n+/g, ' / ')}`,
       })),
       ...(studentEvals || [])
         .filter((e) => !isEmptyCell(e.cell))
@@ -556,7 +570,7 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
                       <li key={i} className="pl-3 relative">
                         <span
                           className={`absolute -left-[7px] top-2 w-3 h-3 rounded-full border-2 border-white ${
-                            it.kind === 'attendance' ? 'bg-rose-500' : 'bg-primary'
+                            it.kind === 'attendance' ? 'bg-rose-500' : it.kind === 'subjectAttendance' ? 'bg-orange-400' : 'bg-primary'
                           }`}
                         />
                         <button
@@ -570,13 +584,16 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
                             <b className="text-slate-800">{it.date}</b>
                             <span className="text-slate-400">{shortDateLabel(it.date).replace(/^\d+\/\d+/, '')}</span>
                             <span
+                              data-timeline-kind={it.kind}
                               className={`px-1.5 py-px rounded-md font-bold border ${
                                 it.kind === 'attendance'
                                   ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                  : 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : it.kind === 'subjectAttendance'
+                                    ? 'bg-orange-50 text-orange-700 border-orange-200'
+                                    : 'bg-blue-50 text-blue-700 border-blue-200'
                               }`}
                             >
-                              {it.kind === 'attendance' ? '출결' : it.label || '기록'}
+                              {it.kind === 'attendance' ? '출결' : it.kind === 'subjectAttendance' ? '교과 출결' : it.label || '기록'}
                             </span>
                             {it.spaceName && it.space && <span className="text-slate-400">👥 {it.spaceName}</span>}
                           </div>

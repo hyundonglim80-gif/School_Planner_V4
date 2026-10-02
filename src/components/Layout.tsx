@@ -39,6 +39,7 @@ const CalendarSyncModal = lazyWithReload(() => import('./CalendarSyncModal'));
 const StudentRecordModal = lazyWithReload(() => import('./StudentRecordModal'));
 const SeatingModal = lazyWithReload(() => import('./SeatingModal'));
 const EvalOverviewModal = lazyWithReload(() => import('./EvalOverviewModal'));
+const SubjectAttendanceSummaryModal = lazyWithReload(() => import('./SubjectAttendanceSummaryModal'));
 const WeeklyGuideModal = lazyWithReload(() => import('./WeeklyGuideModal'));
 
 import MultiEventActionBar from './MultiEventActionBar';
@@ -72,7 +73,7 @@ import { useTeachingMode } from '../hooks/useTeachingMode';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user } = useAuth();
-  const { showHomeroomTools } = useTeachingMode();
+  const { showHomeroomTools, isClassUnit } = useTeachingMode();
   const {
     scope,
     setScope,
@@ -203,6 +204,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [studentRecordStart, setStudentRecordStart] = useState<{ classKey: string; num: number } | null>(null);
   const [isSeatingOpen, setIsSeatingOpen] = useState(false);
   const [isEvalOverviewOpen, setIsEvalOverviewOpen] = useState(false);
+  // 교과 출결 누계 (ROADMAP-SUBJECT S7). 열려 있으면 처음 고를 반('' = 첫 반), 닫혀 있으면 null
+  const [subjectAttSummaryClass, setSubjectAttSummaryClass] = useState<string | null>(null);
   /** 늘 때마다 자리표 창이 발표자 뽑기 칸을 편다 */
   const [seatingDrawRequest, setSeatingDrawRequest] = useState(0);
   const openStudentDraw = () => {
@@ -375,7 +378,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // ⋮ 메뉴 구역. 기능이 15개를 넘어 한 줄로 늘어서 있으니 찾기 어려워 구역 제목을 붙였다(로드맵 6-3).
   // 항목을 더할 때는 알맞은 구역에 넣는다. 명령 창(Ctrl+K)과 단축키 목록에도 같은 기능이 있어야 한다.
   // homeroom: 담임 도구 - 교과 전담(담임반 없음)에서는 메뉴에서 숨긴다. 단축키·명령 창으로는 그대로 연다(자료가 남아 있으니, S3).
-  type MoreMenuItem = { icon: string; label: string; shortcut?: ShortcutId; tone?: 'install'; homeroom?: true; onClick: () => void };
+  // classUnit: 교과 모드 도구 - 초등 담임에서는 메뉴에서 숨긴다 (S7 교과 출결 누계).
+  type MoreMenuItem = { icon: string; label: string; shortcut?: ShortcutId; tone?: 'install'; homeroom?: true; classUnit?: true; onClick: () => void };
   const moreMenuSections: Array<{ title: string; items: MoreMenuItem[] }> = [
     {
       title: '일정 · 라벨',
@@ -403,6 +407,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { icon: '🧑‍🤝‍🧑', label: '학급 정보(명렬표) 관리', shortcut: 'roster', onClick: () => setIsRosterModalOpen(true) },
         { icon: '📋', label: '출석부', shortcut: 'attendance', homeroom: true, onClick: () => openClassroomPanel('attendance') },
         { icon: '📢', label: '알림장 모아 보기', shortcut: 'notices', homeroom: true, onClick: () => openClassroomPanel('notice', 'list') },
+        { icon: '🙋', label: '교과 출결 누계', shortcut: 'subjectAttendance', classUnit: true, onClick: () => setSubjectAttSummaryClass('') },
         { icon: '🧑‍🎓', label: '학생 누가기록', shortcut: 'studentRecord', onClick: () => setIsStudentRecordOpen(true) },
         { icon: '🪑', label: '자리표', shortcut: 'seating', onClick: () => setIsSeatingOpen(true) },
         { icon: '🎯', label: '발표자 뽑기', shortcut: 'drawStudent', onClick: openStudentDraw },
@@ -485,6 +490,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       case 'roster': setIsRosterModalOpen(true); return;
       case 'notices': openClassroomPanel('notice', 'list'); return;
       case 'attendance': openClassroomPanel('attendance'); return;
+      case 'subjectAttendance': setSubjectAttSummaryClass(''); return;
       case 'studentRecord': setIsStudentRecordOpen(true); return;
       case 'seating': setIsSeatingOpen(true); return;
       case 'drawStudent': openStudentDraw(); return;
@@ -517,6 +523,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       if (d.id === 'studentRecord' && d.classKey && d.num != null) {
         setStudentRecordStart({ classKey: d.classKey, num: d.num });
         setIsStudentRecordOpen(true);
+        return;
+      }
+      if (d.id === 'subjectAttendance') {
+        setSubjectAttSummaryClass(d.classKey || '');
         return;
       }
       if (d.id === 'attendance' && d.classKey) {
@@ -565,6 +575,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         setIsSeatingOpen(false);
         setSeatingDrawRequest(0);
         setIsEvalOverviewOpen(false);
+        setSubjectAttSummaryClass(null);
         useAppStore.getState().closeWeeklyGuide();
         setIsMoreMenuOpen(false);
         if (isForwardingModalOpen) {
@@ -835,7 +846,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       <div className="px-4 pt-1.5 pb-0.5 text-2xs font-black text-slate-500 tracking-wide select-none">
                         {section.title}
                       </div>
-                      {section.items.filter((item) => showHomeroomTools || !item.homeroom).map((item) => (
+                      {section.items.filter((item) => (showHomeroomTools || !item.homeroom) && (isClassUnit || !item.classUnit)).map((item) => (
                         <button
                           key={item.icon}
                           onClick={() => {
@@ -1180,6 +1191,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         {isEvalOverviewOpen && <EvalOverviewModal isOpen onClose={() => setIsEvalOverviewOpen(false)} />}
+        {subjectAttSummaryClass !== null && (
+          <SubjectAttendanceSummaryModal
+            key={subjectAttSummaryClass}
+            isOpen
+            initialClassKey={subjectAttSummaryClass || undefined}
+            onClose={() => setSubjectAttSummaryClass(null)}
+          />
+        )}
         {weeklyGuideDate !== null && (
           <WeeklyGuideModal isOpen startDate={weeklyGuideDate || null} onClose={() => useAppStore.getState().closeWeeklyGuide()} />
         )}

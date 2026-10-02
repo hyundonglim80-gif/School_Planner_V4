@@ -23,6 +23,7 @@ import { saveSubjectRecord, subscribeSubjectAttendanceDay } from '../lib/subject
 import { classLabelOf, normalizeSlotText } from '../lib/teachingSlot';
 import { shortDateLabel } from '../lib/notices';
 import { showErrorToast } from '../utils/toast';
+import { runAppAction } from '../lib/appActions';
 
 interface SubjectAttendancePanelProps {
   dateStr: string;
@@ -134,6 +135,15 @@ export default function SubjectAttendancePanel({
           </p>
           <p className="text-xs text-slate-400 mt-0.5">누르는 대로 바로 저장됩니다 · 담임 출석부와 따로 둡니다</p>
         </div>
+        <button
+          type="button"
+          data-subject-att-open-summary
+          onClick={() => runAppAction({ id: 'subjectAttendance', classKey })}
+          title="이 반의 교과 출결 누계 (학생마다 결과·지각·조퇴)"
+          className="ml-auto mr-1 shrink-0 px-2.5 py-1 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg"
+        >
+          📊 누계
+        </button>
         <button
           title="닫기"
           onClick={onClose}
