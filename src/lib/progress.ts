@@ -84,6 +84,22 @@ export function scheduleSubjects(periods: unknown): Record<string, string> {
   return out;
 }
 
+/**
+ * 수업 문서의 periods → 교시 → 수업 메모 첫 줄 (교과 모드 '지난 시간' 줄, ROADMAP-SUBJECT S5).
+ * 메모는 memo, 옛 자료는 content (하루 화면 카드와 같다). 빈 메모·옛 문자열 교시는 뺀다.
+ */
+export function scheduleNotes(periods: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!periods || typeof periods !== 'object') return out;
+  for (const [p, val] of Object.entries(periods as Record<string, unknown>)) {
+    if (!/^\d+$/.test(p) || !val || typeof val !== 'object') continue;
+    const raw = String((val as any).memo || (val as any).content || '');
+    const first = raw.split(/\r?\n/).map((l) => l.trim()).find(Boolean);
+    if (first) out[p] = first;
+  }
+  return out;
+}
+
 export const slotId = (date: string, period: string | number) => `${date}#${period}`;
 
 // ── 과정 (여러 반) ──────────────────────────────────────────────────────
@@ -366,6 +382,53 @@ export function progressMarks(
   return out;
 }
 
+/** 과정 현황표의 한 반 (ROADMAP-SUBJECT S5) */
+export interface CourseClassStatus {
+  cls: string;
+  key: string;
+  /** 오늘까지 마지막으로 한 차시 (밀린 교시는 빼고). 없으면 null */
+  last: ProgressSlot | null;
+  /** 내일부터 처음 할 차시. 목록이 끝났거나 읽은 범위에 수업이 없으면 null */
+  next: ProgressSlot | null;
+  /** 오늘까지 한 차시 수 (목록 길이를 넘지 않는다) */
+  done: number;
+  total: number;
+  /** 가장 앞선 반보다 몇 차시 늦은가 (0이면 가장 앞) */
+  behind: number;
+  finished: boolean;
+}
+
+/**
+ * 과정의 반별 위치. timelinesByKey: 반 열쇠('5-1 과학') → computeProgress 결과. 오늘 수업은 한 것으로 센다
+ * (진도 관리 창의 '오늘까지 n차시'와 같다). behind는 가장 많이 한 반과의 차이 - 2 이상이면 화면이 '늦음'으로 칠한다.
+ */
+export function courseStatus(
+  plan: Pick<ProgressPlan, 'key' | 'lessons'> & CourseFields,
+  timelinesByKey: Record<string, ProgressTimeline>,
+  today: string
+): CourseClassStatus[] {
+  const total = plan.lessons.length;
+  const rows: CourseClassStatus[] = planKeys(plan).map((key) => {
+    const slots = (timelinesByKey[key]?.slots || []).filter((s) => s.lesson !== null && s.lesson < total);
+    const past = slots.filter((s) => s.date <= today);
+    const next = slots.find((s) => s.date > today) || null;
+    const done = past.length;
+    return {
+      cls: parseSlot(key).cls || key,
+      key,
+      last: past[past.length - 1] || null,
+      next,
+      done,
+      total,
+      behind: 0,
+      finished: total > 0 && done >= total,
+    };
+  });
+  const most = Math.max(0, ...rows.map((r) => r.done));
+  for (const r of rows) r.behind = most - r.done;
+  return rows;
+}
+
 /** 그날 교시마다 하는 차시의 준비물 (알림장 '다음 수업일 불러오기', 5-4). 민 교시·준비물 없는 차시는 뺀다 */
 export function suppliesByPeriod(marks: Record<string, ProgressMark>, date: string): Record<string, string> {
   const out: Record<string, string> = {};
@@ -542,6 +605,8 @@ export async function restoreProgressPlan(uid: string, data: any): Promise<void>
 export interface ProgressInputs {
   /** 날짜 → (교시 → 과목 글자) */
   subjectsByDate: Record<string, Record<string, string>>;
+  /** 날짜 → (교시 → 수업 메모 첫 줄) - 같은 수업 문서에서 꺼낸다(읽기를 더 하지 않는다) */
+  notesByDate: Record<string, Record<string, string>>;
   /** 날짜 → 그날 events 문서 데이터 (수업이 없는 날을 가리는 데만 쓴다) */
   eventsByDate: Record<string, any>;
 }
@@ -561,20 +626,26 @@ export function subscribeProgressInputs(
     query(collection(db, 'users', uid, name), where(documentId(), '>=', from), where(documentId(), '<=', to));
 
   let subjectsByDate: Record<string, Record<string, string>> | null = null;
+  let notesByDate: Record<string, Record<string, string>> = {};
   let eventsByDate: Record<string, any> | null = null;
   const emit = () => {
-    if (subjectsByDate && eventsByDate) onData({ subjectsByDate, eventsByDate });
+    if (subjectsByDate && eventsByDate) onData({ subjectsByDate, notesByDate, eventsByDate });
   };
 
   const unsubSchedules = onSnapshot(
     range('schedules'),
     (snap) => {
       const next: Record<string, Record<string, string>> = {};
+      const notes: Record<string, Record<string, string>> = {};
       snap.forEach((d) => {
-        const subjects = scheduleSubjects(d.data().periods);
+        const periods = d.data().periods;
+        const subjects = scheduleSubjects(periods);
         if (Object.keys(subjects).length > 0) next[d.id] = subjects;
+        const memo = scheduleNotes(periods);
+        if (Object.keys(memo).length > 0) notes[d.id] = memo;
       });
       subjectsByDate = next;
+      notesByDate = notes;
       emit();
     },
     (err) => onError?.(err)

@@ -340,6 +340,10 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   옛 진도는 그대로 `progressKey` - 옛 진도끼리의 결과는 바뀌지 않는다. `progressUntil(plan, plans, key)`는 과정이 끼면 반 열쇠를
   정규화해 견준다. bumps는 과정에 한 배열(같은 날·교시에 두 반은 없다). 창은 '+ 과정 (여러 반)'(`data-new-course`, `isClassUnit`만),
   반 탭(`data-course-preview`)으로 미리 보고, 진도 줄을 누르면 store `progressModalClass`로 그 반 탭. 이름은 `courseTitle`·`planLabel`.
+  **S5**: `ProgressInputs.notesByDate`(같은 수업 스냅숏에서 `scheduleNotes` - memo, 없으면 content의 첫 줄)와
+  `teachingSlot.previousSlotOf`(정규화한 같은 칸 글자의 바로 앞 교시, 수업 없는 날 건너뜀)로 하루 카드의 '지난 시간' 줄(`data-prev-note`).
+  그래서 `useProgressMarks`는 **교과 모드면 진도가 없어도** 그 학년도 3월 1일부터 읽는다(초등 담임은 그대로 진도가 있을 때만).
+  진도 창의 반별 현황표(`data-course-status`)는 `courseStatus(plan, timelinesByKey, today)` - 오늘 수업은 한 것으로, behind ≥ 2면 '늦음'.
 - **작년 이맘때**(ROADMAP 7): 주간 화면 '🕰️ 작년 이맘때'(store `showLastYear`, 이 기기에만). 같은 주는 **학년도 몇째 주**
   (`lib/lastYearWeek` - 개학 주 = 1주, 3월 2일이 주말이면 다음 월요일. 364일 빼기는 해에 따라 한 주 어긋난다). 작년 자료는
   `hooks/useLastYearWeek`가 켤 때만 서버에서 읽고(구독 안 함, 못 읽으면 빈 날로 보이지 않게 '못 읽었습니다'), 요일 카드 아래
@@ -432,6 +436,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-dark.mjs` | 다크 모드(11) |
 | `tools/inspect-share-target.mjs` | 다른 앱에서 공유받기 - 서비스 워커 POST·새 메모 칸·파일 목록·GET·새로고침(16). 안드로이드 공유 창 대신 같은 모양의 양식을 보낸다 |
 | `tools/inspect-course.mjs` | 과정(여러 반, 17) - teacher3 '과정 (여러 반)' 만들기·반 탭 미리보기·서버 subject·classes, 11-02·11-04 반마다 차시, 5-2만 밀기·진도 줄 → 5-2 탭·되돌리기, 반 빼기, 지우기·복원, teacher에는 단추 없음. 만든 진도·휴지통을 끝에 지운다 |
+| `tools/inspect-course-status.mjs` | 지난 시간 줄·반별 현황표(9) - teacher3 11-02 메모 → 11-04 5-2 카드 줄·누르면 그날로, 과정을 2026-09-07~18 수업에 심고 현황표 4줄·5-3 두 번 밀면 '2차시 늦음'·다음 수업 밀기, teacher 줄 없음. 오늘이 9/19~11/1일 때 맞게 짰다 |
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번 |
 | `tools/inspect-*.mjs` 나머지 | 지난 신고를 재현하던 것들(이월·뒤로가기·기록 삭제 뒤 빈 화면·V3/V4 한 출처 등) |

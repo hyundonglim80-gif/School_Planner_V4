@@ -10,13 +10,14 @@ import { openEntryPanel } from '../../components/EntryPanelHost';
 import { usePeriodTimes } from '../../hooks/usePeriodTimes';
 import { useClock } from '../../hooks/useClock';
 import { periodStateAt, periodRangeLabel } from '../../lib/periodTimes';
-import { formatDateStr } from '../../lib/dateUtils';
+import { formatDateStr, parseDateStr } from '../../lib/dateUtils';
+import { shortDateLabel } from '../../lib/notices';
 import DayMeals from './DayMeals';
 import ProgressMarkLine from '../../components/ProgressMarkLine';
 import { useProgressMarks } from '../../hooks/useProgress';
 import { slotId } from '../../lib/progress';
 import { useTeachingMode } from '../../hooks/useTeachingMode';
-import { normalizeSlotText, parseSlot } from '../../lib/teachingSlot';
+import { normalizeSlotText, parseSlot, previousSlotOf } from '../../lib/teachingSlot';
 import { useClassColorOf } from '../../hooks/useClassColor';
 import SlotOptionsList from '../../components/SlotOptionsList';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
@@ -64,7 +65,8 @@ export default function DaySchedule({
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const { openLinkerModal, openLinkViewerModal, openEvaluationModal, selectedGroupId } = useAppStore();
   // 진도 관리 - 교시마다 몇 차시인지 겹쳐 보인다 (수업 문서에는 쓰지 않는다, docs/ROADMAP.md 5-3)
-  const { marks: progressMarks } = useProgressMarks(dateStr || '');
+  // 교과 모드는 같은 읽기에서 그 반의 '지난 시간' 메모도 꺼낸다 (ROADMAP-SUBJECT S5)
+  const { marks: progressMarks, inputs: progressInputs, isOffDay } = useProgressMarks(dateStr || '');
   // 수업 옆 알림장·출석부. 그날 날짜로 오른쪽 칸에 연다 (출석부는 개인 공간에만 있다).
   const openNotice = () => dateStr && void openEntryPanel({ kind: 'notice', groupId: selectedGroupId, dateStr });
   const openAttendance = () => dateStr && void openEntryPanel({ kind: 'attendance', groupId: null, dateStr });
@@ -332,13 +334,19 @@ export default function DaySchedule({
           // 휴대폰에서는 일정 칸이 화면 1.3장 아래로 밀렸다(2026-10-01 재어 봄). 둘 다 비면 한 줄 카드가 된다.
           const memoText = item.memo || item.content || '';
           const suppliesText = item.supplies || '';
-          const hasDetails = !!(memoText || suppliesText || mark);
           const isNow = nowState?.kind === 'during' && nowState.period === period;
           const isNext = (nowState?.kind === 'break' || nowState?.kind === 'before') && nowState.next === period;
           const range = periodRangeLabel(periodTimes, period);
           // 교과 모드에서 칸 글자에 반이 있으면('5-2 과학') 반을 크게, 막대는 반 색. 반이 없는 칸('창체')은 그대로.
           const slot = isClassUnit && item.subject ? parseSlot(item.subject) : null;
           const slotColor = slot?.cls ? classColorOf(slot.cls) : null;
+          // 교과 모드: 같은 반·과목의 바로 앞 수업에 적은 메모 한 줄 (메모가 없으면 줄도 없다)
+          const prevSlot =
+            slot?.cls && dateStr && progressInputs
+              ? previousSlotOf(progressInputs.subjectsByDate, item.subject, dateStr, period, isOffDay)
+              : null;
+          const prevNote = prevSlot ? progressInputs?.notesByDate[prevSlot.date]?.[prevSlot.period] || '' : '';
+          const hasDetails = !!(memoText || suppliesText || mark || prevNote);
           return (
             <div
               key={period}
@@ -458,6 +466,23 @@ export default function DaySchedule({
                       </button>
                     </div>
                   </div>
+
+                  {prevNote && prevSlot && (
+                    <button
+                      type="button"
+                      data-prev-note
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        useAppStore.getState().setCurrentDate(parseDateStr(prevSlot.date));
+                      }}
+                      title={`지난 시간 수업 메모 - 누르면 ${shortDateLabel(prevSlot.date)}로 갑니다`}
+                      className={`self-start max-w-full truncate text-left text-xs text-slate-500 hover:text-primary hover:underline ${
+                        mark || memoText || suppliesText ? 'mb-1.5' : ''
+                      }`}
+                    >
+                      ⏪ 지난 시간 {shortDateLabel(prevSlot.date)} {prevSlot.period}교시: <span className="text-slate-700">{prevNote}</span>
+                    </button>
+                  )}
 
                   {mark && dateStr && (
                     <div className={memoText || suppliesText ? 'mb-2' : ''}>

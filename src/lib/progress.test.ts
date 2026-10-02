@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   computeProgress,
+  courseStatus,
   courseTitle,
   isCourse,
   lessonAt,
@@ -13,6 +14,7 @@ import {
   suppliesByPeriod,
   progressUntil,
   sanitizePlan,
+  scheduleNotes,
   scheduleSubjects,
   schoolYearEnd,
   slotId,
@@ -363,5 +365,52 @@ describe('과정 - 차시 목록 하나를 여러 반에 (ROADMAP-SUBJECT S4)', 
     });
     // 반이 없으면 옛 진도 (과정 칸을 두지 않는다)
     expect(sanitizePlan('o', { key: '국어', subject: '과학', classes: [] })).not.toHaveProperty('classes');
+  });
+});
+
+describe('과정 반별 현황과 지난 시간 메모 (ROADMAP-SUBJECT S5)', () => {
+  const lessons = [L('가'), L('나'), L('다'), L('라')];
+  const course = { key: '', subject: '과학', classes: ['5-1', '5-2', '5-3'], lessons };
+  // 5-1·5-2는 월·수·금, 5-3은 월·수 (5-3을 두 번 밀었다)
+  const subjects = {
+    '2026-11-02': { '1': '5-1 과학', '2': '5-2 과학', '3': '5-3 과학' },
+    '2026-11-04': { '1': '5-1 과학', '2': '5-2 과학', '3': '5-3 과학' },
+    '2026-11-06': { '1': '5-1 과학', '2': '5-2 과학' },
+    '2026-11-09': { '1': '5-1 과학', '2': '5-2 과학', '3': '5-3 과학' },
+    '2026-11-11': { '1': '5-1 과학', '3': '5-3 과학' },
+  };
+  const plan = { ...course, startDate: '2026-11-02', bumps: ['2026-11-02#3', '2026-11-04#3'] };
+  const timelines = Object.fromEntries(
+    ['5-1 과학', '5-2 과학', '5-3 과학'].map((k) => [k, computeProgress(plan, subjects, undefined, undefined, k)])
+  );
+
+  it('오늘까지 한 차시, 다음 수업, 가장 앞선 반과의 차이', () => {
+    const rows = courseStatus(plan, timelines, '2026-11-06');
+    expect(rows.map((r) => [r.cls, r.done, r.behind, r.next && `${r.next.date}#${r.next.period}`])).toEqual([
+      ['5-1', 3, 0, '2026-11-09#1'],
+      ['5-2', 3, 0, '2026-11-09#2'],
+      ['5-3', 0, 3, '2026-11-09#3'], // 두 번 밀어 아직 0차시
+    ]);
+    expect(rows[0].last).toMatchObject({ date: '2026-11-06', lesson: 2 });
+    expect(rows[2].last).toBeNull();
+  });
+
+  it('목록이 끝난 반은 다음 수업이 없고 끝', () => {
+    const rows = courseStatus(plan, timelines, '2026-11-11');
+    expect(rows[0]).toMatchObject({ cls: '5-1', done: 4, finished: true, next: null });
+    expect(rows[1]).toMatchObject({ cls: '5-2', done: 4, finished: true }); // 11-09에 4차시
+    expect(rows[2]).toMatchObject({ cls: '5-3', done: 2, behind: 2, finished: false });
+  });
+
+  it('수업 문서에서 메모 첫 줄을 모은다 (memo, 없으면 content)', () => {
+    expect(
+      scheduleNotes({
+        '1': { subject: '5-1 과학', memo: '\n 실험 2모둠 못 끝냄 \n둘째 줄' },
+        '2': { subject: '5-2 과학', content: '옛 메모' },
+        '3': { subject: '5-3 과학', memo: '' },
+        '4': '5-4 과학',
+        note: { memo: 'x' },
+      })
+    ).toEqual({ '1': '실험 2모둠 못 끝냄', '2': '옛 메모' });
   });
 });

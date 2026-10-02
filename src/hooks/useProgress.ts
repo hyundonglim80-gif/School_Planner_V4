@@ -21,6 +21,8 @@ import { useAppStore } from '../store/useAppStore';
 import { useLabels } from './useLabels';
 import { loadHolidayYears } from './useGovHolidays';
 import { useTimetableTemplate } from './useTimetableTemplate';
+import { useTeachingMode } from './useTeachingMode';
+import { schoolYearOf } from '../lib/schoolSetting';
 
 const isDay = (s: string) => /^(20\d\d)-\d\d-\d\d$/.test(s);
 
@@ -91,11 +93,19 @@ const NO_MARKS: Record<string, ProgressMark> = {};
  * - 진도가 하나도 없으면 수업·일정 문서를 읽지 않는다.
  * - 읽는 범위는 가장 이른 진도 시작일 ~ 보는 날이 든 학년도 끝. 날짜를 넘길 때마다 다시 읽지 않게 학년도 끝으로 묶는다
  *   (하루·주간이 같은 범위를 구독하면 Firestore가 한 구독으로 나눠 쓴다).
+ * - 교과 모드는 진도가 없어도 그 학년도 처음(3월 1일)부터 읽는다 - 수업 칸의 '지난 시간' 메모(ROADMAP-SUBJECT S5)가
+ *   같은 문서에서 나온다. 초등 담임은 지금처럼 진도가 있을 때만.
+ * inputs·isOffDay: 같은 읽기의 수업·일정 (아직 안 왔거나 읽지 않으면 null).
  */
 export function useProgressMarks(
   viewDate: string,
   spaceGroupId?: string | null
-): { marks: Record<string, ProgressMark>; plans: ProgressPlan[] } {
+): {
+  marks: Record<string, ProgressMark>;
+  plans: ProgressPlan[];
+  inputs: ProgressInputs | null;
+  isOffDay: (date: string) => boolean;
+} {
   const storeInGroup = useAppStore((s) => !!s.selectedGroupId);
   const inGroup = spaceGroupId === undefined ? storeInGroup : !!spaceGroupId;
   const { plans } = useProgressPlans();
@@ -104,7 +114,9 @@ export function useProgressMarks(
     () => (inGroup ? [] : plans.filter((p) => p.key && isDay(p.startDate) && p.lessons.length > 0)),
     [plans, inGroup]
   );
-  const from = active.reduce((min, p) => (!min || p.startDate < min ? p.startDate : min), '');
+  const { isClassUnit } = useTeachingMode();
+  const yearStart = isClassUnit && !inGroup && isDay(viewDate) ? `${schoolYearOf(viewDate)}-03-01` : '';
+  const from = active.reduce((min, p) => (!min || p.startDate < min ? p.startDate : min), yearStart);
   const to = isDay(viewDate) ? schoolYearEnd(viewDate) : '';
   const on = !!from && !!to && from <= to;
   const { inputs, isOffDay } = useProgressInputs(on ? from : '', on ? to : '', semesterConfig);
@@ -112,5 +124,5 @@ export function useProgressMarks(
     () => (on && inputs ? progressMarks(active, inputs.subjectsByDate, isOffDay) : NO_MARKS),
     [on, inputs, active, isOffDay]
   );
-  return { marks, plans };
+  return { marks, plans, inputs: on ? inputs : null, isOffDay };
 }

@@ -97,6 +97,36 @@ export function rosterForSlot(rosters: ClassRoster[], text: string, schoolYear: 
   return classesForYear(rosters, schoolYear).find((c) => c.label === cls)?.roster ?? null;
 }
 
+// ── 지난 시간 (S5) ──────────────────────────────────────────────────────────
+
+/**
+ * 같은 칸 글자(정규화해 견준다 - '5-2과학'도 '5-2 과학')의 바로 앞 교시. 같은 날 앞 교시도 본다.
+ * subjectsByDate: 날짜 → (교시 → 칸 글자) (lib/progress scheduleSubjects). isOffDay인 날은 건너뛴다. 없으면 null.
+ */
+export function previousSlotOf(
+  subjectsByDate: Record<string, Record<string, string>>,
+  text: string,
+  date: string,
+  period: string | number,
+  isOffDay: (date: string) => boolean = () => false
+): { date: string; period: string } | null {
+  const key = normalizeSlotText(text);
+  if (!key) return null;
+  const dates = Object.keys(subjectsByDate)
+    .filter((d) => d <= date)
+    .sort()
+    .reverse();
+  for (const d of dates) {
+    if (d !== date && isOffDay(d)) continue;
+    const periods = subjectsByDate[d] || {};
+    const hits = Object.keys(periods)
+      .filter((p) => (d < date || Number(p) < Number(period)) && normalizeSlotText(periods[p]) === key)
+      .sort((a, b) => Number(b) - Number(a));
+    if (hits.length > 0) return { date: d, period: hits[0] };
+  }
+  return null;
+}
+
 // ── 반 색 (S3) ──────────────────────────────────────────────────────────────
 // 교과 모드의 수업 칸은 반마다 색이 다르다. 환경설정 '교사 유형'에서 반마다 고르고(classColors),
 // 고르지 않은 반은 그 학년도 반 차례로 8색을 돌려쓴다. Tailwind 클래스만 돌려준다(hex X - 다크 모드는 dark.css가 바꾼다).

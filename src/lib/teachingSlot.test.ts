@@ -8,8 +8,7 @@ import {
   slotSuggestions,
   rosterForSlot,
   classColor,
-  CLASS_COLORS,
-} from './teachingSlot';
+  CLASS_COLORS, previousSlotOf } from './teachingSlot';
 import type { ClassRoster } from '../hooks/useRoster';
 
 const roster = (year: number, grade: string, classNum: string): ClassRoster => ({ year, grade, classNum, students: [] });
@@ -155,5 +154,32 @@ describe('classColor (S3)', () => {
       expect(c.chip).toBe(`bg-${c.name}-100 text-${c.name}-800`);
       expect(c.dot).toBe(`bg-${c.name}-500`);
     }
+  });
+});
+
+describe('지난 시간 (S5)', () => {
+  const subjects = {
+    '2026-11-02': { '1': '5-1 과학', '3': '5-2과학' },
+    '2026-11-04': { '1': '5학년 2반 과학', '2': '5-1 과학', '4': '5-2 과학' },
+    '2026-11-06': { '1': '5-1 과학', '2': '5-2 과학' },
+    '2026-11-09': { '3': '5-2 과학' },
+  };
+
+  it('같은 날 앞 교시도 본다, 칸 글자는 정규화해 견준다', () => {
+    expect(previousSlotOf(subjects, '5-2 과학', '2026-11-04', 4)).toEqual({ date: '2026-11-04', period: '1' });
+    expect(previousSlotOf(subjects, '5-2 과학', '2026-11-04', 1)).toEqual({ date: '2026-11-02', period: '3' });
+  });
+
+  it('주말을 건너 앞 주 금요일, 처음이면 null', () => {
+    expect(previousSlotOf(subjects, '5-2 과학', '2026-11-09', 3)).toEqual({ date: '2026-11-06', period: '2' });
+    expect(previousSlotOf(subjects, '5-1 과학', '2026-11-02', 1)).toBeNull();
+    expect(previousSlotOf(subjects, '', '2026-11-09', 3)).toBeNull();
+  });
+
+  it('수업이 없는 날은 건너뛴다', () => {
+    expect(previousSlotOf(subjects, '5-2 과학', '2026-11-09', 3, (d) => d === '2026-11-06')).toEqual({
+      date: '2026-11-04',
+      period: '4',
+    });
   });
 });

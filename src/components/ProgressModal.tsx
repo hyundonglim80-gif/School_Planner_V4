@@ -16,6 +16,7 @@ import { shortDateLabel } from '../lib/notices';
 import { getSemesterRanges } from '../lib/semester';
 import {
   computeProgress,
+  courseStatus,
   courseTitle,
   deleteProgressPlan,
   isCourse,
@@ -30,6 +31,7 @@ import {
   setProgressBump,
   type ProgressLesson,
   type ProgressPlan,
+  type ProgressTimeline,
 } from '../lib/progress';
 import { useProgressInputs, useProgressPlans } from '../hooks/useProgress';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
@@ -197,6 +199,28 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, key, inputs, from, lessons, saved?.bumps, isOffDay, until]);
+
+  // 과정: 반별 현황 (S5) - 반마다 따로 센 것을 한 표로. 오늘까지 한 차시, 다음 수업, 가장 앞선 반과의 차이
+  const statusRows = useMemo(() => {
+    if (!planRef || !courseDraft || !inputs || !from || lessons.length === 0 || !draft!.subject.trim()) return [];
+    const plan = { ...planRef, startDate: from, lessons, bumps: saved?.bumps || [] };
+    const timelines: Record<string, ProgressTimeline> = {};
+    for (const k of planKeys(plan)) {
+      timelines[k] = computeProgress(plan, inputs.subjectsByDate, isOffDay, progressUntil(plan, plans, k), k);
+    }
+    return courseStatus(plan, timelines, today);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, courseDraft, inputs, from, lessons, saved?.bumps, isOffDay, plans, today]);
+
+  const bumpNext = async (cls: string, date: string, period: string) => {
+    if (!uid || !saved) return;
+    try {
+      await setProgressBump(uid, saved.id, date, period, true);
+      showToast(`⏭ ${cls} ${shortDateLabel(date)} ${period}교시를 밀었습니다. 뒤 차시가 한 칸씩 밀립니다.`);
+    } catch (e) {
+      showErrorToast('이 교시를 밀지 못했습니다.', e);
+    }
+  };
 
   // 미리보기는 마지막 차시까지 (민 교시 포함). 목록이 안 끝나면 읽은 데까지
   const rows = useMemo(() => {
@@ -731,6 +755,69 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
           {/* 미리보기 */}
           <section className="space-y-2 border-t border-slate-100 pt-3" data-progress-preview>
             <h3 className="text-xs font-black text-slate-700">미리보기</h3>
+            {statusRows.length > 0 && (
+              <div className="border border-slate-200 rounded-lg overflow-x-auto" data-course-status>
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      <th className="px-2 py-1 text-left font-bold">반</th>
+                      <th className="px-2 py-1 text-left font-bold">지난 수업</th>
+                      <th className="px-2 py-1 text-left font-bold">다음 수업</th>
+                      <th className="px-2 py-1 text-left font-bold">진도</th>
+                      <th className="px-1 py-1" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {statusRows.map((r) => (
+                      <tr
+                        key={r.cls}
+                        data-course-status-row={r.cls}
+                        onClick={() => setPreviewClass(r.cls)}
+                        className={`cursor-pointer hover:bg-slate-50 ${r.cls === viewClass ? 'bg-indigo-50/60' : ''}`}
+                      >
+                        <td className="px-2 py-1 font-black text-slate-800 whitespace-nowrap">{r.cls}</td>
+                        <td className="px-2 py-1 text-slate-600 whitespace-nowrap">
+                          {r.last ? `${shortDateLabel(r.last.date)} ${(r.last.lesson ?? 0) + 1}차시` : '-'}
+                        </td>
+                        <td className="px-2 py-1 text-slate-600 whitespace-nowrap">
+                          {r.next
+                            ? `${shortDateLabel(r.next.date)} ${r.next.period}교시 · ${(r.next.lesson ?? 0) + 1}차시`
+                            : r.finished
+                              ? '끝'
+                              : '-'}
+                        </td>
+                        <td className="px-2 py-1 whitespace-nowrap">
+                          <b className="tabular-nums text-slate-800">
+                            {r.done}/{r.total}
+                          </b>
+                          {r.behind >= 2 && (
+                            <span data-course-behind className="ml-1 font-bold text-rose-600">
+                              {r.behind}차시 늦음
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-1 py-1 text-right">
+                          {saved && r.next && (
+                            <button
+                              type="button"
+                              data-course-bump={r.cls}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void bumpNext(r.cls, r.next!.date, r.next!.period);
+                              }}
+                              title={`${r.cls}의 다음 수업(${shortDateLabel(r.next.date)} ${r.next.period}교시)을 밉니다 - 그 반 뒤 차시가 한 칸씩 밀립니다`}
+                              className="px-1.5 py-0.5 rounded border text-xs font-bold text-slate-400 border-slate-200 hover:text-slate-600 hover:bg-slate-50 whitespace-nowrap"
+                            >
+                              다음 수업 밀기
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             {courseDraft && draftClasses.length > 1 && (
               <div className="flex flex-wrap gap-1" role="tablist" aria-label="미리 볼 반">
                 {draftClasses.map((c) => (
