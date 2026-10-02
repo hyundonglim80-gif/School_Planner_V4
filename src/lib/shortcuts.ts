@@ -56,6 +56,8 @@ export type ShortcutId =
   | 'backup'
   | 'help'
   | 'settings'
+  | 'teachingMode'
+  | 'newCourse'
   | 'toggleTheme';
 
 export interface ShortcutAction {
@@ -128,6 +130,8 @@ export const SHORTCUT_ACTIONS: ShortcutAction[] = [
   { id: 'backup', label: '내보내기 / 가져오기 (백업)', group: '메뉴 열기', def: b('') },
   { id: 'help', label: '사용 설명서', group: '메뉴 열기', def: b('') },
   { id: 'settings', label: '환경설정', group: '메뉴 열기', def: b('') },
+  { id: 'teachingMode', label: '교사 유형 바꾸기', group: '메뉴 열기', def: b('') },
+  { id: 'newCourse', label: '과정 만들기 (여러 반 진도)', group: '메뉴 열기', def: b('') },
   // 화면 밝기 (ROADMAP 17) - 어둡게 ↔ 밝게
   { id: 'toggleTheme', label: '어둡게 / 밝게 보기', group: '메뉴 열기', def: b('') },
 ];

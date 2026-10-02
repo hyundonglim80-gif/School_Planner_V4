@@ -39,6 +39,8 @@ import { readThemeMode, setThemeMode, type ThemeMode } from '../lib/theme';
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** 열자마자 보일 구역 (명령 창 '교사 유형 바꾸기') */
+  focusSection?: 'teaching';
 }
 
 const POPUP_STYLE_OPTIONS: { value: PopupStyle; label: string }[] = [
@@ -113,7 +115,7 @@ const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: 'dark', label: '🌙 어둡게' },
 ];
 
-export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export default function SettingsModal({ isOpen, onClose, focusSection }: SettingsModalProps) {
   const developer = isDeveloper(auth.currentUser?.email);
   // 화면 밝기는 이 기기에만, 누르는 즉시 바뀐다 ('저장'과 상관없다)
   const [themeMode, setThemeModeState] = useState<ThemeMode>(readThemeMode);
@@ -173,6 +175,14 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const uid = auth.currentUser?.uid;
     if (isOpen && uid) void loadTrashRetention(uid).then(setTrashDays);
   }, [isOpen]);
+  // 명령 창 '교사 유형 바꾸기'로 열면 그 구역까지 내려 둔다 (구역이 그려진 뒤)
+  useEffect(() => {
+    if (!isOpen || focusSection !== 'teaching') return;
+    const t = window.setTimeout(() => {
+      document.querySelector('[data-teaching-mode-setting]')?.scrollIntoView({ block: 'center' });
+    }, 150);
+    return () => window.clearTimeout(t);
+  }, [isOpen, focusSection]);
   const chooseTrashDays = async (days: TrashRetentionDays) => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;

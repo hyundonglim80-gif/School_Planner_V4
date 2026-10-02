@@ -416,6 +416,10 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   트랜잭션**(evalDocPayload 두 이름)으로 하나씩 - id는 `원본_n`, 명단·rosterMeta는 그 반, 조별이면 번호 차례로 다시 나눈다. 실패해도 되돌리지 않고 알린다.
   **S9 과정별 평가 모아 보기**: `EvalOverviewModal`의 '학급별/과정별' 탭(교과 모드만) → `CourseEvalOverview` - 과정의 반마다 `loadClassEvals`(학급별과
   같은 읽기)를 `lib/courseEvals.groupCourseEvals`(종류|제목으로 묶고 과정 과목만, 반마다 이른 것)로 묶어 `courseEvalCompletion`('완료 n/m')을 그린다.
+  **S10**: 명령 창·단축키 `teachingMode`(환경설정을 `focusSection: 'teaching'`으로 열어 그 구역까지 내림)·`newCourse`(진도 창을
+  `NEW_COURSE_PLAN_ID`로 열면 새 과정 칸). 교과 모드의 새 자료는 모두 V4 전용(`v4_progress`의 subject·classes, `v4_subjectAttendance`) -
+  V3와 같이 쓰는 문서(수업·명렬표·시간표·출석부)에는 칸을 더하지 않았다. 반·과목은 칸 글자 `5-2 과학`에만 있다.
+  **회귀를 볼 때**: 초등 담임(teacher)은 `unit:'subject'`라 S1~S9의 새 동작이 모두 꺼져 있어야 한다 - 각 `inspect-*`의 끝 항목이 teacher로 그것을 본다.
 - **계정**: V3와 V4는 앱 이름이 달라 한 브라우저에서 다른 계정으로 들어가 있을 수 있다(`lib/peerAccount`).
   "자료가 통째로 없다"는 신고는 먼저 계정·공간을 의심한다.
 - **설정 동기화**: `lib/preferenceSync`의 `SYNCED_PREFERENCE_KEYS`만 계정에 올린다. 지금 보는 화면·날짜는 올리지 않는다.
@@ -457,6 +461,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-subject-attendance-summary.mjs` | 교과 출결 누계·학급 탭(16) - teacher3 5-2에 출결을 심고 학급 탭 학년 줄 칩·교과 출결 도구, 누계 학기별 수·내역·CSV, 누가기록 줄, 칸의 📊 누계, teacher ⋮ 메뉴 없음. CSV 이름은 이 컨테이너 Chromium이 'download'로 줘서 그때는 보지 않는다 |
 | `tools/inspect-course-evals.mjs` | 반 도구·조사표(11) - teacher3 과정을 심고 11-02 1교시 반 도구 줄, 조사표 5-1·과학 자동, 다른 반 교시 안내, 만들기 → 서버 11-02·11-03 네 반(명단·두 이름), 자리표 5-1, teacher 줄 없음. 조사표 문서를 끝에 되돌린다 |
 | `tools/inspect-course-overview.mjs` | 과정별 평가 모아 보기(8) - teacher3 과정·조사표를 심고 과정별 탭 줄·칸·'-'·완료 수, 점수를 넣고 다시 열면 바뀜, 칸 → 그 반 조사표, teacher 탭 없음. 조사표 문서를 끝에 되돌린다 |
+| `tools/inspect-subject-finish.mjs` | 교과 모드 마무리(6) - 명령 창 '과정 만들기'·'교사 유형 바꾸기', 휴대폰 390px 하루 카드·교과 출결 칸 넘침 없음(폭 점검은 S10에서 한 번만 - CLAUDE.md 2장) |
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번 |
 | `tools/inspect-*.mjs` 나머지 | 지난 신고를 재현하던 것들(이월·뒤로가기·기록 삭제 뒤 빈 화면·V3/V4 한 출처 등) |

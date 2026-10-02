@@ -70,6 +70,7 @@ import { useSearchFocusRunner } from '../lib/searchFocus';
 import { APP_ACTION_EVENT, type AppActionDetail } from '../lib/appActions';
 import { isDarkMode, toggleThemeMode, THEME_CHANGED_EVENT } from '../lib/theme';
 import { useTeachingMode } from '../hooks/useTeachingMode';
+import { NEW_COURSE_PLAN_ID } from '../lib/progress';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user } = useAuth();
@@ -182,6 +183,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  /** 환경설정을 열 때 먼저 보일 구역 (명령 창 '교사 유형 바꾸기') */
+  const [settingsFocus, setSettingsFocus] = useState<'teaching' | undefined>(undefined);
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
   const [isForwardingModalOpen, setIsForwardingModalOpen] = useState(false);
   const [isTimetableModalOpen, setIsTimetableModalOpen] = useState(false);
@@ -501,7 +504,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       case 'weeklyGuide': useAppStore.getState().openWeeklyGuide(); return;
       case 'backup': setIsBackupModalOpen(true); return;
       case 'help': setIsHelpModalOpen(true); return;
-      case 'settings': setIsSettingsModalOpen(true); return;
+      case 'settings': setSettingsFocus(undefined); setIsSettingsModalOpen(true); return;
+      case 'teachingMode': setSettingsFocus('teaching'); setIsSettingsModalOpen(true); return;
+      case 'newCourse': setProgressModalOpen(true, NEW_COURSE_PLAN_ID); return;
       case 'toggleTheme': toggleThemeMode(); return;
       case 'clipboard': {
         const s = useAppStore.getState();
@@ -1087,7 +1092,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         {isSettingsModalOpen && (
-          <SettingsModal isOpen onClose={() => setIsSettingsModalOpen(false)} />
+          <SettingsModal isOpen focusSection={settingsFocus} onClose={() => setIsSettingsModalOpen(false)} />
         )}
 
         {isCalendarModalOpen && (

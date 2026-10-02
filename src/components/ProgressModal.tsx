@@ -20,6 +20,7 @@ import {
   courseTitle,
   deleteProgressPlan,
   isCourse,
+  NEW_COURSE_PLAN_ID,
   newProgressId,
   parseLessonTable,
   progressKey,
@@ -122,6 +123,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   // 처음: 고른 진도 → 첫 진도 → 새 진도
   useEffect(() => {
     if (!loaded || draft) return;
+    if (wantedId === NEW_COURSE_PLAN_ID) return setDraft(newCourseDraft(mode.subjects[0] || ''));
     const first = plans.find((p) => p.id === wantedId) || plans[0];
     setDraft(first ? toDraft(first) : isClassUnit ? newCourseDraft(mode.subjects[0] || '') : newDraft());
   }, [loaded, plans, draft, wantedId, isClassUnit, mode.subjects]);
@@ -252,6 +254,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   useEffect(() => {
     if (!draft || !wantedId || handledWanted.current === wantedToken) return;
     handledWanted.current = wantedToken;
+    if (wantedId === NEW_COURSE_PLAN_ID) return startNew(true);
     const plan = plans.find((p) => p.id === wantedId);
     if (plan && plan.id !== draft.id) switchTo(toDraft(plan));
     if (wantedClass) setPreviewClass(wantedClass);

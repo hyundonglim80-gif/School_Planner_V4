@@ -214,6 +214,8 @@ const COMMAND_META: Record<ShortcutId, CommandMeta> = {
   backup: { icon: '💾', keywords: ['백업', '내보내기', '가져오기', 'json', 'csv'] },
   help: { icon: '💡', keywords: ['설명서', '도움말', '사용법', 'help'] },
   settings: { icon: '⚙️', keywords: ['환경설정', '설정', '옵션'] },
+  teachingMode: { icon: '👩‍🏫', keywords: ['교사 유형', '교과 전담', '담임', '전담', '중등'] },
+  newCourse: { icon: '📘', keywords: ['과정', '여러 반', '진도 만들기', '교과 전담'] },
   toggleTheme: { icon: '🌙', keywords: ['다크 모드', '어둡게', '밝게', '야간', '화면 밝기', 'dark'] },
 };
 

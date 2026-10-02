@@ -102,6 +102,9 @@ export function scheduleNotes(periods: unknown): Record<string, string> {
 
 export const slotId = (date: string, period: string | number) => `${date}#${period}`;
 
+/** 진도 관리 창을 '새 과정'으로 열 때 넘기는 자리표 id (명령 창 '과정 만들기', ROADMAP-SUBJECT S10) */
+export const NEW_COURSE_PLAN_ID = '__new_course__';
+
 // ── 과정 (여러 반) ──────────────────────────────────────────────────────
 
 /** 반 하나 이상을 가진 과정인가 */
