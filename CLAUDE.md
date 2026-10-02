@@ -102,6 +102,7 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
   첫 배포 뒤 휴대폰 공유 목록에 안 나왔다(2026-10-02): 매니페스트는 크롬이 오류 없이 읽었다(CDP `Page.getAppManifest`). 아이콘이 SVG뿐이라
   WebAPK(진짜 앱)가 아닌 바로가기로 깔렸을 수 있어 PNG 아이콘(`tools/gen-icons.mjs`)을 더했고, 이미 깔린 앱은 크롬이 매니페스트를 하루쯤 뒤에 받아 오므로
   **지우고 크롬에서 다시 설치**하라고 안내했다. 매니페스트를 바꾸는 기능은 '다시 설치해야 보인다'를 함께 알린다.
+  → 사용자가 지우고 다시 설치하니 공유 목록에 SP V4가 보였다(2026-10-02). 실제로 공유해 새 메모 칸이 뜨는지·드라이브 첨부는 아직 확인 전.
 - 6-3 메뉴 구역(2026-10-01 끝): ⋮ 메뉴는 `Layout`의 `moreMenuSections` 표로 그린다 - **새 기능은 알맞은 구역에 한 줄 더한다**
   (명령 창 `COMMAND_META`·단축키에도). 크롬 `tools/inspect-more-menu.mjs` 29항목.
 - 6-2 명령 창(2026-10-01 끝): `lib/commandPalette`·`CommandPaletteModal`, 단축키 id `commandPalette`(기본 Ctrl+K). **단축키에 기능을 더하면
