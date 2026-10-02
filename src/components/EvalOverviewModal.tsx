@@ -6,6 +6,7 @@
 // - 교과·학기·유형으로 거른다. 학기는 시간표 설정의 방학으로 가른다(그 학년도 설정이 없으면 3~8월이 1학기).
 // - 조사표 머리를 누르면 그 조사표가 열린다. 조사표 창을 닫으면 다시 읽는다(거기서 고친 값이 보이게).
 // - CSV 내려받기(값·사유 두 칸)·표 복사(엑셀·시트에 붙여넣기).
+// - 교과 모드는 위에 '학급별' / '과정별' 탭 - 과정별은 CourseEvalOverview (docs/ROADMAP-SUBJECT.md S9).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 import { auth } from '../lib/firebase';
@@ -32,6 +33,8 @@ import {
 } from '../lib/evalSummary';
 import { showErrorToast, showToast } from '../utils/toast';
 import { printNode } from '../lib/print';
+import { useTeachingMode } from '../hooks/useTeachingMode';
+import CourseEvalOverview from './CourseEvalOverview';
 
 interface EvalOverviewModalProps {
   isOpen: boolean;
@@ -61,6 +64,9 @@ export default function EvalOverviewModal({ isOpen, onClose }: EvalOverviewModal
   const [evals, setEvals] = useState<ArchivedEval[] | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
   const [filter, setFilter] = useState<OverviewFilter>({ subject: '', semester: null, type: '' });
+  const { isClassUnit } = useTeachingMode();
+  const [view, setView] = useState<'class' | 'course'>('class');
+  const showCourse = isClassUnit && view === 'course';
 
   // 학급: 여기서 마지막에 본 학급 → 자리표·출석부에서 마지막에 연 학급 → 올해 학년도의, 학생이 있는 첫 학급
   useEffect(() => {
@@ -88,12 +94,16 @@ export default function EvalOverviewModal({ isOpen, onClose }: EvalOverviewModal
 
   const cls = rosterList.find((c) => classKeyOf(c) === classKey) || null;
 
+  const spaces = useMemo(() => {
+    const out: Array<{ id: string | null; name: string }> = [{ id: null, name: '개인' }];
+    if (selectedGroupId) out.push({ id: selectedGroupId, name: groups.find((g) => g.id === selectedGroupId)?.name || '그룹' });
+    return out;
+  }, [selectedGroupId, groups]);
+
   useEffect(() => {
     const uid = auth.currentUser?.uid;
-    if (!isOpen || !cls || !uid) return;
+    if (!isOpen || !cls || !uid || showCourse) return;
     let alive = true;
-    const spaces: Array<{ id: string | null; name: string }> = [{ id: null, name: '개인' }];
-    if (selectedGroupId) spaces.push({ id: selectedGroupId, name: groups.find((g) => g.id === selectedGroupId)?.name || '그룹' });
     loadClassEvals(uid, spaces, cls)
       .then((list) => alive && setEvals(sortEvals(list)))
       .catch((err) => {
@@ -106,7 +116,7 @@ export default function EvalOverviewModal({ isOpen, onClose }: EvalOverviewModal
     };
     // cls는 classKey에서 나온다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, classKey, selectedGroupId, reloadTick]);
+  }, [isOpen, classKey, selectedGroupId, reloadTick, showCourse]);
 
   // 학급·공간을 바꾸면 '불러오는 중'으로 (다시 읽기는 표를 그대로 둔 채 바꾼다)
   useEffect(() => setEvals(null), [classKey, selectedGroupId]);
@@ -201,6 +211,34 @@ export default function EvalOverviewModal({ isOpen, onClose }: EvalOverviewModal
         </p>
       ) : (
         <div className="flex flex-col gap-3 text-xs text-slate-700">
+          {isClassUnit && (
+            <div className="inline-flex self-start bg-slate-100 p-1 rounded-xl gap-1" role="tablist" aria-label="모아 보기 방식">
+              {(
+                [
+                  ['class', '학급별'],
+                  ['course', '과정별'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={view === id}
+                  data-overview-course={id === 'course' ? true : undefined}
+                  onClick={() => setView(id)}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                    view === id ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {showCourse ? (
+            <CourseEvalOverview rosterList={rosterList} spaces={spaces} reloadTick={reloadTick} openEval={openEval} />
+          ) : (
+          <>
           <div className="flex flex-wrap items-center gap-1.5">
             <select value={classKey || ''} onChange={(e) => chooseClass(e.target.value)} aria-label="학급" className={select}>
               {rosterList.map((c) => (
@@ -339,6 +377,8 @@ export default function EvalOverviewModal({ isOpen, onClose }: EvalOverviewModal
           <p className="text-2xs text-slate-400">
             {cls?.year}학년도에 이 학급으로 만든 조사표를 개인 공간{selectedGroupId ? '과 지금 고른 공유 그룹' : ''}에서 모았습니다. 읽기만 합니다 - 값은 조사표 머리를 눌러 연 조사표에서 고칩니다. ✎는 사유·근거가 있다는 표시(칸에 마우스를 올리면 보임)입니다.
           </p>
+          </>
+          )}
         </div>
       )}
     </ModalShell>
