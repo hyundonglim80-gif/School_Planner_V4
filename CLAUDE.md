@@ -56,63 +56,15 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
 **토큰 아끼기**: 긴 대화는 요청마다 앞의 내용을 다시 보내 사용량을 많이 쓴다. 항목 하나를 끝내면 새 대화를 열어
 "이어서"라고 하면 이 파일과 로드맵만 읽고 가볍게 시작한다. 확인은 바뀐 부분만(2장), 큰 파일은 필요한 장만 읽는다.
 
-### 지금 상태 (2026-10-02, 로드맵 끝)
+### 지금 상태 (2026-10-02)
 
-- 로드맵 17개 **모두 끝**(일정 날짜 옮기기·수업 칸 압축·드라이브 자동 백업·나이스·진도 관리·작은 것 묶음 7가지·작년 이맘때·자리표 허브·
-  학생 카드와 평가 모아 보기·관찰 빨리 적기·빠른 입력과 기한·인쇄와 주간학습안내·기간 일정 막대·년간 학사력·휴대폰 월간·학급 탭·다크 모드).
-  wip 브랜치 없음. 설명서 전체 점검은 17번 끝에 했다(89/89).
+- 로드맵 1~17번과 Web Share Target(공유받기) **모두 끝**, 실제 사이트·휴대폰 확인까지 마쳤다. wip 브랜치 없음. 설명서 전체 점검은 17번 끝에 89/89.
+  끝난 기능의 코드 자리·함정은 **ARCHITECTURE 6~8장**, 점검 스크립트는 **9장**, 새 기능을 더할 때 확인할 것은 **10장 체크리스트**에 있다.
 - **다음 일: 18번 교과 전담 모드** (2026-10-02 사용자와 정함) - 계획은 `docs/ROADMAP-SUBJECT.md`, **세션(새 대화) 하나에 S 하나**.
   "이어서"면 ROADMAP '지금 하는 일'의 S 번호 → 그 파일의 공통 규칙과 그 S 절만 읽는다. 세션 표에 권장 노력 수준(중간/높음)이 있다.
-- 17번 다크 모드(2026-10-02 끝): `html.dark`에서 Tailwind 색 변수만 바꾼다. **`src/dark.css`는 `tools/gen-dark-css.mjs`로 만든다**(손으로 X).
-  **style에 색을 적을 때 hex 대신 `var(--color-…)`** (hex는 어둡게 안 따라간다). 설정은 이 기기 `sp4_theme`. 크롬 `inspect-dark`(11).
-- 2026-10-02 설명서 전체 점검을 세 번 돌리는 사이 C:가 다시 꽉 찼다(로그 2.1GB, 남은 자리 4MB) - 증상은 '백업 JSON 내려받기' 시간 초과와
-  휴대폰 묶음에서 멈춤. 로그를 비워도 남는 자리가 2GB뿐이다: **사용자에게 C: 정리를 부탁했다.** 긴 점검 전후로 `df -h /c`와 로그 크기를 본다.
-- 16번 학급 탭(2026-10-02 끝, 결정은 Claude 추천 - 휴대폰 탭 여섯): 화면 종류 'class' `ClassScreen`, 도구는 `lib/appActions`로 Layout에 부탁,
-  고른 학급은 `lib/classMemory`로 도구 기억에도. **화면 종류를 더하면 ARCHITECTURE 7장 목록을 다 고친다.** 크롬 `inspect-class-screen`(13).
-- 15번 휴대폰 월간(2026-10-02 끝, 결정은 Claude 추천): 휴대폰 칸에 과목 칩 없음, 날짜를 누르면 탭바 위 그날 목록(`MonthDaySheet`, 팝업 아님).
-  크롬 `inspect-mobile-month`(390px - 휴대폰 항목이라 이 폭만, 12).
-- 14번 년간 학사력(2026-10-02 끝): 년간은 '📅 학사력'(처음)·'📋 자세히'(예전) - 이 기기 `sp4_yearView`. 셈 `lib/yearSheet`, 그림 `YearSheet`.
-  **년간에서 날마다 일정·수업·기록 표식을 보는 점검은 `[data-year-view="detail"]`을 먼저 누른다.** 크롬 `inspect-year-sheet`(19).
-- 13번 기간 일정 막대(2026-10-02 끝): `lib/periodBars`(groupId + 본문 끝 `(i/n)`으로 조각을 알아본다 - V3는 period 표시가 없다).
-  월간 `MonthGrid`는 **한 주 = 한 격자 줄, 날짜 칸은 subgrid**, 막대 `PeriodBar`는 칸 밖. 년간은 처음 날에 한 번만. **달력 요약 `mapEvents`는
-  정해진 칸만 옮긴다** - 월간·년간에서 일정 칸이 필요하면 거기에 더한다(`groupId`가 빠져 묶음 범위를 못 물었다). 크롬 `inspect-period-bars`(15).
-- 12번 인쇄(2026-10-02 끝): 인쇄 틀 `lib/print.printNode`(복제해 `#sp4-print-root`, `@media print`, 그때만 `@page` 가로·세로). 찍지 않을 단추·줄에는
-  `data-print-hide`. 주간 A4 가로·주간학습안내(`lib/weeklyGuide`·`WeeklyGuideModal`, store `openWeeklyGuide`)·출석 누계·평가 모아 보기·조사표 한 장.
-  크롬 `tools/inspect-print.mjs` 30항목.
-- 11번 빠른 입력·기한(2026-10-02 끝): 빠른 입력 칩(`lib/quickInput`·`QuickInputChips`, 새 일정 칸만, 누를 때만 넣고 그 말을 뺀다). 기한은 일정 칸 `due`
-  + 이월 사슬마다 `settings/v4_eventDue` - **V3 이월(`forwarding.js`)과 V4 이월(`doAutoForwarding`)·`addEventItem`·주간 요약(`mapEvents`)은 정해진 칸만
-  옮긴다**: 일정에 새 칸을 더하면 이 셋을 고치고, V3가 빼먹는 칸은 `forwardChainId`로 찾게 한다. 크롬 `inspect-quick-input`(20)·`inspect-due`(17).
-- 10번 관찰 빨리 적기(2026-10-02 끝): 기록 칸 `@이름` → 태그(`lib/mention`·`StudentMentionList`, 키보드는 글 칸이 받고 Esc는 목록만),
-  관찰 문구 단추(`ObservationPhrases`, 문구 `settings/v4_observationPhrases`). 크롬 `tools/inspect-observe.mjs` 22항목.
-- 9번 학생 카드·평가 모아 보기(2026-10-02 끝): 읽기는 `lib/evalArchive.loadClassEvals`(학년도 범위, rosterMeta로 그 학급), 칸 값·학기·CSV 셈은
-  `lib/evalSummary`. 조사표 창을 특정 조사표로 열려면 `openEvaluationModal(날짜, 자리, 교시, 교과, evalId)`.
-  `EvalOverviewModal`(단축키 id `evalOverview`). 크롬 `tools/inspect-student-card.mjs` 15항목·`inspect-eval-overview.mjs` 24항목.
-- 8번 자리표 허브(2026-10-02 끝, 8-1~8-4). 8-1: `lib/seating`(순수 셈)·`lib/seatingStore`·`SeatingModal`, 저장은 V4 전용
-  `v4_seating/{id}`(자리표 한 장)·`v4_classHub/{학급키}`(떨어뜨릴 학생 - **뽑기·모둠도 여기에 더한다**). 학생은 **번호**로 가리킨다.
-  8-2 학생 칸: `SeatStudentCard`·`lib/classHub`(셈)·`lib/classHubStore`(출결·조사표·관찰 한 줄 - 있는 저장 길만, 한 학생 칸만 바꾼다).
-  '자리 고치기'가 꺼진 채 학생 자리를 누르면 학생 칸, 켜면 자리 고르기. 크롬 `tools/inspect-seating.mjs` 42항목·`inspect-seat-student.mjs` 36항목.
-  8-3 뽑기: `lib/draw`·`useStudentDraw`·`SeatDrawPanel`·`DrawBigView`, 저장 `v4_classHub.draw{picked, round}`(뽑을 때마다 arrayUnion,
-  **round는 새 판을 열 때만 쓴다** - 없으면 1). 자리표 없이도 뽑는다. ⋮ '발표자 뽑기'(단축키 id `drawStudent`). 크롬 `tools/inspect-draw.mjs` 33항목.
-  8-4 모둠: `lib/groups`·`SeatGroupsPanel`, 저장 `v4_classHub.groupSets{id: 한 벌}`(한 벌씩 merge, 지우면 `groupSets.{id}` deleteField·휴지통 `groupSet`).
-  조사표 만들기 '조 나누기'가 저장한 모둠을 조로({name, members} - V3 조와 같은 모양). 크롬 `tools/inspect-groups.mjs` 32항목.
-- 7번 작년 이맘때(2026-10-01 끝): 같은 주는 **학년도 몇째 주**(`lib/lastYearWeek`, 364일 빼기 X). 가져오기는 `lib/lastYearImport` -
-  **복사본에 첨부를 넣지 않는다**(같은 드라이브 파일을 두 항목이 가리키면 영구 삭제 때 함께 지워진다). 크롬 `tools/inspect-last-year.mjs` 33항목.
-- 3번 드라이브 실제 업로드와 4번 나이스 규칙 배포·키 넣기는 사용자가 실제 사이트에서 마쳤다(2026-10-02).
-- **Web Share Target**(다른 앱의 공유를 V4가 받기, 2026-10-02 끝, 결정은 Claude 추천): 받은 글·주소·파일을 **개인 공간 새 메모 칸**에 채워 연다
-  (저장은 사용자가 누를 때만). 글과 파일을 한 번에 POST로 받는다(sw.js `receiveShare` → 캐시 `sp4share-inbox` → `lib/shareTarget`·`useShareReceiver`).
-  파일은 칸의 '드라이브에 올려 첨부'를 눌러야 올린다. 안드로이드 설치본만. 크롬 `inspect-share-target`(16).
-  첫 배포 뒤 휴대폰 공유 목록에 안 나왔다(2026-10-02): 매니페스트는 크롬이 오류 없이 읽었다(CDP `Page.getAppManifest`). 아이콘이 SVG뿐이라
-  WebAPK(진짜 앱)가 아닌 바로가기로 깔렸을 수 있어 PNG 아이콘(`tools/gen-icons.mjs`)을 더했고, 이미 깔린 앱은 크롬이 매니페스트를 하루쯤 뒤에 받아 오므로
-  **지우고 크롬에서 다시 설치**하라고 안내했다. 매니페스트를 바꾸는 기능은 '다시 설치해야 보인다'를 함께 알린다.
-  → 사용자가 지우고 다시 설치하니 공유 목록에 SP V4가 보였고, 글·사진 공유와 드라이브 첨부까지 실제 휴대폰에서 잘 된다(2026-10-02 확인).
-- 6-3 메뉴 구역(2026-10-01 끝): ⋮ 메뉴는 `Layout`의 `moreMenuSections` 표로 그린다 - **새 기능은 알맞은 구역에 한 줄 더한다**
-  (명령 창 `COMMAND_META`·단축키에도). 크롬 `tools/inspect-more-menu.mjs` 29항목.
-- 6-2 명령 창(2026-10-01 끝): `lib/commandPalette`·`CommandPaletteModal`, 단축키 id `commandPalette`(기본 Ctrl+K). **단축키에 기능을 더하면
-  `COMMAND_META`(찾을 말·그림)도 채워야 빌드된다.** 크롬 `tools/inspect-command-palette.mjs` 19항목.
-- 6-1 되돌리기(2026-10-01 끝): `lib/undoToast`·`lib/trashRestore`. **지우기 함수는 휴지통 id, 옮기기는 trail을 돌려준다** - 새 지우기·옮기기
-  길을 만들면 같게 하고 안내는 `showDeletedToast`/`showMovedToast`로. 크롬 `tools/inspect-undo.mjs` 19항목.
-- 5번 진도 관리(2026-10-01 끝): `lib/progress`·`lib/classDays`(수업 없는 날 규칙 - 시간표 적용도 같이 써서 공휴일·V3 수업X 라벨을
-  건너뛰게 고쳤다)·진도 관리 창·수업 칸 겹쳐 보기·알림장 차시 준비물. 크롬 `tools/inspect-progress.mjs` 39항목.
+- 이 절에는 **진행 중인 것·사용자에게 부탁한 것만** 둔다(이 파일은 모든 대화가 처음에 읽는다 - 길면 매번 비싸다).
+  기능을 끝내면 자세한 메모는 ARCHITECTURE로 옮기고 여기서는 지운다.
+- `C:\HDL` PC의 C:가 에뮬레이터 로그로 다시 꽉 찼었다(2026-10-02) - **사용자에게 C: 정리를 부탁했다.** 긴 점검 전후로 `df -h /c`와 로그 크기를 본다(2장).
 - 에뮬레이터·serve-both는 대화 도구의 백그라운드 2시간 제한으로 다음 대화에서는 꺼져 있을 수 있다. 켜져 있는지 먼저 보고,
   다시 켰으면 seed.
 

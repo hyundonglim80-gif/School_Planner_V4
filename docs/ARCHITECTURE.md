@@ -236,6 +236,11 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 가깝다: 날짜 칸은 점·막대만(공휴일·D-Day·학사일정·'달력' 일정), 달 아래 목록을 누르면 오른쪽 일정 칸. 수업·기록 표식·끌기·여러 개 고르기는
 자세히에만 있다 - **년간에서 날마다의 것을 보는 점검은 `[data-year-view="detail"]`을 먼저 누른다.**
 
+### 인쇄 (`lib/print.printNode`, ROADMAP 12)
+찍을 부분을 복제해 `#sp4-print-root`에 넣고 `@media print`로 그것만 찍는다. 용지 방향은 그때만 `@page`(가로·세로)로 붙였다 뗀다.
+찍지 않을 단추·줄에는 `data-print-hide`. 쓰는 곳: 주간 A4 가로, 주간학습안내(`lib/weeklyGuide`·`WeeklyGuideModal`, store `openWeeklyGuide`),
+출석 누계, 평가 모아 보기, 조사표 한 장. 다크 모드여도 인쇄는 늘 밝다(dark.css가 `@media screen`).
+
 ### 일정 옮기기 (`hooks/useEventMove`, `lib/eventDocOps`)
 쓰는 칸의 날짜 칸·끌어 놓기·다중 선택이 모두 `useEventMove().requestMove`를 부른다. 묶음(`groupId`)이면 `GroupMoveModal`이
 "이 날만 / 이 날부터 / 전부"를 묻고 고른 것을 **같은 날 수만큼** 옮긴다(`moveGroupEvents`: 고치던 일정을 먼저, 나머지는 하나씩 -
@@ -257,6 +262,8 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 - **메모** `MemoScreen` = 왼쪽 라벨 거르개 + 메이슨리 카드. `useMemos(groupId)`.
 - **학급** `ClassScreen`(ROADMAP 16) = 학급 고르기 + 오늘 출결 + 학급 도구 + 학생 명단. 날짜가 없다(날짜 이동 줄·위아래 밀어 날짜 넘기기 없음).
   도구 창의 열림 상태는 Layout이 쥐므로 화면은 `lib/appActions.runAppAction({ id: 단축키 이름, classKey, num })`으로 부탁한다.
+  고른 학급은 `lib/classMemory.rememberHubClass`가 도구들(자리표·뽑기·출석부 등)의 '마지막 학급' 기억에도 넣는다 - 도구를 특정 학급으로
+  열려면 먼저 이것을 부르고 `runAppAction`.
   화면 종류를 더하면: store `Scope`·`App`·Layout `scopes`·`scopeOrder`·`MobileTabBar`·`shortcuts`·`COMMAND_META`·`PaletteScope`·
   `useGlobalGestures`·시작 화면(`preferenceSync`·`SettingsModal`).
 - 화면 폭 판단은 창이 아니라 **본문 폭**(`useMainWidth`, `@container`)으로 한다. 오른쪽 칸이 열리면 그만큼 좁아진다.
@@ -368,6 +375,10 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   `public/sw.js`의 `receiveShare`가 캐시 `sp4share-inbox`에 넣고 `index.html?share=<id>`로 넘긴다 → `Layout`의 `useShareReceiver`가
   `lib/shareTarget.takeSharedPayload`로 꺼내(주소·캐시에서 지운다) **개인 공간 새 메모 칸**을 `draftText`·`draftFiles`로 연다. 저장은 늘 칸이 한다.
   파일은 `EntryDrawer`의 '📥 공유받은 파일'에서 사용자가 눌러야 드라이브에 올린다(누르지 않은 때 구글 로그인 창이 막히므로). 캐시 이름·열쇠는 sw.js와 같아야 한다.
+  **앱 아이콘은 PNG**(`public/icon-192·512·maskable-512.png`, `tools/gen-icons.mjs`가 favicon.svg로 만든다) - SVG뿐이면 안드로이드가
+  진짜 앱(WebAPK)이 아닌 바로가기로 깔아 공유 목록에 안 나올 수 있다. 이미 깔린 앱은 크롬이 바뀐 매니페스트를 하루쯤 뒤에야 받아 오므로
+  **매니페스트를 바꾼 기능은 '지우고 크롬에서 다시 설치'를 함께 안내한다**(2026-10-02 공유 목록에 안 나오다 다시 설치하니 보였다).
+  매니페스트 점검은 크롬 CDP `Page.getAppManifest`(오류·share_target·아이콘을 그대로 보여 준다).
 - **계정**: V3와 V4는 앱 이름이 달라 한 브라우저에서 다른 계정으로 들어가 있을 수 있다(`lib/peerAccount`).
   "자료가 통째로 없다"는 신고는 먼저 계정·공간을 의심한다.
 - **설정 동기화**: `lib/preferenceSync`의 `SYNCED_PREFERENCE_KEYS`만 계정에 올린다. 지금 보는 화면·날짜는 올리지 않는다.
@@ -389,7 +400,18 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-notice-share.mjs` | 알림장 📤 공유 - 넘기는 제목·글, 창을 닫을 때·막힐 때(복사)·공유 창이 없을 때(10항목). 공유 창은 흉내, 저장하지 않는다 |
 | `tools/inspect-memo-open.mjs` | 메모 화면을 열 때 - 즐겨찾기가 없으면 전체로, ☆가 생기면 다시 즐겨찾기로(8항목). 계정 즐겨찾기를 잠시 떼고 되돌린다 |
 | `tools/inspect-last-year.mjs` | 작년 이맘때 - 토글·학년도 같은 주(2029 1주 ↔ 2028 1주)·V3 글만 있는 날·올해로 가져오기(서버 복사본·올해 있음·되돌리기·두 번 가져오기)·주 넘기기·명령 창(33항목). 자료는 2028-02-28 주·2029-02-26 주에 심고 지운다 |
-| `tools/inspect-seating.mjs` | 자리표 - 만들기(전출 빠짐)·끌어 바꾸기·눌러 바꾸기·고정·책상 없음·떨어뜨릴 학생·섞기(서버 조건)·되돌리기·모양·지우기·명령 창(41항목). 점검용 학급(2030-9-9)을 더하고 끝에 뺀다 |
+| `tools/inspect-seating.mjs` | 자리표 - 만들기(전출 빠짐)·끌어 바꾸기·눌러 바꾸기·고정·책상 없음·떨어뜨릴 학생·섞기(서버 조건)·되돌리기·모양·지우기·명령 창(42항목). 점검용 학급(2030-9-9)을 더하고 끝에 뺀다 |
+| `tools/inspect-seat-student.mjs` · `inspect-draw.mjs` · `inspect-groups.mjs` | 자리표 학생 칸(36)·발표자 뽑기(33)·모둠(32) |
+| `tools/inspect-student-card.mjs` · `inspect-eval-overview.mjs` | 학생 카드(15)·평가 모아 보기(24) |
+| `tools/inspect-observe.mjs` | 기록 칸 `@이름` 태그·관찰 문구 단추(22) |
+| `tools/inspect-quick-input.mjs` · `inspect-due.mjs` | 빠른 입력 칩(20)·기한(17) |
+| `tools/inspect-print.mjs` | 인쇄 틀·주간 A4·주간학습안내·출석 누계·평가 모아 보기·조사표 한 장(30) |
+| `tools/inspect-period-bars.mjs` | 기간 일정 막대 - 월간 한 막대·년간 한 번(15) |
+| `tools/inspect-year-sheet.mjs` | 년간 학사력(19). 날마다의 표식을 보는 다른 점검은 `[data-year-view="detail"]`을 먼저 누른다 |
+| `tools/inspect-mobile-month.mjs` | 휴대폰 월간(12, 390px - 휴대폰 항목이라 이 폭만) |
+| `tools/inspect-class-screen.mjs` | 학급 탭(13) |
+| `tools/inspect-dark.mjs` | 다크 모드(11) |
+| `tools/inspect-share-target.mjs` | 다른 앱에서 공유받기 - 서비스 워커 POST·새 메모 칸·파일 목록·GET·새로고침(16). 안드로이드 공유 창 대신 같은 모양의 양식을 보낸다 |
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번 |
 | `tools/inspect-*.mjs` 나머지 | 지난 신고를 재현하던 것들(이월·뒤로가기·기록 삭제 뒤 빈 화면·V3/V4 한 출처 등) |
@@ -416,3 +438,11 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 8. **단축키나 동작을 바꿨나?** 사용 설명서(`helpTopics.ts`)를 같은 커밋에서 고친다. 키 조합은 글로 적지 않는다.
 9. **저장이 실패하면?** 저장 함수는 삼키지 말고 던진다(`failWithToast`). 칸은 실패하면 닫지 않는다.
 10. **확인**: 단위 테스트 → 빌드 → 바뀐 부분만 크롬으로(1~2분) → 커밋·푸시.
+11. **일정에 새 칸을 더하나?** V4 이월 사본(`doAutoForwarding`)·`addEventItem`·주간 요약(`useCalendarData.mapEvents`)이 정해진 칸만 옮긴다 -
+    셋에 더한다. V3 이월(`forwarding.js`)도 정해진 칸만 옮기니, V3가 빼먹는 칸은 `forwardChainId`로 찾게 한다(기한 `v4_eventDue`처럼).
+12. **새 지우기·옮기기 길인가?** 지우기 함수는 휴지통 id, 옮기기는 `trail`을 돌려주고 안내는 `showDeletedToast`/`showMovedToast`(되돌리기).
+13. **새 기능(창)을 더하나?** ⋮ 메뉴 `Layout.moreMenuSections`의 알맞은 구역에 한 줄, 단축키(`SHORTCUT_ACTIONS`), 명령 창 `COMMAND_META`
+    (빠지면 빌드가 안 된다). 화면 종류를 더하면 7장 '화면 종류를 더하면' 목록을 모두.
+14. **색을 주나?** Tailwind 색 클래스, style이면 `var(--color-…)`(hex는 다크 모드에서 안 바뀐다). `src/dark.css`는 `tools/gen-dark-css.mjs`로만.
+15. **인쇄할 화면인가?** `lib/print.printNode`, 찍지 않을 것에 `data-print-hide`.
+16. **매니페스트·서비스 워커를 바꾸나?** 설치된 앱은 늦게 받는다 - 사용자에게 '다시 설치'를 함께 알린다(8장 공유받기).
