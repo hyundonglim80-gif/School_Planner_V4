@@ -1,6 +1,6 @@
 // src/components/CalendarSyncModal.tsx
 //
-// 상단의 '캘린더' 버튼이 여는 창. 일정·수업·기록을 구글 캘린더로 보낸다.
+// ⋮ 메뉴 '구글 캘린더로 보내기'(또는 그 단축키)가 여는 창. 일정·수업·기록을 구글 캘린더로 보낸다.
 //
 // 한 방향으로만 간다. 여기에서 구글로 보내기만 하고 가져오지는 않는다.
 // 양쪽에서 고칠 수 있게 하면 어느 쪽이 맞는지 정할 수가 없다. V3도 같다.
@@ -14,6 +14,7 @@ import { getValidGoogleToken } from '../lib/googleApi';
 import { type SyncKind, type SyncMode } from '../lib/calendarSync';
 import { startCalendarSync, subscribeSyncProgress, getSyncProgress } from '../lib/calendarSyncTask';
 import { formatDateStr } from '../lib/dateUtils';
+import { schoolYearSpan } from '../lib/semester';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 
 interface CalendarSyncModalProps {
@@ -44,12 +45,9 @@ function rangeForScope(scope: string, currentDate: string): { start: string; end
     return { start: formatDateStr(start), end: formatDateStr(end) };
   }
   if (scope === 'year') {
-    // 학년도는 3월에 시작한다. 1~2월이면 지난해 3월부터 본다.
+    // 학년도는 3월에 시작한다. 1~2월이면 지난해 3월부터 본다. 끝은 2월 말일(윤년이면 29일 - 예전엔 28일로 끝내 빠졌다).
     const baseYear = d.getMonth() < 2 ? d.getFullYear() - 1 : d.getFullYear();
-    return {
-      start: formatDateStr(new Date(baseYear, 2, 1)),
-      end: formatDateStr(new Date(baseYear + 1, 1, 28)),
-    };
+    return schoolYearSpan(baseYear);
   }
   // 하루·메모는 오늘 하루
   const today = formatDateStr(d);

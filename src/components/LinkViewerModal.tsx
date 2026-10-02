@@ -52,7 +52,7 @@ export default function LinkViewerModal({
   sourcePeriod,
   sourceFId,
 }: LinkViewerModalProps) {
-  const { selectedGroupId, setCurrentDate, setScope, openDetailEdit, openEntryEditor } = useAppStore();
+  const { selectedGroupId, setCurrentDate, setScope, openDetailEdit, openEntryEditor, openEntryPanel } = useAppStore();
   const [links, setLinks] = useState<NormalizedLink[]>([]);
   const [loading, setLoading] = useState(false);
   // 붙임 사진 크게 보기
@@ -271,8 +271,9 @@ export default function LinkViewerModal({
    * 예전에는 여기서 글자만 고칠 수 있는 칸이 열렸다. 그래서 캡처 이미지를 붙이거나
    * 파일을 달거나 라벨·링크를 손대려면, 그 항목이 있는 날짜로 직접 옮겨 가야 했다.
    * 화면에서 쓰는 것과 같은 편집기를 그대로 연다.
-   *   일정·수업 -> 일정 수정 팝업
-   *   기록·메모 -> 옆 배너 (첨부·라벨·링크까지 그대로)
+   *   일정·기록·메모 -> 하루·메모 화면과 같은 오른쪽 쓰는 칸 (일정은 날짜 옮기기·기한까지, 기록·메모는 첨부·라벨·링크까지)
+   *   수업 -> N교시 수정 팝업
+   * (일정도 예전에는 옛 '일정 수정' 팝업이 열려, 다른 화면에서 누를 때와 칸이 달랐다 - 날짜 옮기기·기한이 없었다)
    */
   const handleEdit = async (link: NormalizedLink) => {
     const fId = link.targetFId || selectedGroupId || 'personal';
@@ -288,13 +289,12 @@ export default function LinkViewerModal({
     }
 
     if (link.targetType === 'event') {
-      openDetailEdit({
-        type: 'event',
+      // 일정 칸은 그 날짜 문서를 구독해 최신 내용으로 채운다
+      openEntryPanel({
+        kind: 'event',
+        groupId: fId && fId !== 'personal' ? fId : null,
         dateStr: link.targetDate,
-        itemId: String(link.targetId),
-        // 실제 내용은 팝업이 그 날짜를 읽어 최신으로 채운다. 그 전까지 보여 줄 값만 넘긴다.
-        initialData: { id: link.targetId, content: link.liveText || '' },
-        fId,
+        entryId: String(link.targetId),
       });
       return;
     }
@@ -514,7 +514,9 @@ export default function LinkViewerModal({
                         title={
                           link.targetType === 'journal' || link.targetType === 'memo'
                             ? '기록·메모 배너를 연다 (첨부·라벨·링크까지)'
-                            : '일정 수정 팝업을 연다'
+                            : link.targetType === 'event'
+                            ? '일정 칸을 연다 (날짜 옮기기·기한까지)'
+                            : '수업 수정 팝업을 연다'
                         }
                       >
                         ✏️ 수정

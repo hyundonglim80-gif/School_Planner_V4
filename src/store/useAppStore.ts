@@ -5,7 +5,7 @@ import { db, auth } from '../lib/firebase';
 import { eventDocPayload, readEventList } from '../lib/eventText';
 import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 import { moveToTrash } from '../utils/trashHelper';
-import { formatDateStr } from '../lib/dateUtils';
+import { addMonthsClamped, formatDateStr } from '../lib/dateUtils';
 import { moveEventToDate, snapshotEventFields, type EventFieldSnapshot, type MoveTrail } from '../lib/eventDocOps';
 import { showErrorToast } from '../utils/toast';
 import { FORWARD_LOOKBACK_DAYS, clampLookbackDays } from '../lib/forwarding';
@@ -403,9 +403,11 @@ export const useAppStore = create<AppState>()(
         } else if (state.scope === 'week') {
           d.setDate(d.getDate() - 7);
         } else if (state.scope === 'month') {
-          d.setMonth(d.getMonth() - 1);
+          set({ currentDate: addMonthsClamped(d, -1).toISOString() });
+          return;
         } else if (state.scope === 'year') {
-          d.setFullYear(d.getFullYear() - 1);
+          set({ currentDate: addMonthsClamped(d, -12).toISOString() });
+          return;
         }
         set({ currentDate: d.toISOString() });
       },
@@ -421,9 +423,12 @@ export const useAppStore = create<AppState>()(
         } else if (state.scope === 'week') {
           d.setDate(d.getDate() + 7);
         } else if (state.scope === 'month') {
-          d.setMonth(d.getMonth() + 1);
+          // 31일에 ▶를 눌러도 다음 달을 건너뛰지 않게 그 달의 마지막 날로 (addMonthsClamped)
+          set({ currentDate: addMonthsClamped(d, 1).toISOString() });
+          return;
         } else if (state.scope === 'year') {
-          d.setFullYear(d.getFullYear() + 1);
+          set({ currentDate: addMonthsClamped(d, 12).toISOString() });
+          return;
         }
         set({ currentDate: d.toISOString() });
       },

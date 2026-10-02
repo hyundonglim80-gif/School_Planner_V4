@@ -109,7 +109,7 @@ export const SHORTCUT_ACTIONS: ShortcutAction[] = [
   // 주간 화면의 '작년 이맘때' (ROADMAP 7). 다른 화면에서 누르면 주간으로 가서 켠다.
   { id: 'lastYear', label: '작년 이맘때 보이기 / 숨기기 (주간)', group: '메뉴 열기', def: b('') },
   { id: 'clipboard', label: '클립보드 칸 열기 / 닫기', group: '메뉴 열기', def: b('') },
-  { id: 'calendar', label: '캘린더', group: '메뉴 열기', def: b('') },
+  { id: 'calendar', label: '구글 캘린더로 보내기', group: '메뉴 열기', def: b('') },
   { id: 'dday', label: 'D-Day 관리', group: '메뉴 열기', def: b('') },
   { id: 'trash', label: '휴지통', group: '메뉴 열기', def: b('') },
   { id: 'labels', label: '통합 라벨 관리', group: '메뉴 열기', def: b('') },

@@ -858,6 +858,8 @@ export default function EventDrawer({
           onClose={() => setAlarmModalOpen(false)}
           dateStr={shownDate}
           initialTime={alarmTime}
+          // 여기서는 칸에만 담는다 - 알림은 일정을 저장할 때 걸린다
+          savedMessage="⏰ 알림 시각을 정했습니다. 일정을 저장하면 알림이 걸립니다."
           onSave={(time) => {
             setAlarmTime(time);
             setAlarmDirty(true);

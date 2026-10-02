@@ -26,7 +26,9 @@ for (const [tag, viewport] of [['pc', { width: 1280, height: 900 }], ['mobile', 
   await page.getByTitle('더보기 메뉴').click();
   await page.getByRole('button', { name: /사용 설명서/ }).click();
   await page.waitForTimeout(2500);
-  await page.getByRole('button', { name: /단축키 한눈에 보기/ }).waitFor();
+  // 왼쪽 목차에도 같은 이름의 단추가 있어 내용 칸 안에서 찾는다
+  const content = page.getByRole('region', { name: '설명서 내용' });
+  await content.getByRole('button', { name: /단축키 한눈에 보기/ }).waitFor();
   await page.screenshot({ path: `${OUT}/help-${tag}-1-home.png` });
 
   // 기능별 분류 → 세부 기능 목록
@@ -41,7 +43,7 @@ for (const [tag, viewport] of [['pc', { width: 1280, height: 900 }], ['mobile', 
 
   // 위치 표시의 '사용 설명서'로 첫 화면에 돌아가 단축키 표를 본다
   await page.getByRole('navigation', { name: '설명서 위치' }).getByRole('button', { name: '사용 설명서' }).click();
-  await page.getByRole('button', { name: /단축키 한눈에 보기/ }).click();
+  await content.getByRole('button', { name: /단축키 한눈에 보기/ }).click();
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${OUT}/help-${tag}-4-keys.png`, fullPage: false });
 

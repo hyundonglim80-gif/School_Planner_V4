@@ -94,7 +94,7 @@ describe('검색 - 메모 기간', () => {
     const user = userEvent.setup();
     render(<SearchModal isOpen onClose={vi.fn()} />);
 
-    await user.selectOptions(screen.getByRole('combobox'), 'sem1'); // 3월 ~ 8월 15일
+    await user.selectOptions(screen.getByRole('combobox'), 'sem1'); // 3월 ~ 여름 방학 끝
     await user.click(screen.getByRole('button', { name: '데이터 찾기' }));
 
     await screen.findByText('1학기 메모');
@@ -108,7 +108,7 @@ describe('검색 - 메모 기간', () => {
     expect(screen.queryByText('겨울 메모')).not.toBeInTheDocument();
   }, 30000);
 
-  it("기간이 '해당 학년도 전체'면 모든 메모가 나온다", async () => {
+  it("기간이 '전체 기간'(처음 값)이면 모든 메모가 나온다", async () => {
     (getDocsMock as any).mockImplementation(async (ref: any) =>
       String(ref?.path || '').includes('tasks') ? memoDocs() : { forEach: () => {}, docs: [] }
     );
@@ -131,24 +131,40 @@ describe('검색 - 고른 기간의 날짜', () => {
     useAppStore.setState({ currentDate: new Date(2026, 8, 15).toISOString() });
   });
 
-  it('기간을 고르면 그 범위의 날짜가 칸에 들어 있다', async () => {
+  it('기간을 고르면 그 범위의 날짜가 칸에 들어 있다 (학기는 방학 설정으로)', async () => {
     const user = userEvent.setup();
     render(<SearchModal isOpen onClose={() => {}} />);
 
+    // 방학 설정이 없으면 기본 여름 방학(7/21 ~ 8/16)으로 가른다 - lib/semester.semesterSpan
     await user.selectOptions(screen.getByRole('combobox'), 'sem1');
-
     expect(screen.getByLabelText('시작일')).toHaveValue('2026-03-01');
-    expect(screen.getByLabelText('종료일')).toHaveValue('2026-08-15');
+    expect(screen.getByLabelText('종료일')).toHaveValue('2026-08-16');
+
+    await user.selectOptions(screen.getByRole('combobox'), 'sem2');
+    expect(screen.getByLabelText('시작일')).toHaveValue('2026-08-17');
+    expect(screen.getByLabelText('종료일')).toHaveValue('2027-02-28');
   });
 
-  it("'해당 학년도 전체'는 날짜 제한이 없다고 알린다", async () => {
+  it("'학년도 전체'는 보고 있는 날의 학년도 (1~2월이면 지난해 3월부터, 윤년 2월 29일까지)", async () => {
+    useAppStore.setState({ currentDate: new Date(2028, 0, 20).toISOString() }); // 2027학년도
     const user = userEvent.setup();
     render(<SearchModal isOpen onClose={() => {}} />);
 
     await user.selectOptions(screen.getByRole('combobox'), 'year');
+    expect(screen.getByLabelText('시작일')).toHaveValue('2027-03-01');
+    expect(screen.getByLabelText('종료일')).toHaveValue('2028-02-29');
+  });
 
+  it("'전체 기간'(처음 값)은 날짜 제한이 없다고 알린다", async () => {
+    const user = userEvent.setup();
+    render(<SearchModal isOpen onClose={() => {}} />);
+
+    expect(screen.getByRole('combobox')).toHaveValue('all');
     expect(screen.getByText('날짜 제한 없음')).toBeInTheDocument();
     expect(screen.queryByLabelText('시작일')).toBeNull();
+
+    await user.selectOptions(screen.getByRole('combobox'), 'year');
+    expect(screen.queryByText('날짜 제한 없음')).toBeNull();
   });
 
   it("날짜를 고치면 '직접 지정'으로 넘어간다", async () => {

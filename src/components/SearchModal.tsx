@@ -6,7 +6,9 @@ import { collection, getDocs, query, where, documentId } from 'firebase/firestor
 import { db, auth } from '../lib/firebase';
 import { readEvalList } from '../lib/evalList';
 import { useAppStore } from '../store/useAppStore';
-import { parseDateStr, formatDateStr } from '../lib/dateUtils';
+import { parseDateStr, formatDateStr, getAcademicYear } from '../lib/dateUtils';
+import { schoolYearSpan, semesterSpan } from '../lib/semester';
+import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
 import { parseV3EventText } from '../hooks/useDayData';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 import { focusKey, type FocusSection } from '../lib/searchFocus';
@@ -107,11 +109,14 @@ export default function SearchModal({ isOpen, onClose, initialKeyword = '' }: Se
 
   // V3 스타일 필터 및 범위 상태
   const [selectedFilters, setSelectedFilters] = useState<string[]>(['all']);
-  const [searchScope, setSearchScope] = useState<string>('year');
+  // 처음 값은 '전체 기간'(날짜 제한 없음). 예전에는 이것을 '학년도 전체'라 불렀는데 실제로는 지난 학년도까지 다 찾았다.
+  const [searchScope, setSearchScope] = useState<string>('all');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
   const { currentDate, setCurrentDate, setScope, selectedGroupId, requestFocus } = useAppStore();
+  // 1·2학기는 시간표 설정의 방학으로 가른다 (lib/semester.semesterSpan - 링크·내보내기·출석 누계와 같다)
+  const { semesterConfig } = useTimetableTemplate();
   // 자세히 보기 팝업에 띄운 결과
   const [selected, setSelected] = useState<SearchResultItem | null>(null);
 
@@ -146,14 +151,20 @@ export default function SearchModal({ isOpen, onClose, initialKeyword = '' }: Se
   };
 
   const getTargetDateRange = () => {
-    if (searchScope === 'year') return null; // ALL 데이터
-    
+    if (searchScope === 'all') return null; // 날짜 제한 없음
+
     const d = new Date(currentDate);
-    const curY = d.getFullYear();
     const curM = d.getMonth() + 1;
+    const curY = d.getFullYear();
+    // 학년도·학기는 보고 있는 날의 학년도로 (1~2월이면 지난해 3월부터 - 달력의 해로 셈하면 다음 학년도를 찾았다)
+    const schoolYear = getAcademicYear(d);
     let start = '', end = '';
 
-    if (searchScope === 'day') {
+    if (searchScope === 'year') {
+      ({ start, end } = schoolYearSpan(schoolYear));
+    } else if (searchScope === 'sem1' || searchScope === 'sem2') {
+      ({ start, end } = semesterSpan(schoolYear, searchScope === 'sem1' ? 1 : 2, semesterConfig));
+    } else if (searchScope === 'day') {
       start = end = formatDateStr(d);
     } else if (searchScope === 'week') {
       const day = d.getDay();
@@ -166,12 +177,6 @@ export default function SearchModal({ isOpen, onClose, initialKeyword = '' }: Se
       const lastDay = new Date(curY, curM, 0).getDate();
       start = `${curY}-${String(curM).padStart(2, '0')}-01`;
       end = `${curY}-${String(curM).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-    } else if (searchScope === 'sem1') {
-      start = `${curY}-03-01`;
-      end = `${curY}-08-15`;
-    } else if (searchScope === 'sem2') {
-      start = `${curY}-08-16`;
-      end = `${curY + 1}-02-28`;
     } else if (searchScope === 'custom') {
       start = customStart;
       end = customEnd;
@@ -179,7 +184,7 @@ export default function SearchModal({ isOpen, onClose, initialKeyword = '' }: Se
     return { start, end };
   };
 
-  /** 지금 고른 기간의 실제 날짜. '해당 학년도 전체'는 날짜 제한이 없어 빈 값이다. */
+  /** 지금 고른 기간의 실제 날짜. '전체 기간'은 날짜 제한이 없어 빈 값이다. */
   const shownRange = getTargetDateRange() || { start: '', end: '' };
 
   const handleSearch = async (e?: React.FormEvent) => {
@@ -595,6 +600,7 @@ export default function SearchModal({ isOpen, onClose, initialKeyword = '' }: Se
               title="메모는 날짜 문서가 아니라 만든 날을 기준으로 거릅니다"
               className="text-xs px-1.5 py-1 border border-slate-200 rounded-lg outline-none bg-white font-semibold cursor-pointer focus:ring-1 focus:ring-primary shrink-0"
             >
+              <option value="all">전체 기간</option>
               <option value="year">학년도 전체</option>
               <option value="sem1">1학기</option>
               <option value="sem2">2학기</option>
@@ -606,7 +612,7 @@ export default function SearchModal({ isOpen, onClose, initialKeyword = '' }: Se
             
             {/* 고른 기간이 실제로 며칠부터 며칠까지인지 늘 보여 주고, 그 자리에서
                 고칠 수 있게 한다. 고치면 '직접 지정'으로 넘어간다. */}
-            {searchScope === 'year' ? (
+            {searchScope === 'all' ? (
               <span className="text-2xs font-semibold text-slate-400 shrink-0">날짜 제한 없음</span>
             ) : (
               <DateRangeFields

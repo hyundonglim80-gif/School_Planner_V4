@@ -10,7 +10,8 @@ import { fileLooksLikeKeep } from '../lib/keepImport';
 import KeepImportModal from './KeepImportModal';
 import { useAppStore } from '../store/useAppStore';
 import { readEventList, eventContentOf } from '../lib/eventText';
-import { formatDate } from '../lib/dateUtils';
+import { formatDate, getAcademicYear } from '../lib/dateUtils';
+import { schoolYearSpan, semesterSpan } from '../lib/semester';
 import { exportCalendarData, labelNamesOf } from '../lib/calendarSync';
 import { getValidGoogleToken } from '../lib/googleApi';
 import { exportToSheets, importFromSheets, sheetUrlOf } from '../lib/sheetsSync';
@@ -34,7 +35,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
   // Keep 파일을 여기에 넣는 일이 잦다. 그때는 Keep 전용 창으로 그대로 넘긴다.
   const [keepFiles, setKeepFiles] = useState<File[] | null>(null);
   const { eventLabels, journalLabels } = useLabels();
-  const { templates, currentTemplateName } = useTimetableTemplate();
+  const { templates, currentTemplateName, semesterConfig } = useTimetableTemplate();
   const { scope: appScope, currentDate: appCurrentDate } = useAppStore();
 
   // 1. 개인 or 그룹 선택
@@ -112,9 +113,9 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
         setStartDate(`${curYear}-${String(curMonth).padStart(2, '0')}-01`);
         setEndDate(`${curYear}-${String(curMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`);
       } else if (appScope === 'year') {
-        const academicYear = curMonth < 3 ? curYear - 1 : curYear;
-        setStartDate(`${academicYear}-03-01`);
-        setEndDate(`${academicYear + 1}-02-28`);
+        const span = schoolYearSpan(getAcademicYear(curDateObj));
+        setStartDate(span.start);
+        setEndDate(span.end);
       } else {
         setStartDate('');
         setEndDate('');
@@ -139,22 +140,22 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
       const lastDay = new Date(y, m, 0).getDate();
       setStartDate(`${y}-${String(m).padStart(2, '0')}-01`);
       setEndDate(`${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`);
-    } else if (periodType === 'sem1') {
-      setStartDate(`${curYear}-03-01`);
-      setEndDate(`${curYear}-08-15`);
-    } else if (periodType === 'sem2') {
-      setStartDate(`${curYear}-08-16`);
-      setEndDate(`${curYear + 1}-02-28`);
+    } else if (periodType === 'sem1' || periodType === 'sem2') {
+      // 학기는 보고 있는 날의 학년도, 시간표 설정의 방학으로 가른다 (lib/semester - 검색·링크와 같다).
+      // 예전에는 달력의 해로 셈해 1~2월에 열면 다음 학년도를, 2월 28일까지만 담아 윤년 2월 29일을 빠뜨렸다.
+      const span = semesterSpan(getAcademicYear(curDateObj), periodType === 'sem1' ? 1 : 2, semesterConfig);
+      setStartDate(span.start);
+      setEndDate(span.end);
     } else if (periodType === 'year') {
-      const academicYear = curMonth < 3 ? curYear - 1 : curYear;
-      setStartDate(`${academicYear}-03-01`);
-      setEndDate(`${academicYear + 1}-02-28`);
+      const span = schoolYearSpan(getAcademicYear(curDateObj));
+      setStartDate(span.start);
+      setEndDate(span.end);
     } else if (periodType === 'all') {
       // 날짜를 비우면 아래에서 기간 조건 없이 전부 읽는다
       setStartDate('');
       setEndDate('');
     }
-  }, [periodType, appScope, appCurrentDate]);
+  }, [periodType, appScope, appCurrentDate, semesterConfig]);
 
   if (!isOpen) return null;
 

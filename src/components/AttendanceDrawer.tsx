@@ -12,7 +12,7 @@ import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
 import { isTopSideItem } from './PopupFrame';
 import { useRoster, type ClassRoster } from '../hooks/useRoster';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
-import { getSemesterRanges } from '../lib/semester';
+import { semesterSpan } from '../lib/semester';
 import { addDays, getAcademicYear, parseDateStr } from '../lib/dateUtils';
 import {
   KINDS,
@@ -278,8 +278,9 @@ export default function AttendanceDrawer({
       return { start: `${d.getFullYear()}-${m}-01`, end: `${d.getFullYear()}-${m}-31` };
     }
     if (r === 'year') return { start: `${ay}-03-01`, end: `${ay + 1}-02-29` };
-    const sem = getSemesterRanges(semesterConfig);
-    return r === 'sem1' ? sem.sem1 : sem.sem2;
+    // 학기는 그 학급 학년도로, 학년도를 빈틈없이 나눈다 (lib/semester.semesterSpan - 교과 출결 누계·평가 모아 보기와 같다).
+    // 예전에는 방학 설정의 해를 그대로 써서 다른 학년도 학급은 빈 표가 되고, 2학기가 겨울 방학 전날에 끝나 2월 출결이 빠졌다.
+    return semesterSpan(ay, r === 'sem1' ? 1 : 2, semesterConfig);
   };
 
   const inRange = useMemo(() => {

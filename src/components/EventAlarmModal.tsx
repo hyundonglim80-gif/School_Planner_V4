@@ -9,6 +9,11 @@ export interface EventAlarmModalProps {
   initialTime?: string; // "YYYY-MM-DDTHH:mm"
   onSave: (time: string) => void | Promise<void>;
   onTurnOff: () => void | Promise<void>;
+  /**
+   * 저장한 뒤 띄울 안내. 일정 칸 안에서 열면 알림은 일정을 저장할 때 걸리므로 그렇게 알린다
+   * (예전에는 거기서도 '알림이 설정되었습니다'가 떠서, 일정 칸을 저장하지 않고 닫아 알림을 잃었다).
+   */
+  savedMessage?: string;
 }
 
 // V3의 "⏰ 알림 시간 설정" 팝업을 이식: 날짜 선택 + 24시간제 텍스트 입력(예: 1430, 14:30).
@@ -34,6 +39,7 @@ export default function EventAlarmModal({
   initialTime,
   onSave,
   onTurnOff,
+  savedMessage = '✅ 알림이 설정되었습니다.',
 }: EventAlarmModalProps) {
   const initialParts = (initialTime || '').split('T');
   const [dVal, setDVal] = useState(initialParts[0] || dateStr);
@@ -53,7 +59,7 @@ export default function EventAlarmModal({
       showErrorToastOnce('알림을 저장하지 못했습니다.', e);
       return;
     }
-    showToast('✅ 알림이 설정되었습니다.');
+    showToast(savedMessage);
     // ⚠️ 저장하고 나면 닫아야 한다. '알림 끄기'는 닫는데 '저장'만 안 닫고 있었다.
     //    설정됐다는 알림은 뜨는데 창은 그대로 있으니 안 된 줄 알고 또 누르게 된다.
     //    새 일정에 알림을 다는 자리에서는 더 나쁘다. 이 창의 가림막이 일정 칸의

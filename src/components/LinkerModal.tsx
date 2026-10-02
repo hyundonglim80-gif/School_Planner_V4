@@ -13,6 +13,9 @@ import { addReverseLink } from '../utils/linkUtils';
 import type { CreatedEntry } from '../store/useAppStore';
 import PopupFrame from './PopupFrame';
 import DateRangeFields from './DateRangeFields';
+import { getAcademicYear } from '../lib/dateUtils';
+import { schoolYearSpan, semesterSpan } from '../lib/semester';
+import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
 
 interface LinkerModalProps {
   isOpen: boolean;
@@ -77,6 +80,8 @@ export default function LinkerModal({
   sourceFId,
 }: LinkerModalProps) {
   const { selectedGroupId, linkerCallback } = useAppStore();
+  // 1·2학기는 시간표 설정의 방학으로 가른다 (lib/semester.semesterSpan)
+  const { semesterConfig } = useTimetableTemplate();
   const { eventLabels, journalLabels, memoLabels } = useLabels();
 
   const [currentTab, setCurrentTab] = useState<'event' | 'schedule' | 'journal' | 'memo'>('event');
@@ -137,8 +142,16 @@ export default function LinkerModal({
   );
 
   // 날짜 범위 계산
+  // 학기·학년도는 연결하는 쪽 날짜의 학년도로 센다 (lib/semester - 검색·내보내기와 같다).
+  // 예전에는 달력의 해로 셈해 1~2월 항목에서 열면 다음 학년도를 찾았고, 2월 28일까지만 봐서 윤년 2월 29일이 빠졌다.
+  // 방학 설정은 학기를 골랐을 때만 의존한다 (설정이 늦게 도착해도 '±1주일'을 다시 읽지 않게).
+  const semesterRef = useRef(semesterConfig);
+  semesterRef.current = semesterConfig;
+  const semesterDep =
+    dateRange === 'sem1' || dateRange === 'sem2' ? `${semesterConfig.summerStart}|${semesterConfig.summerEnd}` : '';
   const computeDateRange = useCallback(() => {
-    const center = new Date(sourceDateStr || new Date());
+    const center = toDateOnly(sourceDateStr) ? new Date(`${toDateOnly(sourceDateStr)}T00:00:00`) : new Date();
+    const schoolYear = getAcademicYear(center);
     let s = new Date(center);
     let e = new Date(center);
 
@@ -148,20 +161,16 @@ export default function LinkerModal({
     } else if (dateRange === '1month') {
       s.setDate(s.getDate() - 30);
       e.setDate(e.getDate() + 30);
-    } else if (dateRange === 'sem1') {
-      s = new Date(center.getFullYear(), 2, 1);
-      e = new Date(center.getFullYear(), 7, 31);
-    } else if (dateRange === 'sem2') {
-      s = new Date(center.getFullYear(), 8, 1);
-      e = new Date(center.getFullYear() + 1, 1, 28);
+    } else if (dateRange === 'sem1' || dateRange === 'sem2') {
+      return semesterSpan(schoolYear, dateRange === 'sem1' ? 1 : 2, semesterRef.current);
     } else if (dateRange === 'year') {
-      s = new Date(center.getFullYear(), 2, 1);
-      e = new Date(center.getFullYear() + 1, 1, 28);
+      return schoolYearSpan(schoolYear);
     } else if (dateRange === 'custom') {
       return { start: customStart, end: customEnd };
     }
     return { start: formatDateStr(s), end: formatDateStr(e) };
-  }, [dateRange, sourceDateStr, customStart, customEnd]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange, sourceDateStr, customStart, customEnd, semesterDep]);
 
   /** 지금 고른 범위의 실제 날짜. 화면에 그대로 보여 주고 여기서 고칠 수 있다. */
   const shownRange = computeDateRange();

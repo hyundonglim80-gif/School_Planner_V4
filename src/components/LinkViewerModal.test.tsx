@@ -8,8 +8,8 @@ import { useAppStore } from '../store/useAppStore';
 // 연결된 링크 팝업의 '수정'은 예전에 글자만 고치는 칸을 열었다.
 // 그래서 캡처 이미지 붙이기·파일 첨부·라벨·링크는 그 항목이 있는 날짜로
 // 직접 옮겨 가야만 할 수 있었다. 이제 화면에서 쓰는 편집기를 그대로 연다.
-//   일정·수업 -> 일정 수정 팝업
-//   기록·메모 -> 옆 배너
+//   일정·기록·메모 -> 하루·메모 화면과 같은 오른쪽 쓰는 칸
+//   수업 -> N교시 수정 팝업
 
 const journalLink = {
   targetType: 'journal',
@@ -77,7 +77,8 @@ describe('연결된 링크 - 수정 버튼', () => {
     expect(s.isDetailEditOpen).toBe(false);
   });
 
-  it('일정 링크는 일정 수정 팝업을 연다', async () => {
+  // 일정도 다른 화면에서 누를 때와 같은 오른쪽 일정 칸(날짜 옮기기·기한까지). 예전에는 옛 '일정 수정' 팝업이 열렸다.
+  it('일정 링크는 하루 화면과 같은 일정 칸을 연다', async () => {
     mockSource([eventLink]);
     const user = userEvent.setup();
     render(<LinkViewerModal {...props} />);
@@ -85,14 +86,24 @@ describe('연결된 링크 - 수정 버튼', () => {
     await user.click(await screen.findByRole('button', { name: /수정/ }));
 
     const s = useAppStore.getState();
-    expect(s.isDetailEditOpen).toBe(true);
-    expect(s.detailEditTarget).toMatchObject({
-      type: 'event',
+    expect(s.entryPanels).toHaveLength(1);
+    expect(s.entryPanels[0]).toMatchObject({
+      kind: 'event',
       dateStr: '2026-09-16',
-      itemId: 'ev_1',
-      fId: 'personal',
+      entryId: 'ev_1',
+      groupId: null,
     });
-    expect(s.entryPanels).toHaveLength(0);
+    expect(s.isDetailEditOpen).toBe(false);
+  });
+
+  it('그룹 공간의 일정이면 그 그룹의 일정 칸으로', async () => {
+    mockSource([{ ...eventLink, targetFId: 'g1' }]);
+    const user = userEvent.setup();
+    render(<LinkViewerModal {...props} />);
+
+    await user.click(await screen.findByRole('button', { name: /수정/ }));
+
+    expect(useAppStore.getState().entryPanels[0]).toMatchObject({ kind: 'event', groupId: 'g1', entryId: 'ev_1' });
   });
 
   it('글자만 고치는 칸은 더 이상 열지 않는다', async () => {

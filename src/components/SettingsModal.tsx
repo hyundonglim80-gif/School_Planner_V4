@@ -926,7 +926,7 @@ export default function SettingsModal({ isOpen, onClose, focusSection }: Setting
 
         <Section
           title="이월"
-          desc="'전달' 라벨이 붙은 미완료 일정을 오늘로 끌어올 때 며칠 전까지 거슬러 볼지 정합니다. 자동 이월과 '미완료 일정 가져오기'가 같은 값을 씁니다."
+          desc="'이월' 속성이 켜진(이월 라벨이 붙은) 미완료 일정을 오늘로 끌어올 때 며칠 전까지 거슬러 볼지 정합니다. 자동 이월과 '미완료 일정 가져오기'가 같은 값을 씁니다."
         >
           <div className="flex items-center gap-2">
             <input

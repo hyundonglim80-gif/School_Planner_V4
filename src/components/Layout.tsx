@@ -1115,7 +1115,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         {isRecurringModalOpen && (
-          <RecurringModal isOpen onClose={() => setIsRecurringModalOpen(false)} />
+          // 만들고 나면 닫는다. 예전에는 창이 그대로 남아 한 번 더 누르면 같은 반복 일정이 두 벌 생겼다.
+          <RecurringModal isOpen onClose={() => setIsRecurringModalOpen(false)} onRegistered={() => setIsRecurringModalOpen(false)} />
         )}
 
         {isForwardingModalOpen && (

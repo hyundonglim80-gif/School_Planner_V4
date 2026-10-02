@@ -54,6 +54,21 @@ export function addDays(dateStr: string, days: number): string {
   return formatDateStr(date);
 }
 
+/**
+ * 날짜를 months달 옮긴다. 옮긴 달에 그 날이 없으면 그 달의 마지막 날로.
+ * Date.setMonth만 쓰면 1월 31일 + 1달이 3월 3일이 되어, 월간 화면에서 31일에 ▶를 누르면 2월을 건너뛰었다.
+ * (년간의 2월 29일 + 1년도 3월 1일 = 다음 학년도가 되었다.)
+ */
+export function addMonthsClamped(date: Date, months: number): Date {
+  const d = new Date(date);
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + months);
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, last));
+  return d;
+}
+
 /** 두 날짜 사이의 날 수(toStr - fromStr). 같은 날이면 0, 앞날이면 음수. */
 export function daysBetween(fromStr: string, toStr: string): number {
   const [fy, fm, fd] = fromStr.split('-').map(Number);

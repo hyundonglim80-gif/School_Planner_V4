@@ -114,8 +114,23 @@ describe('링크 추가 - 고른 범위의 날짜를 보여 주고 고칠 수 �
     const select = await screen.findByDisplayValue('±1주일');
     await user.selectOptions(select, 'sem1');
 
+    // 1학기 = 3월 1일 ~ 여름 방학 끝 (방학 설정이 없으면 기본 7/21 ~ 8/16 - lib/semester.semesterSpan)
     await waitFor(() => expect(screen.getByLabelText('시작일')).toHaveValue('2026-03-01'));
-    expect(screen.getByLabelText('종료일')).toHaveValue('2026-08-31');
+    expect(screen.getByLabelText('종료일')).toHaveValue('2026-08-16');
+  });
+
+  it('1~2월 항목에서 열어도 그 학년도로 센다 (달력의 해로 셈하면 다음 학년도를 찾았다)', async () => {
+    const user = userEvent.setup();
+    render(<LinkerModal {...props} sourceDateStr="2028-02-10" />);
+
+    const select = await screen.findByDisplayValue('±1주일');
+    await user.selectOptions(select, 'year');
+    await waitFor(() => expect(screen.getByLabelText('시작일')).toHaveValue('2027-03-01'));
+    expect(screen.getByLabelText('종료일')).toHaveValue('2028-02-29'); // 윤년 2월 29일까지
+
+    await user.selectOptions(select, 'sem2');
+    await waitFor(() => expect(screen.getByLabelText('시작일')).toHaveValue('2027-09-01'));
+    expect(screen.getByLabelText('종료일')).toHaveValue('2028-02-29');
   });
 
   it("날짜를 직접 고치면 '기간 설정'으로 넘어간다", async () => {
