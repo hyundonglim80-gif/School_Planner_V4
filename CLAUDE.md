@@ -62,7 +62,7 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
   끝난 기능의 코드 자리·함정은 **ARCHITECTURE 6~8장**, 점검 스크립트는 **9장**, 새 기능을 더할 때 확인할 것은 **10장 체크리스트**에 있다.
 - **18번 교과 전담 모드 S1~S10 끝(10-02)** - 자세한 것은 ARCHITECTURE 8장 '교과 전담 모드', 계획·결과는 `docs/ROADMAP-SUBJECT.md`.
   점검 계정 `teacher3`(`?as=3`)는 seed가 만든다. S4~S10은 클라우드 세션에서 만들어 2026-10-02 main에 합쳐 배포했다(사용자가 '배포해').
-  **실제 사이트·PC 크롬에서 볼 것**: inspect-manual 백업 항목·inspect-eval-overview CSV 이름(컨테이너 Chromium은 'download'로 받는다), inspect-scenarios 휴대폰 알림장 저장.
+  **실제 사이트·PC 크롬에서 볼 것**: inspect-manual 백업 항목·inspect-eval-overview CSV 이름(컨테이너 Chromium은 내려받은 파일 이름을 'download'로 준다).
 - 이 절에는 **진행 중인 것·사용자에게 부탁한 것만** 둔다(이 파일은 모든 대화가 처음에 읽는다 - 길면 매번 비싸다).
   기능을 끝내면 자세한 메모는 ARCHITECTURE로 옮기고 여기서는 지운다.
 - `C:\HDL` PC의 C:가 에뮬레이터 로그로 다시 꽉 찼었다(2026-10-02) - **사용자에게 C: 정리를 부탁했다.** 긴 점검 전후로 `df -h /c`와 로그 크기를 본다(2장).
