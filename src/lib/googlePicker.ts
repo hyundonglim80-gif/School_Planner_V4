@@ -80,11 +80,62 @@ export async function pickDriveFolder(
   token: string,
   title = '학생 사진이 담긴 폴더를 골라 주세요'
 ): Promise<PickedFolder | null> {
+  const docs = await showPicker(token, title, (google) =>
+    new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(true)
+      .setMimeTypes('application/vnd.google-apps.folder')
+  );
+  const doc = docs?.[0];
+  return doc ? { id: doc.id, name: doc.name } : null;
+}
+
+export interface PickedFile {
+  id: string;
+  name: string;
+  mimeType: string;
+}
+
+/** 학생 사진으로 고를 수 있는 그림 (줄여 올릴 수 있는 것만 - 아이폰 HEIC는 브라우저가 못 읽는다) */
+export const PICKABLE_IMAGE_TYPES = 'image/png,image/jpeg,image/webp';
+
+/**
+ * 드라이브의 그림을 고르게 한다(여러 장도). 취소하면 빈 배열.
+ *
+ * ⚠️ 폴더가 아니라 '파일'을 고르게 하는 까닭: drive.file 권한은 선택창에서 고른 것만 앱에 열어 준다.
+ *    폴더를 고르면 그 안의 하위 폴더 속 사진(손자)은 끝내 안 열렸다(2026-09 시도 - 위 pickDriveFolder 참고).
+ *    사진 파일을 직접 고르면 그 파일들이 열리므로 어느 폴더에 있든 받아 올 수 있다(2026-10-02 사용자 요청).
+ */
+export async function pickDriveImages(
+  token: string,
+  { title = '사진을 골라 주세요', multiple = false }: { title?: string; multiple?: boolean } = {}
+): Promise<PickedFile[]> {
+  const docs = await showPicker(
+    token,
+    title,
+    (google) =>
+      new google.picker.DocsView(google.picker.ViewId.DOCS_IMAGES)
+        .setIncludeFolders(true)
+        .setSelectFolderEnabled(false)
+        .setMimeTypes(PICKABLE_IMAGE_TYPES)
+        .setMode(google.picker.DocsViewMode.GRID),
+    multiple
+  );
+  return (docs || []).map((d: any) => ({ id: d.id, name: d.name, mimeType: d.mimeType || '' }));
+}
+
+/** 선택창을 띄우고 고른 문서 목록을 돌려준다. 취소하면 null. */
+async function showPicker(
+  token: string,
+  title: string,
+  makeView: (google: any) => any,
+  multiple = false
+): Promise<any[] | null> {
   await loadPicker();
   const google = (window as any).google;
   if (!google?.picker) throw new Error('구글 파일 선택창을 쓸 수 없습니다.');
 
-  return new Promise<PickedFolder | null>((resolve, reject) => {
+  return new Promise<any[] | null>((resolve, reject) => {
     let settled = false;
     let watch: ReturnType<typeof setInterval> | null = null;
 
@@ -96,22 +147,20 @@ export async function pickDriveFolder(
     };
 
     try {
-      const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
-        .setIncludeFolders(true)
-        .setSelectFolderEnabled(true)
-        .setMimeTypes('application/vnd.google-apps.folder');
-
-      const picker = new google.picker.PickerBuilder()
+      let builder = new google.picker.PickerBuilder()
         .setOAuthToken(token)
         .setDeveloperKey(GOOGLE_API_KEY)
         .setAppId(GOOGLE_APP_ID)
         .setTitle(title)
-        .addView(view)
+        .addView(makeView(google));
+      if (multiple) builder = builder.enableFeature(google.picker.Feature.MULTISELECT_ENABLED);
+
+      const picker = builder
         .setCallback((data: any) => {
           const action = data?.[google.picker.Response.ACTION];
           if (action === google.picker.Action.PICKED) {
-            const doc = data[google.picker.Response.DOCUMENTS]?.[0];
-            finish(() => resolve(doc ? { id: doc.id, name: doc.name } : null));
+            const docs = data[google.picker.Response.DOCUMENTS] || [];
+            finish(() => resolve(docs));
           } else if (action === google.picker.Action.CANCEL) {
             finish(() => resolve(null));
           }
@@ -119,7 +168,6 @@ export async function pickDriveFolder(
         .build();
 
       picker.setVisible(true);
-
       /**
        * 선택창을 곁에서 지켜본다.
        *

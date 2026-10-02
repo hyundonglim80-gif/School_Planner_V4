@@ -19,6 +19,7 @@ import RosterManageTab, { type RosterView } from './roster/RosterManageTab';
 import RosterSearchTab from './roster/RosterSearchTab';
 import RosterMemorizeTab from './roster/RosterMemorizeTab';
 import PhotoStatusBar from './roster/PhotoStatusBar';
+import { pickStudentPhotoFromDrive, pickManyPhotosFromDrive } from './roster/drivePhotoPick';
 import ImageViewerModal from './ImageViewerModal';
 import { useStudentPhotos } from '../hooks/useStudentPhotos';
 import {
@@ -403,6 +404,18 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     } catch (e: any) {
       showErrorToast(e?.message || '사진을 올리지 못했습니다.');
     }
+  };
+
+  /** 드라이브에 이미 있는 사진을 골라 한 학생에게 (빈 칸·크게 보기의 '☁️ 드라이브에서') */
+  const handlePickDrivePhoto = (student: Student) =>
+    pickStudentPhotoFromDrive(student, (file) => handleUploadPhoto(student, file));
+
+  /** 드라이브에서 여러 장 - 받은 뒤는 기기에서 여러 장 고른 것과 같다 (파일 이름으로 짝짓기) */
+  const [driveFetching, setDriveFetching] = useState<{ done: number; total: number } | null>(null);
+  const handleBulkFromDrive = async () => {
+    const files = await pickManyPhotosFromDrive((done, total) => setDriveFetching(done < total ? { done, total } : null));
+    setDriveFetching(null);
+    if (files.length > 0) await handleBulkUpload(files);
   };
 
   const handleUploadPhoto = async (student: Student, file: File) => {
@@ -1289,6 +1302,16 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                     ? `올리는 중 ${photoState.bulk.done}/${photoState.bulk.total}`
                     : '사진 여러 장'}
                 </button>
+                <button
+                  type="button"
+                  data-photo-drive-many
+                  onClick={handleBulkFromDrive}
+                  disabled={!!photoState.bulk || !!driveFetching}
+                  className="px-2.5 py-1 bg-white hover:bg-amber-50 text-amber-700 border border-amber-300 rounded-lg text-xs font-bold shadow-2xs transition-all cursor-pointer disabled:opacity-60"
+                  title="구글 드라이브에 이미 있는 사진을 여러 장 골라, 파일 이름으로 학생을 짝지어 올립니다"
+                >
+                  {driveFetching ? `드라이브에서 받는 중 ${driveFetching.done}/${driveFetching.total}` : '☁️ 드라이브에서 여러 장'}
+                </button>
                 </>
                 )}
 
@@ -1341,6 +1364,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
                 uploadingNum={photoState.uploading}
                 onUploadPhoto={handleUploadPhoto}
                 onOpenPhoto={(st, url) => setPhotoViewer({ student: st, url })}
+                onPickDrivePhoto={handlePickDrivePhoto}
                 onUpdateStudent={handleUpdateStudent}
                 onRemoveStudent={handleRemoveStudent}
                 highlightNum={highlightNum}
@@ -1537,6 +1561,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
             onClose={() => setPhotoViewer(null)}
             images={[{ url: photoViewer.url, name: `${photoViewer.student.num}번 ${photoViewer.student.name}` }]}
             footer={
+              <>
               <button
                 type="button"
                 onClick={() => replaceInputRef.current?.click()}
@@ -1545,6 +1570,18 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
               >
                 {photoState.uploading === photoViewer.student.num ? '올리는 중...' : '📷 사진 바꾸기'}
               </button>
+              <button
+                type="button"
+                data-photo-drive-replace
+                onClick={async () => {
+                  if (await handlePickDrivePhoto(photoViewer.student)) setPhotoViewer(null);
+                }}
+                disabled={photoState.uploading === photoViewer.student.num}
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-white/15 text-white hover:bg-white/25 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                ☁️ 드라이브에서 고르기
+              </button>
+              </>
             }
           />
           <input

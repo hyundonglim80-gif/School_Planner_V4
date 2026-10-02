@@ -28,6 +28,7 @@ import StudentPhoto from '../../components/roster/StudentPhoto';
 import ImageViewerModal from '../../components/ImageViewerModal';
 import type { Student } from '../../hooks/useRoster';
 import { showErrorToast, showToast } from '../../utils/toast';
+import { pickStudentPhotoFromDrive } from '../../components/roster/drivePhotoPick';
 
 /** 학급 화면의 사진 보기 켬/끔 - 이 기기에만 (명렬표 관리의 'sp4-roster-photos'와 따로) */
 const PHOTOS_KEY = 'sp4-class-photos';
@@ -121,6 +122,7 @@ export default function ClassScreen() {
       showErrorToast(e?.message || '사진을 올리지 못했습니다.');
     }
   };
+  const pickDrivePhoto = (student: Student) => pickStudentPhotoFromDrive(student, (file) => uploadPhoto(student, file));
   const openRecord = (num: number) => {
     if (classKey) rememberHubClass(classKey);
     runAppAction({ id: 'studentRecord', classKey: classKey || undefined, num });
@@ -352,6 +354,7 @@ export default function ClassScreen() {
                     onUpload={(file) => uploadPhoto(s, file)}
                     loose={photo?.exact === false}
                     onOpen={photo?.url ? () => setPhotoViewer({ student: s, url: photo.url }) : undefined}
+                    onPickDrive={() => pickDrivePhoto(s)}
                   />
                   <button
                     type="button"
@@ -393,6 +396,7 @@ export default function ClassScreen() {
             onClose={() => setPhotoViewer(null)}
             images={[{ url: photoViewer.url, name: `${photoViewer.student.num}번 ${photoViewer.student.name}` }]}
             footer={
+              <>
               <button
                 type="button"
                 onClick={() => replaceInputRef.current?.click()}
@@ -401,6 +405,18 @@ export default function ClassScreen() {
               >
                 {photoState.uploading === Number(photoViewer.student.num) ? '올리는 중...' : '📷 사진 바꾸기'}
               </button>
+              <button
+                type="button"
+                data-photo-drive-replace
+                onClick={async () => {
+                  if (await pickDrivePhoto(photoViewer.student)) setPhotoViewer(null);
+                }}
+                disabled={photoState.uploading === Number(photoViewer.student.num)}
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-white/15 text-white hover:bg-white/25 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                ☁️ 드라이브에서 고르기
+              </button>
+              </>
             }
           />
           <input

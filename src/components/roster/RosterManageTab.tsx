@@ -25,6 +25,8 @@ interface RosterManageTabProps {
   onUploadPhoto: (student: Student, file: File) => void;
   /** 사진을 눌렀을 때 크게 띄운다 (사진이 있을 때만 준다) */
   onOpenPhoto?: (student: Student, url: string) => void;
+  /** 빈 사진 칸(타일)의 '☁️ 드라이브에서' - 드라이브에 있는 사진을 골라 붙인다 */
+  onPickDrivePhoto?: (student: Student) => void;
   onUpdateStudent: (idx: number, field: keyof Student, val: any) => void;
   onRemoveStudent: (idx: number) => void;
   /** 검색 탭에서 넘어온 학생을 잠깐 짚어 준다 */
@@ -40,6 +42,7 @@ export default function RosterManageTab({
   uploadingNum,
   onUploadPhoto,
   onOpenPhoto,
+  onPickDrivePhoto,
   onUpdateStudent,
   onRemoveStudent,
   highlightNum,
@@ -77,6 +80,7 @@ export default function RosterManageTab({
                   onUpload={(file) => onUploadPhoto(st, file)}
                   loose={photo?.exact === false}
                   onOpen={photo?.url && onOpenPhoto ? () => onOpenPhoto(st, photo.url) : undefined}
+                  onPickDrive={canUploadPhoto && onPickDrivePhoto ? () => onPickDrivePhoto(st) : undefined}
                 />
                 {st.isActive === false && (
                   <span className="absolute top-1.5 left-1.5 bg-slate-600/90 text-white text-2xs font-bold rounded px-1.5 py-0.5">

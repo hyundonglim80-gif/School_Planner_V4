@@ -14,7 +14,7 @@
 import { doc, getDoc, setDoc, deleteField } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { getValidGoogleToken } from './googleApi';
-import { pickDriveFolder } from './googlePicker';
+import { pickDriveFolder, pickDriveImages, type PickedFile } from './googlePicker';
 import { getOrCreateFolder } from './driveApi';
 import { shrinkPhoto, type ShrinkResult } from './imageShrink';
 import {
@@ -131,6 +131,40 @@ export async function connectClassFolder(
   await writeConfig({ studentPhotoFoldersByClass: { [className]: picked } });
   managedRootId = null;
   return picked;
+}
+
+/**
+ * 드라이브에 이미 있는 사진을 골라 파일로 받아 온다 (여러 장도). 취소하면 빈 배열.
+ *
+ * 고른 사진은 선택창이 drive.file 권한 안으로 넣어 주므로 받아 올 수 있다(lib/googlePicker.pickDriveImages).
+ * 받은 파일은 기기에서 고른 것과 똑같이 uploadStudentPhoto / 여러 장 올리기로 넘긴다 - 줄이고, 이름을
+ * '2026-3-1-05-홍길동'으로 맞춰 학급 폴더에 넣는다. 드라이브의 원본은 건드리지 않는다.
+ */
+export async function pickPhotosFromDrive(
+  opts: { title?: string; multiple?: boolean } = {},
+  onProgress?: (done: number, total: number) => void
+): Promise<File[]> {
+  const token = await getValidGoogleToken();
+  if (!token) throw new Error('구글 계정 연결이 필요합니다.');
+  const picked = await pickDriveImages(token, opts);
+  return downloadPickedImages(picked, token, onProgress);
+}
+
+/** 고른 드라이브 파일을 차례로 받는다 (한꺼번에 던지면 구글이 잠시 막는다) */
+export async function downloadPickedImages(
+  picked: PickedFile[],
+  token: string,
+  onProgress?: (done: number, total: number) => void
+): Promise<File[]> {
+  const files: File[] = [];
+  for (const [i, p] of picked.entries()) {
+    onProgress?.(i, picked.length);
+    const res = await driveFetch(`${DRIVE_FILES}/${encodeURIComponent(p.id)}?alt=media`, token);
+    const blob = await res.blob();
+    files.push(new File([blob], p.name, { type: p.mimeType || blob.type || 'image/jpeg' }));
+  }
+  onProgress?.(picked.length, picked.length);
+  return files;
 }
 
 /**

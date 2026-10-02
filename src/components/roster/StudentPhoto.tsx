@@ -26,6 +26,11 @@ interface StudentPhotoProps {
    *    열리는 일이 있었다. 바꾸는 것은 크게 띄운 창의 아래에서 한다.
    */
   onOpen?: () => void;
+  /**
+   * 빈 칸(카드 모양)에서 '☁️ 드라이브에서' - 드라이브에 이미 있는 사진을 골라 붙인다(lib/studentPhotos.pickPhotosFromDrive).
+   * 주지 않으면 그 단추가 없다. 칸의 나머지를 누르면 예전처럼 기기에서 고른다.
+   */
+  onPickDrive?: () => void;
   className?: string;
 }
 
@@ -58,6 +63,7 @@ export default function StudentPhoto({
   onUpload,
   loose = false,
   onOpen,
+  onPickDrive,
   className = '',
 }: StudentPhotoProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -152,6 +158,38 @@ export default function StudentPhoto({
   );
 
   if (!canUpload) return empty;
+
+  // 카드 빈 칸: 기기에서 고르는 칸 위에 '☁️ 드라이브에서'를 얹는다 (단추 안에 단추를 넣을 수 없어 나란히 겹친다)
+  if (!isCircle && onPickDrive) {
+    return (
+      <div className="relative w-full">
+        <button
+          type="button"
+          onClick={pick}
+          disabled={uploading}
+          title={`${name} 사진 올리기 (이 기기에서)`}
+          className="w-full cursor-pointer"
+        >
+          {empty}
+        </button>
+        {!uploading && (
+          <button
+            type="button"
+            data-photo-drive-pick
+            onClick={(e) => {
+              e.stopPropagation();
+              onPickDrive();
+            }}
+            title={`구글 드라이브에 있는 ${name} 사진을 고릅니다`}
+            className="absolute bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap px-2 py-0.5 rounded-md bg-white border border-slate-200 text-2xs font-bold text-slate-600 hover:text-blue-600 hover:border-blue-300 shadow-2xs cursor-pointer"
+          >
+            ☁️ 드라이브에서
+          </button>
+        )}
+        {hidden}
+      </div>
+    );
+  }
 
   return (
     <>

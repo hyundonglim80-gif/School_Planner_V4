@@ -325,6 +325,11 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 - **메모 ↔ 기록 옮기기**: `lib/moveEntry`. 새 항목 → 역링크 갈아끼우기 → 원본 휴지통. 일정은 옮기지 않는다.
 - **첨부·캡처**: 구글 드라이브 `School_Planner` 폴더(`lib/driveApi`). 화면에 그림은 thumbnail 주소로 보인다.
   학생 사진은 공개하지 않고 `Students_Poto/{학년도-학년-반}`에(`lib/studentPhotos`).
+  **드라이브에 있는 사진 고르기**(2026-10-02): `googlePicker.pickDriveImages`(DOCS_IMAGES, png·jpeg·webp, 여러 장은 MULTISELECT)로
+  **사진 파일**을 고르게 한다 - drive.file은 선택창에서 고른 파일만 열어 주므로(폴더를 고르면 손자 파일은 안 열렸다) 어느 폴더에 있든 받는다.
+  `studentPhotos.pickPhotosFromDrive`가 alt=media로 받아 File로 만들고, 기기에서 고른 것과 같은 `upload`/`uploadMany`로 넘긴다(줄이기·이름 맞추기·학급 폴더,
+  원본은 그대로). UI는 `roster/drivePhotoPick`: 빈 카드 `StudentPhoto.onPickDrive`(`data-photo-drive-pick`), 크게 보기 `data-photo-drive-replace`,
+  명렬표 관리 `data-photo-drive-many`. 클라우드 컨테이너는 apis.google.com을 막아 선택창이 안 뜬다 - 점검은 선택창·드라이브를 흉내 낸다.
 - **구글 토큰**(드라이브·캘린더·시트, `lib/googleApi`): 토큰은 한 시간쯤에 만료되고 탭(sessionStorage)마다 따로다. 사용자가 시킨 일은
   `getValidGoogleToken`, 화면을 그리려는 일은 `getGoogleTokenQuietly`(창을 띄우지 않는다). **브라우저는 방금 누른 때가 아니면
   로그인 창을 막는다** - 파일 고르기 창에서 고른 뒤·드라이브에 물은 뒤에는 막혀, 첨부가 '파일 업로드에 실패했습니다'로만 끝났다(2026-10-02).
@@ -463,6 +468,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-year-sheet.mjs` | 년간 학사력(19). 날마다의 표식을 보는 다른 점검은 `[data-year-view="detail"]`을 먼저 누른다 |
 | `tools/inspect-mobile-month.mjs` | 휴대폰 월간(12, 390px - 휴대폰 항목이라 이 폭만) |
 | `tools/inspect-class-screen.mjs` | 학급 탭(13). 올해 학급이 없으면(seed 직후) 점검용 9-1·9-2를 심고 끝에 뺀다 |
+| `tools/inspect-drive-photo-pick.mjs` | '☁️ 드라이브에서' 학생 사진(13) - 선택창·드라이브를 흉내 내 한 장(빈 칸)·바꾸기(크게 보기)·취소·여러 장(이름 짝짓기·결과 띠) |
 | `tools/inspect-class-photos.mjs` | 학급 탭 명단 사진 보기(13) - googleapis를 흉내 내 사진 카드·n/n명·크게 보기·이름 → 누가기록·다시 열어도 남음·토큰 없을 때 띠 |
 | `tools/inspect-teaching-mode.mjs` | 교사 유형(12) - teacher3 환경설정·서버 값, teacher2 처음 안내 띠·'나중에', teacher 그대로. 끝에 seed 값으로 되돌린다 |
 | `tools/inspect-subject-timetable.mjs` | 교과 모드 칸 입력(13) - teacher3 시간표 창 제안·정규화·붙여 넣기·저장 안 하고 닫기, 하루 2026-11-03 저장 → 서버 '5-1 과학', 주간 팝업 제안, teacher '3 - 2 국어' 그대로. 시간표·수업 문서를 끝에 되돌린다 |
