@@ -8,6 +8,7 @@ import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 import DayEvents from './DayEvents';
 import DaySchedule from './DaySchedule';
 import DayJournal from './DayJournal';
+import TeachingModeBanner from '../../components/TeachingModeBanner';
 
 export default function DayScreen() {
   const { currentDate, setCurrentDate, selectedGroupId, showClass, showEvents } = useAppStore();
@@ -47,6 +48,8 @@ export default function DayScreen() {
         </div>
       ) : (
         <div className="flex flex-col gap-6">
+          {/* 교사 유형을 아직 고르지 않은 계정에만 (고르면 다시 뜨지 않는다) */}
+          <TeachingModeBanner />
           {/* 일정과 수업을 둘 다 끄면 윗칸 자체를 걷어낸다(빈 칸이 남아 기록이 밀리지 않게) */}
           {/* 수업·일정을 나란히 두는 기준은 본문 폭 720px (창 폭 768px 무렵).
               모니터 절반(약 940px)에서도 둘이 옆으로 선다. 창 폭이 아니라 본문 폭(@container)으로

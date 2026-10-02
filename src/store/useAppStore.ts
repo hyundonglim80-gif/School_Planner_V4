@@ -14,6 +14,7 @@ import { applyFontScale, DEFAULT_FONT_SCALE, type FontScale } from '../lib/fontS
 import type { PopupStyle } from '../lib/preferenceSync';
 import type { FocusTarget } from '../lib/searchFocus';
 import type { NeisScheduleItem } from '../lib/neis';
+import { DEFAULT_TEACHING_MODE, type TeachingMode } from '../lib/teachingMode';
 
 type Scope = 'day' | 'week' | 'month' | 'year' | 'memo' | 'class';
 
@@ -131,6 +132,12 @@ interface AppState {
   clipboardOpen: boolean;
   // 기본값에서 바꾼 단축키만 담는다. 나머지는 lib/shortcuts.ts의 기본값을 쓴다.
   shortcutOverrides: ShortcutOverrides;
+  /** 교사 유형 (lib/teachingMode). App이 계정 문서를 구독해 넣는다. 이 기기에 남기지 않는다(persist 밖). */
+  teachingMode: TeachingMode;
+  teachingModeLoaded: boolean;
+  /** 계정에 교사 유형 문서가 있었나. 없으면 하루 화면에 처음 안내 띠를 띄운다. */
+  teachingModeExists: boolean;
+  setTeachingModeState: (mode: TeachingMode, exists: boolean) => void;
 
   setScope: (scope: Scope) => void;
   setSemesterFilter: (filter: 'all' | 1 | 2) => void;
@@ -337,8 +344,15 @@ export const useAppStore = create<AppState>()(
       leftPanelWidth: null,
       clipboardOpen: false,
       shortcutOverrides: {},
+      teachingMode: DEFAULT_TEACHING_MODE,
+      teachingModeLoaded: false,
+      teachingModeExists: false,
+      setTeachingModeState: (teachingMode, teachingModeExists) => set({ teachingMode, teachingModeExists, teachingModeLoaded: true }),
 
       clearAuthData: () => set({
+        teachingMode: DEFAULT_TEACHING_MODE,
+        teachingModeLoaded: false,
+        teachingModeExists: false,
         selectedGroupId: null,
         govApiKey: '',
         googleAccessToken: null,

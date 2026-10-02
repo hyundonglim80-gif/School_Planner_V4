@@ -28,8 +28,20 @@ const pad = (n) => String(n).padStart(2, '0');
 const t0 = new Date();
 const TODAY = `${t0.getFullYear()}-${pad(t0.getMonth() + 1)}-${pad(t0.getDate())}`;
 const AY = t0.getMonth() >= 2 ? t0.getFullYear() : t0.getFullYear() - 1;
-const rosterData = (await getDocFromServer(doc(db, 'users', uid, 'settings', 'rosters'))).data() || {};
-const classes = rosterData.classList || rosterData.rosters || [];
+const rosterRef = doc(db, 'users', uid, 'settings', 'rosters');
+const rosterData = (await getDocFromServer(rosterRef)).data() || {};
+let classes = rosterData.classList || rosterData.rosters || [];
+// seed는 기본 계정에 명렬표를 심지 않는다. 올해 학급이 없으면 점검용 두 반(9-1·9-2)을 심었다가 끝에 뺀다.
+const PLANTED = !classes.some((c) => Number(c.year) === AY && (c.students || []).length > 1)
+  ? ['1', '2'].map((classNum) => ({
+      year: AY, grade: '9', classNum,
+      students: [1, 2, 3].map((num) => ({ num, name: `점검${classNum}반${num}`, gender: '', isActive: true, note: '' })),
+    }))
+  : [];
+if (PLANTED.length) {
+  classes = [...classes, ...PLANTED];
+  await setDoc(rosterRef, { classList: classes, rosters: classes, updatedAt: Date.now() }, { merge: true });
+}
 const CLS = classes.find((c) => Number(c.year) === AY && (c.students || []).length > 1);
 const OTHER = classes.find((c) => c !== CLS && (c.students || []).length > 0);
 const keyOf = (c) => `${c.year}_${c.grade}_${c.classNum}`;
@@ -152,6 +164,11 @@ try {
   if (CLS) {
     if (origAtt) await setDoc(attRef, origAtt);
     else await deleteDoc(attRef).catch(() => {});
+  }
+  if (PLANTED.length) {
+    const now = (await getDocFromServer(rosterRef)).data() || {};
+    const left = (now.classList || now.rosters || []).filter((c) => !(Number(c.year) === AY && c.grade === '9'));
+    await setDoc(rosterRef, { classList: left, rosters: left, updatedAt: Date.now() }, { merge: true });
   }
 }
 

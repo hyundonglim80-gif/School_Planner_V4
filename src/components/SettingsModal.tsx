@@ -26,6 +26,7 @@ import ShortcutModal from './ShortcutModal';
 import { loadAdminConfig, saveAdminGovApiKey } from '../lib/adminConfig';
 import { clearNeisCache, loadNeisKey, saveNeisKey, testNeisKey } from '../lib/neis';
 import SchoolSettingPanel from './SchoolSettingPanel';
+import TeachingModePanel from './TeachingModePanel';
 import { loadSharedHolidays, saveSharedHolidays } from '../lib/holidays';
 import { fetchHolidaysFromGovApi } from '../lib/govApi';
 import { clearHolidayCache } from '../hooks/useGovHolidays';
@@ -838,6 +839,13 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               )}
             </div>
           </div>
+        </Section>
+
+        <Section
+          title="교사 유형"
+          desc="초등 담임은 한 반의 여러 과목을, 교과 전담은 여러 반에 한두 과목을 가르칩니다. 고르는 즉시 계정에 저장되고 PC·휴대폰이 같은 유형을 씁니다. 바꿔도 적어 둔 자료는 그대로입니다."
+        >
+          <TeachingModePanel />
         </Section>
 
         <Section

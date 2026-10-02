@@ -20,6 +20,25 @@ const SECOND_EMAIL = 'teacher2@example.com';
 // 개발자 전용 화면(공휴일, 공유 그룹 점검)을 확인하려면 이 계정으로 들어가야 한다.
 // src/lib/developers.ts 의 목록과 같아야 한다.
 const DEVELOPER_EMAIL = 'hyundonglim80@gmail.com';
+// 교과 전담 점검 계정 (docs/ROADMAP-SUBJECT.md). 5학년 네 반에 과학, 2026-11-02 ~ 11-27 수업.  ?as=3
+const SUBJECT_EMAIL = 'teacher3@example.com';
+
+// 교사 유형 (src/lib/teachingMode). 초등 담임 문서를 심어 두면 다른 점검이 처음 안내 띠 없이 돈다.
+// (실제 사용자는 문서가 없어 처음 한 번 띠를 본다 - 그것이 의도다.)
+const HOMEROOM_MODE = { unit: 'subject', hasHomeroom: true, homeroomClass: '', subjects: [], classColors: {} };
+const SUBJECT_MODE = { unit: 'class', hasHomeroom: false, homeroomClass: '', subjects: ['과학'], classColors: {} };
+
+/** 계정을 만들고(이미 있으면 그대로) 그 계정으로 들어간다. uid를 돌려준다 */
+async function signInAs(email, label) {
+  try {
+    await createUserWithEmailAndPassword(auth, email, PASSWORD);
+    console.log(`${label}을 만들었습니다: ${email}`);
+  } catch {
+    console.log(`${label}은 이미 있습니다: ${email}`);
+  }
+  return (await signInWithEmailAndPassword(auth, email, PASSWORD)).user.uid;
+}
+const teachingDoc = (uid) => doc(db, 'users', uid, 'settings', 'v4_teaching');
 
 const app = initializeApp({ projectId: 'schoolplannerv3', apiKey: 'fake-api-key' }, 'seed');
 const db = getFirestore(app);
@@ -71,6 +90,7 @@ async function main() {
   // 드라이브 자동 백업: 방금 한 것으로 둔다. 점검 계정에는 구글 토큰이 없어, 비워 두면 PC 화면마다
   // '지금 백업' 띠가 떠서 다른 점검의 화면을 밀어낸다. 띠는 tools/inspect-auto-backup.mjs가 따로 본다.
   await setDoc(doc(db, 'users', uid, 'settings', 'v4_autoBackup'), { lastAt: Date.now() }, { merge: true });
+  await setDoc(teachingDoc(uid), { ...HOMEROOM_MODE, updatedAt: Date.now() });
   await setDoc(doc(db, 'users', uid, 'settings', 'labels'), {
     eventLabels: [
       { id: 'ev_1', name: '달력', color: 'red', calendar: true, skip: false, forward: false, period: false, recur: false },
@@ -193,25 +213,61 @@ async function main() {
   }
   await batch.commit();
 
-  // ── 두 번째 계정 (공유 그룹 점검용) ────────────────────────────
-  try {
-    await createUserWithEmailAndPassword(auth, SECOND_EMAIL, PASSWORD);
-    console.log(`두 번째 계정을 만들었습니다: ${SECOND_EMAIL}`);
-  } catch {
-    console.log(`두 번째 계정은 이미 있습니다: ${SECOND_EMAIL}`);
-  }
+  // ── 두 번째 계정 (공유 그룹 점검용) · 개발자 계정 ──────────────────
+  // 자료는 심지 않는다. 교사 유형만 초등 담임으로 (처음 안내 띠가 다른 점검을 가리지 않게).
+  const uid2 = await signInAs(SECOND_EMAIL, '두 번째 계정');
+  await setDoc(teachingDoc(uid2), { ...HOMEROOM_MODE, updatedAt: Date.now() });
+  const uidDev = await signInAs(DEVELOPER_EMAIL, '개발자 계정');
+  await setDoc(teachingDoc(uidDev), { ...HOMEROOM_MODE, updatedAt: Date.now() });
 
-  try {
-    await createUserWithEmailAndPassword(auth, DEVELOPER_EMAIL, PASSWORD);
-    console.log(`개발자 계정을 만들었습니다: ${DEVELOPER_EMAIL}`);
-  } catch {
-    console.log(`개발자 계정은 이미 있습니다: ${DEVELOPER_EMAIL}`);
-  }
+  const subjectDays = await seedSubjectTeacher();
 
   console.log(
     `심었습니다 — 날짜 ${days}일 / 일정 ${events}건 / 기록 ${journals}건 / 수업 ${schedules}일 / 메모 ${memoCount}건`
   );
+  console.log(`교과 전담(${SUBJECT_EMAIL}) - 5학년 네 반 명렬표, 수업 ${subjectDays}일`);
   process.exit(0);
+}
+
+// ── 교과 전담 계정 (docs/ROADMAP-SUBJECT.md S1) ──────────────────
+// 5-1 ~ 5-4 명렬표(반마다 5명, 이름 '가1'~'라5'처럼 반마다 다르게)와 2026-11-02 ~ 11-27 평일 수업.
+// 시간표 칸 글자는 '5-2 과학'(반-과목) - V3에도 그 글자로 보인다.
+const SUBJECT_WEEK = {
+  1: { 1: '5-1 과학', 3: '5-2 과학' },
+  2: { 2: '5-3 과학', 4: '5-4 과학' },
+  3: { 1: '5-2 과학', 2: '5-1 과학' },
+  4: { 3: '5-4 과학', 5: '5-3 과학' },
+  5: { 1: '5-1 과학', 2: '5-2 과학', 3: '5-3 과학', 4: '5-4 과학' },
+};
+
+async function seedSubjectTeacher() {
+  const uid3 = await signInAs(SUBJECT_EMAIL, '교과 전담 계정');
+  const settings = (id) => doc(db, 'users', uid3, 'settings', id);
+  await setDoc(settings('v4_autoBackup'), { lastAt: Date.now() }, { merge: true });
+  await setDoc(teachingDoc(uid3), { ...SUBJECT_MODE, updatedAt: Date.now() });
+
+  const classList = ['가', '나', '다', '라'].map((head, i) => ({
+    year: 2026,
+    grade: '5',
+    classNum: String(i + 1),
+    students: Array.from({ length: 5 }, (_, k) => ({ num: k + 1, name: `${head}${k + 1}`, gender: '', isActive: true, note: '' })),
+  }));
+  await setDoc(settings('rosters'), { classList, rosters: classList, updatedAt: Date.now() });
+
+  const b = writeBatch(db);
+  let n = 0;
+  for (let d = new Date(2026, 10, 2); d <= new Date(2026, 10, 27); d.setDate(d.getDate() + 1)) {
+    const week = SUBJECT_WEEK[d.getDay()];
+    if (!week) continue;
+    const periods = {};
+    for (const [p, subject] of Object.entries(week)) {
+      periods[p] = { subject, content: '', memo: '', supplies: '', linkedItems: [], attachments: [] };
+    }
+    b.set(doc(db, 'users', uid3, 'schedules', dateStr(d)), { periods, updatedAt: Date.now() });
+    n++;
+  }
+  await b.commit();
+  return n;
 }
 
 main().catch((e) => {

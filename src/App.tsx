@@ -15,6 +15,7 @@ import { startPersistenceWatchdog } from './lib/firestoreRecovery';
 import { useEventAlarms } from './hooks/useEventAlarms';
 import { useLabels } from './hooks/useLabels';
 import { usePreferenceSync } from './hooks/usePreferenceSync';
+import { useTeachingModeSync } from './hooks/useTeachingMode';
 import EventAlarmPopup from './components/EventAlarmPopup';
 
 function App() {
@@ -26,6 +27,8 @@ function App() {
   const { labelsLoaded } = useLabels();
   // 단축키·화면 보기 같은 환경설정을 계정에 붙여 두어 다른 기기에서도 그대로 쓴다.
   usePreferenceSync(user?.uid);
+  // 교사 유형(초등 담임 / 교과 전담 / 교과 + 담임). 화면은 useTeachingMode로 읽는다.
+  useTeachingModeSync(user?.uid);
 
   // 💡 추가된 부분: 앱 구동 시 전역으로 이월 실행 (주간, 월간, 년간 화면 등 전체 반영)
   useEffect(() => {

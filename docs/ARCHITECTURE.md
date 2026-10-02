@@ -34,6 +34,7 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
    `initializeFirestore(..., { localCache: memoryLocalCache() })` (**오프라인 저장소를 쓰지 않는다**, 5장 참고)
 3. `App.tsx` — `useAuth`로 로그인 확인 → 없으면 `LoginScreen`. 로그인되면
    - `usePreferenceSync(uid)`: 환경설정을 계정에서 받아 store에 넣고, 바뀌면 다시 올린다
+   - `useTeachingModeSync(uid)`: 교사 유형 문서(`v4_teaching`)를 store에 (`useTeachingMode()`로 읽는다)
    - `runAutoForwarding(selectedGroupId)`: 이월 (라벨을 다 읽은 뒤 한 번 더 돈다)
    - `useEventAlarms`: 20초마다 알림 시각을 보고 `EventAlarmPopup`
    - `Layout` 안에 scope에 맞는 화면 하나
@@ -66,6 +67,7 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
 | `users/{uid}/v4_classHub/{학급키}` | `{ classKey, apart: ["3-15"] }` | V4 전용. 학급마다 하나 - 떨어뜨릴 학생(arrayUnion/Remove로 한 쌍씩). 뽑기·모둠도 여기에 더한다(ROADMAP 8-3·8-4) |
 | `users/{uid}/settings/v4_trash` | 휴지통 자동 비우기 기간 | |
 | `users/{uid}/settings/v4_school` | `{ officeCode, schoolCode, officeName, name, kind, grade }` (학교를 지우면 `{ updatedAt }`만) | V4 전용. 우리 학교 - 나이스 급식·학사일정(`lib/schoolSetting`, `lib/neis`) |
+| `users/{uid}/settings/v4_teaching` | `{ unit:'subject'\|'class', hasHomeroom, homeroomClass:'5-2', subjects:[], classColors:{} }` | V4 전용. 교사 유형(`lib/teachingMode`) - 문서가 없으면 초등 담임(`unit:'subject', hasHomeroom:true`)이고 하루 화면에 처음 안내 띠. App이 한 번 구독해 store에 넣고 화면은 `useTeachingMode()`로만 읽는다. 과목은 `arrayUnion/Remove` |
 | `users/{uid}/v4_progress/{id}` | `{ key(시간표 칸 글자), startDate, lessons: [{unit, no, content, supplies}], bumps: ['YYYY-MM-DD#교시'] }` | V4 전용. 진도 관리(`lib/progress`). 수업 문서에는 쓰지 않고 화면에서만 겹쳐 본다. 차시 목록은 `saveProgressPlan`(merge, bumps 빼고), 밀기는 `setProgressBump`(arrayUnion/Remove 한 칸) - 다른 기기에서 민 것을 덮지 않게 |
 | `sharedConfig/neis` | `{ key, updatedAt, updatedBy }` | 나이스 인증키. **로그인하면 누구나 읽고** 개발자만 쓴다(`admin/config`는 개발자만 읽어 따로 둠). 없거나 못 읽으면 키 없이 5건씩 나눠 받는다 |
 | `users/{uid}/settings/v4_autoBackup` | `{ enabled, intervalDays, keep, lastAt?, lastName?, lastSummary?, folderLink? }` | V4 전용. 드라이브 자동 백업(`lib/autoBackup`, `hooks/useAutoBackup`). PC에서 토큰이 이미 있을 때만 조용히 백업. '나중에'는 기기별 localStorage `sp4_autoBackupSnoozeUntil` |
@@ -409,13 +411,14 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-period-bars.mjs` | 기간 일정 막대 - 월간 한 막대·년간 한 번(15) |
 | `tools/inspect-year-sheet.mjs` | 년간 학사력(19). 날마다의 표식을 보는 다른 점검은 `[data-year-view="detail"]`을 먼저 누른다 |
 | `tools/inspect-mobile-month.mjs` | 휴대폰 월간(12, 390px - 휴대폰 항목이라 이 폭만) |
-| `tools/inspect-class-screen.mjs` | 학급 탭(13) |
+| `tools/inspect-class-screen.mjs` | 학급 탭(13). 올해 학급이 없으면(seed 직후) 점검용 9-1·9-2를 심고 끝에 뺀다 |
+| `tools/inspect-teaching-mode.mjs` | 교사 유형(12) - teacher3 환경설정·서버 값, teacher2 처음 안내 띠·'나중에', teacher 그대로. 끝에 seed 값으로 되돌린다 |
 | `tools/inspect-dark.mjs` | 다크 모드(11) |
 | `tools/inspect-share-target.mjs` | 다른 앱에서 공유받기 - 서비스 워커 POST·새 메모 칸·파일 목록·GET·새로고침(16). 안드로이드 공유 창 대신 같은 모양의 양식을 보낸다 |
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번 |
 | `tools/inspect-*.mjs` 나머지 | 지난 신고를 재현하던 것들(이월·뒤로가기·기록 삭제 뒤 빈 화면·V3/V4 한 출처 등) |
-| `tools/seed.mjs` | 에뮬레이터에 한 학년도치 자료 |
+| `tools/seed.mjs` | 에뮬레이터에 한 학년도치 자료. 교과 전담 계정 `teacher3`(`?as=3`): 5-1~5-4 명렬표, 2026-11-02~27 `5-2 과학` 수업. 모든 계정에 `v4_teaching` |
 | `tools/check-rules.mjs` | 보안 규칙 |
 
 - 환경은 `CLAUDE.md` 2장(에뮬레이터·JDK·사이트 주소). 크롬, PC 1400px / 휴대폰 390px만 본다.

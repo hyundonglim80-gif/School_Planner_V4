@@ -84,3 +84,22 @@ describe('환경설정 - 저장과 닫기', () => {
     await waitFor(() => expect(useAppStore.getState().forwardLookbackDays).toBe(60));
   });
 });
+
+describe('환경설정 - 교사 유형', () => {
+  it('셋이 그려지고, 저장된 유형이 골라져 있다', async () => {
+    useAppStore.setState({
+      teachingMode: { unit: 'class', hasHomeroom: false, homeroomClass: '', subjects: ['과학'], classColors: {} },
+      teachingModeLoaded: true,
+      teachingModeExists: true,
+    });
+    const { container } = render(<SettingsModal isOpen onClose={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('교사 유형')).toBeInTheDocument());
+
+    const cards = container.querySelectorAll('[data-teacher-preset]');
+    expect([...cards].map((c) => c.getAttribute('data-teacher-preset'))).toEqual(['homeroom', 'subject', 'subjectHomeroom']);
+    expect(container.querySelector('[data-teacher-preset="subject"]')).toHaveAttribute('aria-checked', 'true');
+    // 교과 전담: 과목 칸은 있고 담임반 칸은 없다
+    expect(container.querySelector('[data-teaching-subject="과학"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-teaching-homeroom]')).not.toBeInTheDocument();
+  });
+});
