@@ -110,25 +110,73 @@ export async function pickDriveImages(
   token: string,
   { title = '사진을 골라 주세요', multiple = false }: { title?: string; multiple?: boolean } = {}
 ): Promise<PickedFile[]> {
-  const docs = await showPicker(
-    token,
-    title,
-    (google) =>
-      new google.picker.DocsView(google.picker.ViewId.DOCS_IMAGES)
-        .setIncludeFolders(true)
-        .setSelectFolderEnabled(false)
-        .setMimeTypes(PICKABLE_IMAGE_TYPES)
-        .setMode(google.picker.DocsViewMode.GRID),
-    multiple
+  const lastParent = readLastPhotoParent();
+  const docs = await showPicker(token, title, (google) => photoViews(google, lastParent), multiple);
+  const picked = (docs || []).map((d: any) => ({ id: d.id, name: d.name, mimeType: d.mimeType || '', parentId: d.parentId || '' }));
+  // 다음에 고를 때 그 폴더부터 (반 학생 사진을 한 명씩 고를 때 매번 폴더를 찾아 들어가지 않게)
+  if (picked[0]?.parentId) rememberLastPhotoParent(picked[0].parentId);
+  return picked.map(({ id, name, mimeType }) => ({ id, name, mimeType }));
+}
+
+/** 사진 고르기에서 보이는 것: 폴더(열어 들어가기만, 고르지는 않는다) + 고를 수 있는 그림 */
+const FOLDER_AND_IMAGES = `application/vnd.google-apps.folder,${PICKABLE_IMAGE_TYPES}`;
+
+/**
+ * 사진 고르기 선택창의 탭들. 드라이브 화면처럼 폴더를 열어 들어가며 고른다 (2026-10-02 사용자 요청).
+ *
+ * ⚠️ 예전에는 DOCS_IMAGES(모든 사진) 하나에 그림 종류만 걸어서 폴더가 걸러지고, 드라이브의 사진이 폴더 구분 없이
+ *    한 줄로 늘어섰다. 폴더 종류도 함께 걸고(setMimeTypes) 내 드라이브 맨 위(setParent('root'))에서 시작하면
+ *    폴더를 두 번 눌러 들어가고 위쪽 경로로 되돌아오는 드라이브와 같은 모양이 된다.
+ *    구글 선택창에는 왼쪽 폴더 나무가 없다 - 경로(브레드크럼)로 오간다.
+ */
+function photoViews(google: any, lastParent: string): any[] {
+  const P = google.picker;
+  const folderView = () =>
+    new P.DocsView(P.ViewId.DOCS)
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(false)
+      .setMimeTypes(FOLDER_AND_IMAGES)
+      .setMode(P.DocsViewMode.LIST);
+  const views: any[] = [];
+  if (lastParent) views.push(folderView().setParent(lastParent).setLabel('지난번 폴더'));
+  views.push(folderView().setParent('root').setLabel('내 드라이브'));
+  // setOwnedByMe는 setIncludeFolders와 함께 쓰면 무시된다(구글 설명서) - 폴더는 종류(setMimeTypes)로만 보이게 한다
+  views.push(
+    new P.DocsView(P.ViewId.DOCS)
+      .setOwnedByMe(false)
+      .setSelectFolderEnabled(false)
+      .setMimeTypes(FOLDER_AND_IMAGES)
+      .setMode(P.DocsViewMode.LIST)
+      .setLabel('공유 문서함')
   );
-  return (docs || []).map((d: any) => ({ id: d.id, name: d.name, mimeType: d.mimeType || '' }));
+  views.push(folderView().setEnableDrives(true).setLabel('공유 드라이브'));
+  views.push(
+    new P.DocsView(P.ViewId.DOCS_IMAGES).setMimeTypes(PICKABLE_IMAGE_TYPES).setMode(P.DocsViewMode.GRID).setLabel('모든 사진')
+  );
+  return views;
+}
+
+const LAST_PARENT_KEY = 'sp4-photo-pick-parent';
+function readLastPhotoParent(): string {
+  try {
+    return localStorage.getItem(LAST_PARENT_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+function rememberLastPhotoParent(id: string) {
+  try {
+    localStorage.setItem(LAST_PARENT_KEY, id);
+  } catch {
+    /* 시크릿 모드 등 */
+  }
 }
 
 /** 선택창을 띄우고 고른 문서 목록을 돌려준다. 취소하면 null. */
 async function showPicker(
   token: string,
   title: string,
-  makeView: (google: any) => any,
+  makeView: (google: any) => any | any[],
   multiple = false
 ): Promise<any[] | null> {
   await loadPicker();
@@ -151,8 +199,9 @@ async function showPicker(
         .setOAuthToken(token)
         .setDeveloperKey(GOOGLE_API_KEY)
         .setAppId(GOOGLE_APP_ID)
-        .setTitle(title)
-        .addView(makeView(google));
+        .setTitle(title);
+      const made = makeView(google);
+      for (const v of Array.isArray(made) ? made : [made]) builder = builder.addView(v);
       if (multiple) builder = builder.enableFeature(google.picker.Feature.MULTISELECT_ENABLED);
 
       const picker = builder

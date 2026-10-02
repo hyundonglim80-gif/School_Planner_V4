@@ -325,8 +325,10 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 - **메모 ↔ 기록 옮기기**: `lib/moveEntry`. 새 항목 → 역링크 갈아끼우기 → 원본 휴지통. 일정은 옮기지 않는다.
 - **첨부·캡처**: 구글 드라이브 `School_Planner` 폴더(`lib/driveApi`). 화면에 그림은 thumbnail 주소로 보인다.
   학생 사진은 공개하지 않고 `Students_Poto/{학년도-학년-반}`에(`lib/studentPhotos`).
-  **드라이브에 있는 사진 고르기**(2026-10-02): `googlePicker.pickDriveImages`(DOCS_IMAGES, png·jpeg·webp, 여러 장은 MULTISELECT)로
-  **사진 파일**을 고르게 한다 - drive.file은 선택창에서 고른 파일만 열어 주므로(폴더를 고르면 손자 파일은 안 열렸다) 어느 폴더에 있든 받는다.
+  **드라이브에 있는 사진 고르기**(2026-10-02): `googlePicker.pickDriveImages`(png·jpeg·webp, 여러 장은 MULTISELECT)로
+  **사진 파일**을 고르게 한다. 탭은 드라이브처럼 폴더를 열어 들어가는 DocsView(DOCS, 종류에 폴더+그림, `setParent('root')`, LIST) -
+  지난번 폴더(고른 사진의 parentId, localStorage `sp4-photo-pick-parent`)·내 드라이브·공유 문서함(`setOwnedByMe`는 `setIncludeFolders`와 같이 쓰면
+  무시된다)·공유 드라이브·모든 사진(DOCS_IMAGES). 그림 종류만 걸면 폴더가 걸러져 사진이 한 줄로 늘어선다. drive.file은 선택창에서 고른 파일만 열어 주므로(폴더를 고르면 손자 파일은 안 열렸다) 어느 폴더에 있든 받는다.
   `studentPhotos.pickPhotosFromDrive`가 alt=media로 받아 File로 만들고, 기기에서 고른 것과 같은 `upload`/`uploadMany`로 넘긴다(줄이기·이름 맞추기·학급 폴더,
   원본은 그대로). UI는 `roster/drivePhotoPick`: 빈 카드 `StudentPhoto.onPickDrive`(`data-photo-drive-pick`), 크게 보기 `data-photo-drive-replace`,
   명렬표 관리 `data-photo-drive-many`. 클라우드 컨테이너는 apis.google.com을 막아 선택창이 안 뜬다 - 점검은 선택창·드라이브를 흉내 낸다.

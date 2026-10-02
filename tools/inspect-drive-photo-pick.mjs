@@ -1,6 +1,7 @@
 // tools/inspect-drive-photo-pick.mjs
 //
 // '☁️ 드라이브에서' - 구글 드라이브에 이미 있는 학생 사진을 골라 붙이기를 실제 크롬으로 본다 (2026-10-02 사용자 요청).
+//   - 선택창은 드라이브처럼 폴더를 열어 들어가는 탭(지난번 폴더·내 드라이브·공유 문서함·공유 드라이브·모든 사진)
 //   - 학급 탭 사진 보기: 빈 칸의 '☁️ 드라이브에서' → 사진 하나 고르기 → 받아서 '학년도-학년-반-번호-이름' 이름으로 학급 폴더에 올라가고 칸에 보인다
 //   - 크게 보기의 '☁️ 드라이브에서 고르기'로 바꾸기
 //   - 명렬표 관리 '☁️ 드라이브에서 여러 장' → 여러 장 고르기 → 파일 이름으로 짝지어 올리기, 짝 없는 파일은 결과 띠에
@@ -68,18 +69,22 @@ await ctx.addInitScript(() => {
   window.gapi = { load: (_n, o) => o.callback() };
   class DocsView {
     constructor(id) { this.o = { viewId: id }; }
-    setIncludeFolders() { return this; }
+    setIncludeFolders(v) { this.o.includeFolders = v; return this; }
     setSelectFolderEnabled() { return this; }
     setMimeTypes(m) { this.o.mimeTypes = m; return this; }
     setMode() { return this; }
+    setParent(p) { this.o.parent = p; return this; }
+    setLabel(l) { this.o.label = l; return this; }
+    setOwnedByMe() { return this; }
+    setEnableDrives() { return this; }
   }
   class PickerBuilder {
-    constructor() { this.o = { multi: false }; }
+    constructor() { this.o = { multi: false, views: [] }; }
     setOAuthToken() { return this; }
     setDeveloperKey() { return this; }
     setAppId() { return this; }
     setTitle(t) { this.o.title = t; return this; }
-    addView(v) { this.o.view = v.o; return this; }
+    addView(v) { this.o.views.push(v.o); return this; }
     enableFeature(f) { if (f === 'multi') this.o.multi = true; return this; }
     setCallback(cb) { this.cb = cb; return this; }
     build() {
@@ -97,8 +102,8 @@ await ctx.addInitScript(() => {
   window.google = {
     picker: {
       DocsView, PickerBuilder,
-      ViewId: { DOCS_IMAGES: 'images', FOLDERS: 'folders' },
-      DocsViewMode: { GRID: 'grid' },
+      ViewId: { DOCS: 'docs', DOCS_IMAGES: 'images', FOLDERS: 'folders' },
+      DocsViewMode: { GRID: 'grid', LIST: 'list' },
       Feature: { MULTISELECT_ENABLED: 'multi' },
       Response: { ACTION: 'action', DOCUMENTS: 'docs' },
       Action: { PICKED: 'picked', CANCEL: 'cancel' },
@@ -160,11 +165,15 @@ try {
   check('학급 탭 사진 보기: 빈 칸에 \'☁️ 드라이브에서\'', (await section.locator('[data-photo-drive-pick]').count()) === active.length);
 
   // 1) 한 장 고르기
-  await setPick([{ id: 'drv-a', name: 'IMG_0001.jpg', mimeType: 'image/jpeg' }]);
+  await page.evaluate(() => localStorage.removeItem('sp4-photo-pick-parent'));
+  await setPick([{ id: 'drv-a', name: 'IMG_0001.jpg', mimeType: 'image/jpeg', parentId: 'fold-교실사진' }]);
   await driveBtn.click();
   const got1 = await card1.locator('img').waitFor({ timeout: 15000 }).then(() => true, () => false);
   const s1 = await seen();
-  check('  선택창은 사진 파일 한 장 고르기(여러 장 아님), 제목에 학생', s1[0]?.view?.viewId === 'images' && s1[0]?.multi === false && s1[0]?.title.includes(S1.name), JSON.stringify(s1[0]));
+  const labels = (o) => (o?.views || []).map((v) => v.label).join(',');
+  check('  선택창은 한 장 고르기, 제목에 학생', s1[0]?.multi === false && s1[0]?.title.includes(S1.name), s1[0]?.title);
+  check('  드라이브처럼 폴더를 여는 탭: 내 드라이브(맨 위·폴더 보임)부터', labels(s1[0]) === '내 드라이브,공유 문서함,공유 드라이브,모든 사진'
+    && s1[0].views[0].parent === 'root' && s1[0].views[0].includeFolders === true && s1[0].views[0].mimeTypes.startsWith('application/vnd.google-apps.folder,'), labels(s1[0]));
   check('  고른 사진을 받아(alt=media) 학생 이름으로 학급 폴더에 올린다', downloaded.includes('drv-a') && uploadedFor(S1).length === 1, uploadedFor(S1).join(','));
   check('  칸에 사진이 보인다', got1);
 
@@ -176,6 +185,9 @@ try {
   const upBefore = uploaded.size;
   await setPick([{ id: 'drv-b', name: '새사진.png', mimeType: 'image/png' }]);
   await replaceBtn.click();
+  await page.waitForTimeout(300);
+  const s2 = (await seen()).at(-1);
+  check('  다음 고르기는 \'지난번 폴더\'(방금 고른 사진의 폴더) 탭부터', s2?.views?.[0]?.label === '지난번 폴더' && s2.views[0].parent === 'fold-교실사진', labels(s2));
   const replaced = await page.waitForFunction(() => !document.querySelector('[data-photo-drive-replace]'), null, { timeout: 15000 }).then(() => true, () => false);
   check('  고르면 받아서 올리고 창이 닫힌다', replaced && downloaded.includes('drv-b') && uploaded.size > upBefore);
 
@@ -203,7 +215,7 @@ try {
   await many.click();
   const report = await roster.getByText(/고른 파일 3개 중 2장을 올렸습니다/).waitFor({ timeout: 20000 }).then(() => true, () => false);
   const sMany = (await seen()).at(-1);
-  check('  선택창은 여러 장 고르기', sMany?.multi === true && sMany?.view?.mimeTypes === 'image/png,image/jpeg,image/webp', JSON.stringify(sMany));
+  check('  선택창은 여러 장 고르기', sMany?.multi === true && labels(sMany).includes('내 드라이브'), labels(sMany));
   check('  셋 다 받고, 이름이 맞는 둘을 그 학생에게 올린다', ['drv-2', 'drv-3', 'drv-x'].every((id) => downloaded.includes(id)) && uploadedFor(S2).length === 1 && uploadedFor(S3).length === 1);
   check('  결과 띠: 3개 중 2장, 짝 없는 파일 이름', report && (await roster.getByText(/짝을 못 찾은 파일 1개: IMG_9999\.jpg/).count()) > 0);
   // 타일 보기 빈 칸에도 단추가 있다 (지금은 모두 사진이 있어 없다 - 목록/타일 전환만 본다)
@@ -214,7 +226,7 @@ try {
   check('페이지 오류 없음', errors.length === 0, errors.join(' | '));
 } finally {
   // 사진 보기 켬/끔을 처음처럼 (다른 점검이 이름 보기를 기대한다)
-  await page.evaluate(() => { localStorage.setItem('sp4-class-photos', '0'); localStorage.setItem('sp4-roster-photos', '0'); }).catch(() => {});
+  await page.evaluate(() => { localStorage.setItem('sp4-class-photos', '0'); localStorage.setItem('sp4-roster-photos', '0'); localStorage.removeItem('sp4-photo-pick-parent'); }).catch(() => {});
   if (!hasClass) await setDoc(rosterRef, { classList: before, rosters: before, updatedAt: Date.now() }, { merge: true });
   await browser.close();
 }
