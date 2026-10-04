@@ -30,6 +30,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { parseClipboardGrid } from './gridNav';
+import { parseCsv } from './csv';
 import { classOffReason, type ClassDayRules } from './classDays';
 import { moveToTrash } from '../utils/trashHelper';
 import { formatSlot, normalizeSlotText, parseSlot } from './teachingSlot';
@@ -215,7 +216,17 @@ function positionalFields(rows: string[][]): Array<Field | null> {
  * - 단원 칸이 비면 위 줄의 단원을 잇는다(엑셀에서 합친 칸은 첫 줄에만 글자가 온다).
  */
 export function parseLessonTable(text: string): ProgressLesson[] {
-  const rows = parseClipboardGrid(text).filter((r) => r.some((c) => c !== ''));
+  return parseLessonRows(parseClipboardGrid(text));
+}
+
+/** CSV 파일의 차시 표 (예시 CSV를 엑셀에서 고쳐 저장한 것 - '단원,차시,내용,준비물'). 읽는 규칙은 붙여넣기와 같다 */
+export function parseLessonCsv(text: string): ProgressLesson[] {
+  return parseLessonRows(parseCsv(text).map((r) => r.map((c) => c.trim())));
+}
+
+/** 칸으로 나뉜 표를 차시 목록으로 (붙여넣기·CSV가 함께 쓴다) */
+function parseLessonRows(grid: string[][]): ProgressLesson[] {
+  const rows = grid.filter((r) => r.some((c) => c !== ''));
   if (rows.length === 0) return [];
 
   const header = headerFields(rows[0]);

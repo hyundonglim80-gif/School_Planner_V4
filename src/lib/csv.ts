@@ -119,3 +119,16 @@ export function downloadCsv(rows: unknown[][], filename: string) {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
+/**
+ * 파일의 글자를 읽는다. 한국어 윈도우의 엑셀이 'CSV(쉼표로 분리)'로 저장하면 UTF-8이 아니라 CP949(EUC-KR)라,
+ * file.text()로 읽으면 한글이 깨진다. UTF-8로 읽어 보고 맞지 않으면 EUC-KR로 읽는다.
+ */
+export function decodeTextBytes(bytes: ArrayBuffer | Uint8Array): string {
+  const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(data).replace(/^﻿/, '');
+  } catch {
+    return new TextDecoder('euc-kr').decode(data);
+  }
+}

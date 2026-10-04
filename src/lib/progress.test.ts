@@ -1,3 +1,5 @@
+import { toCsv, decodeTextBytes } from './csv';
+import { PROGRESS_SAMPLE_ROWS } from './progressSample';
 import { describe, it, expect } from 'vitest';
 import {
   computeProgress,
@@ -12,6 +14,7 @@ import {
   planLabel,
   sanitizeClasses,
   offDayChecker,
+  parseLessonCsv,
   parseLessonTable,
   progressMarks,
   suppliesByPeriod,
@@ -453,5 +456,41 @@ describe('같은 과정의 다른 반에 조사표 (ROADMAP-SUBJECT S8)', () => 
   it('과정이 아니거나 민 교시면 빈 목록', () => {
     expect(planCourseEvals({ key: '국어', index: 0 }, { key: '국어' }, {})).toEqual([]);
     expect(planCourseEvals({ key: '5-2 과학', cls: '5-2', index: null }, plan, timelines)).toEqual([]);
+  });
+});
+
+// 예시 CSV (진도 관리 '⬇️ 예시 CSV 받기', 2026-10-04) - 받은 그대로 불러오면 차시 목록이 된다
+describe('예시 CSV · parseLessonCsv', () => {
+  it('예시 CSV를 그대로 불러오면 15차시, 단원 칸이 비면 위 단원을 잇고 단원만 적힌 줄은 세지 않는다', () => {
+    const lessons = parseLessonCsv(toCsv(PROGRESS_SAMPLE_ROWS));
+    expect(lessons).toHaveLength(15);
+    expect(lessons[0]).toEqual({ unit: '1. 식물의 생활', no: '1', content: '우리 주변 식물 이야기하기', supplies: '식물 사진 카드' });
+    expect(lessons[1]).toMatchObject({ unit: '1. 식물의 생활', no: '2', supplies: '돋보기, 여러 가지 잎' });
+    expect(lessons[3].supplies).toBe('');
+    expect(lessons[8]).toMatchObject({ unit: '2. 물의 상태 변화', no: '1', content: '물의 세 가지 상태 알아보기' });
+    expect(lessons[14]).toMatchObject({ unit: '2. 물의 상태 변화', no: '7', content: '단원 정리' });
+  });
+
+  it('엑셀에서 고쳐 저장한 모양(따옴표 없음·칸 차례 바뀜·앞뒤 빈칸)도 읽는다', () => {
+    const csv = '차시,내용,준비물,단원\r\n1, 비유 표현 알기 ,,1. 생각과 느낌\r\n2,"시를 읽고, 느낌 나누기",시집,\r\n';
+    expect(parseLessonCsv(csv)).toEqual([
+      { unit: '1. 생각과 느낌', no: '1', content: '비유 표현 알기', supplies: '' },
+      { unit: '1. 생각과 느낌', no: '2', content: '시를 읽고, 느낌 나누기', supplies: '시집' },
+    ]);
+  });
+
+  it('붙여넣기(엑셀 복사)와 같은 규칙으로 읽는다', () => {
+    const tsv = PROGRESS_SAMPLE_ROWS.map((r) => r.join('\t')).join('\n');
+    expect(parseLessonTable(tsv)).toEqual(parseLessonCsv(toCsv(PROGRESS_SAMPLE_ROWS)));
+  });
+});
+
+describe('decodeTextBytes - 엑셀이 저장한 CSV의 글자', () => {
+  it('UTF-8(BOM 포함)도, 한국어 윈도우 엑셀의 CP949도 한글이 깨지지 않는다', () => {
+    const utf8 = new TextEncoder().encode('﻿단원,차시\r\n식물,1');
+    expect(decodeTextBytes(utf8)).toBe('단원,차시\r\n식물,1');
+    // '단원,차시' 를 CP949로 적은 바이트
+    const cp949 = new Uint8Array([0xb4, 0xdc, 0xbf, 0xf8, 0x2c, 0xc2, 0xf7, 0xbd, 0xc3]);
+    expect(decodeTextBytes(cp949)).toBe('단원,차시');
   });
 });

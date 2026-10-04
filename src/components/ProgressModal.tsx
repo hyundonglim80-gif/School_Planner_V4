@@ -22,6 +22,7 @@ import {
   isCourse,
   NEW_COURSE_PLAN_ID,
   newProgressId,
+  parseLessonCsv,
   parseLessonTable,
   progressKey,
   planKeys,
@@ -35,6 +36,8 @@ import {
   type ProgressTimeline,
 } from '../lib/progress';
 import { useProgressInputs, useProgressPlans } from '../hooks/useProgress';
+import { decodeTextBytes } from '../lib/csv';
+import { downloadProgressSample, PROGRESS_SAMPLE_FILENAME } from '../lib/progressSample';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
 import { useTeachingMode } from '../hooks/useTeachingMode';
 import { useRoster } from '../hooks/useRoster';
@@ -285,6 +288,15 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
 
   // ── 표 붙여넣기·칸 고치기 ──────────────────────────────────────────
 
+  /** 읽어 온 차시 목록으로 바꾼다 (붙여넣기·CSV 불러오기). 이미 목록이 있으면 먼저 묻는다 */
+  const replaceLessons = (parsed: ProgressLesson[], how: '붙여 넣은' | '불러온') => {
+    if (!draft) return;
+    const cur = cleanLessons(draft.lessons).length;
+    if (cur > 0 && !window.confirm(`지금 차시 목록 ${cur}개를 ${how} ${parsed.length}개로 바꿀까요?`)) return;
+    update({ lessons: parsed });
+    showToast(`✅ ${parsed.length}차시를 ${how === '붙여 넣은' ? '붙여 넣었습니다' : '불러왔습니다'}. 미리보기를 보고 💾 저장을 누르세요.`);
+  };
+
   const handleTablePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     e.preventDefault();
     if (!draft) return;
@@ -293,10 +305,25 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
       showErrorToast('붙여 넣은 것에서 차시를 찾지 못했습니다. 엑셀·한셀에서 표를 복사해 주세요.');
       return;
     }
-    const cur = cleanLessons(draft.lessons).length;
-    if (cur > 0 && !window.confirm(`지금 차시 목록 ${cur}개를 붙여 넣은 ${parsed.length}개로 바꿀까요?`)) return;
-    update({ lessons: parsed });
-    showToast(`✅ ${parsed.length}차시를 붙여 넣었습니다.`);
+    replaceLessons(parsed, '붙여 넣은');
+  };
+
+  // CSV 파일로 불러오기 - 예시 CSV를 엑셀에서 고쳐 저장한 것 (엑셀이 CP949로 저장해도 읽는다)
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  const handleCsvFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // 같은 파일을 다시 골라도 불러오게
+    if (!file || !draft) return;
+    try {
+      const parsed = parseLessonCsv(decodeTextBytes(await file.arrayBuffer()));
+      if (parsed.length === 0) {
+        showErrorToast(`'${file.name}'에서 차시를 찾지 못했습니다. 예시 CSV처럼 '단원, 차시, 내용, 준비물' 칸으로 적어 주세요.`);
+        return;
+      }
+      replaceLessons(parsed, '불러온');
+    } catch (err) {
+      showErrorToast('CSV 파일을 읽지 못했습니다.', err);
+    }
   };
 
   const setCell = (row: number, field: keyof ProgressLesson, value: string) =>
@@ -695,9 +722,39 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
 
           {/* 차시 목록 */}
           <section className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black text-slate-700">차시 목록 {lessons.length > 0 && `(${lessons.length})`}</h3>
-              <span className="text-xs text-slate-400">한 줄 = 한 교시</span>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h3 className="text-xs font-black text-slate-700">
+                차시 목록 {lessons.length > 0 && `(${lessons.length})`}
+                <span className="ml-1.5 font-normal text-slate-400">한 줄 = 한 교시</span>
+              </h3>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  data-progress-sample
+                  onClick={downloadProgressSample}
+                  title={`'단원·차시·내용·준비물' 예시 표(${PROGRESS_SAMPLE_FILENAME})를 받습니다. 엑셀에서 열어 고친 뒤 불러오거나 표를 복사해 붙여 넣으세요.`}
+                  className="px-2 py-1 text-xs font-bold text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 rounded-md"
+                >
+                  ⬇️ 예시 CSV 받기
+                </button>
+                <button
+                  type="button"
+                  data-progress-csv-open
+                  onClick={() => csvInputRef.current?.click()}
+                  title="CSV 파일의 차시 표를 불러옵니다 (예시 CSV와 같은 칸)"
+                  className="px-2 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-md"
+                >
+                  📂 CSV 불러오기
+                </button>
+                <input
+                  ref={csvInputRef}
+                  type="file"
+                  accept=".csv,text/csv,.txt"
+                  className="hidden"
+                  data-progress-csv-input
+                  onChange={(e) => void handleCsvFile(e)}
+                />
+              </div>
             </div>
             <textarea
               value=""

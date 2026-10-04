@@ -386,6 +386,10 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   주간 교시 칸은 '5/12' 표식만. **개인 공간에서만, 진도가 있을 때만** 수업·일정 문서를 읽고, 범위는 가장 이른 시작일 ~ 보는 날의
   학년도 끝으로 묶어 날짜를 넘길 때 다시 읽지 않는다. 알림장 '다음 수업일 불러오기'는 그 교시 줄에 차시 준비물을 합친다
   (`suppliesByPeriod` → `notices.draftLinesFrom`, 개인 공간 알림장만).
+  **차시 목록 넣기 세 길**(2026-10-04): 붙여넣기 `parseLessonTable`(탭 표), CSV 파일 `parseLessonCsv`(`lib/csv.parseCsv`) - 둘 다
+  `parseLessonRows` 하나로 읽는다(머리줄 이름으로 칸 맞추기·빈 단원 잇기·단원만 줄은 제목). 파일 글자는 `csv.decodeTextBytes`(UTF-8 fatal →
+  안 되면 EUC-KR, 한국어 엑셀의 기본 CSV). 창의 '⬇️ 예시 CSV 받기'(`data-progress-sample`)는 `lib/progressSample`(4학년 과학 15차시,
+  `진도표_예시.csv`), '📂 CSV 불러오기'(`data-progress-csv-open`, 숨은 input `data-progress-csv-input`). 넣은 뒤에는 저장하지 않는다(💾 저장으로).
   **과정(여러 반, 교과 모드 S4)**: `classes`가 있으면 `planKeys`가 반마다 열쇠 '5-1 과학'을 내고, `progressMarks`가 열쇠마다
   `computeProgress(…, keyOverride)`로 **따로** 센다(목록 끝 `break`도 반마다, 표식에 `cls`). 과정의 칸 견주기는 `normalizeSlotText`,
   옛 진도는 그대로 `progressKey` - 옛 진도끼리의 결과는 바뀌지 않는다. `progressUntil(plan, plans, key)`는 과정이 끼면 반 열쇠를
@@ -517,6 +521,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-subject-finish.mjs` | 교과 모드 마무리(6) - 명령 창 '과정 만들기'·'교사 유형 바꾸기', 휴대폰 390px 하루 카드·교과 출결 칸 넘침 없음(폭 점검은 S10에서 한 번만 - CLAUDE.md 2장) |
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번. `SITE=http://localhost:4190/School_Planner_V4/`(기본값 4173은 vite preview) |
+| `tools/inspect-progress-csv.mjs` | 진도 관리 예시 CSV(6) - 받기(머리줄·예시 내용)·불러오기 15차시·CP949 CSV 한글. 저장하지 않아 자료는 그대로 |
 | `tools/inspect-slot-live.mjs` | 과목을 고치면 배너도 따라감·학년반 숫자 403(8) - teacher3 주간 1교시 수정 배너에 '403과학' → 서버·배너 '4-3 과학', 연 채로 다른 곳에서 고친 과목, 고치는 중이면 그대로, 하루 출결 배너 머리줄. 2026-11-02 수업 문서를 끝에 되돌린다 |
 | `tools/inspect-today-scroll.mjs` | 상단 날짜 → 오늘로(17) - 휴대폰 390px·PC에서 하루(맨 위)·주간·월간(다음 달에서)·년간 학사력·자세히(지난 학년도에서). 자료를 바꾸지 않는다 |
 | `tools/inspect-help-tree.mjs` | 설명서 왼쪽 목차(20) - 오른쪽 칸·가운데 팝업·휴대폰, 펴기·짚기·따로 스크롤·접기 기억, 월간 31일 ▶, 검색 기간 처음 값, 반복 일정 창 닫힘(2031-03 일정을 만들고 지운다). 팝업 모양을 바꾸면 끝에 되돌린다 |
