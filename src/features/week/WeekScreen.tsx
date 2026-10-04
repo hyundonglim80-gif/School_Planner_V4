@@ -283,7 +283,8 @@ export default function WeekScreen() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          <div ref={printRef}>
+          {/* 상단 날짜를 누르면 오늘로 (lib/todayScroll) - 오늘 카드가 없으면(주말을 감춘 토·일) 이번 주 */}
+          <div ref={printRef} data-today-area={weekDays.some((d) => d.isToday) ? 'true' : undefined}>
           <WeekGrid
             onQuickAdd={openQuickAdd}
             days={displayWeekDays}

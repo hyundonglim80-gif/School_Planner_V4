@@ -7,6 +7,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useGroups } from '../hooks/useGroups';
 import { useDDay, calculateDDay } from '../hooks/useDDay';
 import { formatDateStr, isToday } from '../lib/dateUtils';
+import { scrollToToday } from '../lib/todayScroll';
 // 모달은 처음 열 때 받아오면 충분하다. 전부 첫 화면 번들에 넣으면
 // 초기 로딩만 느려지므로, 열릴 때만 그려서 그때 청크를 내려받는다.
 const GroupModal = lazyWithReload(() => import('./GroupModal'));
@@ -337,25 +338,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const handleNextDate = () => navigateNextDate();
 
   // 💡 날짜만 오늘로 바꾸면, 이미 이번 달/주를 보고 있을 때는 아무 일도 안 일어난 것처럼
-  // 보인다. V3처럼 오늘 칸을 화면 안으로 끌어와 보여준다.
-  // 다른 달로 넘어가는 경우에는 새로 그려진 뒤에 찾아야 해서 몇 번 더 시도한다.
-  const scrollToToday = (tries = 6) => {
-    const el = document.querySelector('[data-today="true"]') as HTMLElement | null;
-    // 접혀 있는 달 안에 있으면(offsetParent가 없다) 스크롤해도 소용이 없다
-    if (el && el.offsetParent !== null) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return;
-    }
-    if (tries > 0) {
-      requestAnimationFrame(() => scrollToToday(tries - 1));
-    } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
+  // 보인다. V3처럼 오늘 칸을 화면 안으로 끌어와 보여준다 (lib/todayScroll - 모든 화면, 휴대폰 년간 포함).
+  // 날짜를 바꾸면 새 화면이 그려진 뒤에 찾아야 해서 한 프레임 뒤에 시작하고, 찾을 때까지 잠시 기다린다.
+  const stopTodayScrollRef = useRef<() => void>(() => {});
   const handleTodayClick = () => {
     useAppStore.getState().setCurrentDate(new Date());
-    requestAnimationFrame(() => scrollToToday());
+    stopTodayScrollRef.current();
+    requestAnimationFrame(() => {
+      stopTodayScrollRef.current = scrollToToday(useAppStore.getState().scope);
+    });
   };
 
   // 화면에 무엇을 보여줄지 정하는 토글. 상단 줄과 ⋮ 메뉴가 같은 정의를 쓴다.

@@ -96,6 +96,8 @@ function YearSheetMonth({
   return (
     <div
       data-sheet-month={`${mInfo.year}-${mInfo.month}`}
+      // 상단 날짜를 누르면 오늘로 (lib/todayScroll) - 오늘 칸(주말을 감춰 없으면 이 달)
+      data-today-area={isCurrentMonthCard ? 'true' : undefined}
       className={`bg-white rounded-2xl border p-3 flex flex-col gap-1.5 break-inside-avoid ${
         isCurrentMonthCard ? 'border-primary ring-2 ring-primary/10' : 'border-slate-200/80'
       }`}
@@ -146,6 +148,7 @@ function YearSheetMonth({
                     key={d}
                     type="button"
                     data-sheet-date={d}
+                    data-today={isToday ? 'true' : undefined}
                     onClick={() => onDateClick(d)}
                     title={dayTooltip(d, items)}
                     className={`relative flex flex-col items-center pt-0.5 rounded-md hover:bg-slate-100 ${holiday ? 'bg-red-50/70' : ''}`}

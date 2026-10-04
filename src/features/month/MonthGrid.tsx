@@ -1,7 +1,7 @@
 //src/features/month/MonthGrid.tsx
 
 import React, { Suspense } from 'react';
-import type { CalendarDay } from '../../lib/dateUtils';
+import { addDays, formatDateStr, parseDateStr, type CalendarDay } from '../../lib/dateUtils';
 import type { DaySummary } from '../../hooks/useCalendarData';
 import { useLabels } from '../../hooks/useLabels';
 import { useAppStore } from '../../store/useAppStore';
@@ -91,6 +91,9 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
     for (let i = 0; i < displayDays.length; i += size) out.push(displayDays.slice(i, i + size));
     return out;
   }, [displayDays, showWeekend]);
+  /** 그 날이 든 주의 일요일 - 주말을 감춰 월~금만 그린 줄에서도 오늘(토·일)이 든 줄을 알아본다 (lib/todayScroll) */
+  const sundayOf = (dateStr: string) => addDays(dateStr, -parseDateStr(dateStr).getDay());
+  const todayWeek = sundayOf(formatDateStr(new Date()));
 
   const { getLabelColor, eventLabels, labelsLoaded } = useLabels();
   const { holidays } = useGovHolidays();
@@ -151,6 +154,8 @@ export default function MonthGrid({ days, dataMap, onSelectDate, onQuickAdd, sho
         <div
           key={week[0].dateStr}
           data-month-week
+          // 상단 날짜를 누르면 오늘로 (lib/todayScroll) - 오늘 칸이 없으면(주말을 감춘 토·일) 이 줄
+          data-today-area={sundayOf(week[0].dateStr) === todayWeek ? 'true' : undefined}
           className={`grid ${showWeekend ? 'grid-cols-7' : 'grid-cols-5'} ${compact ? 'min-h-[64px] gap-y-[2px]' : 'min-h-[74px] gap-y-1'}`}
           style={{ gridTemplateRows: `auto${lanes ? ` repeat(${lanes}, auto)` : ''} 1fr` }}
         >

@@ -211,6 +211,8 @@ function YearMonthCard({
 
   return (
     <div
+      // 상단 날짜를 누르면 오늘로 (lib/todayScroll) - 오늘 일정·수업이 없어 그날 줄이 없거나 달을 접었으면 이 달로
+      data-today-area={isCurrentMonthCard ? 'true' : undefined}
       className={`bg-white rounded-2xl border shadow-sm flex flex-col transition-all ${
         isMobile ? 'p-2.5' : 'p-4 sm:p-5'
       } ${
