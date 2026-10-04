@@ -20,7 +20,8 @@ import {
   type SubjectAttendanceRecord,
 } from '../lib/subjectAttendance';
 import { saveSubjectRecord, subscribeSubjectAttendanceDay } from '../lib/subjectAttendanceStore';
-import { classLabelOf, normalizeSlotText } from '../lib/teachingSlot';
+import { classLabelOf, normalizeSlotText, parseSlot } from '../lib/teachingSlot';
+import { useDayData } from '../hooks/useDayData';
 import { shortDateLabel } from '../lib/notices';
 import { showErrorToast } from '../utils/toast';
 import { runAppAction } from '../lib/appActions';
@@ -51,6 +52,11 @@ export default function SubjectAttendancePanel({
     ? { classKey, year: Number(roster.year), grade: String(roster.grade), classNum: String(roster.classNum) }
     : null;
   const label = roster ? classLabelOf(roster) : '';
+  // 머리줄의 과목은 그 교시 수업 칸의 지금 글자로 (칸을 연 뒤 과목을 고쳐도 따라간다 - 2026-10-04 신고).
+  // 칸 글자의 반이 이 칸의 반과 다르면(반을 바꿨으면) 이 출결은 그 반 것이 아니니 연 때의 과목을 둔다.
+  const { schedules } = useDayData(dateStr, null);
+  const liveSlot = parseSlot(schedules[period]?.subject || '');
+  const shownSubject = liveSlot.cls && liveSlot.cls === label ? liveSlot.subject : subject;
 
   const [records, setRecords] = useState<Record<string, SubjectAttendanceRecord> | null>(null);
   const [openNote, setOpenNote] = useState<string | null>(null);
@@ -131,7 +137,7 @@ export default function SubjectAttendancePanel({
         <div className="min-w-0">
           <h3 className="text-lg font-bold text-slate-800">🙋 교과 출결</h3>
           <p className="text-xs font-bold text-primary mt-0.5 truncate" data-subject-attendance-title>
-            {label || '반'} · {shortDateLabel(dateStr)} {period}교시{subject ? ` · ${subject}` : ''} · 🔒 개인
+            {label || '반'} · {shortDateLabel(dateStr)} {period}교시{shownSubject ? ` · ${shownSubject}` : ''} · 🔒 개인
           </p>
           <p className="text-xs text-slate-400 mt-0.5">누르는 대로 바로 저장됩니다 · 담임 출석부와 따로 둡니다</p>
         </div>

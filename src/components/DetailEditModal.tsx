@@ -103,10 +103,15 @@ export default function DetailEditModal({
   useEffect(() => {
     if (isOpen && initialData) {
       if (type === 'schedule') {
-        setSubject(initialData.subject || '');
-        setContent(initialData.memo || initialData.content || '');
-        setSupplies(initialData.supplies || '');
-        setImageUrl(initialData.imageUrl || '');
+        // 저장된 지금 값(구독)을 따라간다. 예전에는 열 때 받은 값(initialData)만 보여서, 저장한 뒤 교과 모드가
+        // '5-2 과학'으로 다듬은 과목이나 하루 화면에서 고친 과목이 배너에는 옛 글자 그대로 남았다(2026-10-04 신고).
+        // 고치고 있는 중(저장 전)에는 적던 것을 덮지 않는다.
+        if (touchedRef.current) return;
+        const live = (currentItem as any) || initialData;
+        setSubject(live.subject || '');
+        setContent(live.memo || live.content || '');
+        setSupplies(live.supplies || '');
+        setImageUrl(live.imageUrl || '');
       } else {
         // Event: currentItem과 initialData를 통합하여 가장 최신 데이터 사용
         const targetItem = currentItem || initialData;
@@ -241,15 +246,19 @@ export default function DetailEditModal({
     try {
       setSaving(true);
       if (type === 'schedule') {
+        // 교과 모드만 '5-2 과학' 한 모양으로 (lib/teachingSlot). 초등 담임은 적은 그대로
+        const savedSubject = isClassUnit ? normalizeSlotText(subject) : subject;
         await savePeriod(Number(itemId), {
-          ...initialData,
-          // 교과 모드만 '5-2 과학' 한 모양으로 (lib/teachingSlot). 초등 담임은 적은 그대로
-          subject: isClassUnit ? normalizeSlotText(subject) : subject,
+          // 열 때 받은 값이 아니라 지금 값 위에 (그 사이 붙은 링크 등을 옛 값으로 덮지 않게)
+          ...((currentItem as any) || initialData),
+          subject: savedSubject,
           memo: content,
           content,
           supplies,
           imageUrl,
         });
+        // 저장한 모양을 칸에도 (적은 '403과학'이 아니라 저장된 '4-3 과학'). 저장 중 들어온 구독 값은 고치는 중이라 건너뛰었다.
+        setSubject(savedSubject);
       } else {
         await updateEventItem(String(itemId), {
           content,

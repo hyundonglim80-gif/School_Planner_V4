@@ -338,6 +338,9 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   일정도 옛 '일정 수정' 팝업으로 열려 날짜 옮기기·기한이 없던 것을 2026-10-02 고쳤다(`DetailEditModal`의 일정 갈래는 이제 여는 곳이 없다).
 - **알림**: 일정 칸 안의 알림 창(`EventAlarmModal`)은 칸에만 담고 일정을 저장할 때 걸린다 - 그래서 `savedMessage`로 '일정을 저장하면 걸립니다'를 띄운다
   (예전엔 '알림이 설정되었습니다'가 떠서 칸을 저장하지 않고 닫았다). 하루 화면의 ⏰ 표시에서 여는 창은 곧바로 저장한다.
+- **수업 수정 팝업**(`DetailEditModal`, 일정 갈래는 이제 여는 곳이 없다): 칸은 열 때 받은 값이 아니라 그 날짜 구독(`useDayData`)의 지금 값을
+  따라간다(고치는 중이면 덮지 않는다). 저장하면 교과 모드가 다듬은 글자(`normalizeSlotText`)를 칸에도 넣고, 저장은 지금 값 위에 한다.
+  교과 출결 칸 머리줄의 과목도 그 교시 수업 칸의 지금 글자(같은 반일 때)로. 예전에는 과목을 고쳐도 배너에 옛 글자가 남았다(2026-10-04).
 - **반복 일정 등록**(`RecurringModal`): 만들면 `onRegistered`로 창을 닫는다(⋮ 메뉴에서 연 창이 그대로 남아 한 번 더 누르면 두 벌이 생겼다, 2026-10-02).
 - **메모 ↔ 기록 옮기기**: `lib/moveEntry`. 새 항목 → 역링크 갈아끼우기 → 원본 휴지통. 일정은 옮기지 않는다.
 - **첨부·캡처**: 구글 드라이브 `School_Planner` 폴더(`lib/driveApi`). 화면에 그림은 thumbnail 주소로 보인다.
@@ -440,7 +443,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   매니페스트 점검은 크롬 CDP `Page.getAppManifest`(오류·share_target·아이콘을 그대로 보여 준다).
 - **교과 전담 모드**(ROADMAP 18, 계획 `docs/ROADMAP-SUBJECT.md`): 모드는 `useTeachingMode()` 하나로만 읽는다 - 새 동작은
   `isClassUnit`(unit 'class')일 때만, 담임 도구 숨기기는 `showHomeroomTools`(교과 전담만 false). 반은 칸 글자 `5-2 과학`에서
-  `parseSlot`으로 읽는다. **S3 반 중심 칸**: 하루 카드(`DaySchedule`)는 반이 있는 칸만 `data-slot-class`(크게)·`data-slot-subject`(작게)와
+  `parseSlot`으로 읽는다(`5-2`·`5학년 2반`·붙인 숫자 `502`/`1203` - 붙인 숫자는 학년 1~12·반 1~30, 뒤에 단위·줄표가 붙으면 반이 아니다, 2026-10-04). **S3 반 중심 칸**: 하루 카드(`DaySchedule`)는 반이 있는 칸만 `data-slot-class`(크게)·`data-slot-subject`(작게)와
   반 색 막대(`data-slot-color`), 반이 없는 칸·초등 담임은 예전 `data-subject` 한 칸. 주간(`WeekGrid`)은 반 색 칩. 색은
   `teachingSlot.classColor`(정한 색 `classColors` → 그 학년도 반 차례 8색 → 반 이름 해시) - Tailwind 클래스를 `CLASS_COLORS`에 통째로 적어 둔다.
   `hooks/useClassColor`가 명렬표를 **교과 모드일 때만** 구독한다(`useRoster(enabled)`). 숨기는 담임 도구: 하루 수업 머리줄 알림장·출석부,
@@ -514,6 +517,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-subject-finish.mjs` | 교과 모드 마무리(6) - 명령 창 '과정 만들기'·'교사 유형 바꾸기', 휴대폰 390px 하루 카드·교과 출결 칸 넘침 없음(폭 점검은 S10에서 한 번만 - CLAUDE.md 2장) |
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번. `SITE=http://localhost:4190/School_Planner_V4/`(기본값 4173은 vite preview) |
+| `tools/inspect-slot-live.mjs` | 과목을 고치면 배너도 따라감·학년반 숫자 403(8) - teacher3 주간 1교시 수정 배너에 '403과학' → 서버·배너 '4-3 과학', 연 채로 다른 곳에서 고친 과목, 고치는 중이면 그대로, 하루 출결 배너 머리줄. 2026-11-02 수업 문서를 끝에 되돌린다 |
 | `tools/inspect-today-scroll.mjs` | 상단 날짜 → 오늘로(17) - 휴대폰 390px·PC에서 하루(맨 위)·주간·월간(다음 달에서)·년간 학사력·자세히(지난 학년도에서). 자료를 바꾸지 않는다 |
 | `tools/inspect-help-tree.mjs` | 설명서 왼쪽 목차(20) - 오른쪽 칸·가운데 팝업·휴대폰, 펴기·짚기·따로 스크롤·접기 기억, 월간 31일 ▶, 검색 기간 처음 값, 반복 일정 창 닫힘(2031-03 일정을 만들고 지운다). 팝업 모양을 바꾸면 끝에 되돌린다 |
 | `tools/inspect-*.mjs` 나머지 | 지난 신고를 재현하던 것들(이월·뒤로가기·기록 삭제 뒤 빈 화면·V3/V4 한 출처 등) |

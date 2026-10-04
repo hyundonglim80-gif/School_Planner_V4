@@ -49,6 +49,30 @@ describe('parseSlot - 여러 모양을 한 반으로 읽는다', () => {
   });
 });
 
+describe('parseSlot - 학년반을 붙여 쓴 숫자 (403 = 4-3)', () => {
+  it.each([
+    ['403 과학', '4-3', '과학'],
+    ['403과학', '4-3', '과학'],
+    ['403반 과학', '4-3', '과학'],
+    ['403', '4-3', ''],
+    ['410 사회', '4-10', '사회'],
+    ['1203 국어', '12-3', '국어'],
+    ['１２０３ 국어', '12-3', '국어'],
+  ])('%s → %s %s', (text, cls, subject) => {
+    expect(parseSlot(text)).toMatchObject({ cls, subject });
+  });
+
+  it.each(['2024 과학', '100 과학', '120분 수업', '305호 과학실', '450점', '12345 과학', '1203교시'])('%s 는 반이 아니다', (text) => {
+    expect(parseSlot(text).cls).toBe('');
+  });
+
+  it('정규화하면 4-3 과학 모양으로', () => {
+    expect(normalizeSlotText('403 과학')).toBe('4-3 과학');
+    expect(normalizeSlotText('403과학')).toBe('4-3 과학');
+    expect(normalizeSlotText('1203')).toBe('12-3');
+  });
+});
+
 describe('formatSlot · normalizeSlotText', () => {
   it('반과 과목을 한 칸 띄어 붙인다', () => {
     expect(formatSlot('5-2', '과학')).toBe('5-2 과학');

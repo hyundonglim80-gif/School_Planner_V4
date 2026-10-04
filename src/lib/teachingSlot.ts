@@ -2,7 +2,7 @@
 //
 // 교과 모드의 시간표 칸 글자 '5-2 과학' (docs/ROADMAP-SUBJECT.md S2). 순수 함수만 - Firestore 없음.
 // 반·과목은 V3와 같이 쓰는 수업 문서에 칸을 더하지 않고 칸 글자에 담는다 - V3에도 그 글자로 보인다.
-// 사람마다 '5학년 2반 과학', '5-2과학', '５-２ 과학'처럼 적으니 읽을 때 반을 찾아 한 모양으로 맞춘다.
+// 사람마다 '5학년 2반 과학', '5-2과학', '502 과학', '５-２ 과학'처럼 적으니 읽을 때 반을 찾아 한 모양으로 맞춘다.
 // 초등 담임 모드에서는 이 정규화를 쓰지 않는다 ('3-2 국어'를 적는 담임도 있다 - 화면 쪽에서 isClassUnit일 때만 부른다).
 import type { ClassRoster } from '../hooks/useRoster';
 
@@ -30,16 +30,22 @@ const squeeze = (s: string) => s.trim().replace(/\s+/g, ' ');
 // '1-2차시'처럼 글자가 붙으면 반으로 읽는다 - 시간표 칸에는 차시를 쓰지 않는다. '5-2반 과학'의 '반'은 뗀다.
 const DASH_RE = /^\s*(\d{1,2})\s*-\s*(\d{1,2})(?!\d)\s*반?(.*)$/s;
 const KOREAN_RE = /^\s*(\d{1,2})\s*학년\s*(\d{1,2})\s*반(.*)$/s;
+// 학년반을 붙여 쓴 숫자 '403'(4-3)·'410'(4-10)·'1203'(12-3) - 뒤 두 자리가 반 (2026-10-04 사용자 요청).
+// 숫자 바로 뒤에 단위나 줄표가 붙으면 반이 아니다 ('120분', '100점', '305호', '123-4').
+const COMPACT_RE = /^\s*(\d{1,2})(\d{2})(?!\d)(?!\s*(?:-|분|점|호|명|개|쪽|번|일|원|%|교시|차시))\s*반?(.*)$/s;
 
 export function parseSlot(text: string): SlotParts {
   const src = toAscii(String(text ?? ''));
-  const m = DASH_RE.exec(src) || KOREAN_RE.exec(src);
-  if (m) {
+  const pick = (m: RegExpExecArray | null, maxGrade = 99, maxClass = 99) => {
+    if (!m) return null;
     const g = Number(m[1]);
     const c = Number(m[2]);
-    if (g >= 1 && c >= 1) {
-      return { cls: `${g}-${c}`, grade: String(g), classNum: String(c), subject: squeeze(m[3]) };
-    }
+    return g >= 1 && c >= 1 && g <= maxGrade && c <= maxClass ? { g, c, rest: m[3] } : null;
+  };
+  // 붙여 쓴 숫자는 학년 1~12·반 1~30만 반으로 본다 ('2024 과학'·'100 과학'은 반이 아니다)
+  const hit = pick(DASH_RE.exec(src)) || pick(KOREAN_RE.exec(src)) || pick(COMPACT_RE.exec(src), 12, 30);
+  if (hit) {
+    return { cls: `${hit.g}-${hit.c}`, grade: String(hit.g), classNum: String(hit.c), subject: squeeze(hit.rest) };
   }
   return { cls: '', grade: '', classNum: '', subject: squeeze(String(text ?? '')) };
 }
