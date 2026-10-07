@@ -56,6 +56,9 @@ interface AttendanceDrawerProps {
 
 const classLabel = (c: ClassRoster) => `${c.year}학년도 ${c.grade}학년 ${c.classNum}반`;
 
+/** 고친 뒤 이만큼 손을 떼면 저장 */
+const AUTO_SAVE_MS = 2500;
+
 export default function AttendanceDrawer({
   dateStr: initialDate,
   initialTab = 'check',
@@ -169,6 +172,15 @@ export default function AttendanceDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classKey, loaded, saving, date, records]);
 
+  // 고친 뒤 잠시 손을 떼면 저절로 저장한다 (UX-AUDIT C4 - 결석 한 번 누르고 저장까지 3번이던 것을 2번으로).
+  // 사유 메모를 치는 동안은 기다린다(칠 때마다 다시 센다).
+  const autoSaveRef = useRef<() => Promise<boolean>>(async () => false);
+  useEffect(() => {
+    if (!dirty || !loaded) return;
+    const t = setTimeout(() => void autoSaveRef.current(), AUTO_SAVE_MS);
+    return () => clearTimeout(t);
+  }, [records, dirty, loaded]);
+
   // 다른 항목을 열기 전·바깥을 눌러 닫기 전에: 적던 것이 있으면 저장한다
   const saveIfChanged = async () => (dirty ? handleSave() : true);
   if (flushRef) flushRef.current = saveIfChanged;
@@ -192,6 +204,7 @@ export default function AttendanceDrawer({
   // Ctrl+S. 옆에 붙은 칸은 왼쪽 화면과 함께 쓰므로, 이 칸 안에 있을 때만 받는다.
   const saveRef = useRef(handleSave);
   saveRef.current = handleSave;
+  autoSaveRef.current = handleSave;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // 커서가 이 칸 안에 있을 때. 쓰는 칸이 여럿 쌓이면(휴대폰도) 커서가 든 칸만 저장한다.
@@ -278,7 +291,7 @@ export default function AttendanceDrawer({
       return { start: `${d.getFullYear()}-${m}-01`, end: `${d.getFullYear()}-${m}-31` };
     }
     if (r === 'year') return { start: `${ay}-03-01`, end: `${ay + 1}-02-29` };
-    // 학기는 그 학급 학년도로, 학년도를 빈틈없이 나눈다 (lib/semester.semesterSpan - 교과 출결 누계·평가 모아 보기와 같다).
+    // 학기는 그 학급 학년도로, 학년도를 빈틈없이 나눈다 (lib/semester.semesterSpan - 교과 출결 누계·조사표 모아 보기와 같다).
     // 예전에는 방학 설정의 해를 그대로 써서 다른 학년도 학급은 빈 표가 되고, 2학기가 겨울 방학 전날에 끝나 2월 출결이 빠졌다.
     return semesterSpan(ay, r === 'sem1' ? 1 : 2, semesterConfig);
   };
@@ -483,7 +496,7 @@ export default function AttendanceDrawer({
               </div>
             )}
             <p className="text-slate-400">
-              적지 않은 학생은 출석입니다. 저장하면 그날 기록 칸에 '출결' 항목으로 남고, 학생 누가기록에도 모입니다.
+              적지 않은 학생은 출석입니다. 고친 뒤 잠시 두면 저절로 저장되고(저장 단추·Ctrl+S도 됩니다), 그날 기록 칸에 '출결' 항목으로 남고, 학생 기록(누가기록)에도 모입니다.
               기록에서 그 항목을 고치거나 지우면 출석부도 따라 바뀝니다.
             </p>
           </div>

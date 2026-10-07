@@ -121,7 +121,7 @@ try {
   await cleanup();
   await openApp();
 
-  // ── 과정 만들기 ──────────────────────────────────────────────
+  // ── 진도 만들기 (여러 반) ──────────────────────────────────────────────
   let dlg = await openProgress();
   const newCourse = dlg.locator('[data-new-course]');
   check("교과 전담의 진도 관리 창의 새 진도 단추(과목 + 반)", (await newCourse.count()) === 1);

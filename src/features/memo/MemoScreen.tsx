@@ -325,17 +325,21 @@ export default function MemoScreen() {
             type="button"
             onClick={handleOpenCreate}
             className="w-full flex items-center justify-center gap-1 sm:gap-1.5 px-2 py-2 sm:py-2.5 bg-primary hover:bg-blue-600 active:scale-98 text-white rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold shadow-sm hover:shadow-md transition-all cursor-pointer shrink-0"
-            title="새 메모 작성 (오른쪽 배너가 열린다)"
+            title="새 메모 작성 (오른쪽 칸이 열린다)"
           >
             <span className="font-extrabold leading-none">+</span>
             <span>새 메모</span>
           </button>
           <nav
-            aria-label="메모 라벨 거르개"
+            aria-label="메모 라벨로 보기"
             className="min-h-0 flex flex-col gap-2 sm:gap-1.5 bg-white rounded-2xl border border-slate-200/80 shadow-xs p-1.5 sm:p-3 overflow-y-auto overscroll-contain"
           >
             <div className="sticky -top-1.5 sm:-top-3 z-10 -mt-1.5 sm:-mt-3 pt-1.5 sm:pt-3 bg-white flex items-center justify-between gap-1 text-xs font-extrabold text-blue-800 border-b-2 border-slate-100 pb-1.5 mb-0.5 px-0.5">
-              <span>📁 라벨<span className="hidden sm:inline"> 필터</span></span>
+              <span>
+                📁 라벨<span className="hidden sm:inline">로 보기</span>
+                {/* 숨은 조작 안내 (UX-AUDIT H4) */}
+                <span data-filter-help title="누르기: 그 라벨 하나만 · Ctrl+누르기: 더하기·빼기 · Shift+누르기: 범위 · ESC: 모두 떼기 · 상위를 고르면 하위도 함께 (▸로 펴서 '기타' = 상위만)" className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 text-slate-500 text-2xs cursor-help align-middle">?</span>
+              </span>
               <button
                 type="button"
                 onClick={() => openLabelModal('memo')}
@@ -346,7 +350,7 @@ export default function MemoScreen() {
                 ⚙️
               </button>
             </div>
-            {/* 차례: 즐겨찾기 → 라벨(통합 라벨 관리의 차례) → 전체 메모 */}
+            {/* 차례: 즐겨찾기 → 라벨(라벨 관리의 차례) → 전체 메모 */}
             {filterChip(
               FAVORITE_FILTER,
               '⭐ 즐겨찾기',

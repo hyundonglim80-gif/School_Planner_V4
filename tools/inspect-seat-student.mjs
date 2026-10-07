@@ -277,7 +277,7 @@ const run = async () => {
     await card(1).waitFor({ timeout: 5000 });
     await page.screenshot({ path: 'tools/report/seat-student-card.png' });
     await cbtn(1, '🧑‍🎓 누가기록').click();
-    const rec = page.getByRole('dialog').filter({ hasText: '학생 누가기록' });
+    const rec = page.getByRole('dialog').filter({ hasText: '학생 기록(누가기록)' });
     await rec.getByRole('button', { name: '1 가람1', exact: true }).waitFor({ timeout: 8000 });
     check('누가기록 → 그 학생이 골라져 열린다', (await rec.getByRole('button', { name: '1 가람1', exact: true }).getAttribute('aria-pressed')) === 'true');
     await rec.getByRole('button', { name: '닫기' }).last().click();

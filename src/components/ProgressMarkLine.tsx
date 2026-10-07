@@ -58,7 +58,7 @@ export default function ProgressMarkLine({ mark, dateStr, period, alwaysShowActi
 
   return (
     <div data-progress-mark className="flex items-center gap-2 text-xs min-w-0">
-      <button type="button" onClick={openPlan} title={title} className="min-w-0 truncate text-left hover:underline">
+      <button type="button" onClick={openPlan} title={title} className="min-w-0 truncate text-left underline decoration-dotted decoration-slate-300 underline-offset-2 hover:decoration-solid">
         {mark.bumped ? (
           <span className="text-amber-700 font-bold">⏭ 밀림 · 이 교시는 차시 없음</span>
         ) : (

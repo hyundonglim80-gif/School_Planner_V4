@@ -32,7 +32,7 @@ await page.waitForTimeout(2500);
 // 휴대폰에서 팝업을 여는 길: 아래 탭바의 '더보기' 또는 상단 단추들
 async function openSearch() {
   // 좁은 화면에서는 단추 글씨가 숨고 아이콘만 남는다. title로 찾는다.
-  await page.getByTitle(/통합 검색/).first().click();
+  await page.getByTitle(/검색/).first().click();
   await page.getByRole('heading', { name: /🔍 검색/ }).waitFor({ timeout: 10000 });
 }
 

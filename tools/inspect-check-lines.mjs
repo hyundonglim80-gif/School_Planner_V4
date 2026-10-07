@@ -55,7 +55,7 @@ const run = async () => {
     await page.goto(V4, { waitUntil: 'domcontentloaded' });
     await page.getByRole('heading', { name: '일정' }).first().waitFor({ timeout: 40000 });
     await page.getByRole('button', { name: '메모', exact: true }).first().click();
-    const nav = page.getByRole('navigation', { name: '메모 라벨 거르개' });
+    const nav = page.getByRole('navigation', { name: '메모 라벨로 보기' });
     await nav.waitFor({ timeout: 10000 });
     await nav.getByRole('button', { name: /전체 메모/ }).click();
 

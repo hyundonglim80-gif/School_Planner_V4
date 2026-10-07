@@ -124,7 +124,7 @@ async function timetableApply() {
   try {
     await openApp();
     await openMenu(/시간표 적용/);
-    await page.getByRole('button', { name: /템플릿 클라우드 저장/ }).waitFor({ timeout: 20000 });
+    await page.getByRole('button', { name: /시간표 저장/ }).waitFor({ timeout: 20000 });
     await page.waitForTimeout(1000);
     const range = page.getByText('적용 기간:').locator('..').locator('input[type="date"]');
     await range.nth(0).fill(WEEK[0]);

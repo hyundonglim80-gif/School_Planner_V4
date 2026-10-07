@@ -1,6 +1,6 @@
 // src/components/StudentRecordModal.tsx
 //
-// 학생 누가기록. 기록에 적힌 학생 태그(#26040305)와 출석부를 모아 한 학생의
+// 학생 기록(누가기록). 기록에 적힌 학생 태그(#26040305)와 출석부를 모아 한 학생의
 // 한 해를 날짜 차례로 보여 준다. 생활기록부를 쓸 때 근거를 한눈에 보려는 것이다.
 //
 // 학생 카드(ROADMAP 9-1): 위에 사진·특이사항·출결 누계·기록·평가 수, 아래 '기록·출결'과 '평가' 두 갈래.
@@ -368,7 +368,7 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
   const journalCount = items?.filter((i) => i.kind === 'journal' || i.kind === 'memo').length || 0;
 
   return (
-    <ModalShell isOpen={isOpen} onClose={onClose} width="2xl" title="🧑‍🎓 학생 누가기록" footer={<ModalCloseButton onClose={onClose} />}>
+    <ModalShell isOpen={isOpen} onClose={onClose} width="2xl" title="🧑‍🎓 학생 기록(누가기록)" footer={<ModalCloseButton onClose={onClose} />}>
       <div className="space-y-4 text-xs text-slate-700">
         {!rosterLoading && rosterList.length === 0 ? (
           <p className="text-center text-slate-400 py-8">
@@ -460,7 +460,7 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
                       </div>
                     )}
                     <div className="text-slate-500 mt-0.5" data-student-counts>
-                      기록 {journalCount}건 · 평가 {filledEvalCount}건
+                      기록 {journalCount}건 · 조사표 {filledEvalCount}건
                       {tally &&
                         KINDS.map((k) => {
                           const n = REASONS.reduce((s, r) => s + tally[k][r], 0);
@@ -534,7 +534,7 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
                   {(
                     [
                       ['timeline', `🗓️ 기록·출결${items ? ` ${items.length}` : ''}`],
-                      ['evals', `📊 평가${studentEvals ? ` ${studentEvals.length}` : ''}`],
+                      ['evals', `📊 조사표${studentEvals ? ` ${studentEvals.length}` : ''}`],
                     ] as const
                   ).map(([key, label]) => (
                     <button

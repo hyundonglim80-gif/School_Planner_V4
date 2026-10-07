@@ -182,7 +182,7 @@ function useRelocate(target: EntryPanelTarget) {
 /** 학생 태그가 든 기록을 메모로 옮기면 누가기록에서 빠진다 - 한 번 묻는다 */
 const confirmStudentTagMove = (content: string) =>
   findStudentTags(content).length === 0 ||
-  window.confirm('학생 태그가 든 기록을 메모로 옮기면 학생 누가기록에 더 이상 모이지 않습니다. 메모로 옮길까요?');
+  window.confirm('학생 태그가 든 기록을 메모로 옮기면 학생 기록(누가기록)에 더 이상 모이지 않습니다. 메모로 옮길까요?');
 
 function useSpaceName(groupId: string | null) {
   const { groups } = useGroups();

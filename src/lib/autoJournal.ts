@@ -30,7 +30,7 @@ export function autoJournalId(kind: AutoJournalKind, key: string): string {
  *
  * 계정에 기록 라벨 목록이 아직 없으면(V3의 옛 저장소나 기본값을 쓰는 중이면)
  * 건드리지 않는다. 여기서 목록을 새로 만들면 그 옛 라벨들을 덮어쓰게 된다.
- * 그때는 라벨 이름만 항목에 남고, 통합 라벨 관리의 '삭제된 라벨 복구'로 등록된다.
+ * 그때는 라벨 이름만 항목에 남고, 라벨 관리의 '삭제된 라벨 복구'로 등록된다.
  */
 export async function ensureAutoJournalLabel(kind: AutoJournalKind): Promise<string | null> {
   const uid = auth.currentUser?.uid;

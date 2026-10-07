@@ -48,7 +48,7 @@ describe('팝업 공통 규칙', () => {
   it.each(entries.filter((e) => !CENTERED_BY_DESIGN.includes(e.name)))(
     '$name - 껍데기를 직접 만들지 않는다 (ModalShell 또는 PopupFrame 사용)',
     ({ src }) => {
-      // 바깥 틀을 직접 만들면 환경설정 > 팝업 모양(오른쪽 칸 / 가운데)을 따르지 않는다.
+      // 바깥 틀을 직접 만들면 환경설정 > 창 위치(오른쪽 칸 / 가운데)을 따르지 않는다.
       expect(src.includes('ModalShell') || src.includes('PopupFrame')).toBe(true);
       expect(src).not.toMatch(/fixed inset-0 flex items-start justify-center/);
     }

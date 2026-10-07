@@ -3,10 +3,10 @@
 // 2026-10-02 설명서 점검에서 고친 것을 실제 크롬으로 눌러 본다.
 //   - 사용 설명서 왼쪽 목차(트리): 오른쪽 칸(PC 1400px)에서 옆에 서고, 분류 펴기 → 기능 누르기 → 내용·짚기,
 //     목차만 따로 스크롤(본문 높이), 가로 넘침 없음, 📚 목차로 접기 → 새로고침 뒤에도 접힘 → 다시 펴기
-//   - 가운데 팝업 모양에서도 목차가 옆에 선다
+//   - 가운데 창 모양에서도 목차가 옆에 선다
 //   - 휴대폰(390px): 목차는 처음에 접혀 있고 📚 목차로 위에 펼친다, 고르면 접힌다, 넘침 없음
 //   - 월간 31일에 ▶ → 다음 달 (예전엔 한 달을 건너뜀)
-//   - 통합 검색 기간: 처음 값 '전체 기간'(날짜 제한 없음), '학년도 전체'는 날짜가 보인다
+//   - 검색 기간: 처음 값 '전체 기간'(날짜 제한 없음), '학년도 전체'는 날짜가 보인다
 //   - ⋮ → 반복 일정 등록: 만들면 창이 닫힌다 (만든 일정은 끝에 지운다)
 //
 //   npm run emu / node tools/serve-both.mjs / VITE_USE_EMULATOR=1 npm run build
@@ -75,7 +75,7 @@ const openHelp = async (page) => {
   await page.getByRole('region', { name: '설명서 내용' }).waitFor({ timeout: 10000 });
   await page.waitForTimeout(400);
 };
-/** 환경설정 > 팝업 모양. 계정에 저장되므로(1초 뒤에 올린다) 넉넉히 기다린다 */
+/** 환경설정 > 창 위치. 계정에 저장되므로(1초 뒤에 올린다) 넉넉히 기다린다 */
 const setPopupStyle = async (page, label) => {
   await page.getByTitle('더보기 메뉴').click();
   await page.getByRole('button', { name: /환경설정/ }).first().click();
@@ -93,13 +93,13 @@ const content = (page) => page.getByRole('region', { name: '설명서 내용' })
   const { ctx, page } = await openApp({ width: 1400, height: 900 });
   await page.getByRole('button', { name: '하루', exact: true }).first().click();
   await openHelp(page);
-  // 앞선 점검이 팝업 모양을 가운데로 남겼으면 오른쪽 칸으로 되돌리고 다시 연다
+  // 앞선 점검이 창 위치을 가운데로 남겼으면 오른쪽 칸으로 되돌리고 다시 연다
   if ((await content(page).evaluate((el) => el.closest('[data-popup-frame]')?.getAttribute('data-popup-frame'))) !== 'side') {
     await page.keyboard.press('Escape');
     await setPopupStyle(page, '오른쪽 칸');
     await openHelp(page);
   }
-  check('[목차] 팝업 모양이 오른쪽 칸', (await content(page).evaluate((el) => el.closest('[data-popup-frame]')?.getAttribute('data-popup-frame'))) === 'side');
+  check('[목차] 창 위치이 오른쪽 칸', (await content(page).evaluate((el) => el.closest('[data-popup-frame]')?.getAttribute('data-popup-frame'))) === 'side');
   const dlg = helpDialog(page);
   const navBox = await tree(page).boundingBox();
   const contentBox = await content(page).boundingBox();
@@ -162,10 +162,10 @@ const content = (page) => page.getByRole('region', { name: '설명서 내용' })
     `${before} → ${after} → ${after2}`);
   await page.getByRole('button', { name: '하루', exact: true }).first().click();
 
-  // ── 통합 검색 기간 ──
+  // ── 검색 기간 ──
   await page.locator('span[title^="오늘 날짜로 돌아가기"]').first().click();
   await page.waitForTimeout(300);
-  await page.getByTitle(/^통합 검색/).click();
+  await page.getByTitle(/^검색/).click();
   const scope = page.getByRole('dialog').locator('select').first();
   await scope.waitFor();
   const first = await scope.inputValue();
@@ -197,15 +197,15 @@ const content = (page) => page.getByRole('region', { name: '설명서 내용' })
   await ctx.close();
 }
 
-// ── 가운데 팝업 모양 (환경설정에서 바꾸고 끝에 되돌린다 - 계정에 저장되는 설정) ──
+// ── 가운데 창 모양 (환경설정에서 바꾸고 끝에 되돌린다 - 계정에 저장되는 설정) ──
 {
   const { ctx, page } = await openApp({ width: 1400, height: 900 });
-  await setPopupStyle(page, '가운데 팝업 (예전 방식)');
+  await setPopupStyle(page, '가운데 창 (예전 방식)');
   await openHelp(page);
   const frame = await content(page).evaluate((el) => el.closest('[data-popup-frame]')?.getAttribute('data-popup-frame'));
   const navBox = await tree(page).boundingBox();
   const contentBox = await content(page).boundingBox();
-  check('[목차] 가운데 팝업에서도 목차가 옆에 선다', frame === 'center' && !!navBox && navBox.x + navBox.width <= contentBox.x + 1,
+  check('[목차] 가운데 창에서도 목차가 옆에 선다', frame === 'center' && !!navBox && navBox.x + navBox.width <= contentBox.x + 1,
     `${frame} · 목차 ${Math.round(navBox?.width || 0)}px · 내용 ${Math.round(contentBox.width)}px`);
   await page.screenshot({ path: `${OUT}/help-tree-center.png` });
   await page.keyboard.press('Escape');

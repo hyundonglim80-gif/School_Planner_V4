@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { courseEvalCompletion, courseOverviewCsvRows, groupCourseEvals } from './courseEvals';
 
-// 과정별 평가 모아 보기 (docs/ROADMAP-SUBJECT.md S9)
+// 과정별 조사표 모아 보기 (docs/ROADMAP-SUBJECT.md S9)
 
 const ev = (id: string, title: string, dateStr: string, extra: Record<string, any> = {}) => ({
   id,

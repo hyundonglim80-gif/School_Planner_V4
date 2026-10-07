@@ -800,7 +800,7 @@ ${summary}
           <div className="flex items-center gap-2">
             <span className="text-xl">💾</span>
             <div>
-              <h2 className="text-base font-extrabold text-slate-800">내보내기 / 가져오기 통합 관리</h2>
+              <h2 className="text-base font-extrabold text-slate-800">백업 (내보내기 / 가져오기)</h2>
               <p className="text-xs text-slate-500">구글 캘린더, 구글 시트, 로컬 파일로 데이터를 안전하게 연동합니다.</p>
             </div>
           </div>
@@ -890,9 +890,9 @@ ${summary}
             
           </div>
 
-          {/* 2. 동기화 대상 공간 */}
+          {/* 2. 백업할 공간 */}
           <div>
-            <label className="block font-bold text-slate-800 mb-1.5 text-xs">2. 동기화 대상 공간</label>
+            <label className="block font-bold text-slate-800 mb-1.5 text-xs">2. 백업할 공간</label>
             <select
               value={selectedScope}
               onChange={(e) => setSelectedScope(e.target.value)}

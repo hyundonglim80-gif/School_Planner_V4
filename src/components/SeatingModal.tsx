@@ -65,7 +65,7 @@ import { showErrorToast, showToast } from '../utils/toast';
 interface SeatingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** 학생 칸의 '누가기록' - 그 학생으로 학생 누가기록을 연다 */
+  /** 학생 칸의 '누가기록' - 그 학생으로 학생 기록(누가기록)을 연다 */
   onOpenStudentRecord?: (classKey: string, num: number) => void;
   /** 학생 칸의 '출석부' - 그 학급·날짜로 출석부 칸을 연다 */
   onOpenAttendance?: (classKey: string, dateStr: string) => void;

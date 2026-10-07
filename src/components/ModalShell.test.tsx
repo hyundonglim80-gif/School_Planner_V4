@@ -19,7 +19,7 @@ const setup = () => {
   return { onClose, panelText, backdrop };
 };
 
-// 가운데 팝업(예전 방식)의 모양을 본다. 오른쪽 칸은 PopupFrame.test.tsx에서 본다.
+// 가운데 창(예전 방식)의 모양을 본다. 오른쪽 칸은 PopupFrame.test.tsx에서 본다.
 beforeEach(() => useAppStore.setState({ popupStyle: 'center' }));
 
 describe('ModalShell - 배경 눌러 닫기', () => {

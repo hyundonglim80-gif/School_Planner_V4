@@ -27,7 +27,7 @@ const jr = page.locator('#side-column aside[aria-label="기록 쓰기"]').first(
 const same = (await jr.count()) === 1
   && (await jr.getByText('파일 첨부').count()) === 1
   && (await jr.getByText('링크 추가').count()) === 1
-  && (await jr.getByText('학생 태그 넣기').count()) === 1;
+  && (await jr.getByText(/태그 넣기/).count()) === 1;
 console.log(`'새 기록 만들어 연결'이 하루 화면과 같은 기록 칸(파일 첨부·링크 추가·학생 태그): ${ok(same)}`);
 const T = `연결용 새 기록 ${Date.now() % 10000}`;
 const box = jr.locator('textarea').first();

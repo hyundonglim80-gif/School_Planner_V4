@@ -231,14 +231,14 @@ export default function EntryTableView({ table, onChange, onRemove, compact, ful
       {editable && (
         <div className="flex flex-wrap items-center gap-1 px-2.5 py-1.5 border-b border-slate-200 bg-white/60">
           <span className="text-2xs text-slate-400 mr-1">{sel ? `${sel.r + 1}줄 ${sel.c + 1}열` : '칸을 누르면 고칩니다'}</span>
-          <button type="button" onMouseDown={(e) => e.preventDefault()} className={btn} disabled={!sel} onClick={() => sel && change(insertRow, sel.r)} title="고른 칸 위에 줄 넣기">
+          <button type="button" onMouseDown={(e) => e.preventDefault()} className={btn} disabled={!sel} onClick={() => sel && change(insertRow, sel.r)} title="고른 칸 위에 행 넣기">
             ↑ 줄
           </button>
-          <button type="button" onMouseDown={(e) => e.preventDefault()} className={btn} disabled={!sel} onClick={() => sel && change(insertRow, sel.r + 1)} title="고른 칸 아래에 줄 넣기">
+          <button type="button" onMouseDown={(e) => e.preventDefault()} className={btn} disabled={!sel} onClick={() => sel && change(insertRow, sel.r + 1)} title="고른 칸 아래에 행 넣기">
             ↓ 줄
           </button>
-          <button type="button" onMouseDown={(e) => e.preventDefault()} className={btn} disabled={!sel || nRows <= 1} onClick={() => sel && change(deleteRow, sel.r)} title="고른 칸의 줄 빼기">
-            줄 빼기
+          <button type="button" onMouseDown={(e) => e.preventDefault()} className={btn} disabled={!sel || nRows <= 1} onClick={() => sel && change(deleteRow, sel.r)} title="고른 칸의 행 빼기">
+            행 빼기
           </button>
           <button type="button" onMouseDown={(e) => e.preventDefault()} className={btn} disabled={!sel} onClick={() => sel && change(insertCol, sel.c)} title="고른 칸 왼쪽에 열 넣기">
             ← 열

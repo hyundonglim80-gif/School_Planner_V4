@@ -8,6 +8,7 @@ import { useGroups } from '../hooks/useGroups';
 import { useDDay, calculateDDay } from '../hooks/useDDay';
 import { useLabels } from '../hooks/useLabels';
 import { useGcalAuto } from '../lib/gcalAuto';
+import { useClassBellRunner } from '../hooks/useClassBell';
 import { formatDateStr, isToday } from '../lib/dateUtils';
 import { scrollToToday } from '../lib/todayScroll';
 // 모달은 처음 열 때 받아오면 충분하다. 전부 첫 화면 번들에 넣으면
@@ -71,9 +72,14 @@ import {
 import { showToast, showErrorToast } from '../utils/toast';
 import { useSearchFocusRunner } from '../lib/searchFocus';
 import { APP_ACTION_EVENT, type AppActionDetail } from '../lib/appActions';
-import { isDarkMode, toggleThemeMode, THEME_CHANGED_EVENT } from '../lib/theme';
+import { toggleThemeMode } from '../lib/theme';
 import { useTeachingMode } from '../hooks/useTeachingMode';
 import { NEW_COURSE_PLAN_ID } from '../lib/progress';
+
+/** 환경설정 '앱으로 설치' → Layout이 설치 창을 띄운다 */
+export const INSTALL_PWA_EVENT = 'sp-install-pwa';
+/** 휴대폰 손짓 안내를 보였나 (이 기기에만) */
+const GESTURE_HINT_KEY = 'sp4-gesture-hint-shown';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user } = useAuth();
@@ -131,9 +137,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   } = useAppStore();
   const { groups, loading: groupsLoading } = useGroups();
   const { primaryDDay } = useDDay();
+  // 휴대폰에서 처음 열 때 한 번: 손짓 안내 (UX-AUDIT H9)
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.innerWidth >= 640) return;
+    try {
+      if (localStorage.getItem(GESTURE_HINT_KEY)) return;
+      localStorage.setItem(GESTURE_HINT_KEY, '1');
+    } catch {
+      return;
+    }
+    const t = setTimeout(() => showToast('👆 옆으로 밀면 하루·주간·월간… 화면이 바뀝니다. 자세한 것은 ⋮ → 사용 설명서 > 휴대폰에서 쓰기.'), 2500);
+    return () => clearTimeout(t);
+  }, []);
   // 일정 라벨 '구글 캘린더' 자동 보내기 (19번 U11, lib/gcalAuto) - 못 보낸 날이 있으면 머리줄 단추
   const { eventLabels: gcalEventLabels } = useLabels();
   const gcal = useGcalAuto(gcalEventLabels);
+  // 수업 종 (2026-10-07) - 교시 시각에 맞춰 울린다 (hooks/useClassBell)
+  useClassBellRunner();
 
   // 왼쪽 ⏳ 배지는 늘 오늘을 센다. 'D-100'은 오늘부터 100일이라는 뜻이고, 그
   // 배지는 모든 화면에 떠 있어 기준이 화면마다 달라지면 알아볼 수가 없다.
@@ -221,18 +241,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   // 더보기 드롭다운 상태
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
-  // 지금 어둡게 보이나 (⋮ 메뉴의 '어둡게/밝게 보기' 글) - 설정이나 기기 밝기가 바뀌면 다시 읽는다
-  const [darkOn, setDarkOn] = useState(() => isDarkMode());
-  useEffect(() => {
-    const update = () => setDarkOn(document.documentElement.classList.contains('dark'));
-    window.addEventListener(THEME_CHANGED_EVENT, update);
-    const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
-    mq?.addEventListener('change', update);
-    return () => {
-      window.removeEventListener(THEME_CHANGED_EVENT, update);
-      mq?.removeEventListener('change', update);
-    };
-  }, []);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
@@ -323,6 +331,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // 환경설정의 '앱으로 설치' 단추 (UX-AUDIT M4 - ⋮ 메뉴에서 옮겼다). 설치 안내는 여기(beforeinstallprompt를 받는 곳)가 띄운다
+  const installRef = useRef(handleInstallPWA);
+  installRef.current = handleInstallPWA;
+  useEffect(() => {
+    const on = () => void installRef.current();
+    window.addEventListener(INSTALL_PWA_EVENT, on);
+    return () => window.removeEventListener(INSTALL_PWA_EVENT, on);
+  }, []);
+
   // 외부 클릭 시 더보기 메뉴 닫기
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -373,27 +390,28 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
   // ⋮ 메뉴 구역. 기능이 15개를 넘어 한 줄로 늘어서 있으니 찾기 어려워 구역 제목을 붙였다(로드맵 6-3).
   // 항목을 더할 때는 알맞은 구역에 넣는다. 단축키 목록(lib/shortcuts)과 설명서의 ⋮ 메뉴 목록에도 같은 기능이 있어야 한다.
-  // (명령 창 Ctrl+K는 19번 U4에서 지웠다 - 날짜 고르기·통합 검색·⋮ 메뉴가 같은 일을 한다.)
+  // (명령 창 Ctrl+K는 19번 U4에서 지웠다 - 날짜 고르기·검색·⋮ 메뉴가 같은 일을 한다.)
   // homeroom: 담임 도구 - 교과 전담(담임반 없음)에서는 메뉴에서 숨긴다. 단축키로는 그대로 연다(자료가 남아 있으니, S3).
   // classUnit: 교과 모드 도구 - 초등 담임에서는 메뉴에서 숨긴다 (S7 교과 출결 누계).
   type MoreMenuItem = { icon: string; label: string; shortcut?: ShortcutId; tone?: 'install'; homeroom?: true; classUnit?: true; onClick: () => void };
+  // 구역 안의 차례는 자주 쓰는 것이 위 (UX-AUDIT M3, 2026-10-07). 앱 설치·화면 밝기는 환경설정으로, 설명서는 머리줄 ❓에도 (M4).
   const moreMenuSections: Array<{ title: string; items: MoreMenuItem[] }> = [
     {
       title: '일정 · 라벨',
       items: [
+        { icon: '🏷️', label: '라벨 관리', shortcut: 'labels', onClick: () => openLabelModal('event') },
         // '스크롤 페이지 이동'은 환경설정으로 옮겼다. 켜고 끄는 자리가 두 군데면 어느 쪽이 지금 값인지 헷갈린다.
-        { icon: '☑️', label: `다중 선택 모드 ${isMultiSelectMode ? '종료' : '켜기'}`, shortcut: 'multiSelect', onClick: () => setMultiSelectMode(!isMultiSelectMode) },
-        // 반복 일정 등록 / 미완료 일정 가져오기는 만들어져 있었는데 여는 자리가 없어 화면에서 닿을 수 없었다.
+        { icon: '☑️', label: isMultiSelectMode ? '여러 개 고르기 끝' : '여러 개 고르기', shortcut: 'multiSelect', onClick: () => setMultiSelectMode(!isMultiSelectMode) },
+        // 반복 일정 등록 / 지난 일정 가져오기는 만들어져 있었는데 여는 자리가 없어 화면에서 닿을 수 없었다.
         { icon: '🔁', label: '반복 일정 등록', shortcut: 'recurring', onClick: () => setIsRecurringModalOpen(true) },
-        { icon: '📥', label: '미완료 일정 가져오기', shortcut: 'forwarding', onClick: () => setIsForwardingModalOpen(true) },
-        { icon: '🏷️', label: '통합 라벨 관리', shortcut: 'labels', onClick: () => openLabelModal('event') },
+        { icon: '📥', label: '지난 일정 오늘로 가져오기', shortcut: 'forwarding', onClick: () => setIsForwardingModalOpen(true) },
       ],
     },
     {
       title: '수업',
       items: [
-        { icon: '⏰', label: '시간표 적용 (주간 템플릿)', shortcut: 'timetable', onClick: () => setIsTimetableModalOpen(true) },
         { icon: '📘', label: '진도 관리', shortcut: 'progress', onClick: () => setProgressModalOpen(true) },
+        { icon: '⏰', label: '시간표', shortcut: 'timetable', onClick: () => setIsTimetableModalOpen(true) },
         { icon: '📰', label: '주간학습안내', shortcut: 'weeklyGuide', homeroom: true, onClick: () => useAppStore.getState().openWeeklyGuide() },
       ],
     },
@@ -401,33 +419,30 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       // 출석부·알림장은 하루 화면 수업 칸 옆 단추로도 연다.
       title: '학급 운영',
       items: [
-        { icon: '🧑‍🤝‍🧑', label: '학급 정보(명렬표) 관리', shortcut: 'roster', onClick: () => setIsRosterModalOpen(true) },
         { icon: '📋', label: '출석부', shortcut: 'attendance', homeroom: true, onClick: () => openClassroomPanel('attendance') },
         { icon: '📢', label: '알림장 모아 보기', shortcut: 'notices', homeroom: true, onClick: () => openClassroomPanel('notice', 'list') },
-        { icon: '🙋', label: '교과 출결 누계', shortcut: 'subjectAttendance', classUnit: true, onClick: () => setSubjectAttSummaryClass('') },
-        { icon: '🧑‍🎓', label: '학생 누가기록', shortcut: 'studentRecord', onClick: () => setIsStudentRecordOpen(true) },
-        { icon: '🪑', label: '자리표', shortcut: 'seating', onClick: () => setIsSeatingOpen(true) },
         { icon: '🎯', label: '발표자 뽑기', shortcut: 'drawStudent', onClick: openStudentDraw },
-        { icon: '📊', label: '평가 모아 보기', shortcut: 'evalOverview', onClick: () => setIsEvalOverviewOpen(true) },
+        { icon: '🧑‍🎓', label: '학생 기록(누가기록)', shortcut: 'studentRecord', onClick: () => setIsStudentRecordOpen(true) },
+        { icon: '📊', label: '조사표 모아 보기', shortcut: 'evalOverview', onClick: () => setIsEvalOverviewOpen(true) },
+        { icon: '🪑', label: '자리표', shortcut: 'seating', onClick: () => setIsSeatingOpen(true) },
+        { icon: '🙋', label: '교과 출결 누계', shortcut: 'subjectAttendance', classUnit: true, onClick: () => setSubjectAttSummaryClass('') },
+        { icon: '🧑‍🤝‍🧑', label: '학급 정보(명렬표) 관리', shortcut: 'roster', onClick: () => setIsRosterModalOpen(true) },
       ],
     },
     {
       title: '공유 · 연동 · 백업',
       items: [
-        { icon: '👥', label: '공유 그룹 관리', shortcut: 'group', onClick: () => setIsGroupModalOpen(true) },
         // 병합/교체·'지금 화면 기간으로'는 이 창에만 있다 (백업 창의 캘린더 보내기에는 없다)
         { icon: '📅', label: '구글 캘린더로 보내기', shortcut: 'calendar', onClick: () => setIsCalendarModalOpen(true) },
-        { icon: '💾', label: '내보내기 / 가져오기 (백업)', shortcut: 'backup', onClick: () => setIsBackupModalOpen(true) },
+        { icon: '👥', label: '공유 그룹 관리', shortcut: 'group', onClick: () => setIsGroupModalOpen(true) },
+        { icon: '💾', label: '백업 (내보내기 / 가져오기)', shortcut: 'backup', onClick: () => setIsBackupModalOpen(true) },
       ],
     },
     {
       title: '설정 · 도움말',
       items: [
         { icon: '⚙️', label: '환경설정', shortcut: 'settings', onClick: () => setIsSettingsModalOpen(true) },
-        // 화면 밝기 (ROADMAP 17). 자세한 것(기기 설정 따라)은 환경설정에
-        { icon: darkOn ? '☀️' : '🌙', label: darkOn ? '밝게 보기' : '어둡게 보기', shortcut: 'toggleTheme', onClick: toggleThemeMode },
         { icon: '💡', label: '사용 설명서', shortcut: 'help', onClick: () => setIsHelpModalOpen(true) },
-        { icon: '📱', label: '앱 설치하기 (PWA)', tone: 'install', onClick: () => void handleInstallPWA() },
       ],
     },
   ];
@@ -553,7 +568,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // 통합 검색(기본 Ctrl+F)은 아래 단축키 목록이 맡는다. 거기서 preventDefault를
+      // 검색(기본 Ctrl+F)은 아래 단축키 목록이 맡는다. 거기서 preventDefault를
       // 하므로 브라우저 찾기창도 뜨지 않는다. 다른 키로 바꾸면 Ctrl+F는 브라우저 몫이 된다.
 
       // ESC: 열려있는 모든 모달 및 메뉴 닫기
@@ -732,11 +747,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {/* 우측: 검색, 스코프 탭, 그룹 선택. 이 묶음도 좁으면 줄을 바꾼다
                 (오른쪽 칸이 열린 태블릿 폭에서 한 줄로 두면 ⋮ 메뉴·프로필 밑으로 파고든다). */}
             <div className="flex flex-wrap items-center gap-0.5 sm:gap-2 gap-y-1.5 shrink min-w-0">
-              {/* 통합 검색 버튼 */}
+              {/* 검색 버튼 */}
             <button
               onClick={() => setIsSearchModalOpen(true)}
               className="p-1 sm:px-2.5 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md sm:rounded-xl text-xs sm:text-xs font-bold transition-all flex items-center gap-0 sm:gap-1 shrink-0"
-              title={withShortcut('통합 검색', 'search')}
+              title={withShortcut('검색', 'search')}
             >
               <span>🔍</span>
               <span className="hidden sm:inline">검색</span>
@@ -784,6 +799,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
           {/* 우측 고정 영역 (더보기, 프로필) - 스크롤 밖으로 분리하여 드롭다운이 잘리지 않게 함 */}
           <div className="flex items-center gap-0.5 sm:gap-2 shrink-0 pl-1 border-l border-slate-200">
+            {/* 사용 설명서 (UX-AUDIT M4) - ⋮를 열지 않고 */}
+            <button
+              type="button"
+              data-header-help
+              onClick={() => setIsHelpModalOpen(true)}
+              className="w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 font-black rounded-md sm:rounded-xl text-xs sm:text-sm transition-colors"
+              title={withShortcut('사용 설명서', 'help')}
+              aria-label="사용 설명서"
+            >
+              ?
+            </button>
             {/* 🔥 V3와 동일한 더보기 (⋮) 드롭다운 메뉴 */}
             <div className="relative" ref={moreMenuRef}>
               <button

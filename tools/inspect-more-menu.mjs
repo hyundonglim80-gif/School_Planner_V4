@@ -13,12 +13,13 @@ const BASE = process.env.SITE || 'http://localhost:4190';
 const V4 = `${BASE}/School_Planner_V4/`;
 
 const SECTIONS = [
-  ['일정 · 라벨', ['다중 선택 모드', '반복 일정 등록', '미완료 일정 가져오기', '통합 라벨 관리']],
-  ['수업', ['시간표 적용', '진도 관리', '주간학습안내']],
-  ['학급 운영', ['학급 정보(명렬표) 관리', '출석부', '알림장 모아 보기', '학생 누가기록', '자리표', '발표자 뽑기', '평가 모아 보기']],
-  ['공유 · 연동 · 백업', ['공유 그룹 관리', '구글 캘린더로 보내기', '내보내기 / 가져오기']],
-  ['설정 · 도움말', ['환경설정', '어둡게 보기', '사용 설명서', '앱 설치하기']],
-];
+  // 구역 안 차례는 자주 쓰는 것이 위 (UX-AUDIT M3, 2026-10-07). 앱 설치·화면 밝기는 환경설정으로 옮겼다(M4)
+  ['일정 · 라벨', ['라벨 관리', '여러 개 고르기', '반복 일정 등록', '지난 일정 오늘로 가져오기']],
+  ['수업', ['진도 관리', '시간표', '주간학습안내']],
+  ['학급 운영', ['출석부', '알림장 모아 보기', '발표자 뽑기', '학생 기록(누가기록)', '조사표 모아 보기', '자리표', '학급 정보(명렬표) 관리']],
+  ['공유 · 연동 · 백업', ['구글 캘린더로 보내기', '공유 그룹 관리', '백업 (내보내기 / 가져오기)']],
+  ['설정 · 도움말', ['환경설정', '사용 설명서']],
+]
 
 const results = [];
 const check = (name, ok, detail = '') => {
@@ -69,7 +70,7 @@ const run = async () => {
   await page.keyboard.press('Escape');
   await page.locator('body').click({ position: { x: 5, y: 300 } });
   // 다중 선택·앱 설치·어둡게 보기(화면 밝기만 바꾼다 - inspect-dark가 본다)는 창을 열지 않는다
-  const opens = SECTIONS.flatMap(([, items]) => items).filter((t) => !/다중 선택|앱 설치|어둡게 보기/.test(t));
+  const opens = SECTIONS.flatMap(([, items]) => items).filter((t) => !/여러 개 고르기/.test(t));
   for (const name of opens) {
     await closeAll();
     await openMenu();
@@ -81,12 +82,12 @@ const run = async () => {
   }
   await closeAll();
 
-  // 다중 선택은 창 없이 모드만 - 메뉴 글이 '종료'로 바뀐다
+  // 여러 개 고르기는 창 없이 모드만 - 메뉴 글이 '여러 개 고르기 끝'으로 바뀐다
   await openMenu();
-  await page.locator('[data-menu-section]').getByRole('button', { name: /다중 선택 모드 켜기/ }).click();
+  await page.locator('[data-menu-section]').getByRole('button', { name: /여러 개 고르기(?! 끝)/ }).click();
   await openMenu();
-  const multi = page.locator('[data-menu-section]').getByRole('button', { name: /다중 선택 모드/ });
-  check('다중 선택 켜기 → 메뉴 글이 종료로', (await multi.innerText()).includes('종료'));
+  const multi = page.locator('[data-menu-section]').getByRole('button', { name: /여러 개 고르기/ });
+  check('여러 개 고르기 → 메뉴 글이 "여러 개 고르기 끝"으로', (await multi.innerText()).includes('끝'));
   await multi.click();
 
   check('페이지 오류 없음', logs.length === 0, logs.join(' / '));

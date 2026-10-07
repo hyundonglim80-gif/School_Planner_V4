@@ -69,8 +69,8 @@ async function open(as) {
 }
 async function openTimetable(page) {
   await page.getByTitle('더보기 메뉴').click();
-  await page.getByRole('button', { name: /시간표 적용/ }).click();
-  await page.getByRole('button', { name: /템플릿 클라우드 저장/ }).waitFor({ timeout: 20000 });
+  await page.getByRole('button', { name: /^⏰\s*시간표/ }).click();
+  await page.getByRole('button', { name: /시간표 저장/ }).waitFor({ timeout: 20000 });
   await page.waitForTimeout(1000); // 클라우드 값을 읽어 표를 채운다
 }
 // 전담 칸은 학년-반(data-cell) + 과목 두 칸 (2026-10-07) - 반 칸과 같은 칸의 과목 칸
@@ -199,7 +199,7 @@ try {
       (await cell(page, '0-1').getAttribute('placeholder')) === '과목' && (await page.locator('[role=combobox]').count()) === 0);
     const v = await typeAndLeave(page, '0-1', '3 - 2 국어');
     check("teacher: '3 - 2 국어'는 칸을 떠나도 그대로", v === '3 - 2 국어', v);
-    await page.getByRole('button', { name: /템플릿 클라우드 저장/ }).click();
+    await page.getByRole('button', { name: /시간표 저장/ }).click();
     const has = (t) => Object.values(t?.templates || {}).some((tpl) => tpl?.data?.mon?.['1'] === '3 - 2 국어');
     const [, ms] = await serverUntil(() => t1.read(tt1), has);
     check("teacher: 저장해도 서버에 '3 - 2 국어' 그대로", has(await t1.read(tt1)), `${ms}ms`);

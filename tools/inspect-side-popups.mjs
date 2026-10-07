@@ -36,7 +36,7 @@ const column = async (page) => (await rect(page, '#side-column'))[0];
 // ── 넓은 화면 ──
 const page = await open(1280, 800);
 console.log('\n[넓은 화면 1280 - 오른쪽 줄]');
-await page.getByTitle(/통합 검색/).first().click();
+await page.getByTitle(/검색/).first().click();
 await page.waitForTimeout(800);
 let col = await column(page);
 const mainRight = await page.$eval('main', (m) => Math.round(m.getBoundingClientRect().right));
@@ -101,7 +101,7 @@ const after = (await column(page)).w;
 console.log(`  경계선을 왼쪽으로 끌면 넓어진다 (${before} -> ${after}): ${ok(after > before + 100)}`);
 await page.goBack();
 await page.waitForTimeout(700);
-await page.getByTitle(/통합 검색/).first().click();
+await page.getByTitle(/검색/).first().click();
 await page.waitForTimeout(700);
 console.log(`  바꾼 폭을 다른 칸도 쓴다: ${ok(Math.abs((await column(page)).w - after) <= 1)}`);
 await page.locator('[data-column-resizer="right"]').dblclick();
@@ -175,7 +175,7 @@ await page.context().close();
 // ── 휴대폰 ──
 const phone = await open(390, 844);
 console.log('\n[휴대폰 390]');
-await phone.getByTitle(/통합 검색/).first().click();
+await phone.getByTitle(/검색/).first().click();
 await phone.waitForTimeout(800);
 const pf = await rect(phone, '[data-popup-frame]');
 console.log(`  배너로 뜬다(화면을 꽉 채움): ${ok(pf[0]?.w >= 380)}`);

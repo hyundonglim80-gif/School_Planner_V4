@@ -5,7 +5,7 @@
 //   - 12-1 주간: 🖨️ 인쇄 → A4 가로, 이번 주 칸만, 요일마다 한 열, 제목 / 인쇄가 끝나면(afterprint) 치운다
 //   - 12-2 주간학습안내: 다음 주 표(과목·메모·준비물·알림장), 넣을 것 체크, 제목·알리는 말(이 기기), 주 넘기기, 표 복사, A4 세로 인쇄,
 //     주간 화면 단추는 보고 있는 주로. 다음 주 월·화 수업·알림장 문서를 심었다가 처음 모습으로 되돌린다.
-//   - 12-3 출석부 누계(A4 가로)·평가 모아 보기 표·조사표 한 장(입력 칸은 글로, 전체 일괄 적용 줄은 빼고).
+//   - 12-3 출석부 누계(A4 가로)·조사표 모아 보기 표·조사표 한 장(입력 칸은 글로, 전체 일괄 적용 줄은 빼고).
 //     올해 학년도 첫 학급에 오늘 날짜 점검 조사표를 하나 심었다가 뺀다.
 //
 //   npm run emu / node tools/serve-both.mjs / VITE_USE_EMULATOR=1 npm run build
@@ -223,16 +223,16 @@ try {
   await att.getByRole('button', { name: '닫기', exact: true }).last().click();
   await page.waitForTimeout(300);
 
-  // ── 12-3 평가 모아 보기 ──
+  // ── 12-3 조사표 모아 보기 ──
   await page.getByTitle('더보기 메뉴').click();
-  await page.locator('[data-menu-section]').getByRole('button', { name: /평가 모아 보기/ }).click();
-  const ov = page.getByRole('dialog').filter({ hasText: '📊 평가 모아 보기' });
+  await page.locator('[data-menu-section]').getByRole('button', { name: /조사표 모아 보기/ }).click();
+  const ov = page.getByRole('dialog').filter({ hasText: '📊 조사표 모아 보기' });
   await ov.getByRole('combobox', { name: '학급' }).locator(`option[value="${CLASS_KEY}"]`).waitFor({ state: 'attached', timeout: 10000 });
   await ov.getByRole('combobox', { name: '학급' }).selectOption(CLASS_KEY);
   await ov.locator('[data-eval-col="ev_print_test"]').waitFor({ timeout: 10000 });
   await ov.getByRole('button', { name: '🖨️ 인쇄' }).click();
-  check('평가 모아 보기 🖨️ → 표, 제목에 학급', (await root().locator('[data-eval-overview] table').count()) === 1 &&
-    (await root().locator('.sp4-print-title').innerText()).includes('평가 모아 보기'));
+  check('조사표 모아 보기 🖨️ → 표, 제목에 학급', (await root().locator('[data-eval-overview] table').count()) === 1 &&
+    (await root().locator('.sp4-print-title').innerText()).includes('조사표 모아 보기'));
   await page.emulateMedia({ media: 'print' });
   const clipped = await root().locator('[data-eval-overview]').evaluate((el) => getComputedStyle(el).overflow + '/' + getComputedStyle(el).maxHeight);
   check('인쇄 모양: 스크롤 상자를 펼친다', clipped.startsWith('visible') && clipped.endsWith('none'), clipped);

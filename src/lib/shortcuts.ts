@@ -82,7 +82,7 @@ const b = (key: string, mods: Partial<Omit<Binding, 'key'>> = {}): Binding => ({
 });
 
 export const SHORTCUT_ACTIONS: ShortcutAction[] = [
-  { id: 'search', label: '통합 검색 열기', group: '열기', def: b('F', { ctrl: true }) },
+  { id: 'search', label: '검색 열기', group: '열기', def: b('F', { ctrl: true }) },
   // 쓰는 칸(메모·기록) 글 칸에서 커서가 있는 줄 앞에 ☐ (19번 U9). 커서가 글 칸에 있을 때만 동작한다
   { id: 'checklist', label: '체크리스트 (쓰는 칸 줄 앞에 ☐)', group: '쓰는 칸', def: b('L', { ctrl: true, shift: true }) },
 
@@ -105,33 +105,33 @@ export const SHORTCUT_ACTIONS: ShortcutAction[] = [
 
   // 아래는 기본값이 비어 있다. 쓰고 싶은 사람이 직접 정한다.
   // 자주 쓰는 조합을 미리 차지해 두면 오히려 걸리적거린다.
-  { id: 'multiSelect', label: '다중 선택 모드', group: '메뉴 열기', def: b('') },
+  { id: 'multiSelect', label: '여러 개 고르기', group: '메뉴 열기', def: b('') },
   // 주간 화면의 '작년 이맘때' (ROADMAP 7). 다른 화면에서 누르면 주간으로 가서 켠다.
   { id: 'lastYear', label: '작년 이맘때 보이기 / 숨기기 (주간)', group: '메뉴 열기', def: b('') },
   { id: 'clipboard', label: '클립보드 칸 열기 / 닫기', group: '메뉴 열기', def: b('') },
   { id: 'calendar', label: '구글 캘린더로 보내기', group: '메뉴 열기', def: b('') },
   { id: 'dday', label: 'D-Day 관리', group: '메뉴 열기', def: b('') },
   { id: 'trash', label: '휴지통', group: '메뉴 열기', def: b('') },
-  { id: 'labels', label: '통합 라벨 관리', group: '메뉴 열기', def: b('') },
+  { id: 'labels', label: '라벨 관리', group: '메뉴 열기', def: b('') },
   { id: 'recurring', label: '반복 일정 등록', group: '메뉴 열기', def: b('') },
-  { id: 'forwarding', label: '미완료 일정 가져오기', group: '메뉴 열기', def: b('') },
+  { id: 'forwarding', label: '지난 일정 오늘로 가져오기', group: '메뉴 열기', def: b('') },
   { id: 'roster', label: '학급 정보(명렬표) 관리', group: '메뉴 열기', def: b('') },
   { id: 'notices', label: '알림장 모아 보기', group: '메뉴 열기', def: b('') },
   { id: 'attendance', label: '출석부', group: '메뉴 열기', def: b('') },
   { id: 'subjectAttendance', label: '교과 출결 누계', group: '메뉴 열기', def: b('') },
-  { id: 'studentRecord', label: '학생 누가기록', group: '메뉴 열기', def: b('') },
+  { id: 'studentRecord', label: '학생 기록(누가기록)', group: '메뉴 열기', def: b('') },
   { id: 'seating', label: '자리표', group: '메뉴 열기', def: b('') },
   { id: 'drawStudent', label: '발표자 뽑기 (자리표)', group: '메뉴 열기', def: b('') },
-  { id: 'evalOverview', label: '평가 모아 보기', group: '메뉴 열기', def: b('') },
+  { id: 'evalOverview', label: '조사표 모아 보기', group: '메뉴 열기', def: b('') },
   { id: 'group', label: '공유 그룹 관리', group: '메뉴 열기', def: b('') },
-  { id: 'timetable', label: '시간표 적용 (주간 템플릿)', group: '메뉴 열기', def: b('') },
+  { id: 'timetable', label: '시간표', group: '메뉴 열기', def: b('') },
   { id: 'progress', label: '진도 관리', group: '메뉴 열기', def: b('') },
   { id: 'weeklyGuide', label: '주간학습안내', group: '메뉴 열기', def: b('') },
-  { id: 'backup', label: '내보내기 / 가져오기 (백업)', group: '메뉴 열기', def: b('') },
+  { id: 'backup', label: '백업 (내보내기 / 가져오기)', group: '메뉴 열기', def: b('') },
   { id: 'help', label: '사용 설명서', group: '메뉴 열기', def: b('') },
   { id: 'settings', label: '환경설정', group: '메뉴 열기', def: b('') },
   { id: 'teachingMode', label: '교사 유형 바꾸기', group: '메뉴 열기', def: b('') },
-  { id: 'newCourse', label: '과정 만들기 (여러 반 진도)', group: '메뉴 열기', def: b('') },
+  { id: 'newCourse', label: '진도 만들기 (여러 반)', group: '메뉴 열기', def: b('') },
   // 화면 밝기 (ROADMAP 17) - 어둡게 ↔ 밝게
   { id: 'toggleTheme', label: '어둡게 / 밝게 보기', group: '메뉴 열기', def: b('') },
 ];

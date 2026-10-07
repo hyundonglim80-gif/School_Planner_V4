@@ -1,6 +1,6 @@
 // tools/inspect-student-card.mjs
 //
-// 학생 누가기록의 학생 카드(docs/ROADMAP.md 9-1)를 실제 크롬으로 확인한다.
+// 학생 기록(누가기록)의 학생 카드(docs/ROADMAP.md 9-1)를 실제 크롬으로 확인한다.
 //   - 카드: 특이사항·성별·기록 수·평가 수
 //   - 📊 평가: 그 학년도 이 학급 조사표 중 이 학생이 든 것(다른 학급·명단에 없는 것 빠짐), 날짜 차례, 값(평가·체크·메모·안 적음)
 //   - 평가를 누르면 그 조사표가 열린다, 📋 전체 복사에 적은 평가가 날짜 차례로 섞인다
@@ -89,7 +89,7 @@ const run = async () => {
   const logs = [];
   page.on('pageerror', (e) => logs.push(`pageerror: ${e.message.slice(0, 200)}`));
 
-  const rec = () => page.getByRole('dialog').filter({ hasText: '학생 누가기록' });
+  const rec = () => page.getByRole('dialog').filter({ hasText: '학생 기록(누가기록)' });
   const card = () => page.locator('[data-student-card="1"]');
 
   try {
@@ -98,7 +98,7 @@ const run = async () => {
     await page.getByRole('button', { name: '하루', exact: true }).first().click();
 
     await page.getByTitle('더보기 메뉴').click();
-    await page.locator('[data-menu-section]').getByRole('button', { name: /학생 누가기록/ }).click();
+    await page.locator('[data-menu-section]').getByRole('button', { name: /학생 기록\(누가기록\)/ }).click();
     // 심은 학급이 명렬표 구독으로 들어온 뒤에 고른다 (먼저 고르면 학생 단추가 안 뜬다)
     await rec().locator(`option[value="${KEY}"]`).waitFor({ state: 'attached', timeout: 10000 });
     await rec().getByRole('combobox', { name: '학급' }).selectOption(KEY);

@@ -1,6 +1,6 @@
 // tools/inspect-eval-overview.mjs
 //
-// 평가 모아 보기(docs/ROADMAP.md 9-2)를 실제 크롬으로 확인한다.
+// 조사표 모아 보기(docs/ROADMAP.md 9-2)를 실제 크롬으로 확인한다.
 //   - ⋮ 메뉴로 열기, 학급의 학년도 조사표만(다른 학급 빠짐), 날짜·교시 차례 머리, 단계별 사람 수
 //   - 칸 값(평가 ✎·체크·메모·명단에 없음·빈 칸), 교과·교과 없음·학기·유형 거르기
 //   - CSV 내려받기(파일 이름·머리·값·사유), 표 복사(탭)
@@ -79,7 +79,7 @@ const run = async () => {
   const logs = [];
   page.on('pageerror', (e) => logs.push(`pageerror: ${e.message.slice(0, 200)}`));
 
-  const ov = () => page.getByRole('dialog').filter({ hasText: '📊 평가 모아 보기' });
+  const ov = () => page.getByRole('dialog').filter({ hasText: '📊 조사표 모아 보기' });
   const cols = () => page.locator('[data-eval-col]').evaluateAll((els) => els.map((e) => e.getAttribute('data-eval-col')));
   const cell = (id, n) => page.locator(`[data-eval-cell="${id}:${n}"]`).innerText();
   const pick = async (label, value) => {
@@ -94,7 +94,7 @@ const run = async () => {
 
     // ── 1. 열기 ──
     await page.getByTitle('더보기 메뉴').click();
-    await page.locator('[data-menu-section]').getByRole('button', { name: /평가 모아 보기/ }).click();
+    await page.locator('[data-menu-section]').getByRole('button', { name: /조사표 모아 보기/ }).click();
     await ov().locator(`option[value="${KEY}"]`).waitFor({ state: 'attached', timeout: 10000 });
     await pick('학급', KEY);
     await page.locator('[data-eval-overview]').waitFor({ timeout: 10000 });

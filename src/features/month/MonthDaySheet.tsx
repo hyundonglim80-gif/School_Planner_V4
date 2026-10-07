@@ -30,7 +30,7 @@ interface MonthDaySheetProps {
   onGoDay: () => void;
   onAdd: () => void;
   onOpenEvent: (ev: any) => void;
-  /** 라벨 칩을 누르면 완료를 뒤집는다 (주간 칩과 같다). 다중 선택 모드에서는 넘기지 않는다. */
+  /** 라벨 칩을 누르면 완료를 뒤집는다 (주간 칩과 같다). 여러 개 고르기에서는 넘기지 않는다. */
   onToggleEvent?: (ev: any) => void;
   onOpenSchool: (items: NeisScheduleItem[]) => void;
 }

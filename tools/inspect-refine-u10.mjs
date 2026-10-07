@@ -85,8 +85,8 @@ async function pickDate(date) {
 }
 async function openLabels() {
   await page.getByTitle('더보기 메뉴').click();
-  await page.getByRole('button', { name: /통합 라벨 관리/ }).click();
-  const dlg = page.locator('[role=dialog]', { hasText: '통합 라벨' }).last();
+  await page.getByRole('button', { name: /라벨 관리/ }).click();
+  const dlg = page.locator('[role=dialog]', { hasText: '라벨 관리' }).last();
   await dlg.waitFor({ timeout: 10000 });
   await dlg.locator('[data-label-tab="entry"]').click();
   await dlg.locator('[data-label-row]').first().waitFor({ timeout: 10000 });

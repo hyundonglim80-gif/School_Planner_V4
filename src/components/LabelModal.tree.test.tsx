@@ -4,7 +4,7 @@ import { getDoc as getDocMock, setDoc as setDocMock } from 'firebase/firestore';
 import LabelModal from './LabelModal';
 import { saveLabelTree } from '../lib/labelTree';
 
-// 통합 라벨 관리 - 메모·기록 라벨(19번 U5부터 한 목록)에 '상위 라벨'을 고른다 (2단계). 저장하면 트리도 함께 저장한다.
+// 라벨 관리 - 메모·기록 라벨(19번 U5부터 한 목록)에 '상위 라벨'을 고른다 (2단계). 저장하면 트리도 함께 저장한다.
 
 vi.mock('../hooks/useGroups', () => ({ useGroups: () => ({ groups: [] }) }));
 vi.mock('../utils/labelRename', async (importOriginal) => {
@@ -34,9 +34,9 @@ beforeEach(() => {
 });
 
 const saveButton = () =>
-  screen.getAllByRole('button').find((b) => /클라우드 저장/.test(b.textContent || '') && !(b as HTMLButtonElement).disabled)!;
+  screen.getAllByRole('button').find((b) => /^💾\s*저장$/.test(b.textContent || '') && !(b as HTMLButtonElement).disabled)!;
 
-describe('통합 라벨 관리 - 상위 라벨', () => {
+describe('라벨 관리 - 상위 라벨', () => {
   it('상위를 고르면 하위로 들여 보이고, 저장하면 이름으로 트리를 저장한다 (이름을 고친 것도 따라간다)', async () => {
     render(<LabelModal isOpen onClose={vi.fn()} initialTab="journal" />);
     const select = await screen.findByLabelText('A초 상위 라벨');
@@ -60,7 +60,7 @@ describe('통합 라벨 관리 - 상위 라벨', () => {
 });
 
 // 2026-09-30: 새 라벨을 더할 때 상위 라벨도 고른다. 라벨은 더하는 즉시 저장되므로 트리도 곧바로 저장한다.
-describe('통합 라벨 관리 - 새 라벨에 상위 고르기', () => {
+describe('라벨 관리 - 새 라벨에 상위 고르기', () => {
   it('기록 라벨을 더할 때 상위를 고르면 그 밑에 들어가고, 트리가 곧바로 저장된다', async () => {
     render(<LabelModal isOpen onClose={vi.fn()} initialTab="journal" />);
     const parentSelect = await screen.findByLabelText('새 메모·기록 라벨의 상위 라벨');

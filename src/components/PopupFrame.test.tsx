@@ -5,7 +5,7 @@ import PopupFrame, { useSidePopups, getSideColumn } from './PopupFrame';
 import SidePanelFrame from './SidePanelFrame';
 import { useAppStore } from '../store/useAppStore';
 
-// 환경설정 > 팝업 모양. '오른쪽 칸'이면 넓은 화면에서 화면을 나눠 오른쪽 줄에 띄운다.
+// 환경설정 > 창 위치. '오른쪽 칸'이면 넓은 화면에서 화면을 나눠 오른쪽 줄에 띄운다.
 // 칸 위에서 또 칸을 열면 나중에 연 것이 위, 먼저 연 것이 아래에 쌓이고,
 // 줄 전체가 한 덩어리로 스크롤한다. 칸 폭은 모두 같다.
 
@@ -84,7 +84,7 @@ describe('PopupFrame - 오른쪽 줄', () => {
     expect(useSidePopups.getState().order).toHaveLength(0);
   });
 
-  it("'가운데 팝업'을 고르면 예전처럼 가운데에 뜬다", () => {
+  it("'가운데 창'을 고르면 예전처럼 가운데에 뜬다", () => {
     setWidth(1280);
     useAppStore.setState({ popupStyle: 'center' });
     render(

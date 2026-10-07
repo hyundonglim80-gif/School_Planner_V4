@@ -218,12 +218,24 @@ export default function DayEvents({
 
                 <div className="min-w-0 pointer-events-auto sm:order-2 sm:flex-1">
                   <div className="leading-relaxed text-sm break-words">
-                    {isMultiSelectMode && (
+                    {isMultiSelectMode ? (
                       <input
                         type="checkbox"
                         checked={selectedEventIds.includes(event.id)}
                         readOnly
                         className="inline-block align-middle mr-1.5 pointer-events-none w-4 h-4 rounded text-primary border-slate-300"
+                      />
+                    ) : (
+                      // 완료 체크 (UX-AUDIT H1) - 메모·기록 카드처럼 보이는 ☐. 라벨 칩 누르기도 그대로 완료다
+                      <input
+                        type="checkbox"
+                        checked={!!event.completed}
+                        data-event-complete
+                        aria-label="일정 완료"
+                        title={event.completed ? '완료 풀기' : '완료'}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={() => onToggleEvent(event.id)}
+                        className="inline-block align-middle mr-1.5 w-4 h-4 rounded text-primary border-slate-300 accent-primary cursor-pointer"
                       />
                     )}
 

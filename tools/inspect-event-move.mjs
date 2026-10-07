@@ -214,7 +214,7 @@ const run = async () => {
   await page.getByRole('button', { name: '하루', exact: true }).first().click();
   await page.getByText(MULTI_A).first().waitFor({ timeout: 15000 });
   await page.getByRole('button', { name: /더보기|⋮/ }).first().click();
-  await page.getByText('다중 선택 모드 켜기').first().click();
+  await page.getByText(/^여러 개 고르기$/).first().click();
   await page.getByText(MULTI_A).first().click();
   await page.getByText(MULTI_B).first().click();
   await page.getByTitle('선택 일정을 다른 날짜로 옮기기').click();
@@ -224,7 +224,7 @@ const run = async () => {
   const m = await listOf(plus(4));
   check('다중 선택: 고른 둘이 그 날로 옮겨졌다', m.list.some((e) => e.id === 'ev_multi_a') && m.list.some((e) => e.id === 'ev_multi_b'));
   check('다중 선택: 오늘에서는 빠졌다', !(await listOf(today)).list.some((e) => String(e.id).startsWith('ev_multi_')));
-  check('다중 선택 모드가 끝났다', !(await page.getByTitle('선택 일정을 다른 날짜로 옮기기').isVisible().catch(() => false)));
+  check('여러 개 고르기가 끝났다', !(await page.getByTitle('선택 일정을 다른 날짜로 옮기기').isVisible().catch(() => false)));
 
   if (logs.length) {
     console.log('\n── 콘솔 ──');

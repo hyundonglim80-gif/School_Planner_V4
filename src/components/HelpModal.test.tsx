@@ -108,7 +108,7 @@ describe('사용 설명서 - 기능별 분류 → 세부 기능 → 설명·사�
     await user.click(content().getByRole('button', { name: /일정 속성 5가지/ }));
     await user.click(content().getByRole('button', { name: '시간표 적용' }));
 
-    expect(screen.getByRole('heading', { name: /시간표 적용 \(주간 템플릿\)/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^\S*\s*시간표$/ })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: '설명서 위치' })).toHaveTextContent('수업 · 시간표');
   });
 
@@ -232,7 +232,7 @@ describe('사용 설명서 - 왼쪽 목차', () => {
     expect(tree().getByRole('button', { name: /일정 속성 5가지/ })).toHaveAttribute('aria-current', 'page');
 
     await user.click(content().getByRole('button', { name: '시간표 적용' }));
-    expect(tree().getByRole('button', { name: /시간표 적용 \(주간 템플릿\)/ })).toHaveAttribute('aria-current', 'page');
+    expect(tree().getByRole('button', { name: /^\S*\s*시간표$/ })).toHaveAttribute('aria-current', 'page');
     // 앞서 연 분류도 펼친 채 남는다
     expect(tree().getByRole('button', { name: /일정 속성 5가지/ })).not.toHaveAttribute('aria-current');
   });

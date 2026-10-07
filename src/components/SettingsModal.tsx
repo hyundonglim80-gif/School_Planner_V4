@@ -45,7 +45,7 @@ interface SettingsModalProps {
 
 const POPUP_STYLE_OPTIONS: { value: PopupStyle; label: string }[] = [
   { value: 'side', label: '오른쪽 칸' },
-  { value: 'center', label: '가운데 팝업 (예전 방식)' },
+  { value: 'center', label: '가운데 창 (예전 방식)' },
 ];
 
 const STARTUP_OPTIONS: { value: StartupScope; label: string }[] = [
@@ -168,7 +168,7 @@ export default function SettingsModal({ isOpen, onClose, focusSection }: Setting
   // 지역 상태에 담아 두었다가 '저장'에서 옮기면 눌러도 화면이 그대로다.
   const fontScale = useAppStore((s) => s.fontScale);
   const setFontScale = useAppStore((s) => s.setFontScale);
-  // 팝업 모양도 고르는 즉시 바뀐다 (이 창부터 바로 옮겨 가 보인다)
+  // 창 위치도 고르는 즉시 바뀐다 (이 창부터 바로 옮겨 가 보인다)
   // 휴지통 자동 비우기 기간. 계정에 하나(lib/trashRetention) - 고르는 즉시 저장한다.
   const [trashDays, setTrashDays] = useState<TrashRetentionDays | null>(null);
   useEffect(() => {
@@ -708,7 +708,7 @@ export default function SettingsModal({ isOpen, onClose, focusSection }: Setting
         </Section>
 
         <Section
-          title="팝업 모양"
+          title="창 위치"
           desc="고르는 즉시 적용됩니다. '오른쪽 칸'은 넓은 화면에서 화면을 나눠 오른쪽에 띄우고(왼쪽 화면을 보며 쓸 수 있다), 휴대폰에서는 오른쪽에서 나오는 배너로 띄웁니다."
         >
           <div className="flex flex-wrap gap-1.5">
@@ -865,6 +865,18 @@ export default function SettingsModal({ isOpen, onClose, focusSection }: Setting
           <SchoolSettingPanel />
         </Section>
 
+        {/* 앱으로 설치 (UX-AUDIT M4 - ⋮ 메뉴에서 옮겼다). 설치 창은 Layout이 띄운다 */}
+        <Section title="앱으로 설치" desc="휴대폰·PC에 앱처럼 설치하면 주소창 없이 열리고, 안드로이드는 다른 앱에서 공유받기도 됩니다.">
+          <button
+            type="button"
+            data-install-pwa
+            onClick={() => window.dispatchEvent(new Event('sp-install-pwa'))}
+            className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-700"
+          >
+            📱 앱으로 설치
+          </button>
+        </Section>
+
         <Section title="화면 밝기" desc="어둡게 하면 밤이나 어두운 교실에서 눈이 덜 부십니다. 이 기기에만 남고, 누르는 즉시 바뀝니다. 인쇄는 늘 밝게 찍힙니다.">
           <div className="flex flex-wrap gap-1.5" data-theme-options>
             {THEME_OPTIONS.map((opt) => (
@@ -926,7 +938,7 @@ export default function SettingsModal({ isOpen, onClose, focusSection }: Setting
 
         <Section
           title="이월"
-          desc="'이월' 속성이 켜진(이월 라벨이 붙은) 미완료 일정을 오늘로 끌어올 때 며칠 전까지 거슬러 볼지 정합니다. 자동 이월과 '미완료 일정 가져오기'가 같은 값을 씁니다."
+          desc="'이월' 속성이 켜진(이월 라벨이 붙은) 미완료 일정을 오늘로 끌어올 때 며칠 전까지 거슬러 볼지 정합니다. 자동 이월과 '지난 일정 오늘로 가져오기'가 같은 값을 씁니다."
         >
           <div className="flex items-center gap-2">
             <input
@@ -951,7 +963,7 @@ export default function SettingsModal({ isOpen, onClose, focusSection }: Setting
             그래서 고치는 자리는 한 곳으로 두고, 여기서는 어디로 가면 되는지만 알린다. */}
         <Section title="수업 시간 명칭" desc="교시 이름과 개수는 시간표 설정에서 정합니다.">
           <p className="text-xs text-slate-500 leading-relaxed">
-            ⋮ 메뉴 → <strong className="text-slate-700">시간표 적용 (주간 템플릿)</strong> 에서 교시 이름을 바꾸면
+            ⋮ 메뉴 → <strong className="text-slate-700">시간표</strong> 에서 교시 이름을 바꾸면
             하루·주간 화면의 칸이 그에 맞춰 나뉩니다.
           </p>
         </Section>

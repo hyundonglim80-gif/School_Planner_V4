@@ -271,6 +271,11 @@ export default function EntryDrawer({
 
   const [saving, setSaving] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  // 쓰는 칸에서 새 라벨 만들기 (UX-AUDIT C3) - 아래 addNewLabel
+  const [newLabelOpen, setNewLabelOpen] = useState(false);
+  const [newLabelName, setNewLabelName] = useState('');
+  /** 이 칸에서 막 만든(아직 목록에 없는) 라벨 - 칩으로 보이게 */
+  const [madeLabels, setMadeLabels] = useState<string[]>([]);
   /** 학생 태그 고르는 칸 (기록·메모) */
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   /**
@@ -560,6 +565,16 @@ export default function EntryDrawer({
 
   if (!isOpen) return null;
 
+  // 쓰는 칸에서 새 라벨 만들기 (UX-AUDIT C3) - 칩을 누르고 이름을 친 뒤 Enter. 저장할 때 두 라벨 목록에 만든다(ensureEntryLabels)
+  const addNewLabel = () => {
+    const name = newLabelName.trim().replace(/^#/, '').slice(0, 20);
+    if (name) {
+      if (!labelOptions.includes(name) && !madeLabels.includes(name)) setMadeLabels((p) => [...p, name]);
+      setSelectedLabels((p) => (p.includes(name) ? p : [...p, name]));
+    }
+    setNewLabelName('');
+    setNewLabelOpen(false);
+  };
   const toggleLabel = (label: string) => {
     setSelectedLabels((prev) =>
       prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]
@@ -893,7 +908,7 @@ export default function EntryDrawer({
               </div>
             )}
             <p className="text-2xs text-slate-400">
-              ▦ 엑셀·한셀·구글 시트에서 복사해 여기에 붙여넣으면 서식째 표로 붙습니다.
+              Ctrl+V: 캡처 이미지는 첨부로, 엑셀·한셀·구글 시트에서 복사한 표는 서식째 ▦ 표로 붙습니다.
               {' @이름을 치면 학생 태그를 고릅니다. 첫 줄·마지막 줄의 #이름은 라벨이 됩니다.'}
             </p>
             {/* 붙인 표 (lib/entryTable). 칸을 눌러 글자를 고치고, 줄·열을 더하고 뺀다 */}
@@ -906,15 +921,15 @@ export default function EntryDrawer({
                 onRemove={() => setTables((prev) => prev.filter((x) => x.id !== t.id))}
               />
             ))}
-            {/* 학생 태그 (#26040305). 붙여 두면 '학생 누가기록'에 모인다 - 메모에도 (2026-10-07 사용자 요청) */}
+            {/* 학생 태그 (#26040305). 붙여 두면 '학생 기록(누가기록)'에 모인다 - 메모에도 (2026-10-07 사용자 요청) */}
               <div className="space-y-1.5">
                 <button
                   type="button"
                   onClick={() => setTagPickerOpen((v) => !v)}
                   className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                  title="학생을 골라 #학년도학년반번호 태그를 붙입니다. 학생 누가기록에 모입니다."
+                  title="학생을 골라 #학년도학년반번호 태그를 붙입니다. 학생 기록(누가기록)에 모입니다."
                 >
-                  🧑‍🎓 학생 누가기록 (학생 태그 {tagPickerOpen ? '닫기' : '넣기'})
+                  🧑‍🎓 학생 기록(누가기록) 태그 {tagPickerOpen ? '닫기' : '넣기'}
                 </button>
                 {tagPickerOpen && (
                   <StudentTagPicker
@@ -940,14 +955,14 @@ export default function EntryDrawer({
                 type="button"
                 onClick={() => openLabelModal(kind)}
                 className="text-xs text-primary hover:text-blue-700 font-bold flex items-center gap-1.5 px-2 py-0.5 rounded-md hover:bg-blue-50 transition-colors cursor-pointer"
-                title="더보기 - 통합 라벨 관리 열기"
+                title="더보기 - 라벨 관리 열기"
               >
                 <span>⚙️</span>
                 <span>라벨 수정</span>
               </button>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {orderByTree(labelOptions, labelParents).map(({ name: label, depth }) => {
+              {orderByTree([...labelOptions, ...madeLabels.filter((m) => !labelOptions.includes(m))], labelParents).map(({ name: label, depth }) => {
                 const isSelected = selectedLabels.includes(label);
                 return (
                   <button
@@ -973,6 +988,38 @@ export default function EntryDrawer({
                   </button>
                 );
               })}
+              {newLabelOpen ? (
+                <input
+                  autoFocus
+                  value={newLabelName}
+                  data-entry-new-label-input
+                  aria-label="새 라벨 이름"
+                  placeholder="새 라벨 이름 + Enter"
+                  onChange={(e) => setNewLabelName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      addNewLabel();
+                    } else if (e.key === 'Escape') {
+                      e.stopPropagation();
+                      setNewLabelOpen(false);
+                      setNewLabelName('');
+                    }
+                  }}
+                  onBlur={addNewLabel}
+                  className="px-2 py-1 rounded-lg text-xs border border-blue-300 w-36 focus:outline-none"
+                />
+              ) : (
+                <button
+                  type="button"
+                  data-entry-new-label
+                  onClick={() => setNewLabelOpen(true)}
+                  title="라벨 목록에 없는 라벨을 만들어 붙입니다 (저장할 때 라벨 관리에도 생깁니다)"
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold border border-dashed border-slate-300 text-slate-500 hover:bg-slate-50"
+                >
+                  + 새 라벨
+                </button>
+              )}
             </div>
           </div>
 

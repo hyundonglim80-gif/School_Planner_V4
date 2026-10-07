@@ -884,7 +884,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <div className="flex items-center gap-2">
             <span className="text-xl">🏷️</span>
-            <h2 className="text-base font-extrabold text-slate-800">통합 라벨 관리</h2>
+            <h2 className="text-base font-extrabold text-slate-800">라벨 관리</h2>
           </div>
           <button
             title="닫기"
@@ -930,7 +930,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                 <ul className="list-disc list-inside mt-1 space-y-0.5 text-blue-800">
                   <li><strong>달력표시</strong>: 체크한 라벨의 일정만 월간/년간 달력에 나옵니다. 끄면 하루·주간 화면에만 보입니다.</li>
                   <li><strong>이월</strong>: 완료 체크되지 않으면 다음 날로 자동 이월됩니다.</li>
-                  <li><strong>기간</strong>: 연속 기간 일정 등록 시 팝업이 지원됩니다.</li>
+                  <li><strong>기간</strong>: 켜면 연속 기간을 고르는 창이 뜹니다.</li>
                   <li><strong>반복</strong>: 매주/매월 반복 일정 등록이 지원됩니다.</li>
                   <li><strong>수업X</strong>: 해당 일정 등록 시 그 날짜의 시간표 과목을 자동으로 비웁니다.</li>
                   <li><strong>구글 캘린더</strong>: V4에서 이 라벨의 일정을 저장·완료·옮기기·지우면 구글 캘린더(SP(work))에도 반영합니다. 이미 있는 일정은 ⋮ → 구글 캘린더로 보내기로 한 번 보내세요.</li>
@@ -1166,7 +1166,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
               <div className="bg-emerald-50 border-l-4 border-emerald-500 p-3 rounded-r-xl text-xs text-emerald-900 leading-relaxed">
                 <strong>💡 메모·기록 라벨 안내</strong>
                 <p className="mt-0.5 text-emerald-800">
-                  메모와 기록에 함께 쓰는 라벨입니다. 쓰는 칸과 메모 화면·하루 화면의 거르개가 이 목록을 봅니다. 순서를 위/아래로, 상위 라벨 밑에 둘 수 있습니다.
+                  메모와 기록에 함께 쓰는 라벨입니다. 쓰는 칸과 메모 화면·하루 화면의 라벨로 보기가 이 목록을 봅니다. 순서를 위/아래로, 상위 라벨 밑에 둘 수 있습니다.
                 </p>
               </div>
               {(labelTree.conflicts || []).length > 0 && (
@@ -1322,7 +1322,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
             title={!labelsLoaded ? '라벨 정보를 불러오는 중에는 저장할 수 없습니다' : undefined}
             className="px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
           >
-            <span>💾</span> {renaming ? '이름 반영 중...' : saving ? '저장 중...' : '클라우드 저장'}
+            <span>💾</span> {renaming ? '이름 반영 중...' : saving ? '저장 중...' : '저장'}
           </button>
         </div>
       </PopupFrame>

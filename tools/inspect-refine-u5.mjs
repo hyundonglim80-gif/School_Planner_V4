@@ -1,7 +1,7 @@
 // tools/inspect-refine-u5.mjs
 //
 // 19번 U5 '메모·기록 라벨 한 목록' - 바뀐 부분만 실제 크롬으로 본다 (docs/ROADMAP-REFINE.md U5, PC 1400px, teacher).
-//   - 통합 라벨 관리: 탭이 '일정 라벨'·'메모·기록 라벨' 둘, 한 목록에 기록 라벨(학급활동)·메모 라벨(긴급)이 함께
+//   - 라벨 관리: 탭이 '일정 라벨'·'메모·기록 라벨' 둘, 한 목록에 기록 라벨(학급활동)·메모 라벨(긴급)이 함께
 //   - 새 라벨 → 서버 memoLabels(seed는 문자열 모양 그대로)와 journalLabels에 같은 이름, 있던 기록 id 그대로, 일정 라벨은 V3 이름도
 //   - 기록 쓰는 칸·메모 쓰는 칸에 같은 칩
 //   - 메모에만 있던 라벨(긴급)을 기록에 붙여 저장 → journalLabels에 'jm_긴급'이 채워지고 기록 labelIds도 그 id
@@ -84,8 +84,8 @@ async function pickDate(date) {
 }
 async function openLabels() {
   await page.getByTitle('더보기 메뉴').click();
-  await page.getByRole('button', { name: /통합 라벨 관리/ }).click();
-  const dlg = page.locator('[role=dialog]', { hasText: '통합 라벨' }).last();
+  await page.getByRole('button', { name: /라벨 관리/ }).click();
+  const dlg = page.locator('[role=dialog]', { hasText: '라벨 관리' }).last();
   await dlg.waitFor({ timeout: 10000 });
   await dlg.locator('[data-label-tab="entry"]').click();
   await dlg.locator('[data-label-row]').first().waitFor({ timeout: 10000 });
@@ -175,7 +175,7 @@ try {
   dlg = await openLabels();
   const box = dlg.locator('[data-label-row="U5라벨"] input[type=text]');
   await box.fill('U5바꿈');
-  await dlg.getByRole('button', { name: /클라우드 저장/ }).click();
+  await dlg.getByRole('button', { name: /^💾\s*저장$/ }).click();
   const memo = await serverUntil(() => read(memoRef), (d) => (d?.labels || []).includes('U5바꿈'), 10000);
   const lab = await read(labelsRef);
   check(

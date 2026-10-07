@@ -37,7 +37,7 @@ beforeEach(() => {
   selectedDDayId = 'dday_1';
 });
 
-// 가운데 팝업(예전 방식)의 모양을 본다. 오른쪽 칸은 PopupFrame.test.tsx에서 본다.
+// 가운데 창(예전 방식)의 모양을 본다. 오른쪽 칸은 PopupFrame.test.tsx에서 본다.
 beforeEach(() => useAppStore.setState({ popupStyle: 'center' }));
 
 describe('DDayModal - 레이아웃과 버튼', () => {

@@ -991,7 +991,7 @@ if (ONLY !== 'mobile') {
   await check('다중 선택으로 라벨을 바꾸면 옛 라벨(id로 든 것까지)이 남지 않는다', async () => {
     await goDay(D.bulk);
     await page.getByTitle('더보기 메뉴').click();
-    await page.getByRole('button', { name: /다중 선택 모드 켜기/ }).click();
+    await page.getByRole('button', { name: /여러 개 고르기(?! 끝)/ }).click();
     await wait(500);
     for (const t of ['다중 라벨 하나', '다중 라벨 둘']) await eventRows().filter({ hasText: t }).click();
     await page.getByTitle('선택 일정 라벨 일괄 변경').click();
@@ -999,9 +999,9 @@ if (ONLY !== 'mobile') {
     const menu = page.locator('div').filter({ has: page.getByText('라벨 일괄 변경', { exact: true }) }).filter({ has: page.getByRole('button', { name: /라벨 해제/ }) }).last();
     await menu.getByRole('button', { name: '달력', exact: true }).click();
     await wait(2500);
-    // 다중 선택 모드가 남아 있으면 끈다 (다음 점검이 줄 단추를 눌러야 한다)
+    // 여러 개 고르기가 남아 있으면 끈다 (다음 점검이 줄 단추를 눌러야 한다)
     await page.getByTitle('더보기 메뉴').click();
-    const off = page.getByRole('button', { name: /다중 선택 모드 종료/ });
+    const off = page.getByRole('button', { name: /여러 개 고르기 끝/ });
     if (await off.count()) await off.click();
     await wait(400);
     await closeAll();
@@ -1107,7 +1107,7 @@ if (ONLY !== 'mobile') {
     assert(!mix.includes('다른 날로 만든 조사'), `연 날에 들어감: ${mix.join(' / ')}`);
   });
 
-  await check('미완료 일정 가져오기: 지난 이월 일정이 라벨 이름과 함께 뜨고, 🗑️로 지우면 그날에서 빠져 휴지통에 간다', async () => {
+  await check('지난 일정 오늘로 가져오기: 지난 이월 일정이 라벨 이름과 함께 뜨고, 🗑️로 지우면 그날에서 빠져 휴지통에 간다', async () => {
     // 자동 이월이 먼저 옮겨 가지 않게, 미래 날짜를 보는 중에 3일 전 날짜에 심는다
     await goDay(D.idless);
     const past = localDate(new Date(Date.now() - 3 * 864e5));
@@ -1119,7 +1119,7 @@ if (ONLY !== 'mobile') {
       updatedAt: Date.now(),
     }, { merge: true });
     await page.getByTitle('더보기 메뉴').click();
-    await page.getByRole('button', { name: /미완료 일정 가져오기/ }).click();
+    await page.getByRole('button', { name: /지난 일정 오늘로 가져오기/ }).click();
     const dlg = page.locator('[role=dialog]').last();
     const row = dlg.locator('div.rounded-xl', { hasText: '가져오기 점검 일정' }).last();
     await row.waitFor({ timeout: 10000 });
@@ -1150,13 +1150,13 @@ if (ONLY !== 'mobile') {
   await check('V3 옛 글만 있는 날에서 한 건을 다중 선택으로 완료해도 다른 일정이 남는다', async () => {
     await goDay(D.v3Bulk);
     await page.getByTitle('더보기 메뉴').click();
-    await page.getByRole('button', { name: /다중 선택 모드 켜기/ }).click();
+    await page.getByRole('button', { name: /여러 개 고르기(?! 끝)/ }).click();
     await wait(500);
     await eventRows().filter({ hasText: 'V3다중 하나' }).click();
     await page.getByTitle('선택 일정 일괄 완료 처리').click();
     await wait(2500);
     await page.getByTitle('더보기 메뉴').click();
-    const off = page.getByRole('button', { name: /다중 선택 모드 종료/ });
+    const off = page.getByRole('button', { name: /여러 개 고르기 끝/ });
     if (await off.count()) await off.click();
     await closeAll();
     const stored = await storedEvents(D.v3Bulk);
@@ -1388,7 +1388,7 @@ if (ONLY !== 'pc') {
   await check('다중 선택: 일정 두 개를 골라 완료하면 모드가 끝난다', async () => {
     await goDate(D.ids);
     await page.getByTitle('더보기 메뉴').click();
-    await page.getByRole('button', { name: /다중 선택 모드 켜기/ }).click();
+    await page.getByRole('button', { name: /여러 개 고르기(?! 끝)/ }).click();
     await wait(600);
     const rows = eventRows();
     const n = await rows.count();

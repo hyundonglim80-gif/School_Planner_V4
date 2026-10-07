@@ -101,7 +101,7 @@ export default function SubjectAttendanceSummaryModal({ isOpen, onClose, initial
   );
   const rows = summaryCsvRows(students, totals).slice(1);
   const label = picked?.label || '';
-  // 파일 이름은 평가 모아 보기와 같은 모양 (빈칸·괄호 없이)
+  // 파일 이름은 조사표 모아 보기와 같은 모양 (빈칸·괄호 없이)
   const fileStem = `교과출결_${year}학년도_${label}_${RANGE_LABEL[range].replace(/\s+/g, '')}`;
 
   return (

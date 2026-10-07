@@ -191,10 +191,23 @@ export default function DayJournal({
                 <button
                   onClick={openCreate}
                   aria-label="기록 추가"
-                  title="기록 추가 (오른쪽 칸)"
+                  title="기록 추가 (오른쪽 칸) - 라벨로 보기에서 고른 라벨이 미리 골라집니다"
                   className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors shrink-0"
                 >
                   + 추가
+                </button>
+              )}
+              {/* 날짜 없는 메모를 하루 화면에서 바로 (UX-AUDIT C2) - 메모 화면으로 가지 않고 */}
+              {!isCollapsed && (
+                <button
+                  type="button"
+                  data-day-add-memo
+                  onClick={() => openEntryPanel({ kind: 'memo', groupId: selectedGroupId })}
+                  aria-label="메모 추가"
+                  title="날짜 없는 메모 쓰기 (오른쪽 칸) - 메모 화면에 모입니다. 칸의 📅 날짜를 넣으면 그날 기록이 됩니다"
+                  className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-xl transition-colors shrink-0"
+                >
+                  + 메모
                 </button>
               )}
               {/* 기록 칸에 붙은 조사표. 만들어 둔 것이 있을 때만 보인다. */}
@@ -222,7 +235,7 @@ export default function DayJournal({
               ⚙️
             </button>
 
-            {/* 라벨 필터 바 */}
+            {/* 라벨로 보기 바 */}
             {!isCollapsed && journals.length > 0 && (
               <div className="order-3 sm:order-2 w-full sm:w-auto sm:flex-1 flex flex-wrap items-center gap-1.5">
                 <button
@@ -236,6 +249,8 @@ export default function DayJournal({
                 >
                   전체
                 </button>
+                {/* 숨은 조작 안내 (UX-AUDIT H4) */}
+                <span data-filter-help title="누르기: 그 라벨 하나만 · Ctrl+누르기: 더하기·빼기 · Shift+누르기: 범위 · ESC: 모두 떼기 · 상위를 고르면 하위도 함께 (▸로 펴서 '기타' = 상위만)" className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-2xs font-bold cursor-help">?</span>
                 {/* 라벨은 눌러서 붙이고 떼며 여러 개 고른다 (19번 U8 - 2026-10-06 사용자가 바꿈):
                     - 하위가 있는 상위는 상위와 하위를 한 묶음(테두리)으로 둔다 - 휴대폰에서 줄이 바뀌어도 떨어지지 않게.
                     - 묶음 맨 앞 ▸/▾로 하위를 펼친다(처음에는 접혀 있다). 상위를 고르면 하위도 함께 걸린다(하위·기타가 옅게).

@@ -51,7 +51,7 @@ const 저장된메모 = () => (addDocMock as any).mock.calls[0][1];
 describe('새 메모는 오른쪽 배너에서', () => {
   it('+ 새 메모 단추는 라벨 거르개 바로 위에 있다', async () => {
     render(<><MemoScreen /><EntryPanelHost /></>);
-    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
     const button = screen.getByRole('button', { name: /새 메모/ });
 
     expect(button.nextElementSibling).toBe(nav);
@@ -70,7 +70,7 @@ describe('새 메모는 오른쪽 배너에서', () => {
   it('라벨로 걸러 보고 있으면 그 라벨을 골라 둔 채로 연다', async () => {
     const user = userEvent.setup();
     render(<><MemoScreen /><EntryPanelHost /></>);
-    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
     await user.click(within(nav).getByRole('button', { name: /개인/ }));
 
     await user.click(screen.getByRole('button', { name: /새 메모/ }));
@@ -122,21 +122,21 @@ describe('메모 Ctrl+S 저장', () => {
 // 고른 라벨에 연한 라벨색만 깔려서, 색이 옅은 라벨은 안 고른 것과 거의 같아 보였다.
 // 무엇으로 걸러 보고 있는지 모른 채 '메모가 없다'고 여기기 쉬웠다.
 describe('메모 필터 - 고른 것이 분명히 보인다', () => {
-  const nav = () => screen.getByRole('navigation', { name: '메모 라벨 거르개' });
+  const nav = () => screen.getByRole('navigation', { name: '메모 라벨로 보기' });
   const chip = (name: string) => within(nav()).getByRole('button', { name: new RegExp(name) });
 
   it('거르개는 왼쪽 세로 목록이고, 기억한 것이 없으면 즐겨찾기로 연다', async () => {
     useAppStore.setState({ memoFilter: null });
     render(<><MemoScreen /><EntryPanelHost /></>);
 
-    await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
     expect(chip('⭐ 즐겨찾기')).toHaveAttribute('aria-pressed', 'true');
     expect(chip('전체 메모')).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('차례는 즐겨찾기 → 라벨(라벨 관리의 차례) → 전체 메모', async () => {
     render(<><MemoScreen /><EntryPanelHost /></>);
-    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
     const names = within(nav)
       .getAllByRole('button', { pressed: undefined as any })
       .filter((b) => b.hasAttribute('aria-pressed'))
@@ -147,26 +147,26 @@ describe('메모 필터 - 고른 것이 분명히 보인다', () => {
   it('고른 거르개를 기억했다가 다시 열 때 그대로 연다', async () => {
     const user = userEvent.setup();
     const first = render(<><MemoScreen /><EntryPanelHost /></>);
-    await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
     await user.click(chip('개인'));
     first.unmount();
 
     render(<><MemoScreen /><EntryPanelHost /></>);
-    await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
     expect(chip('개인')).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('기억한 라벨이 지워졌으면 즐겨찾기로 연다', async () => {
     useAppStore.setState({ memoFilter: '없어진라벨' });
     render(<><MemoScreen /><EntryPanelHost /></>);
-    await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
     expect(chip('⭐ 즐겨찾기')).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('라벨을 누르면 그 라벨만 골라진 것으로 보인다', async () => {
     const user = userEvent.setup();
     render(<><MemoScreen /><EntryPanelHost /></>);
-    await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
 
     await user.click(chip('업무'));
 
@@ -177,7 +177,7 @@ describe('메모 필터 - 고른 것이 분명히 보인다', () => {
   it('고른 것에는 ✓와 테두리 고리가 붙고, 안 고른 것은 흐리다', async () => {
     const user = userEvent.setup();
     render(<><MemoScreen /><EntryPanelHost /></>);
-    await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
 
     await user.click(chip('업무'));
 
@@ -193,7 +193,7 @@ describe('메모 필터 - 고른 것이 분명히 보인다', () => {
 
   it('거르개마다 진행 중인 메모 개수가 붙는다', async () => {
     render(<><MemoScreen /><EntryPanelHost /></>);
-    await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
 
     expect(chip('전체 메모')).toHaveTextContent(/\d+$/);
   });
@@ -286,7 +286,7 @@ describe('메모 진행/완료 구역', () => {
 
   it('거르개 개수는 진행 중인 메모만 센다', async () => {
     render(<><MemoScreen /><EntryPanelHost /></>);
-    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
     await screen.findByText('진행 하나');
 
     expect(within(nav).getByRole('button', { name: /전체 메모/ })).toHaveTextContent(/2$/);
@@ -309,7 +309,7 @@ describe('메모 즐겨찾기', () => {
     const user = userEvent.setup();
     const { useAppStore } = await import('../../store/useAppStore');
     render(<><MemoScreen /><EntryPanelHost /></>);
-    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
 
     await user.click(within(nav).getByRole('button', { name: '메모 라벨 설정' }));
 
@@ -321,14 +321,14 @@ describe('메모 즐겨찾기', () => {
   it('즐겨찾기 거르개가 라벨 옆에 있다', async () => {
     render(<><MemoScreen /><EntryPanelHost /></>);
 
-    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
     expect(within(nav).getByRole('button', { name: /즐겨찾기/ })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('즐겨찾기 거르개를 누르면 그것만 골라진 것으로 보인다', async () => {
     const user = userEvent.setup();
     render(<><MemoScreen /><EntryPanelHost /></>);
-    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
 
     await user.click(within(nav).getByRole('button', { name: /⭐ 즐겨찾기/ }));
 
@@ -341,7 +341,7 @@ describe('메모 즐겨찾기', () => {
 describe('즐겨찾기가 없으면 전체 메모로 연다', () => {
   let docs: { id: string; data: () => Record<string, unknown> }[] = [];
   const memo = (id: string, text: string, favorite = false) => ({ id, data: () => ({ text, favorite, createdAt: 1 }) });
-  const nav = () => screen.getByRole('navigation', { name: '메모 라벨 거르개' });
+  const nav = () => screen.getByRole('navigation', { name: '메모 라벨로 보기' });
   const chip = (name: string) => within(nav()).getByRole('button', { name: new RegExp(name) });
   beforeEach(() => {
     useAppStore.setState({ memoFilter: null });
@@ -432,7 +432,7 @@ describe('메모 라벨 상위/하위', () => {
   it('하위는 처음에 접혀 있고, 상위를 고르면 하위 메모도 보인다 (하위 칩이 옅게 함께)', async () => {
     const user = userEvent.setup();
     render(<><MemoScreen /><EntryPanelHost /></>);
-    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
     await screen.findByText('업무 메모');
     // 처음에는 접혀 있다
     expect(within(nav).queryByRole('button', { name: /개인/ })).toBeNull();
@@ -454,7 +454,7 @@ describe('메모 라벨 상위/하위', () => {
   it("'기타'는 하위 없이 상위만 붙은 메모", async () => {
     const user = userEvent.setup();
     render(<><MemoScreen /><EntryPanelHost /></>);
-    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
     await screen.findByText('업무 메모');
     await openWork(user, nav);
     const other = nav.querySelector('[data-filter-other="업무"]') as HTMLElement;
@@ -470,7 +470,7 @@ describe('메모 라벨 상위/하위', () => {
   it('그냥 누르면 그 라벨 하나만 골라진다 (하위 하나만 고르면 그것만)', async () => {
     const user = userEvent.setup();
     render(<><MemoScreen /><EntryPanelHost /></>);
-    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
     await screen.findByText('업무 메모');
     await openWork(user, nav);
 
@@ -484,7 +484,7 @@ describe('메모 라벨 상위/하위', () => {
   it('Shift+누르기는 기준부터 여기까지 골라지고(기타 칩 포함), ESC는 모두 뗀다', async () => {
     const user = userEvent.setup();
     render(<><MemoScreen /><EntryPanelHost /></>);
-    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
     await screen.findByText('업무 메모');
     await openWork(user, nav);
 
@@ -503,7 +503,7 @@ describe('메모 라벨 상위/하위', () => {
   it('Ctrl+누르기로 라벨을 여러 개 고르고 뗀다 - 모두 떼면 전체', async () => {
     const user = userEvent.setup();
     render(<><MemoScreen /><EntryPanelHost /></>);
-    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
     await screen.findByText('업무 메모');
     await openWork(user, nav);
 
@@ -524,7 +524,7 @@ describe('메모 라벨 상위/하위', () => {
   it('트리를 펴면 하위 칩과 기타가 보이고, 접으면 숨는다 (고른 하위는 접어도 보인다)', async () => {
     const user = userEvent.setup();
     render(<><MemoScreen /><EntryPanelHost /></>);
-    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
     await screen.findByText('업무 메모');
 
     await openWork(user, nav);
@@ -545,7 +545,7 @@ describe('메모 라벨 상위/하위', () => {
   it('예전처럼 라벨 하나를 글자로 기억한 것도 읽는다', async () => {
     useAppStore.setState({ memoFilter: '개인' });
     render(<><MemoScreen /><EntryPanelHost /></>);
-    const nav = await screen.findByRole('navigation', { name: '메모 라벨 거르개' });
+    const nav = await screen.findByRole('navigation', { name: '메모 라벨로 보기' });
     await screen.findByText('개인 메모');
     expect(within(nav).getByRole('button', { name: /개인/ })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.queryByText('업무 메모')).toBeNull();

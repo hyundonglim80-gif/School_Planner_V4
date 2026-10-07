@@ -1,6 +1,6 @@
 // src/components/CourseEvalOverview.tsx
 //
-// 평가 모아 보기의 '과정별' 탭 (docs/ROADMAP-SUBJECT.md S9, 교과 모드만). 과정 하나를 고르면 반마다 그 학년도 조사표를 모아
+// 조사표 모아 보기의 '과정별' 탭 (docs/ROADMAP-SUBJECT.md S9, 교과 모드만). 과정 하나를 고르면 반마다 그 학년도 조사표를 모아
 // (lib/evalArchive - 학급별 탭과 같은 읽기) 제목+종류로 묶은 반 × 평가 표(lib/courseEvals). 칸은 '완료 n/m'(값이 있는 학생 / 재학생),
 // 누르면 그 반 조사표가 열린다(닫으면 다시 읽는다 - 부모의 reloadTick). 읽기만 한다.
 import { useEffect, useMemo, useState } from 'react';

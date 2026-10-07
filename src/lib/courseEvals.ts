@@ -1,6 +1,6 @@
 // src/lib/courseEvals.ts
 //
-// 과정별 평가 모아 보기 (docs/ROADMAP-SUBJECT.md S9). 과정(여러 반)의 조사표를 반 × 평가 표로 묶는다. 순수 함수만.
+// 과정별 조사표 모아 보기 (docs/ROADMAP-SUBJECT.md S9). 과정(여러 반)의 조사표를 반 × 평가 표로 묶는다. 순수 함수만.
 // 같은 과정의 반마다 같은 조사표를 만들면(S8) 날짜·교시는 반마다 다르고 제목·종류가 같다 - 제목+종류로 한 칸에 묶는다.
 import { evalColumnTitle, isEmptyCell, studentEvalCell } from './evalSummary';
 import type { EvaluationItem } from '../hooks/useEvaluation';

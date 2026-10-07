@@ -1,6 +1,6 @@
 // tools/inspect-timetable.mjs
 //
-// 신고: '시간표 마스터 모듈 & 템플릿 설정'에서 교시와 방학 기간을 저장하고
+// 신고: '시간표'에서 교시와 방학 기간을 저장하고
 // 클라우드 저장까지 눌렀는데, 인터넷 기록을 지우면 아무것도 남아 있지 않다.
 //
 // 저장이 서버까지 갔는지(쓰기 문제)와, 기기를 비운 뒤 다시 읽히는지(읽기 문제)를
@@ -31,8 +31,8 @@ async function openModal(page) {
   await page.getByRole('heading', { name: '일정' }).waitFor({ timeout: 40000 });
   await page.waitForTimeout(2500);
   await page.getByTitle('더보기 메뉴').click();
-  await page.getByRole('button', { name: /시간표 적용/ }).click();
-  await page.getByRole('button', { name: /템플릿 클라우드 저장|불러오는 중/ }).waitFor({ timeout: 20000 });
+  await page.getByRole('button', { name: /^⏰\s*시간표/ }).click();
+  await page.getByRole('button', { name: /시간표 저장|불러오는 중/ }).waitFor({ timeout: 20000 });
 }
 
 async function wipe(browser) {
@@ -69,9 +69,9 @@ await page.getByRole('button', { name: '방학 기간 저장' }).click();
 await page.waitForTimeout(2500);
 console.log(`\n① 방학 기간 저장 직후 서버: ${await serverSays()}`);
 
-await page.getByRole('button', { name: /템플릿 클라우드 저장/ }).click();
+await page.getByRole('button', { name: /시간표 저장/ }).click();
 await page.waitForTimeout(3000);
-console.log(`② 템플릿 클라우드 저장 직후 서버: ${await serverSays()}`);
+console.log(`② 시간표 저장 직후 서버: ${await serverSays()}`);
 await page.screenshot({ path: 'tools/report/tt-after-save.png' });
 await ctx.close();
 

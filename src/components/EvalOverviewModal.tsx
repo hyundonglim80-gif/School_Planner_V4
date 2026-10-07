@@ -1,6 +1,6 @@
 // src/components/EvalOverviewModal.tsx
 //
-// 평가 모아 보기 (ROADMAP 9-2). 한 학급의 한 학년도 조사표를 학생 × 조사표 표로. 읽기만 한다.
+// 조사표 모아 보기 (ROADMAP 9-2). 한 학급의 한 학년도 조사표를 학생 × 조사표 표로. 읽기만 한다.
 // 읽기는 lib/evalArchive(개인 + 지금 고른 그룹), 칸 값·거르기·CSV는 lib/evalSummary.
 //
 // - 교과·학기·유형으로 거른다. 학기는 시간표 설정의 방학으로 가른다(그 학년도 설정이 없으면 3~8월이 1학기).
@@ -197,14 +197,14 @@ export default function EvalOverviewModal({ isOpen, onClose }: EvalOverviewModal
       filter.type ? EVAL_TYPE_LABEL[filter.type] : '',
     ].filter(Boolean);
     printNode(tableRef.current, {
-      title: `${describeClass(cls)} 평가 모아 보기`,
+      title: `${describeClass(cls)} 조사표 모아 보기`,
       subtitle: `${parts.join(' · ')} · 조사표 ${shown.length}개 · ✎ 사유 있음 · · 명단에 없음`,
       landscape: shown.length > 5,
     });
   };
 
   return (
-    <ModalShell isOpen={isOpen} onClose={onClose} width="2xl" title="📊 평가 모아 보기" footer={<ModalCloseButton onClose={onClose} />}>
+    <ModalShell isOpen={isOpen} onClose={onClose} width="2xl" title="📊 조사표 모아 보기" footer={<ModalCloseButton onClose={onClose} />}>
       {!rosterLoading && rosterList.length === 0 ? (
         <p className="text-center text-slate-400 py-8 text-sm">
           명렬표가 없습니다. ⋮ 메뉴 → 학급 정보(명렬표) 관리에서 학급과 학생을 먼저 넣어 주세요.

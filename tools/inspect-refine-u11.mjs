@@ -137,8 +137,8 @@ try {
 
   // ── 라벨 관리: '구글 캘린더' 체크 ──
   await page.getByTitle('더보기 메뉴').click();
-  await page.getByRole('button', { name: /통합 라벨 관리/ }).click();
-  const dlg = page.locator('[role=dialog]', { hasText: '통합 라벨' }).last();
+  await page.getByRole('button', { name: /라벨 관리/ }).click();
+  const dlg = page.locator('[role=dialog]', { hasText: '라벨 관리' }).last();
   await dlg.locator('[data-gcal-label="달력"]').waitFor({ timeout: 10000 });
   await page.waitForTimeout(800);
   check("라벨 관리 일정 탭: '달력' 줄에 '구글 캘린더' 체크가 켜져 있다, 다른 라벨은 꺼짐",

@@ -4,7 +4,7 @@
 //   - 10-1 기록 쓰는 칸: '@가람' → 학생 목록 → Enter로 커서 자리에 태그, 초성(@ㄴㄹ)·누르기, 번호(@3)·Esc는 목록만,
 //     메일 주소·메모 칸에서는 안 뜬다, 저장하면 그 글 그대로
 //   - 10-2 관찰 문구 단추: 자리표 학생 칸에서 누르면 오늘 기록에 '문구 #태그', ✏️ 문구로 더하기·빼기(계정에 저장),
-//     학생 누가기록 카드에도 같은 문구, 누르면 목록에 바로
+//     학생 기록(누가기록) 카드에도 같은 문구, 누르면 목록에 바로
 // 점검용 학급(올해 학년도 9학년 9반 - 누가기록이 오늘 기록을 모으게)·자리표를 심고 끝에 지운다. 오늘 기록은 점검 학급 태그가 든 줄만 뺀다, 문구 문서는 처음 모습으로.
 //
 //   npm run emu / node tools/serve-both.mjs / VITE_USE_EMULATOR=1 npm run build
@@ -93,7 +93,7 @@ const run = async () => {
 
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
-  // 점검 학급을 '@' 목록 맨 앞에 (학생 누가기록에서 마지막에 본 학급)
+  // 점검 학급을 '@' 목록 맨 앞에 (학생 기록(누가기록)에서 마지막에 본 학급)
   await ctx.addInitScript((key) => {
     try {
       localStorage.setItem('sp4-student-record', key);
@@ -201,7 +201,7 @@ const run = async () => {
     check('✕ → 빼기', !(ph || []).includes('질문을 많이 함'));
     await phrases.getByRole('button', { name: '✓ 다 고침' }).click();
 
-    // 학생 누가기록 카드에도 같은 문구
+    // 학생 기록(누가기록) 카드에도 같은 문구
     await card.getByRole('button', { name: '🧑‍🎓 누가기록', exact: true }).click();
     const observe = page.locator('[data-student-observe]');
     await observe.waitFor({ timeout: 8000 });
@@ -212,7 +212,7 @@ const run = async () => {
     await observe.locator('[data-observation-phrase="실험을 주도함"]').click();
     es = await until(serverJournal, (l) => l.some((e) => e.content === `실험을 주도함 ${T}01`));
     check('누가기록에서 문구 → 오늘 기록에', es.some((e) => e.content === `실험을 주도함 ${T}01`));
-    const rec = page.getByRole('dialog').filter({ hasText: '학생 누가기록' });
+    const rec = page.getByRole('dialog').filter({ hasText: '학생 기록(누가기록)' });
     await rec.getByText('실험을 주도함').first().waitFor({ timeout: 6000 }).catch(() => {});
     check('목록에 바로 보인다', (await rec.getByText(`실험을 주도함 ${T}01`).count()) >= 1 || (await rec.locator('li', { hasText: '실험을 주도함' }).count()) >= 1);
     await observe.getByLabel('관찰 한 줄').fill('점검 관찰 글로 적음');

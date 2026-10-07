@@ -128,7 +128,7 @@ export function subjectRecordText(r: SubjectAttendanceRecord, reasonLabel: Recor
   return `${SUBJECT_KIND_LABEL[r.kind]}(${reasonLabel[r.reason]})${r.note ? ` - ${r.note}` : ''}`;
 }
 
-/** 한 학생의 교과 출결 내역 (날짜·교시 차례) - 학생 누가기록에 섞는다 (S7) */
+/** 한 학생의 교과 출결 내역 (날짜·교시 차례) - 학생 기록(누가기록)에 섞는다 (S7) */
 export function subjectHistoryOf(
   days: Array<Pick<SubjectAttendanceDay, 'date' | 'periods'>>,
   num: number | string

@@ -133,6 +133,10 @@ export default function CalendarSyncModal({ isOpen, onClose }: CalendarSyncModal
       }
     >
       <div className="space-y-4 text-xs">
+        {/* UX-AUDIT C6 - 저절로 보내기가 있다는 것을 여기서 알린다 */}
+        <p data-gcal-auto-hint className="px-3 py-2 rounded-xl bg-sky-50 border border-sky-200 text-sky-800 leading-relaxed">
+          💡 자주 보내는 일정은 ⋮ → 라벨 관리 → 일정 라벨에서 <b>구글 캘린더</b>를 켜 두면 저장·완료·지우기 때 <b>저절로</b> 보냅니다(일정 칸에서 하나씩 켜도 됩니다). 여기서는 기간을 한꺼번에 맞춥니다.
+        </p>
         <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-3 text-slate-600 leading-relaxed">
           고른 기간의 내용을 구글 캘린더로 보냅니다. 종류마다 전용 캘린더(SP(work) / SP(class) / SP(commentary))가
           따로 만들어집니다.

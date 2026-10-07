@@ -26,6 +26,9 @@ import {
 import { useTeachingMode } from '../hooks/useTeachingMode';
 import { normalizeSlotText, parseSlot, slotSuggestions, teachingClasses, teachingSubjects as teachingSubjectList } from '../lib/teachingSlot';
 import SlotPairInput from './SlotPairInput';
+import ClassBellPanel from './ClassBellPanel';
+import { usePeriodTimes } from '../hooks/usePeriodTimes';
+import { validPeriods } from '../lib/periodTimes';
 import { TEACHER_PRESETS, presetPatch, saveTeachingMode, type TeacherPreset } from '../lib/teachingMode';
 import { useTeachingClasses } from '../hooks/useTeachingClasses';
 
@@ -55,6 +58,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   } = useTimetableTemplate();
   // 수업X 라벨 - V3 일정은 수업X를 라벨(labelIds)로만 들고 있다 (lib/classDays)
   const { eventLabels } = useLabels();
+  const { times: periodTimes } = usePeriodTimes();
   // 교과 모드: 칸에 '5-2 과학' - 제안 목록을 달고, 어떻게 적어도 한 모양으로 맞춘다 (lib/teachingSlot).
   // 초등 담임은 손대지 않는다 ('3-2 국어'를 그대로 쓰는 담임이 있다).
   const { isClassUnit, preset, mode: { subjects: teachingSubjects, homeroomClass } } = useTeachingMode();
@@ -457,14 +461,14 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
       isOpen={isOpen}
       onClose={onClose}
       width="4xl"
-      // Ctrl+S = 템플릿 클라우드 저장
+      // Ctrl+S = 시간표 저장
       onSave={() => { if (!saving && canSave) void handleSaveAll(); }}
     >
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <div className="flex items-center gap-2">
             <span className="text-xl">⏰</span>
-            <h2 className="text-base font-extrabold text-slate-800">시간표 마스터 모듈 & 템플릿 설정</h2>
+            <h2 className="text-base font-extrabold text-slate-800">시간표</h2>
           </div>
           <div className="flex items-center gap-1.5">
           {/* 진도는 시간표 칸 글자마다 센다 - 시간표를 만지다 바로 갈 수 있게 (docs/ROADMAP.md 5-2) */}
@@ -657,6 +661,9 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
           {/* 1-1. 교시 시각 (하루 화면의 '지금 몇 교시') */}
           <PeriodTimesEditor periodNames={periodNames} />
 
+          {/* 수업 종 (2026-10-07) - 교시 시각에 맞춰 울린다 */}
+          <ClassBellPanel hasTimes={validPeriods(periodTimes).length > 0} />
+
           {/* 2. 학사일정(학기 기간) 설정 */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -830,7 +837,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
             title={!canSave ? '저장된 설정을 불러오는 중입니다' : undefined}
             className="px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
           >
-            <span>💾</span> {saving ? '저장 중...' : canSave ? '템플릿 클라우드 저장' : '불러오는 중...'}
+            <span>💾</span> {saving ? '저장 중...' : canSave ? '시간표 저장' : '불러오는 중...'}
           </button>
         </div>
       </PopupFrame>

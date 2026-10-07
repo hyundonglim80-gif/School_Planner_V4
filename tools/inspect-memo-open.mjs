@@ -46,7 +46,7 @@ const run = async () => {
   page.on('pageerror', (e) => logs.push(`pageerror: ${e.message.slice(0, 200)}`));
   page.on('dialog', (d) => d.accept());
 
-  const nav = () => page.getByRole('navigation', { name: '메모 라벨 거르개' });
+  const nav = () => page.getByRole('navigation', { name: '메모 라벨로 보기' });
   const chip = (name) => nav().getByRole('button', { name: new RegExp(name) });
   const reopenMemo = async () => {
     await page.getByRole('button', { name: '하루', exact: true }).first().click();

@@ -1,9 +1,9 @@
 // tools/inspect-course-overview.mjs
 //
-// 18번 교과 전담 S9 '과정별 평가 모아 보기' - 바뀐 부분만 실제 크롬으로 본다 (PC 1400px).
+// 18번 교과 전담 S9 '과정별 조사표 모아 보기' - 바뀐 부분만 실제 크롬으로 본다 (PC 1400px).
 //   - teacher3에 과정(5-1~5-4)과 조사표를 서버에 직접 심는다: '점검 평가A'(평가) 5-1·5-2·5-3 - 반마다 날짜가 다르다,
 //     '점검 체크B'(체크) 5-1만, 수학 조사표(과정 과목이 아니다) 5-1
-//   - 평가 모아 보기 '과정별' 탭: 줄 4개(5-1~5-4), 칸 2개(수학은 빠진다), 5-4 평가A '-', 5-1 '완료 0/5'
+//   - 조사표 모아 보기 '과정별' 탭: 줄 4개(5-1~5-4), 칸 2개(수학은 빠진다), 5-4 평가A '-', 5-1 '완료 0/5'
 //   - 5-2 평가A에 점수 둘을 넣고 다시 열면 '완료 2/5', 칸을 누르면 그 조사표 창(5-2)
 //   - 회귀: teacher(초등 담임)는 탭이 없다
 //   심은 문서는 끝에 되돌린다.
@@ -86,8 +86,8 @@ async function openApp(as = '?as=3') {
 }
 async function openOverview() {
   await page.getByTitle('더보기 메뉴').click();
-  await page.getByRole('button', { name: /평가 모아 보기/ }).click();
-  const dlg = page.getByRole('dialog').filter({ hasText: '📊 평가 모아 보기' }).first();
+  await page.getByRole('button', { name: /조사표 모아 보기/ }).click();
+  const dlg = page.getByRole('dialog').filter({ hasText: '📊 조사표 모아 보기' }).first();
   await dlg.waitFor({ timeout: 10000 });
   return dlg;
 }
@@ -98,7 +98,7 @@ try {
   await openApp();
   let dlg = await openOverview();
   const tab = dlg.locator('[data-overview-course]');
-  check("교과 모드 평가 모아 보기에 '과정별' 탭", (await tab.count()) === 1);
+  check("교과 모드 조사표 모아 보기에 '과정별' 탭", (await tab.count()) === 1);
   await tab.click();
   const table = dlg.locator('[data-course-overview-table]');
   await table.waitFor({ timeout: 15000 });

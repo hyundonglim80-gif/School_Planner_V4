@@ -2,7 +2,7 @@
 //
 // '학급' 화면 (ROADMAP 16, 2026-10-02 - 결정은 Claude 추천으로 하라고 사용자가 맡겼다).
 //
-//   학급 운영 도구(출석부·알림장·자리표·발표자 뽑기·학생 누가기록·평가 모아 보기·명렬표)가 ⋮ 메뉴 안에 흩어져 있었다.
+//   학급 운영 도구(출석부·알림장·자리표·발표자 뽑기·학생 기록(누가기록)·조사표 모아 보기·명렬표)가 ⋮ 메뉴 안에 흩어져 있었다.
 //   여기서 학급을 한 번 고르면 그 학급으로 도구를 연다(lib/classMemory - 도구마다의 학급 기억에 같이 적는다).
 //   학생 이름을 누르면 그 학생의 누가기록. 오늘 출결은 한 줄로 미리 보인다.
 //
@@ -48,8 +48,8 @@ const TOOLS: { id: ShortcutId; icon: string; label: string; desc: string; homero
   { id: 'subjectAttendance', icon: '🙋', label: '교과 출결', desc: '반별 결과 · 지각 · 조퇴 누계', classUnit: true },
   { id: 'seating', icon: '🪑', label: '자리표', desc: '자리 · 학생 칸 · 모둠' },
   { id: 'drawStudent', icon: '🎯', label: '발표자 뽑기', desc: '겹치지 않게 차례로' },
-  { id: 'studentRecord', icon: '🧑‍🎓', label: '학생 누가기록', desc: '학생마다 기록 · 출결 · 평가' },
-  { id: 'evalOverview', icon: '📊', label: '평가 모아 보기', desc: '조사표를 학생 × 평가 표로' },
+  { id: 'studentRecord', icon: '🧑‍🎓', label: '학생 기록(누가기록)', desc: '학생마다 기록 · 출결 · 조사표' },
+  { id: 'evalOverview', icon: '📊', label: '조사표 모아 보기', desc: '조사표를 학생 × 조사표 표로' },
   { id: 'roster', icon: '🧑‍🤝‍🧑', label: '명렬표 관리', desc: '학생 · 학급 정보' },
 ];
 
@@ -175,7 +175,7 @@ export default function ClassScreen() {
       <div className="max-w-xl mx-auto text-center py-16 flex flex-col items-center gap-3" data-class-screen>
         <p className="text-4xl">🏫</p>
         <p className="font-bold text-slate-700">아직 학급(명렬표)이 없습니다.</p>
-        <p className="text-sm text-slate-500">명렬표를 만들면 이 화면에서 출석부·자리표·누가기록·평가를 학급별로 엽니다.</p>
+        <p className="text-sm text-slate-500">명렬표를 만들면 이 화면에서 출석부·자리표·누가기록·조사표를 학급별로 엽니다.</p>
         <button type="button" onClick={() => open('roster')} className="px-4 py-2 rounded-xl bg-primary text-white font-bold text-sm">
           🧑‍🤝‍🧑 명렬표 만들기
         </button>

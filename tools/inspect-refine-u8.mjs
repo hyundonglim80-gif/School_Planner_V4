@@ -65,10 +65,10 @@ const journalTexts = async () =>
   (await page.locator('[data-entry-card="journal"]').allInnerTexts()).map((t) => t.match(new RegExp(`${MARK} \\S+`))?.[0]).filter(Boolean).sort();
 async function openMemoScreen() {
   await page.getByRole('button', { name: '메모', exact: true }).first().click();
-  await page.locator('nav[aria-label="메모 라벨 거르개"]').waitFor({ timeout: 10000 });
+  await page.locator('nav[aria-label="메모 라벨로 보기"]').waitFor({ timeout: 10000 });
   await page.waitForTimeout(1200);
 }
-const nav = () => page.locator('nav[aria-label="메모 라벨 거르개"]');
+const nav = () => page.locator('nav[aria-label="메모 라벨로 보기"]');
 const memoChip = (name) => nav().getByRole('button', { name: new RegExp(`^(✓\\s*)?${name}\\s*\\d*$`) });
 
 try {

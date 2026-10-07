@@ -219,6 +219,16 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   쓰는 칸은 글을 바꾼 뒤 커서를 `useLayoutEffect`에서 둔다 - requestAnimationFrame으로 미루면 그새 친 글자 앞으로 커서가 돌아가 '달걀'이 '걀달'이 됐다.
   카드의 체크 줄(`data-check-line`) 누르기: 메모는 `updateMemo`, 기록은 `useDayData.toggleJournalCheckLine`(mutateJournals로 그 항목 글만,
   `toggleCheckLine(text, i, 보던 줄)`이 null이면 그새 고쳐진 것이라 저장하지 않고 안내).
+- **수업 종** (2026-10-07): `lib/classBell`(설정 `settings/v4_classBell` - enabled·start/end{on, amount, unit 분/초, when 전/후}·weekdaysOnly, `bellTimes`·`bellsDue`(지난번 본 초~지금, 60초 넘게 지난 종은 버림)·`bellMessage`),
+  `hooks/useClassBell`(Layout의 `useClassBellRunner` - 1초마다 보고 Web Audio로 '딩동댕동', `window.__spBellCount`·`__spBellLast`를 점검이 본다, 첫 누르기에 소리 장치를 깨운다),
+  `components/ClassBellPanel`(시간표 창 교시 시각 아래, 누르는 즉시 저장 - 낙관적으로 먼저 보인다). '이 기기에서 울리기'는 localStorage `sp4-class-bell-muted`. 앱이 열려 있을 때만 울린다.
+  점검 `tools/inspect-class-bell.mjs`(Playwright clock).
+- **UX-AUDIT 적용** (2026-10-07, `docs/UX-AUDIT.md` U12-a~d): 화면 글자를 바꿨다 - 점검 스크립트도 같이(`grep -rn '<옛 글자>' tools/`). 바뀐 이름:
+  창 위치(옛 팝업 모양)·가운데 창, ⏰ 시간표(옛 '시간표 적용 (주간 템플릿)'), 조사표 모아 보기, 💾 저장(옛 클라우드 저장), 백업 (내보내기 / 가져오기), 지난 일정 오늘로 가져오기,
+  여러 개 고르기 / 여러 개 고르기 끝, 라벨 관리·검색(옛 '통합 …'), 학생 기록(누가기록) - 스크립트 정규식에서는 괄호를 `\(` 로. 메모 거르개 aria '메모 라벨로 보기'.
+  ⋮ 메뉴 차례는 자주 쓰는 것이 위, 앱 설치·밝기는 환경설정(`data-install-pwa` → `INSTALL_PWA_EVENT`를 Layout이 받아 설치 창). 머리줄 `data-header-help`.
+  하루 화면: `data-day-add-memo`(+ 메모), `data-day-progress`(📘 진도), 일정 카드 `data-event-complete`(☐), 교시 카드 `data-period-edit-hint`(✏️).
+  쓰는 칸 '+ 새 라벨'(`data-entry-new-label`, 저장할 때 ensureEntryLabels가 만든다), 라벨로 보기 '?'(`data-filter-help`), 출석부 2.5초 뒤 저절로 저장(`AUTO_SAVE_MS`).
 - **2026-10-07 요청 묶음**: '#라벨'은 **첫 줄도**(`hashLabels.takeHashLabels` - 첫·마지막 비지 않은 줄, 줄을 지운 뒤 글이 비면 그대로).
   메모에도 학생 태그(`EntryDrawer`의 '@이름'·`StudentTagPicker` 둘 다 메모에서, 피커 아래 `data-student-tag-manual` 학년도·학년·반·번호 직접 고르기),
   `StudentRecordModal`이 개인·그룹 `tasks`에서 태그 붙은 메모를 `kind: 'memo'`(날짜 = fromDate 또는 createdAt)로 모으고 누르면 메모 칸.
@@ -615,6 +625,8 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-refine-u5.mjs` | 19번 U5 메모·기록 라벨 한 목록(11) - 라벨 관리 탭 둘·한 목록, 새 라벨이 두 배열에(문자열 모양·기록 id 그대로), 일정 라벨 V3 이름, 쓰는 칸 칩 같음, 메모에만 있던 라벨로 기록 저장 → jm_ id 채움, 이름 바꾸기. 라벨 문서·트리·자료를 되돌린다 |
 | `tools/inspect-refine-u6.mjs` | 19번 U6 한 카드·쓰는 칸(11) - 기록·메모 카드 칩 위·#라벨 없음, 기록 완료(서버 그 항목만·기록 수 그대로·새로고침 뒤), ★ 맨 위, 쓰는 칸 머리줄 ★(글은 칸에), 새 메모 완료 저장. 기록 문서·메모를 되돌린다 |
 | `tools/inspect-refine-u7.mjs` | 19번 U7 날짜 칸 = 자리(12) - 메모에 날짜 → 그날 기록(글·라벨·첨부·표·처음 쓴 때), 메모 사라짐·휴지통 '(날짜를 바꿈)'·링크된 일정이 새 기록을, 칸이 따라감, 되돌리기, 기록 날짜 바꾸기·빼기(fromDate·카드 '📅 m/d에서'). 자료를 지운다 |
+| `tools/inspect-class-bell.mjs` | 수업 종(5) - 시간표 창에서 켜기·1분 전, 시계를 돌려 08:59 시작 종·09:40 끝 종, 이 기기에서 끄기. 교시 시각·종 설정을 되돌린다 |
+| `tools/inspect-ux-audit.mjs` | UX-AUDIT 적용(12) - 머리줄 ?, ⋮ 차례·환경설정의 설치·밝기, 일정 ☐ 완료, 📘 진도, ✏️, + 메모, + 새 라벨, 라벨로 보기 ?, 구글 캘린더 안내 |
 | `tools/inspect-batch-1007.mjs` | 10-07 요청 묶음(13) - 첫 줄 #라벨, 카드 라벨 한 줄·체크한 줄 아래, 라벨 관리 한 스크롤, teacher3 시간표 교사 구분·두 칸, 메모 학생 태그(명렬표·직접)·누가기록 '📝 메모'. 메모·라벨을 되돌린다 |
 | `tools/inspect-clicks.mjs` | 19번 U12 클릭 수표 - 자주 하는 일 20가지를 하루 화면에서 따라 하며 누르기·키를 센다(마지막 되돌리기 어려운 단추는 +1로). 결과는 `docs/UX-AUDIT.md`. 일정·기록·메모·출석·알림장·라벨·휴지통을 되돌린다 (8분쯤) |
 | `tools/inspect-refine-u11.mjs` | 19번 U11 일정 라벨 '구글 캘린더'(9) - 구글 캘린더 API를 page.route로 흉내 낸다: 라벨 관리 체크, 일정 칸 표시, 저장 → POST(sp_auto)·큐 비움, 켜지 않은 라벨은 안 감, 완료 → ✅ PUT, 토큰 없음 → '못 보낸 날 1' → 누르면 DELETE. 설정·일정·큐·휴지통을 되돌린다 |

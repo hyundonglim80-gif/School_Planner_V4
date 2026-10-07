@@ -213,6 +213,18 @@ export default function DaySchedule({
           </button>
           </>
           )}
+          {/* 진도 관리 (UX-AUDIT M1) - ⋮를 거치지 않게. 전담도 쓰므로 담임 도구와 따로 */}
+          {!isCollapsed && (
+            <button
+              type="button"
+              data-day-progress
+              onClick={() => useAppStore.getState().setProgressModalOpen(true)}
+              className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition-colors"
+              title="진도 관리 - 과목마다 차시 목록과 시간표를 따라 센 차시"
+            >
+              📘 진도
+            </button>
+          )}
         </div>
 
         {!isCollapsed && (
@@ -388,10 +400,14 @@ export default function DaySchedule({
               // 과목이 눈에 띄게 (2026-09-30 사용자 요청): 과목이 있는 교시는 왼쪽에 교시 색 막대
               data-now={isNow ? 'true' : isNext ? 'next' : undefined}
               data-slot-color={slotColor?.name}
-              className={`group ${hasDetails ? 'p-3.5' : 'px-3.5 py-2'} rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[40px] hover:border-primary/50 hover:bg-slate-50/50 cursor-pointer ${
+              className={`group relative ${hasDetails ? 'p-3.5' : 'px-3.5 py-2'} rounded-xl border border-slate-200/70 transition-all flex flex-col justify-between min-h-[40px] hover:border-primary/50 hover:bg-slate-50/50 cursor-pointer ${
                 item.subject ? `border-l-4 ${slotColor ? slotColor.bar : accentClass}` : ''
               } ${isNow ? 'ring-2 ring-primary/60 bg-blue-50/40' : isNext ? 'ring-1 ring-primary/30' : ''}`}
             >
+              {/* 누르면 고친다는 표시 (UX-AUDIT H12) - 마우스를 올렸을 때만, 자리는 차지하지 않는다 */}
+              <span aria-hidden data-period-edit-hint className="hidden sm:block absolute top-1.5 right-2 text-xs opacity-0 group-hover:opacity-70 transition-opacity pointer-events-none">
+                ✏️
+              </span>
               <div className="flex gap-3 h-full items-stretch">
                 <div className="flex flex-col items-center justify-center gap-1 shrink-0 px-1">
                   <button

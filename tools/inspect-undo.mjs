@@ -162,7 +162,7 @@ const run = async () => {
   // ── 4. 다중 선택: 완료 → 되돌리기, 삭제 → 되돌리기 ──
   const pick = async () => {
     await page.getByRole('button', { name: /더보기|⋮/ }).first().click();
-    await page.getByText('다중 선택 모드 켜기').first().click();
+    await page.getByText(/^여러 개 고르기$/).first().click();
     await page.getByText(MA).first().click();
     await page.getByText(MB).first().click();
   };

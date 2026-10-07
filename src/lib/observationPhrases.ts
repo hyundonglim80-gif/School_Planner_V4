@@ -1,6 +1,6 @@
 // src/lib/observationPhrases.ts
 //
-// 관찰 문구 단추 (ROADMAP 10-2). 자리표 학생 칸·학생 누가기록 카드에서 누르면 그 학생 태그를 붙여 오늘 기록에 한 줄.
+// 관찰 문구 단추 (ROADMAP 10-2). 자리표 학생 칸·학생 기록(누가기록) 카드에서 누르면 그 학생 태그를 붙여 오늘 기록에 한 줄.
 //
 //   users/{uid}/settings/v4_observationPhrases  { phrases: string[] }   V4 전용, 계정에 하나(기기끼리 같다)
 //

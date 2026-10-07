@@ -2,7 +2,7 @@
 //
 // ROADMAP 16 '학급' 탭 - 바뀐 부분만 실제 크롬으로 본다 (PC 1400px, 마지막에 휴대폰 탭바만 390px로 한 번).
 //   - 맨 위 '학급' 탭·Shift+6, 메모 다음이 학급(Shift+→), 학급 고르기, 학생 명단, 오늘 출결 한 줄
-//   - 도구가 고른 학급으로 열린다: 자리표·평가 모아 보기(학급 칸), 학생 이름 → 그 학생 누가기록, 오늘 출결 → 그 학급 출석부
+//   - 도구가 고른 학급으로 열린다: 자리표·조사표 모아 보기(학급 칸), 학생 이름 → 그 학생 기록(누가기록), 오늘 출결 → 그 학급 출석부
 //   - 고른 학급은 다시 열어도 남는다, 휴대폰 아래 탭이 여섯
 //   올해 학년도 첫 학급의 오늘 출결에 1번 결석을 심었다가 되돌린다.
 //
@@ -100,10 +100,10 @@ try {
   await closeAll();
 
   await screen.locator('[data-class-tool="evalOverview"]').click();
-  const ov = page.getByRole('dialog').filter({ hasText: '평가 모아 보기' }).last();
+  const ov = page.getByRole('dialog').filter({ hasText: '조사표 모아 보기' }).last();
   await ov.waitFor({ timeout: 10000 });
   await page.waitForTimeout(800);
-  check('📊 평가 모아 보기 → 고른 학급으로', (await ov.getByRole('combobox', { name: '학급' }).inputValue()) === KEY);
+  check('📊 조사표 모아 보기 → 고른 학급으로', (await ov.getByRole('combobox', { name: '학급' }).inputValue()) === KEY);
   await closeAll();
 
   await screen.locator(`[data-class-student="${S2.num}"]`).click();

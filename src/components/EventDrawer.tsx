@@ -235,7 +235,7 @@ export default function EventDrawer({
         gcal: typeof (item as any).gcal === 'boolean' ? !!(item as any).gcal : gcalOfLabels(l),
       };
     } else {
-      // 새 일정은 통합 라벨 관리의 맨 위 라벨을 미리 골라 두고, 그 라벨의 속성을 따른다.
+      // 새 일정은 라벨 관리의 맨 위 라벨을 미리 골라 두고, 그 라벨의 속성을 따른다.
       // (안 고른 채 저장되면 어느 갈래에도 걸리지 않는다. 마음에 안 들면 눌러서 뗀다.)
       const top = eventLabels[0];
       t = draftText || '';
@@ -754,7 +754,7 @@ export default function EventDrawer({
                 type="button"
                 onClick={() => openLabelModal('event')}
                 className="text-xs text-primary hover:text-blue-700 font-bold flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
-                title="더보기 - 통합 라벨 관리 열기"
+                title="더보기 - 라벨 관리 열기"
               >
                 <span>⚙️</span>
                 <span>라벨 수정</span>

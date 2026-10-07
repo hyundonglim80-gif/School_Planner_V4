@@ -52,13 +52,16 @@ try {
   await page.waitForTimeout(1500);
   check('처음은 기기 설정 따라 - 밝은 기기면 밝게', !(await isDark()) && (await lum('app')) > 0.9);
 
+  // ⋮ '어둡게 보기'는 환경설정 '화면 밝기'로 옮겼다 (UX-AUDIT M4)
   await openMenu();
-  await page.getByRole('button', { name: /어둡게 보기/ }).click();
+  await page.getByRole('button', { name: /환경설정/ }).first().click();
+  await page.locator('[data-theme-mode="dark"]').click();
+  await page.keyboard.press('Escape');
   await page.waitForTimeout(500);
   const bodyL = await lum('app');
   const cardL = await lum('section, [class*="rounded-2xl"][class*="bg-white"]');
   const textL = await lum('h1 ~ *, h2, h3', 'color');
-  check('⋮ 어둡게 보기 → 바탕·카드 어둡게, 글자 밝게', (await isDark()) && bodyL < 0.15 && cardL < 0.2 && textL > 0.6, `바탕 ${bodyL} 카드 ${cardL} 글자 ${textL}`);
+  check('환경설정 화면 밝기 어둡게 → 바탕·카드 어둡게, 글자 밝게', (await isDark()) && bodyL < 0.15 && cardL < 0.2 && textL > 0.6, `바탕 ${bodyL} 카드 ${cardL} 글자 ${textL}`);
   // 흰 글자 단추(주말·일정·수업 토글)는 흰 글자 그대로
   const toggle = page.getByRole('button', { name: '주말', exact: true });
   const tColor = await toggle.evaluate((el) => getComputedStyle(el).color);

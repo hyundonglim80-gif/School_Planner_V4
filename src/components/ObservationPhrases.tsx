@@ -1,7 +1,7 @@
 // src/components/ObservationPhrases.tsx
 //
 // 관찰 문구 단추 (ROADMAP 10-2). 누르면 그 문구로 곧바로 한 줄을 남긴다(부르는 쪽이 저장 - 오늘 기록에 학생 태그를 붙여).
-// '✏️ 문구'로 고치기: 문구 빼기(✕)·더하기. 목록은 계정에 하나(lib/observationPhrases), 자리표 학생 칸과 학생 누가기록이 같이 쓴다.
+// '✏️ 문구'로 고치기: 문구 빼기(✕)·더하기. 목록은 계정에 하나(lib/observationPhrases), 자리표 학생 칸과 학생 기록(누가기록)이 같이 쓴다.
 import React, { useEffect, useState } from 'react';
 import { auth } from '../lib/firebase';
 import {

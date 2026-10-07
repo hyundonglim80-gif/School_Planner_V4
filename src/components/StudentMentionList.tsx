@@ -8,7 +8,7 @@ import { useRoster } from '../hooks/useRoster';
 import { getAcademicYear } from '../lib/dateUtils';
 import { matchMentionStudents, type MentionCandidate } from '../lib/mention';
 
-/** 학생 누가기록·태그 넣기 칸이 마지막에 본 학급 - 그 학급 학생을 앞에 */
+/** 학생 기록(누가기록)·태그 넣기 칸이 마지막에 본 학급 - 그 학급 학생을 앞에 */
 const PREFER_CLASS_KEY = 'sp4-student-record';
 
 function preferredClass(): string | null {

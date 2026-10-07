@@ -105,7 +105,7 @@ export function scheduleNotes(periods: unknown): Record<string, string> {
 
 export const slotId = (date: string, period: string | number) => `${date}#${period}`;
 
-/** 진도 관리 창을 '새 과정'으로 열 때 넘기는 자리표 id (단축키 '과정 만들기', ROADMAP-SUBJECT S10) */
+/** 진도 관리 창을 '새 과정'으로 열 때 넘기는 자리표 id (단축키 '진도 만들기 (여러 반)', ROADMAP-SUBJECT S10) */
 export const NEW_COURSE_PLAN_ID = '__new_course__';
 /** 수업 칸의 '📘 진도 만들기'로 열 때 - store progressModalPreset의 칸 글자로 채운 새 진도 (19번 U3) */
 export const NEW_PLAN_ID = '__new_plan__';

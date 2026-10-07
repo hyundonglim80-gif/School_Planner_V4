@@ -3,7 +3,7 @@
 // 조사표 모아 보기 (ROADMAP 9) - 순수 셈. 읽기는 lib/evalArchive.
 //
 //   - 한 학생의 조사표 값을 사람이 읽는 말로 (학생 카드·누가기록 복사)
-//   - 학급 × 조사표 표 (평가 모아 보기, CSV) - 칸 값은 구글 시트 내보내기(lib/sheetsSync)와 같은 규칙
+//   - 학급 × 조사표 표 (조사표 모아 보기, CSV) - 칸 값은 구글 시트 내보내기(lib/sheetsSync)와 같은 규칙
 //   - 학기 가르기: 그 학년도의 방학 설정이 있으면 2학기 시작일로, 없으면 9월부터 2학기
 import type { EvaluationItem } from '../hooks/useEvaluation';
 import { getSemesterRanges, type SemesterConfig } from './semester';

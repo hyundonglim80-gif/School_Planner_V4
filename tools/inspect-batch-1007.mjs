@@ -4,7 +4,7 @@
 //   teacher : 새 메모 첫 줄 '#라벨' → 라벨·줄 사라짐 / 메모 카드: 라벨 둘이 한 줄, 체크한 줄은 아래 묶음(줄긋기·바탕)
 //             라벨 관리: 라벨 목록에 따로 스크롤이 없다(창 전체가 스크롤)
 //   teacher3: 시간표 창 '교사 구분' 셋, 지금 '전담'이 골라져 있다
-//             새 메모에 '학생 누가기록' → 학생 태그 → 저장 → ⋮ 학생 누가기록에 '📝 메모'로 모이고 누르면 메모 칸이 열린다
+//             새 메모에 '학생 기록(누가기록)' → 학생 태그 → 저장 → ⋮ 학생 기록(누가기록)에 '📝 메모'로 모이고 누르면 메모 칸이 열린다
 //             직접 고르기 줄(학년도·학년·반·번호)로 '#26050203' 넣기
 // 점검이 만든 메모는 끝에 지운다.
 //
@@ -107,8 +107,8 @@ try {
 
     // 라벨 관리: 목록에 따로 스크롤 없음
     await page.getByTitle('더보기 메뉴').click();
-    await page.getByRole('button', { name: /통합 라벨 관리/ }).click();
-    const dlg = page.locator('[role=dialog]', { hasText: '통합 라벨' }).last();
+    await page.getByRole('button', { name: /라벨 관리/ }).click();
+    const dlg = page.locator('[role=dialog]', { hasText: '라벨 관리' }).last();
     await dlg.locator('[data-label-row]').first().waitFor().catch(() => {});
     await dlg.locator('input[data-gcal-label]').first().waitFor();
     const inner = await dlg.locator('input[data-gcal-label]').first().evaluate((el) => {
@@ -128,7 +128,7 @@ try {
   {
     const { ctx, page } = await open(3);
     await page.getByTitle('더보기 메뉴').click();
-    await page.getByRole('button', { name: /시간표 적용/ }).click();
+    await page.getByRole('button', { name: /^⏰\s*시간표/ }).click();
     const box = page.locator('[data-teacher-preset]');
     await box.waitFor();
     const labels = await box.locator('[data-teacher-preset-option]').allInnerTexts();
@@ -140,7 +140,7 @@ try {
     const panel = await newMemo(page);
     const ta = panel.locator('textarea').first();
     await ta.fill(`${MARK} 메모에 학생 태그`);
-    await panel.getByRole('button', { name: /학생 누가기록/ }).click();
+    await panel.getByRole('button', { name: /학생 기록\(누가기록\)/ }).click();
     await panel.locator('button[title^="#"]').first().waitFor();
     await panel.locator('button[title^="#"]').first().click();
     const tag = ((await ta.inputValue()).match(/#\d{8}/) || [])[0];
@@ -158,12 +158,12 @@ try {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(800);
     await page.getByTitle('더보기 메뉴').click();
-    await page.getByRole('button', { name: /학생 누가기록/ }).first().click();
+    await page.getByRole('button', { name: /학생 기록\(누가기록\)/ }).first().click();
     await page.getByLabel('학생 번호로 찾기').fill(tag);
     await page.getByRole('button', { name: '찾기', exact: true }).click();
     const item = page.locator('[data-scroll-lock] button', { hasText: `${MARK} 메모에 학생 태그` }).first();
     await item.waitFor({ timeout: 15000 }).catch(() => {});
-    check("학생 누가기록에 메모가 '📝 메모'로 모인다", (await item.count()) === 1 && (await item.locator('[data-timeline-kind="memo"]').count()) === 1);
+    check("학생 기록(누가기록)에 메모가 '📝 메모'로 모인다", (await item.count()) === 1 && (await item.locator('[data-timeline-kind="memo"]').count()) === 1);
     if (await item.count()) {
       await item.click();
       check('누르면 메모 쓰는 칸이 열린다', await page.locator('aside[aria-label="메모 쓰기"]').first().waitFor({ timeout: 8000 }).then(() => true, () => false));

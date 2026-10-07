@@ -494,7 +494,7 @@ if (ONLY !== 'mobile') {
     const open = page.locator('[data-focus-key^="event"]').filter({ hasNot: page.locator('span.line-through') });
     const keys = [];
     for (let i = 0; i < 2; i++) keys.push(await open.nth(i).getAttribute('data-focus-key'));
-    await openMenu('다중 선택 모드 켜기');
+    await openMenu('여러 개 고르기(?! 끝)');
     for (const k of keys) await page.locator(`[data-focus-key="${k}"]`).click();
     await wait(300);
     assert((await page.getByText('선택됨').count()) > 0, '선택 막대가 없음');
@@ -640,7 +640,7 @@ if (ONLY !== 'mobile') {
 
   await check('[Keep 가져오기] 내보내기/가져오기에서 Keep 창으로 넘어가는 안내가 있음', async () => {
     await openMenu('내보내기 / 가져오기');
-    assert(await heading(/내보내기 \/ 가져오기 통합 관리/).isVisible(), '백업 창이 안 뜸');
+    assert(await heading(/백업 \(내보내기 \/ 가져오기\)/).isVisible(), '백업 창이 안 뜸');
     for (const t of ['캘린더', '구글 시트', 'CSV', 'JSON']) assert((await page.getByTitle(t).count()) > 0, `${t} 대상이 없음`);
     await closeAll();
   });
@@ -671,8 +671,8 @@ if (ONLY !== 'mobile') {
   });
 
   // ── 메뉴 도구 ──
-  await check('[통합 라벨 관리] 두 탭 (일정 / 메모·기록)', async () => {
-    await openMenu('통합 라벨 관리');
+  await check('[라벨 관리] 두 탭 (일정 / 메모·기록)', async () => {
+    await openMenu('라벨 관리');
     for (const t of [/일정 라벨/, /메모·기록 라벨/]) assert((await page.getByRole('button', { name: t }).count()) > 0, `${t} 탭 없음`);
     assert((await page.getByRole('button', { name: /삭제된 라벨 복구/ }).count()) > 0, '복구 버튼 없음');
     await closeAll();
@@ -731,7 +731,7 @@ if (ONLY !== 'mobile') {
       await nameInputs.nth(0).fill('김지우');
       await nameInputs.nth(1).fill('박하늘');
     }
-    await page.getByRole('button', { name: /클라우드 저장/ }).click();
+    await page.getByRole('button', { name: /^💾\s*저장$/ }).click();
     await wait(2500);
     // 저장 뒤에도 새 학급에 머물러야 한다 (예전에는 1반으로 튀었다)
     const firstName = await nameInputs.first().inputValue().catch(() => '');
@@ -779,7 +779,7 @@ if (ONLY !== 'mobile') {
   });
 
   await check('[시간표] 표에서 화살표·Enter 로 칸 이동', async () => {
-    await openMenu('시간표 적용');
+    await openMenu('^⏰\\s*시간표');
     const cells = page.locator('[data-scroll-lock] table input');
     await cells.first().click();
     const a = await page.evaluate(() => document.activeElement?.getBoundingClientRect().top);
@@ -804,8 +804,8 @@ if (ONLY !== 'mobile') {
     await closeAll();
   });
 
-  await check('[미완료 일정 가져오기] 창과 이월 기간 안내', async () => {
-    await openMenu('미완료 일정 가져오기');
+  await check('[지난 일정 오늘로 가져오기] 창과 이월 기간 안내', async () => {
+    await openMenu('지난 일정 오늘로 가져오기');
     assert((await page.getByText(/지난 \d+일간의 미완료 일정/).count()) > 0, '기간 안내 없음');
     await closeAll();
   });
@@ -825,7 +825,7 @@ if (ONLY !== 'mobile') {
   });
 
   await check('[팝업] ESC 로 모든 팝업 닫기', async () => {
-    await openMenu('통합 라벨 관리');
+    await openMenu('라벨 관리');
     await page.keyboard.press('Escape');
     await wait(500);
     assert((await dialogOpen()) === 0, 'ESC 뒤에도 팝업이 남음');
@@ -941,12 +941,12 @@ if (ONLY !== 'mobile') {
     assert(!/지각/.test(t), '지각이 남아 있음');
   });
 
-  await check('[누가기록] 기록에 학생 태그 넣기 → ⋮ 학생 누가기록에 기록과 출결이 모임 → 누르면 그 날로', async () => {
+  await check('[누가기록] 기록에 학생 태그 넣기 → ⋮ 학생 기록(누가기록)에 기록과 출결이 모임 → 누르면 그 날로', async () => {
     await page.getByRole('button', { name: '기록 추가' }).click();
     await wait(600);
     const ta = page.getByPlaceholder(/오늘 있었던 일을 기록해보세요/);
     await ta.fill('발표를 적극적으로 함');
-    await page.getByRole('button', { name: /학생 태그 넣기/ }).click();
+    await page.getByRole('button', { name: /태그 넣기/ }).click();
     await wait(1500);
     await page.locator('button[title^="#"]', { hasText: attendName }).first().click();
     const v = await ta.inputValue();
@@ -956,7 +956,7 @@ if (ONLY !== 'mobile') {
     await wait(1500);
     await page.getByTitle('닫기').first().click();
     await wait(1000);
-    await openMenu('학생 누가기록');
+    await openMenu('학생 기록\\(누가기록\\)');
     await wait(1500);
     await page.getByLabel('학생 번호로 찾기').fill(tag);
     await page.getByRole('button', { name: '찾기', exact: true }).click();
@@ -1122,7 +1122,7 @@ if (ONLY !== 'mobile') {
   });
 
   await check('[메모] 거르개 차례: 즐겨찾기 → 라벨 → 전체 메모, 고른 거르개를 기억', async () => {
-    const nav = page.getByRole('navigation', { name: '메모 라벨 거르개' });
+    const nav = page.getByRole('navigation', { name: '메모 라벨로 보기' });
     const names = (await nav.locator('button[aria-pressed]').allInnerTexts()).map((t) => t.replace(/✓|\d+/g, '').trim());
     assert(names[0].includes('즐겨찾기') && names[names.length - 1].includes('전체 메모'), `차례 ${names.join(', ')}`);
     await nav.locator('button[aria-pressed]').nth(1).click();
@@ -1377,7 +1377,7 @@ if (ONLY !== 'mobile') {
   });
 
   // ── 찾기 · 정리 ──
-  await check('[라벨 이름 바꾸기] 통합 라벨 관리에서 바꾸면 이미 붙은 일정 칩도 바뀜', async () => {
+  await check('[라벨 이름 바꾸기] 라벨 관리에서 바꾸면 이미 붙은 일정 칩도 바뀜', async () => {
     const L = `점검라벨일정 ${Date.now() % 10000}`;
     await page.getByRole('button', { name: '일정 추가' }).click();
     await wait(500);
@@ -1387,21 +1387,21 @@ if (ONLY !== 'mobile') {
     await box.press('Control+s');
     await wait(1500);
     await box.press('Escape');
-    await openMenu('통합 라벨 관리');
+    await openMenu('라벨 관리');
     const nameBox = page.locator('[data-scroll-lock] input[type=text]:not([placeholder])').first();
     const before = await nameBox.inputValue();
     assert(before === preset, `맨 위 라벨 '${before}' ≠ 미리 골라진 '${preset}'`);
     const renamed = `${before}바뀜`;
     await nameBox.fill(renamed);
-    await page.getByRole('button', { name: /클라우드 저장/ }).click();
+    await page.getByRole('button', { name: /^💾\s*저장$/ }).click();
     await wait(4000);
     await closeAll();
     await wait(1500);
     const chip = await eventRow(L).innerText();
     // 되돌린다
-    await openMenu('통합 라벨 관리');
+    await openMenu('라벨 관리');
     await page.locator('[data-scroll-lock] input[type=text]:not([placeholder])').first().fill(before);
-    await page.getByRole('button', { name: /클라우드 저장/ }).click();
+    await page.getByRole('button', { name: /^💾\s*저장$/ }).click();
     await wait(4000);
     await closeAll();
     assert(chip.includes(renamed), `일정 줄 '${chip.replace(/\s+/g, ' ')}' 에 '${renamed}' 가 없음`);
@@ -1613,7 +1613,7 @@ if (ONLY !== 'pc') {
   });
 
   await check('[휴대폰] 뒤로가기는 앱을 나가지 않고 팝업만 닫음', async () => {
-    await page.locator('header').getByTitle(/통합 검색/).click();
+    await page.locator('header').getByTitle(/검색/).click();
     await wait(1000);
     assert((await dialogOpen()) > 0, '검색 창이 안 뜸');
     await page.goBack();

@@ -116,7 +116,7 @@ const TASKS = [
     return true;
   }],
   ['새 라벨 만들어 붙이기 (라벨 관리로)', async () => {
-    await more(/통합 라벨 관리/);
+    await more(/라벨 관리/);
     await click(page.locator('[data-label-tab="entry"]'));
     await typeIn(page.getByLabel('새 메모·기록 라벨 이름'), `${MARK}라벨`);
     await click(page.getByRole('button', { name: '추가', exact: true }).last());
@@ -156,8 +156,8 @@ const TASKS = [
     await more(/진도 관리/);
     return visible(dialog('진도'));
   }],
-  ['통합 검색', async () => {
-    await click(page.getByTitle(/통합 검색/).first());
+  ['검색', async () => {
+    await click(page.getByTitle(/검색/).first());
     await typeIn(page.getByRole('textbox').last(), '회의');
     await key('Enter');
     return true;
@@ -182,15 +182,15 @@ const TASKS = [
   ['백업 받기', async () => {
     await more(/내보내기 \/ 가져오기/);
     n.extra += 1; // 내보내기 단추 (누르지 않음)
-    return visible(page.getByText('내보내기 / 가져오기 통합 관리'));
+    return visible(page.getByText('백업 (내보내기 / 가져오기)'));
   }],
   ['구글 캘린더로 보내기 (수동)', async () => {
     await more(/구글 캘린더로 보내기/);
     n.extra += 1; // 보내기 단추 (누르지 않음)
     return visible(dialog('구글 캘린더'));
   }],
-  ['시간표 적용 창 열기', async () => {
-    await more(/시간표 적용/);
+  ['시간표 창 열기', async () => {
+    await more(/^⏰\s*시간표/);
     return visible(dialog('시간표'));
   }],
   ['발표자 뽑기', async () => {
@@ -209,7 +209,7 @@ const TASKS = [
   }],
   ['메모를 라벨로 거르기', async () => {
     await click(page.getByRole('button', { name: '메모', exact: true }).first());
-    await click(page.locator('nav[aria-label="메모 라벨 거르개"] button').nth(1));
+    await click(page.locator('nav[aria-label="메모 라벨로 보기"] button').nth(1));
     return true;
   }],
 ];

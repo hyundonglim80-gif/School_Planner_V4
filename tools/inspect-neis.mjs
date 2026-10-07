@@ -297,8 +297,8 @@ try {
   // ── 4-5 방학 기간을 학사일정으로 채우기 ──────────────────────
   const semBefore = await semesterSaved();
   await page.getByTitle('더보기 메뉴').click();
-  await page.getByRole('button', { name: /시간표 적용/ }).click();
-  await page.getByRole('button', { name: /템플릿 클라우드 저장|불러오는 중/ }).waitFor({ timeout: 20000 });
+  await page.getByRole('button', { name: /^⏰\s*시간표/ }).click();
+  await page.getByRole('button', { name: /시간표 저장|불러오는 중/ }).waitFor({ timeout: 20000 });
   await page.waitForTimeout(1500);
   const fill = page.locator('[data-fill-vacations]');
   await fill.scrollIntoViewIfNeeded();

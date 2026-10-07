@@ -595,7 +595,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
           students: [...merged, ...keptLeavers].sort((a, b) => a.num - b.num),
         };
         setCurrentClasses(updated);
-        showErrorToast('✅ 성공적으로 반영되었습니다.\n하단 \'클라우드 저장\' 버튼을 눌러 완전히 적용해주세요.');
+        showErrorToast('✅ 성공적으로 반영되었습니다.\n하단 \'저장\' 버튼을 눌러 완전히 적용해주세요.');
       }
     } catch (e: any) {
       console.error(e);
@@ -721,7 +721,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
           students: parsedStudents,
         };
         setCurrentClasses(updated);
-        showErrorToast('✅ 성공적으로 반영되었습니다.\n하단 \'클라우드 저장\' 버튼을 눌러 완전히 적용해주세요.');
+        showErrorToast('✅ 성공적으로 반영되었습니다.\n하단 \'저장\' 버튼을 눌러 완전히 적용해주세요.');
       }
     } catch (err: any) {
       showErrorToast('CSV 불러오기 오류: ' + err.message);
@@ -844,7 +844,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   // 학생 전체 삭제
   const handleRemoveAllStudents = () => {
     if (students.length === 0) return showErrorToast('삭제할 학생이 없습니다.');
-    if (confirm('현재 학급의 모든 학생을 삭제하시겠습니까?\n(하단 클라우드 저장을 눌러야 최종 반영됩니다.)')) {
+    if (confirm('현재 학급의 모든 학생을 삭제하시겠습니까?\n(하단 저장을 눌러야 최종 반영됩니다.)')) {
       const updated = [...currentClasses];
       updated[currentIndex].students = [];
       setCurrentClasses(updated);
@@ -1004,7 +1004,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
               disabled={saving}
               className="px-5 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
             >
-              <span>💾</span> {saving ? '저장 중...' : '클라우드 저장'}
+              <span>💾</span> {saving ? '저장 중...' : '저장'}
             </button>
           </div>
         </div>

@@ -689,7 +689,7 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
     <ModalShell
       isOpen={isOpen}
       onClose={onClose}
-      // 가운데 팝업은 목차가 서 있을 때 그만큼 넓힌다 (오른쪽 칸·휴대폰 배너는 칸의 폭을 그대로 쓴다)
+      // 가운데 창은 목차가 서 있을 때 그만큼 넓힌다 (오른쪽 칸·휴대폰 배너는 칸의 폭을 그대로 쓴다)
       width={wide && !treeHidden ? '4xl' : '2xl'}
       bare
       title="💡 School Planner V4 사용 설명서"

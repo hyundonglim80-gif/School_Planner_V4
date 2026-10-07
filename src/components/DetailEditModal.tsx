@@ -473,7 +473,7 @@ export default function DetailEditModal({
                         type="button"
                         onClick={() => openLabelModal('event')}
                         className="text-xs text-primary hover:text-blue-700 font-bold flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
-                        title="더보기 - 통합 라벨 관리 열기"
+                        title="더보기 - 라벨 관리 열기"
                       >
                         <span>⚙️</span>
                         <span>라벨 수정</span>
