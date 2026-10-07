@@ -20,6 +20,8 @@ export interface TeachingMode {
   homeroomClass: string;
   /** 가르치는 과목 ['과학'] - 시간표 칸 제안에 쓴다 */
   subjects: string[];
+  /** 가르치는 반 ['5-1', '5-2'] - 시간표·명렬표에 없는 반도 칸 제안에 넣는다 (19번 U1, '5-2' 꼴만) */
+  classes: string[];
   /** '5-2' → 색 이름. 없으면 차례대로 */
   classColors: Record<string, string>;
   updatedAt?: number;
@@ -30,6 +32,7 @@ export const DEFAULT_TEACHING_MODE: TeachingMode = {
   hasHomeroom: true,
   homeroomClass: '',
   subjects: [],
+  classes: [],
   classColors: {},
 };
 
@@ -43,6 +46,9 @@ export function sanitizeTeachingMode(raw: unknown): TeachingMode {
   const subjects = Array.isArray(r.subjects)
     ? [...new Set(r.subjects.filter((s): s is string => typeof s === 'string').map((s) => s.trim()).filter(Boolean))]
     : [];
+  const classes = Array.isArray(r.classes)
+    ? [...new Set(r.classes.filter((c): c is string => typeof c === 'string').map((c) => c.trim()).filter((c) => CLASS_RE.test(c)))]
+    : [];
   const classColors: Record<string, string> = {};
   if (r.classColors && typeof r.classColors === 'object' && !Array.isArray(r.classColors)) {
     for (const [k, v] of Object.entries(r.classColors as Record<string, unknown>)) {
@@ -55,6 +61,7 @@ export function sanitizeTeachingMode(raw: unknown): TeachingMode {
     hasHomeroom: typeof r.hasHomeroom === 'boolean' ? r.hasHomeroom : true,
     homeroomClass,
     subjects,
+    classes,
     classColors,
     ...(typeof r.updatedAt === 'number' ? { updatedAt: r.updatedAt } : {}),
   };
@@ -115,4 +122,14 @@ export async function addTeachingSubject(uid: string, subject: string): Promise<
 
 export async function removeTeachingSubject(uid: string, subject: string): Promise<void> {
   await setDoc(teachingModeRef(uid), { subjects: arrayRemove(subject), updatedAt: Date.now() }, { merge: true });
+}
+
+/** 가르치는 반을 더하거나 뺀다 - 과목과 같게 배열 연산으로 */
+export async function addTeachingClasses(uid: string, classes: string[]): Promise<void> {
+  if (!classes.length) return;
+  await setDoc(teachingModeRef(uid), { classes: arrayUnion(...classes), updatedAt: Date.now() }, { merge: true });
+}
+
+export async function removeTeachingClass(uid: string, cls: string): Promise<void> {
+  await setDoc(teachingModeRef(uid), { classes: arrayRemove(cls), updatedAt: Date.now() }, { merge: true });
 }

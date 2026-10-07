@@ -22,6 +22,7 @@ describe('sanitizeTeachingMode', () => {
       hasHomeroom: 'yes',
       homeroomClass: '5반',
       subjects: '과학',
+      classes: '5-1',
       classColors: ['red'],
     });
     expect(m).toEqual(DEFAULT_TEACHING_MODE);
@@ -31,6 +32,7 @@ describe('sanitizeTeachingMode', () => {
       hasHomeroom: false,
       homeroomClass: '5-2',
       subjects: [' 과학 ', '과학', '', 3, '영어'],
+      classes: [' 5-2 ', '5-2', '5반', 7, '6-10'],
       classColors: { '5-1': 'red', 반: 'blue', '5-2': 7 },
       updatedAt: 123,
     });
@@ -39,6 +41,7 @@ describe('sanitizeTeachingMode', () => {
       hasHomeroom: false,
       homeroomClass: '5-2',
       subjects: ['과학', '영어'],
+      classes: ['5-2', '6-10'],
       classColors: { '5-1': 'red' },
       updatedAt: 123,
     });

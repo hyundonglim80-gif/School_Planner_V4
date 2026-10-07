@@ -17,7 +17,8 @@ import AutoTextarea from './AutoTextarea';
 import { showDeletedToast } from '../lib/undoToast';
 import { useTeachingMode } from '../hooks/useTeachingMode';
 import { normalizeSlotText } from '../lib/teachingSlot';
-import SlotOptionsList from './SlotOptionsList';
+import SlotCombobox from './SlotCombobox';
+import { useSlotOptions } from '../hooks/useTeachingClasses';
 
 function formatAlarmBadge(time?: string) {
   if (!time) return null;
@@ -79,6 +80,7 @@ export default function DetailEditModal({
 
   // 교과 모드: 과목 칸에 '5-2 과학' 제안 (lib/teachingSlot)
   const { isClassUnit } = useTeachingMode();
+  const slotOptions = useSlotOptions(dateStr);
 
   // Edit states
   const [subject, setSubject] = useState('');
@@ -428,15 +430,23 @@ export default function DetailEditModal({
                 <>
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1">과목명</label>
-                    <input
-                      type="text"
-                      value={subject}
-                      onChange={(e) => setSubject(e.target.value)}
-                      list={isClassUnit ? 'sp4-slot-options-detail' : undefined}
-                      placeholder={isClassUnit ? '5-2 과학' : undefined}
-                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                    />
-                    {isClassUnit && <SlotOptionsList id="sp4-slot-options-detail" dateStr={dateStr} />}
+                    {isClassUnit ? (
+                      <SlotCombobox
+                        value={subject}
+                        onValueChange={setSubject}
+                        options={slotOptions}
+                        placeholder="5-2 과학"
+                        data-slot-input
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={subject}
+                        onChange={(e) => setSubject(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1">비고 / 준비물</label>

@@ -7,9 +7,11 @@ import { useState } from 'react';
 import { auth } from '../lib/firebase';
 import {
   TEACHER_PRESETS,
+  addTeachingClasses,
   addTeachingSubject,
   homeroomClassOptions,
   presetPatch,
+  removeTeachingClass,
   removeTeachingSubject,
   saveTeachingMode,
   type TeacherPreset,
@@ -18,7 +20,7 @@ import { schoolYearOf } from '../lib/schoolSetting';
 import { formatDateStr } from '../lib/dateUtils';
 import { useTeachingMode } from '../hooks/useTeachingMode';
 import { useRoster } from '../hooks/useRoster';
-import { CLASS_COLORS, classColor, classesForYear } from '../lib/teachingSlot';
+import { CLASS_COLORS, classColor, classesForYear, parseClassInput } from '../lib/teachingSlot';
 import { showToast, showErrorToast } from '../utils/toast';
 
 const chip = (on: boolean) =>
@@ -32,6 +34,7 @@ export default function TeachingModePanel() {
   const { mode, loaded, preset } = useTeachingMode();
   const { rosterList, loading: rosterLoading } = useRoster();
   const [subjectInput, setSubjectInput] = useState('');
+  const [classInput, setClassInput] = useState('');
   const uid = auth.currentUser?.uid;
 
   const schoolYear = schoolYearOf(formatDateStr(new Date()));
@@ -69,6 +72,32 @@ export default function TeachingModePanel() {
     try {
       await removeTeachingSubject(uid, name);
       showToast(`📚 '${name}'을(를) 가르치는 과목에서 뺐습니다.`);
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  // 가르치는 반 (19번 U1): 시간표·명렬표에 없어도 수업 칸 ▼·진도의 반 칩에 나온다. '5-1, 5-2'·'5-1~5-6'
+  const addClasses = async () => {
+    if (!uid) return;
+    const { classes, bad } = parseClassInput(classInput);
+    const fresh = classes.filter((c) => !mode.classes.includes(c));
+    setClassInput(bad.join(' '));
+    if (bad.length) showToast(`'${bad.join(', ')}'은(는) 반으로 읽지 못했습니다. 5-2처럼 적어 주세요.`);
+    if (!fresh.length) return;
+    try {
+      await addTeachingClasses(uid, fresh);
+      showToast(`🏫 가르치는 반을 저장했습니다: ${fresh.join(', ')}`);
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  const removeClass = async (cls: string) => {
+    if (!uid) return;
+    try {
+      await removeTeachingClass(uid, cls);
+      showToast(`🏫 '${cls}'을(를) 가르치는 반에서 뺐습니다.`);
     } catch (e) {
       fail(e);
     }
@@ -160,6 +189,57 @@ export default function TeachingModePanel() {
             />
           </div>
           <p className="text-xs text-slate-400">쉼표나 Enter로 더합니다. 시간표 칸을 채울 때 먼저 보여 줍니다.</p>
+        </div>
+      )}
+
+      {loaded && preset !== 'homeroom' && (
+        <div className="space-y-1.5" data-teaching-classes>
+          <span className="text-xs font-bold text-slate-600">가르치는 반</span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[...mode.classes]
+              .sort((a, b) => {
+                const [ga, ca] = a.split('-').map(Number);
+                const [gb, cb] = b.split('-').map(Number);
+                return ga - gb || ca - cb;
+              })
+              .map((c) => (
+                <span
+                  key={c}
+                  data-teaching-class={c}
+                  className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold"
+                >
+                  {c}
+                  <button
+                    type="button"
+                    onClick={() => void removeClass(c)}
+                    aria-label={`${c} 빼기`}
+                    className="w-5 h-5 rounded hover:bg-emerald-100 leading-none"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            <input
+              type="text"
+              value={classInput}
+              data-teaching-class-input
+              onChange={(e) => setClassInput(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.key === 'Enter' || e.key === ',') && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  void addClasses();
+                }
+              }}
+              onBlur={() => classInput.trim() && void addClasses()}
+              placeholder={mode.classes.length ? '더하기' : '예: 5-1~5-6, 6-2'}
+              aria-label="가르치는 반 더하기"
+              className="w-36 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-primary"
+            />
+          </div>
+          <p className="text-xs text-slate-400">
+            시간표·명렬표에 적힌 반은 저절로 들어갑니다. 학년 초처럼 시간표가 없을 때 적어 두면 수업 칸 ▼와 진도의 반 고르기에 나옵니다.
+            <code className="mx-1">5-1~5-6</code>처럼 범위도 됩니다.
+          </p>
         </div>
       )}
 

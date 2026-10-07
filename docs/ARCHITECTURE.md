@@ -67,7 +67,7 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
 | `users/{uid}/v4_classHub/{학급키}` | `{ classKey, apart: ["3-15"] }` | V4 전용. 학급마다 하나 - 떨어뜨릴 학생(arrayUnion/Remove로 한 쌍씩). 뽑기·모둠도 여기에 더한다(ROADMAP 8-3·8-4) |
 | `users/{uid}/settings/v4_trash` | 휴지통 자동 비우기 기간 | |
 | `users/{uid}/settings/v4_school` | `{ officeCode, schoolCode, officeName, name, kind, grade }` (학교를 지우면 `{ updatedAt }`만) | V4 전용. 우리 학교 - 나이스 급식·학사일정(`lib/schoolSetting`, `lib/neis`) |
-| `users/{uid}/settings/v4_teaching` | `{ unit:'subject'\|'class', hasHomeroom, homeroomClass:'5-2', subjects:[], classColors:{} }` | V4 전용. 교사 유형(`lib/teachingMode`) - 문서가 없으면 초등 담임(`unit:'subject', hasHomeroom:true`)이고 하루 화면에 처음 안내 띠. App이 한 번 구독해 store에 넣고 화면은 `useTeachingMode()`로만 읽는다. 과목은 `arrayUnion/Remove`. 반은 문서에 두지 않고 시간표·수업 칸 글자 `5-2 과학`에 담는다 - `lib/teachingSlot`(`parseSlot`·`normalizeSlotText`·`classesForYear`)로 읽고, 교과 모드에서만 시간표 창·하루 수업 칸·수업 수정 팝업이 저장 전에 정규화한다(`SlotOptionsList` 제안). 초등 담임은 적은 그대로 |
+| `users/{uid}/settings/v4_teaching` | `{ unit:'subject'\|'class', hasHomeroom, homeroomClass:'5-2', subjects:[], classes:['5-1'], classColors:{} }` | V4 전용. 교사 유형(`lib/teachingMode`) - 문서가 없으면 초등 담임(`unit:'subject', hasHomeroom:true`)이고 하루 화면에 처음 안내 띠. App이 한 번 구독해 store에 넣고 화면은 `useTeachingMode()`로만 읽는다. 과목·가르치는 반(`classes`, 19번 U1 - 시간표·명렬표에 없는 반을 미리 적어 두는 곳)은 `arrayUnion/Remove`. 수업마다의 반은 시간표·수업 칸 글자 `5-2 과학`에 담는다 - `lib/teachingSlot`(`parseSlot`·`normalizeSlotText`·`classesForYear`)로 읽고, 교과 모드에서만 시간표 창·하루 수업 칸·수업 수정 팝업이 저장 전에 정규화한다(`SlotCombobox` ▼ 목록 = `useSlotOptions`). 초등 담임은 적은 그대로 |
 | `users/{uid}/v4_subjectAttendance/{classKey}_{date}` | `{ classKey, year, grade, classNum, date, periods: { '교시': { '번호': { num, name, kind: 'absent'(결과)·'late'·'early', reason, note? } } }, updatedAt }` | V4 전용. 교과 출결(`lib/subjectAttendance`·`subjectAttendanceStore`, 교과 모드 S6). 담임 출석부(`attendance`)와 따로 - 기록 칸을 만들지 않는다. 쓰기는 `saveSubjectRecord`가 학생 한 칸(`FieldPath('periods', 교시, 번호)`)만 mergeFields, 지우기는 deleteField |
 | `users/{uid}/v4_progress/{id}` | `{ key(시간표 칸 글자), startDate, lessons: [{unit, no, content, supplies}], bumps: ['YYYY-MM-DD#교시'], subject?, classes?: ['5-1',…] }` (subject·classes가 있으면 과정 - key에는 첫 반 열쇠) | V4 전용. 진도 관리(`lib/progress`). 수업 문서에는 쓰지 않고 화면에서만 겹쳐 본다. 차시 목록은 `saveProgressPlan`(merge, bumps 빼고), 밀기는 `setProgressBump`(arrayUnion/Remove 한 칸) - 다른 기기에서 민 것을 덮지 않게 |
 | `sharedConfig/neis` | `{ key, updatedAt, updatedBy }` | 나이스 인증키. **로그인하면 누구나 읽고** 개발자만 쓴다(`admin/config`는 개발자만 읽어 따로 둠). 없거나 못 읽으면 키 없이 5건씩 나눠 받는다 |
@@ -227,6 +227,8 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 ### 휴대폰 월간 (`MonthGrid` compact, `MonthDaySheet`, ROADMAP 15)
 휴대폰(`useIsMobile`, 639px 이하) 월간 칸에는 과목 칩이 없다. 날짜·칸 안 일정·기간 막대를 누르면 `MonthScreen`이 `sheetDate`를 정하고
 탭바 바로 위에 그날 목록을 띄운다(팝업이 아니라 화면의 일부). 같은 날을 한 번 더 누르면 하루 화면. PC는 그대로.
+목록의 라벨 칩(`data-sheet-event-chip`)은 주간 칩처럼 완료를 뒤집는다(19번 U1, `useCalendarData.toggleEventItem`). 줄 전체가 `<button>`이라
+칩은 `span role=button` + `stopPropagation`, 다중 선택 모드에서는 `onToggleEvent`를 넘기지 않아 끈다.
 
 ### 다크 모드 (`src/dark.css`, `lib/theme`, ROADMAP 17)
 `html.dark`일 때 Tailwind 색 변수(`--color-*`)의 값만 바꾼다 - 컴포넌트는 그대로. **`src/dark.css`는 손으로 고치지 않고
@@ -454,6 +456,11 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   ⋮ 메뉴 항목의 `homeroom: true`(주간학습안내·출석부·알림장 모아 보기), 학급 탭 `TOOLS`의 `homeroom`·오늘 출결 줄. 단축키·명령 창은 그대로.
   교과 + 담임의 출석부는 `AttendanceDrawer`가 넘겨받은 학급이 없을 때 담임반(`rosterForSlot(homeroomClass)`)을 먼저 고른다.
   반 색 고르기는 환경설정 `TeachingModePanel`(`classColors: {반: 색}` merge).
+  **가르치는 반 (19번 U1)**: `teachingSlot.teachingClasses` = 시간표 템플릿 칸 + 그 학년도 수업 칸(있으면 `subjectsByDate`) + 명렬표 + 설정 `classes`.
+  화면은 `hooks/useTeachingClasses`(`useTeachingClasses`·`useSlotOptions` = 반 × 가르치는 과목)로 읽고, 진도 관리 과정 반 칩도 같다.
+  수업 칸 입력은 `components/SlotCombobox`(예전 datalist는 크롬이 칸 글자와 맞는 것만 보여 줘 다른 반이 안 나왔다): 목록은 body에 붙인 fixed라
+  `useClickOutside`가 `[data-combobox-list]`를 바깥으로 세지 않는다. ESC는 목록이 열려 있을 때만 `stopPropagation`(목록만 닫음).
+  시간표 표는 `openOnFocus={false}`(화살표로 칸을 옮겨 다니므로 ▼·Alt+↓·글자 치기로 연다). 점검 `tools/inspect-refine-u1.mjs`.
   **S4 과정**: 진도 관리의 차시 목록 하나를 여러 반에 - 위 '진도 관리'의 과정 단락.
   **S6 교과 출결**: 하루 카드의 '🙋 출결'(`data-subject-attendance`, 개인 공간·반의 명렬표가 있을 때) → 오른쪽 칸
   `SubjectAttendancePanel`(EntryPanelTarget kind `subjectAttendance` + `classKey`·`period`·`slotSubject`, entryId `sa:…`로 같은 칸은 올리기만).

@@ -1,7 +1,7 @@
 // tools/inspect-subject-timetable.mjs
 //
 // 18번 교과 전담 S2 '반 표기 읽기 + 시간표·수업 칸 입력' - 바뀐 부분만 실제 크롬으로 본다 (PC 1400px).
-//   - teacher3(교과 전담) 시간표 창: placeholder '5-2 과학', 제안 목록 '5-1 과학'~'5-4 과학',
+//   - teacher3(교과 전담) 시간표 창: placeholder '5-2 과학', ▼ 목록 '5-1 과학'~'5-4 과학' (19번 U1부터 datalist 대신 SlotCombobox),
 //     '5학년 2반 과학' → 칸을 떠나면 '5-2 과학', 엑셀식 붙여 넣기 '5 - 3 과학\t5학년4반 과학' → 정규화,
 //     저장하지 않고 닫으면 서버 시간표는 그대로
 //   - teacher3 하루(2026-11-03) 2교시 과목 '5-1과학' 저장 → 서버 '5-1 과학' → 처음 값으로 되돌린다
@@ -90,9 +90,11 @@ async function pasteInto(page, rc, text) {
   }, text);
   await page.waitForTimeout(300);
 }
-/** 명렬표 구독이 늦게 올 수 있다 - 제안이 n개가 될 때까지 기다린다 */
-const waitOptions = (page, id, n) =>
-  page.waitForFunction(([i, k]) => document.querySelectorAll(`#${i} option`).length >= k, [id, n], { timeout: 8000 }).catch(() => {});
+/** ▼ 목록(SlotCombobox, 19번 U1 - 예전 datalist). 명렬표 구독이 늦게 올 수 있다 - n개가 될 때까지 기다린다 */
+const waitOptions = (page, n) =>
+  page.waitForFunction((k) => document.querySelectorAll('[data-combobox-list] [data-combobox-option]').length >= k, n, { timeout: 8000 }).catch(() => {});
+const comboOptions = (page) =>
+  page.locator('[data-combobox-list] [data-combobox-option]').evaluateAll((os) => os.map((o) => o.getAttribute('data-combobox-option')));
 /** 시간표 문서를 처음 값으로 (없었으면 지운다) */
 async function restore(r, before) {
   if (before) await setDoc(r, before);
@@ -112,10 +114,15 @@ try {
     const { ctx, page } = await open(3);
     await openTimetable(page);
     check("teacher3: 시간표 칸 placeholder '5-2 과학'", (await cell(page, '0-1').getAttribute('placeholder')) === '5-2 과학');
-    await waitOptions(page, 'sp4-slot-options', 4);
-    const opts = await page.locator('#sp4-slot-options option').evaluateAll((os) => os.map((o) => o.value));
-    check("teacher3: 제안 목록 '5-1 과학'~'5-4 과학'", opts.join(',') === '5-1 과학,5-2 과학,5-3 과학,5-4 과학', opts.join(','));
-    check('teacher3: 칸이 제안 목록을 가리킨다', (await cell(page, '0-1').getAttribute('list')) === 'sp4-slot-options');
+    check('teacher3: 시간표 칸은 ▼ 콤보', (await cell(page, '0-1').getAttribute('role')) === 'combobox');
+    // 표는 화살표로 칸을 옮겨 다녀서 들어갈 때 목록을 열지 않는다 - ▼로 연다
+    await cell(page, '0-1').click();
+    check('teacher3: 시간표 칸에 들어가도 목록은 닫혀 있다', (await page.locator('[data-combobox-list]').count()) === 0);
+    await cell(page, '0-1').locator('xpath=..').locator('[data-combobox-toggle]').click();
+    await waitOptions(page, 4);
+    const opts = await comboOptions(page);
+    check("teacher3: ▼ 목록 '5-1 과학'~'5-4 과학'", ['5-1 과학', '5-2 과학', '5-3 과학', '5-4 과학'].every((o) => opts.includes(o)), opts.join(','));
+    await page.keyboard.press('Escape');
 
     const v1 = await typeAndLeave(page, '0-1', '5학년 2반 과학');
     check("teacher3: '5학년 2반 과학' → 칸을 떠나면 '5-2 과학'", v1 === '5-2 과학', v1);
@@ -145,11 +152,12 @@ try {
     const card = page.locator(`[data-focus-key="period:${DAY}:2"]`);
     await card.first().waitFor({ timeout: 15000 });
     await card.first().click();
-    const subj = page.locator('input[list="sp4-slot-options-day"]');
+    const subj = page.locator('input[data-slot-input]');
     await subj.waitFor({ timeout: 5000 });
-    await waitOptions(page, 'sp4-slot-options-day', 4);
-    const dayOpts = await page.locator('#sp4-slot-options-day option').count();
-    check('teacher3: 하루 수업 칸 과목 입력에 제안 목록(네 반)', dayOpts === 4, String(dayOpts));
+    await waitOptions(page, 4);
+    const dayOpts = (await comboOptions(page)).length;
+    check('teacher3: 하루 수업 칸 과목 입력에 ▼ 목록(네 반)', dayOpts >= 4, String(dayOpts));
+    await subj.press('Escape');
     await subj.fill('5-1과학');
     await card.first().getByRole('button', { name: '저장', exact: true }).click();
     const [d, ms] = await serverUntil(() => t3.read(day3), (v) => v?.periods?.['2']?.subject === '5-1 과학');
@@ -160,11 +168,13 @@ try {
     // 주간 교시 칸을 눌러 여는 수정 팝업도 같은 제안 목록
     await page.getByRole('button', { name: '주간', exact: true }).first().click();
     await page.getByTitle('4교시 5-4 과학').first().click();
-    const detail = page.locator('input[list="sp4-slot-options-detail"]');
+    const detail = page.locator('[role=dialog] input[data-slot-input]');
     await detail.waitFor({ timeout: 5000 }).catch(() => {});
-    await waitOptions(page, 'sp4-slot-options-detail', 4);
-    const detailOpts = await page.locator('#sp4-slot-options-detail option').count();
-    check('teacher3: 주간 교시 수정 팝업의 과목 칸에도 제안 목록', (await detail.count()) === 1 && detailOpts === 4, String(detailOpts));
+    await detail.click();
+    await waitOptions(page, 4);
+    const detailOpts = (await comboOptions(page)).length;
+    check('teacher3: 주간 교시 수정 팝업의 과목 칸에도 ▼ 목록', (await detail.count()) === 1 && detailOpts >= 4, String(detailOpts));
+    await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: '하루', exact: true }).first().click();
     await ctx.close();
@@ -174,8 +184,8 @@ try {
   {
     const { ctx, page } = await open();
     await openTimetable(page);
-    check("teacher: 시간표 칸 placeholder '과목', 제안 목록 없음",
-      (await cell(page, '0-1').getAttribute('placeholder')) === '과목' && (await page.locator('#sp4-slot-options').count()) === 0);
+    check("teacher: 시간표 칸 placeholder '과목', ▼ 콤보 없음",
+      (await cell(page, '0-1').getAttribute('placeholder')) === '과목' && (await page.locator('[role=combobox]').count()) === 0);
     const v = await typeAndLeave(page, '0-1', '3 - 2 국어');
     check("teacher: '3 - 2 국어'는 칸을 떠나도 그대로", v === '3 - 2 국어', v);
     await page.getByRole('button', { name: /템플릿 클라우드 저장/ }).click();

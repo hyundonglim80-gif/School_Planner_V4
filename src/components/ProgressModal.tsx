@@ -42,7 +42,7 @@ import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
 import { useTeachingMode } from '../hooks/useTeachingMode';
 import { useRoster } from '../hooks/useRoster';
 import { schoolYearOf } from '../lib/schoolSetting';
-import { classesForYear, formatSlot, normalizeSlotText } from '../lib/teachingSlot';
+import { formatSlot, normalizeSlotText, teachingClasses } from '../lib/teachingSlot';
 import { useAppStore } from '../store/useAppStore';
 import { showErrorToast, showToast } from '../utils/toast';
 import { showDeletedToast } from '../lib/undoToast';
@@ -141,14 +141,6 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
         ? draft.classes!.length > 0 || draft.lessons.some(hasText)
         : !!draft.key.trim() || draft.lessons.some(hasText));
 
-  // 과정: 고를 수 있는 반 (시작일이 든 학년도의 명렬표) + 이미 고른 반 가운데 명렬표에 없는 것
-  const classOptions = useMemo(() => {
-    if (!courseDraft) return [];
-    const year = schoolYearOf(isDay(draft!.startDate) ? draft!.startDate : formatDate(new Date()));
-    const labels = classesForYear(rosterList, year).map((c) => c.label);
-    for (const c of draft!.classes!) if (!labels.includes(c)) labels.push(c);
-    return labels;
-  }, [courseDraft, draft, rosterList]);
   const draftClasses = draft?.classes || [];
   const viewClass = draftClasses.includes(previewClass) ? previewClass : draftClasses[0] || '';
   const subjectOptions = useMemo(() => {
@@ -160,6 +152,21 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   const from = draft && isDay(draft.startDate) ? draft.startDate : '';
   const { inputs, isOffDay } = useProgressInputs(from, from ? schoolYearEnd(from) : '', semesterConfig);
 
+  // 과정: 고를 수 있는 반 (시작일이 든 학년도에 가르치는 반 - 시간표·수업 칸·명렬표·설정 '가르치는 반', 19번 U1)
+  // + 이미 고른 반 가운데 거기에 없는 것
+  const classOptions = useMemo(() => {
+    if (!courseDraft) return [];
+    const year = schoolYearOf(isDay(draft!.startDate) ? draft!.startDate : formatDate(new Date()));
+    const labels = teachingClasses({
+      rosters: rosterList,
+      templates,
+      subjectsByDate: inputs?.subjectsByDate,
+      settingClasses: mode.classes,
+      schoolYear: year,
+    });
+    for (const c of draft!.classes!) if (!labels.includes(c)) labels.push(c);
+    return labels;
+  }, [courseDraft, draft, rosterList, templates, inputs, mode.classes]);
   // 칸 글자 고르기: 시간표 템플릿과, 시작일부터 수업 문서에 실제로 적힌 글자
   const keyOptions = useMemo(() => {
     const set = new Set<string>();
@@ -637,7 +644,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
                     })}
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-400 pt-1">명렬표에서 학급을 먼저 만드세요 (그 학년도의 반을 고릅니다).</p>
+                  <p className="text-xs text-slate-400 pt-1">시간표에 '5-2 과학'처럼 반을 적거나 환경설정 '가르치는 반'에 적으세요.</p>
                 )}
               </div>
               {draftClasses.length > 0 && draft.subject.trim() && (

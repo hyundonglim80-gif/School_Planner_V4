@@ -8,7 +8,7 @@ import {
   slotSuggestions,
   rosterForSlot,
   classColor,
-  CLASS_COLORS, previousSlotOf, evalDefaultsForSlot } from './teachingSlot';
+  CLASS_COLORS, previousSlotOf, evalDefaultsForSlot, teachingClasses, parseClassInput } from './teachingSlot';
 import type { ClassRoster } from '../hooks/useRoster';
 
 const roster = (year: number, grade: string, classNum: string): ClassRoster => ({ year, grade, classNum, students: [] });
@@ -220,5 +220,40 @@ describe('조사표 학급·과목 고르기 (S8)', () => {
   it('반이 없거나 명렬표에 없으면 null', () => {
     expect(evalDefaultsForSlot(rosters, '과학', '2026-11-02')).toBeNull();
     expect(evalDefaultsForSlot(rosters, '6-1 과학', '2026-11-02')).toBeNull();
+  });
+});
+
+describe('teachingClasses (19번 U1) - 전담이 가르치는 반', () => {
+  it('시간표·수업 칸·명렬표·설정의 반을 합쳐 숫자 차례로, 중복 없이', () => {
+    const out = teachingClasses({
+      rosters: [roster(2026, '5', '2'), roster(2025, '4', '1')],
+      templates: {
+        '1학기 시간표': { data: { mon: { 1: '5-10 과학', 2: '5-2과학', 3: '창체' }, tue: { 1: '602 실과' } } },
+        '2학기 시간표': { data: { wed: { 4: '5학년 3반 과학' } } },
+      },
+      subjectsByDate: { '2026-09-01': { 1: '4-4 과학' }, '2026-02-10': { 1: '3-3 과학' }, '2027-02-10': { 2: '6-9 과학' } },
+      settingClasses: ['5-1', '5-2', '이상한'],
+      schoolYear: 2026,
+    });
+    // 2026-02-10은 2025학년도라 빠진다, 2027-02-10은 2026학년도다. 2025 명렬표(4-1)도 빠진다
+    expect(out).toEqual(['4-4', '5-1', '5-2', '5-3', '5-10', '6-2', '6-9']);
+  });
+
+  it('아무것도 없으면 빈 목록', () => {
+    expect(teachingClasses({ schoolYear: 2026 })).toEqual([]);
+  });
+});
+
+describe('parseClassInput - 환경설정 가르치는 반 입력', () => {
+  it('쉼표·띄어쓰기로 여럿, 범위, 학년 반 꼴', () => {
+    expect(parseClassInput('5-1, 5-2 6-3').classes).toEqual(['5-1', '5-2', '6-3']);
+    expect(parseClassInput('5-1~5-4').classes).toEqual(['5-1', '5-2', '5-3', '5-4']);
+    expect(parseClassInput('5-1 ~ 5-3').classes).toEqual(['5-1', '5-2', '5-3']);
+    expect(parseClassInput('6-1~3').classes).toEqual(['6-1', '6-2', '6-3']);
+    expect(parseClassInput('5학년 2반, ５－３').classes).toEqual(['5-2', '5-3']);
+  });
+
+  it('반이 아닌 조각과 학년이 다른 범위는 bad', () => {
+    expect(parseClassInput('5-1 과학 5-1~6-2')).toEqual({ classes: ['5-1'], bad: ['과학', '5-1~6-2'] });
   });
 });

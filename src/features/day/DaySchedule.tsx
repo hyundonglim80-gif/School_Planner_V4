@@ -26,7 +26,8 @@ import { useSubjectAttendanceDate } from '../../hooks/useSubjectAttendance';
 import { rememberHubClass } from '../../lib/classMemory';
 import { runAppAction } from '../../lib/appActions';
 import { useClassColorOf } from '../../hooks/useClassColor';
-import SlotOptionsList from '../../components/SlotOptionsList';
+import SlotCombobox from '../../components/SlotCombobox';
+import { useSlotOptions } from '../../hooks/useTeachingClasses';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
 
 interface DayScheduleProps {
@@ -86,6 +87,7 @@ export default function DaySchedule({
   const classColorOf = useClassColorOf(dateStr);
   // 교과 출결 (S6): 반의 명렬표가 있는 교시에 '출결' 단추와 적힌 것 요약. 교과 모드에서만 읽는다.
   const { rosterList } = useRoster(isClassUnit);
+  const slotOptions = useSlotOptions(dateStr || undefined);
   const subjectAttendance = useSubjectAttendanceDate(dateStr || '', isClassUnit && !selectedGroupId);
 
   const startEdit = (period: number) => {
@@ -306,16 +308,27 @@ export default function DaySchedule({
                     }
                   }}
                 >
-                  <input
-                    type="text"
-                    value={editSubject}
-                    onChange={(e) => setEditSubject(e.target.value)}
-                    list={isClassUnit ? 'sp4-slot-options-day' : undefined}
-                    placeholder={isClassUnit ? '5-2 과학' : '과목'}
-                    className="col-span-1 px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                    autoFocus
-                  />
-                  {isClassUnit && <SlotOptionsList id="sp4-slot-options-day" dateStr={dateStr} />}
+                  {isClassUnit ? (
+                    <SlotCombobox
+                      value={editSubject}
+                      onValueChange={setEditSubject}
+                      options={slotOptions}
+                      placeholder="5-2 과학"
+                      data-slot-input
+                      wrapperClassName="col-span-1"
+                      className="w-full px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                      autoFocus
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={editSubject}
+                      onChange={(e) => setEditSubject(e.target.value)}
+                      placeholder="과목"
+                      className="col-span-1 px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                      autoFocus
+                    />
+                  )}
                   <input
                     type="text"
                     value={editSupplies}

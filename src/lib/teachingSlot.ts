@@ -89,6 +89,76 @@ export function classesForYear(rosters: ClassRoster[], schoolYear: number): { la
   });
 }
 
+const byClassOrder = (a: string, b: string) => {
+  const [ga, ca] = a.split('-').map(Number);
+  const [gb, cb] = b.split('-').map(Number);
+  return ga - gb || ca - cb;
+};
+
+/**
+ * 교과 모드에서 가르치는 반 (19번 U1). 시간표 템플릿에 적힌 반 + 그 학년도 수업 칸에 적힌 반 + 명렬표의 반 + 환경설정 '가르치는 반'.
+ * 반을 따로 등록하지 않아도 시간표에 적은 반이 나오고, 학년 초 시간표가 없을 때는 설정의 반이 나온다.
+ * 학년·반 숫자 차례, 중복 없음. templates는 학년도가 없어 모두 본다. subjectsByDate: 날짜 → (교시 → 칸 글자).
+ */
+export function teachingClasses({
+  rosters = [],
+  templates = {},
+  subjectsByDate,
+  settingClasses = [],
+  schoolYear,
+}: {
+  rosters?: ClassRoster[];
+  templates?: Record<string, { data?: Record<string, Record<string | number, unknown>> } | undefined>;
+  subjectsByDate?: Record<string, Record<string | number, unknown>>;
+  settingClasses?: string[];
+  schoolYear: number;
+}): string[] {
+  const set = new Set<string>();
+  const addText = (v: unknown) => {
+    if (typeof v !== 'string') return;
+    const { cls } = parseSlot(v);
+    if (cls) set.add(cls);
+  };
+  for (const t of Object.values(templates || {})) {
+    for (const day of Object.values(t?.data || {})) for (const v of Object.values(day || {})) addText(v);
+  }
+  for (const [date, periods] of Object.entries(subjectsByDate || {})) {
+    const y = Number(date.slice(0, 4));
+    if ((Number(date.slice(5, 7)) >= 3 ? y : y - 1) !== schoolYear) continue;
+    for (const v of Object.values(periods || {})) addText(v);
+  }
+  for (const c of classesForYear(rosters, schoolYear)) set.add(c.label);
+  for (const c of settingClasses) if (CLASS_RE.test(c)) set.add(c);
+  return [...set].sort(byClassOrder);
+}
+
+/**
+ * 환경설정 '가르치는 반' 입력 '5-1, 5-2 6-3', '5-1~5-6'(같은 학년 범위), '5학년 2반'을 반 목록으로. 반으로 못 읽은 조각은 bad에.
+ */
+export function parseClassInput(text: string): { classes: string[]; bad: string[] } {
+  const classes: string[] = [];
+  const bad: string[] = [];
+  const add = (c: string) => !classes.includes(c) && classes.push(c);
+  // '5-1 ~ 5-6'의 띄어쓰기를 먼저 붙여 한 조각으로 만든다
+  const src = toAscii(String(text ?? '')).replace(/\s*~\s*/g, '~').replace(/(\d)\s*학년\s*(\d)/g, '$1학년$2');
+  for (const piece of src.split(/[,\s]+/).filter(Boolean)) {
+    const range = /^(\d{1,2})-(\d{1,2})~(?:(\d{1,2})-)?(\d{1,2})$/.exec(piece);
+    if (range) {
+      const [g, from, g2, to] = [Number(range[1]), Number(range[2]), range[3] ? Number(range[3]) : Number(range[1]), Number(range[4])];
+      if (g === g2 && g >= 1 && from >= 1 && from <= to && to <= 30) {
+        for (let c = from; c <= to; c++) add(`${g}-${c}`);
+        continue;
+      }
+      bad.push(piece);
+      continue;
+    }
+    const p = parseSlot(piece);
+    if (p.cls && !p.subject) add(p.cls);
+    else bad.push(piece);
+  }
+  return { classes, bad };
+}
+
 /** 칸 제안: 반 × 과목 ('5-1 과학', '5-1 실과', '5-2 과학'…). 과목이 없으면 반만 */
 export function slotSuggestions(classLabels: string[], subjects: string[]): string[] {
   const subs = [...new Set(subjects.map(squeeze).filter(Boolean))];

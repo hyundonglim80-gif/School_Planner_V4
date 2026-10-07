@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
 import {
   useTimetableTemplate,
@@ -23,8 +23,9 @@ import {
   type CellPos,
 } from '../lib/gridNav';
 import { useTeachingMode } from '../hooks/useTeachingMode';
-import { normalizeSlotText } from '../lib/teachingSlot';
-import SlotOptionsList, { SLOT_OPTIONS_ID } from './SlotOptionsList';
+import { normalizeSlotText, slotSuggestions, teachingClasses } from '../lib/teachingSlot';
+import SlotCombobox from './SlotCombobox';
+import { useTeachingClasses } from '../hooks/useTeachingClasses';
 
 interface TimetableTemplateModalProps {
   isOpen: boolean;
@@ -54,10 +55,22 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   const { eventLabels } = useLabels();
   // 교과 모드: 칸에 '5-2 과학' - 제안 목록을 달고, 어떻게 적어도 한 모양으로 맞춘다 (lib/teachingSlot).
   // 초등 담임은 손대지 않는다 ('3-2 국어'를 그대로 쓰는 담임이 있다).
-  const { isClassUnit } = useTeachingMode();
+  const { isClassUnit, mode: { subjects: teachingSubjects } } = useTeachingMode();
 
   // 현재 편집 중인 템플릿의 로컬 상태
   const [editingTemplates, setEditingTemplates] = useState<Record<string, TimetableTemplateItem>>({});
+  // ▼ 목록: 저장된 시간표·명렬표·설정의 반에 지금 고치는 표의 반도 더한다 (19번 U1)
+  const savedClasses = useTeachingClasses();
+  const slotOptions = useMemo(
+    () =>
+      isClassUnit
+        ? slotSuggestions(
+            teachingClasses({ templates: editingTemplates, settingClasses: savedClasses, schoolYear: schoolYearOf(formatDate(new Date())) }),
+            teachingSubjects
+          )
+        : [],
+    [isClassUnit, editingTemplates, savedClasses, teachingSubjects]
+  );
   // 시간표 표. 칸을 오갈 때 이 안에서 찾는다.
   // (아래에 isOpen 조건부 반환이 있어, 훅은 그보다 위에 있어야 한다)
   const gridRef = React.useRef<HTMLTableSectionElement>(null);
@@ -515,7 +528,6 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
 
             <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
               <div className="overflow-x-auto">
-                {isClassUnit && <SlotOptionsList />}
                 <table className={`w-full text-xs text-center border-collapse ${isClassUnit ? 'min-w-[44rem]' : ''}`}>
                   <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
                     <tr>
@@ -547,22 +559,35 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
                             const val = (gridData[d.key] || {})[periodNum] || '';
                             return (
                               <td key={d.key} className="p-1 border-r border-slate-100 last:border-r-0">
-                                <input
-                                  type="text"
-                                  value={val}
-                                  data-cell={`${pIdx}-${dIdx + 1}`}
-                                  onChange={(e) => handleUpdateSubject(d.key, periodNum, e.target.value)}
-                                  onBlur={(e) => {
-                                    if (!isClassUnit) return;
-                                    const norm = normalizeSlotText(e.target.value);
-                                    if (norm !== e.target.value) handleUpdateSubject(d.key, periodNum, norm);
-                                  }}
-                                  onKeyDown={(e) => handleCellKeyDown(e, pIdx, dIdx + 1)}
-                                  onPaste={(e) => handleCellPaste(e, pIdx, dIdx + 1)}
-                                  list={isClassUnit ? SLOT_OPTIONS_ID : undefined}
-                                  placeholder={isClassUnit ? '5-2 과학' : '과목'}
-                                  className="w-full text-center bg-white border border-transparent hover:border-slate-200 focus:border-blue-500 rounded px-1 py-1 font-bold text-slate-800 focus:outline-none"
-                                />
+                                {isClassUnit ? (
+                                  // 화살표로 칸을 옮겨 다니는 표라 들어갈 때 목록을 열지 않는다 - ▼·Alt+↓·글자 치기로 연다
+                                  <SlotCombobox
+                                    value={val}
+                                    onValueChange={(v) => handleUpdateSubject(d.key, periodNum, v)}
+                                    options={slotOptions}
+                                    openOnFocus={false}
+                                    data-cell={`${pIdx}-${dIdx + 1}`}
+                                    onBlur={(e) => {
+                                      const norm = normalizeSlotText(e.target.value);
+                                      if (norm !== e.target.value) handleUpdateSubject(d.key, periodNum, norm);
+                                    }}
+                                    onKeyDown={(e) => handleCellKeyDown(e, pIdx, dIdx + 1)}
+                                    onPaste={(e) => handleCellPaste(e, pIdx, dIdx + 1)}
+                                    placeholder="5-2 과학"
+                                    className="w-full text-center bg-white border border-transparent hover:border-slate-200 focus:border-blue-500 rounded px-1 py-1 font-bold text-slate-800 focus:outline-none"
+                                  />
+                                ) : (
+                                  <input
+                                    type="text"
+                                    value={val}
+                                    data-cell={`${pIdx}-${dIdx + 1}`}
+                                    onChange={(e) => handleUpdateSubject(d.key, periodNum, e.target.value)}
+                                    onKeyDown={(e) => handleCellKeyDown(e, pIdx, dIdx + 1)}
+                                    onPaste={(e) => handleCellPaste(e, pIdx, dIdx + 1)}
+                                    placeholder="과목"
+                                    className="w-full text-center bg-white border border-transparent hover:border-slate-200 focus:border-blue-500 rounded px-1 py-1 font-bold text-slate-800 focus:outline-none"
+                                  />
+                                )}
                               </td>
                             );
                           })}

@@ -88,7 +88,7 @@ describe('환경설정 - 저장과 닫기', () => {
 describe('환경설정 - 교사 유형', () => {
   it('셋이 그려지고, 저장된 유형이 골라져 있다', async () => {
     useAppStore.setState({
-      teachingMode: { unit: 'class', hasHomeroom: false, homeroomClass: '', subjects: ['과학'], classColors: {} },
+      teachingMode: { unit: 'class', hasHomeroom: false, homeroomClass: '', subjects: ['과학'], classes: [], classColors: {} },
       teachingModeLoaded: true,
       teachingModeExists: true,
     });

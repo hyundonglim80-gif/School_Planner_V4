@@ -27,6 +27,8 @@ export function useClickOutside<T extends HTMLElement>(
       // 이미 문서에서 빠진 요소를 누른 경우(누르자마자 사라지는 버튼 등)는 판단할 수 없다
       if (!target || !target.isConnected) return;
       if (el.contains(target)) return;
+      // 칸에서 띄운 콤보 목록(SlotCombobox)은 body에 붙어 있다 - 바깥이 아니다
+      if (target instanceof Element && target.closest('[data-combobox-list]')) return;
       onOutsideRef.current();
     };
 

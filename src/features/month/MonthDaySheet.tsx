@@ -10,7 +10,7 @@
 import { useLayoutEffect, useState } from 'react';
 import type { DaySummary } from '../../hooks/useCalendarData';
 import type { NeisScheduleItem } from '../../lib/neis';
-import { eventDisplayContent, isCalendarVisible, resolveEventLabel } from '../../lib/eventLabels';
+import { eventDisplayContent, isCalendarVisible, isForwardLabel, resolveEventLabel } from '../../lib/eventLabels';
 import { splitHolidayEvents } from '../../lib/holiday';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
@@ -30,6 +30,8 @@ interface MonthDaySheetProps {
   onGoDay: () => void;
   onAdd: () => void;
   onOpenEvent: (ev: any) => void;
+  /** 라벨 칩을 누르면 완료를 뒤집는다 (주간 칩과 같다). 다중 선택 모드에서는 넘기지 않는다. */
+  onToggleEvent?: (ev: any) => void;
   onOpenSchool: (items: NeisScheduleItem[]) => void;
 }
 
@@ -48,6 +50,7 @@ export default function MonthDaySheet({
   onGoDay,
   onAdd,
   onOpenEvent,
+  onToggleEvent,
   onOpenSchool,
 }: MonthDaySheetProps) {
   // 아래 탭바(MobileTabBar) 바로 위에 붙는다. 탭바 높이는 기기 안전 여백에 따라 달라 재서 쓴다.
@@ -131,8 +134,20 @@ export default function MonthDaySheet({
                     }`}
                   >
                     {def && color && (
+                      // 감싼 것이 <button>이라 칩은 span(role=button)이다 - 누르면 일정을 열지 않고 완료만 뒤집는다
                       <span
-                        className="shrink-0 text-2xs font-bold px-1.5 py-0.5 rounded"
+                        role={onToggleEvent ? 'button' : undefined}
+                        data-sheet-event-chip={ev.id}
+                        title={onToggleEvent ? (isForwardLabel(def) ? '클릭하여 완료 처리 (이월 정지)' : '클릭하여 완료 처리') : undefined}
+                        onClick={
+                          onToggleEvent
+                            ? (e) => {
+                                e.stopPropagation();
+                                onToggleEvent(ev);
+                              }
+                            : undefined
+                        }
+                        className={`shrink-0 text-2xs font-bold px-1.5 py-0.5 rounded ${onToggleEvent ? 'cursor-pointer' : ''}`}
                         style={{
                           backgroundColor: ev.completed ? 'var(--color-slate-100)' : color.bg,
                           color: ev.completed ? 'var(--color-slate-400)' : color.text,

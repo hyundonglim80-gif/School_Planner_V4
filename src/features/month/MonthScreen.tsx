@@ -12,7 +12,7 @@ import { useSchoolSchedule } from '../../hooks/useNeis';
 import { useTimetableTemplate } from '../../hooks/useTimetableTemplate';
 
 export default function MonthScreen() {
-  const { currentDate, setCurrentDate, setScope, selectedGroupId, showWeekend, showClass, showEvents, openSchoolEventPeek } = useAppStore();
+  const { currentDate, setCurrentDate, setScope, selectedGroupId, showWeekend, showClass, showEvents, openSchoolEventPeek, isMultiSelectMode } = useAppStore();
   // 날짜 칸의 + 는 그날의 새 일정을 오른쪽 칸에 연다
   const openQuickAdd = (dateStr: string) => void openEntryPanel({ kind: 'event', groupId: selectedGroupId, dateStr });
   const isMobile = useIsMobile();
@@ -109,6 +109,7 @@ export default function MonthScreen() {
           onOpenEvent={(ev) =>
             void openEntryPanel({ kind: 'event', groupId: selectedGroupId, dateStr: sheetDate, entryId: String(ev.id), initial: ev })
           }
+          onToggleEvent={isMultiSelectMode ? undefined : (ev) => void toggleEventItem(sheetDate, String(ev.id))}
           onOpenSchool={(items) => openSchoolEventPeek(sheetDate, items)}
         />
       )}
