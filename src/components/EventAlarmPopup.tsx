@@ -1,6 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useVisualViewport } from '../hooks/useVisualViewport';
 import type { RingingAlarm } from '../hooks/useEventAlarms';
+import { playAlarmChime } from '../lib/sound';
+
+/** 알림 소리를 되풀이하는 간격과 가장 오래 울리는 시간 (확인을 누르거나 '소리 끄기'를 누르면 바로 멈춘다) */
+const CHIME_EVERY_MS = 3000;
+const CHIME_FOR_MS = 60_000;
 
 interface EventAlarmPopupProps {
   alarms: RingingAlarm[];
@@ -10,6 +15,28 @@ interface EventAlarmPopupProps {
 export default function EventAlarmPopup({ alarms, onDismiss }: EventAlarmPopupProps) {
   const isOpen = alarms.length > 0;
   const vv = useVisualViewport(isOpen);
+  const [muted, setMuted] = useState(false);
+  // 새 알림이 더해지면 다시 울린다 (껐던 소리도 새 알림에는 다시 켠다)
+  const ringKey = alarms.map((a) => a.id).join('|');
+
+  useEffect(() => {
+    if (!ringKey) return;
+    setMuted(false);
+  }, [ringKey]);
+
+  useEffect(() => {
+    if (!ringKey || muted) return;
+    playAlarmChime();
+    const started = Date.now();
+    const id = setInterval(() => {
+      if (Date.now() - started >= CHIME_FOR_MS) {
+        clearInterval(id);
+        return;
+      }
+      playAlarmChime();
+    }, CHIME_EVERY_MS);
+    return () => clearInterval(id);
+  }, [ringKey, muted]);
 
   if (!isOpen) return null;
 
@@ -29,6 +56,16 @@ export default function EventAlarmPopup({ alarms, onDismiss }: EventAlarmPopupPr
             </div>
           ))}
         </div>
+        {!muted && (
+          <button
+            type="button"
+            data-alarm-mute
+            onClick={() => setMuted(true)}
+            className="block mx-auto mb-4 px-4 py-2 text-base font-bold text-white bg-black/30 border-2 border-white/70 rounded-xl hover:bg-black/40 cursor-pointer"
+          >
+            🔇 소리 끄기
+          </button>
+        )}
         <button
           type="button"
           onClick={onDismiss}

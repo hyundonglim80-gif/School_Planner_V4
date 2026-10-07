@@ -36,7 +36,10 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
    - `usePreferenceSync(uid)`: 환경설정을 계정에서 받아 store에 넣고, 바뀌면 다시 올린다
    - `useTeachingModeSync(uid)`: 교사 유형 문서(`v4_teaching`)를 store에 (`useTeachingMode()`로 읽는다)
    - `runAutoForwarding(selectedGroupId)`: 이월 (라벨을 다 읽은 뒤 한 번 더 돈다)
-   - `useEventAlarms`: 20초마다 알림 시각을 보고 `EventAlarmPopup`
+   - `useEventAlarms`: 20초마다 오늘 일정 문서의 알림 시각을 보고 `EventAlarmPopup`. 처음 울린 기기가 서버의 그 일정에 `alarmTriggered`를 써서
+     **다른 기기는 울리지 않는다**(먼저 확인한 기기 하나만). 앱이 닫혀 있거나 휴대폰 브라우저가 백그라운드면 울리지 않는다(서버 푸시 없음).
+     소리는 `lib/sound.playAlarmChime`(수업 종과 같은 Web Audio) - 창이 떠 있는 동안 3초마다 1분까지, '🔇 소리 끄기'(`data-alarm-mute`)·확인으로 멈춘다.
+     브라우저는 페이지를 한 번 누르기 전에는 소리를 막아 `wakeAudioOnGesture`로 깨운다. 점검 `tools/inspect-alarm-sound.mjs`.
    - `Layout` 안에 scope에 맞는 화면 하나
 4. `Layout.tsx` — 머리줄(D-Day·휴지통·검색·화면 탭·공간 선택·⋮ 메뉴·프로필), 둘째 줄(주말·일정·수업 토글, 날짜 이동),
    전역 단축키, 모든 팝업의 자리, 오른쪽 줄(쓰는 칸·팝업), 왼쪽 클립보드 칸
@@ -653,6 +656,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-class-roster.mjs` | 명렬표를 학급 화면 안으로(10) - ⋮에 없음, 학급 도구 \| 명렬표 전환, 창 아닌 판·세 탭, 고른 학급으로, 닫기 없음, 다른 화면 갔다 와도 그대로, 도구 칸 '명렬표' |
 | `tools/inspect-memorize.mjs` | 암기(10) - 설정 줄, 문제·정답 사진 틀 같음(가로·세로로 긴 사진), 정답은 이름만, 출제 수 2·0(계속), 함께 외울 학급 9-2, 자동 넘김 1초·0. 드라이브를 흉내 내고 9-1·9-2를 심었다가 명렬표·암기 성적을 되돌린다 |
 | `tools/inspect-class-bell.mjs` | 수업 종(5) - 시간표 창에서 켜기·1분 전, 시계를 돌려 08:59 시작 종·09:40 끝 종, 이 기기에서 끄기. 교시 시각·종 설정을 되돌린다 |
+| `tools/inspect-alarm-sound.mjs` | 일정 알림 소리 - 1분 전 알림을 심고 창·소리·3초 되풀이, '🔇 소리 끄기', 확인으로 멈춤, 서버 alarmTriggered. 그날 문서를 되돌린다 |
 | `tools/inspect-ux-audit.mjs` | UX-AUDIT 적용(12) - 머리줄 ?, ⋮ 차례·환경설정의 설치·밝기, 일정 ☐ 완료, 📘 진도, ✏️, + 메모, + 새 라벨, 라벨로 보기 ?, 구글 캘린더 안내 |
 | `tools/inspect-batch-1007.mjs` | 10-07 요청 묶음(13) - 첫 줄 #라벨, 카드 라벨 한 줄·체크한 줄 아래, 라벨 관리 한 스크롤, teacher3 시간표 교사 구분·두 칸, 메모 학생 태그(명렬표·직접)·누가기록 '📝 메모'. 메모·라벨을 되돌린다 |
 | `tools/inspect-clicks.mjs` | 19번 U12 클릭 수표 - 자주 하는 일 20가지를 하루 화면에서 따라 하며 누르기·키를 센다(마지막 되돌리기 어려운 단추는 +1로). 결과는 `docs/UX-AUDIT.md`. 일정·기록·메모·출석·알림장·라벨·휴지통을 되돌린다 (8분쯤) |

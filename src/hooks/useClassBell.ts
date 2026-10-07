@@ -1,7 +1,7 @@
 // src/hooks/useClassBell.ts
 //
 // 수업 종 (lib/classBell) - 설정을 읽고 쓰고, Layout에서 한 번 걸어 교시 시각에 종을 울린다.
-// 소리는 Web Audio로 만든다(파일 없이). 브라우저는 사용자가 한 번 누르기 전에는 소리를 막으므로, 처음 누르거나 키를 칠 때 소리 장치를 깨워 둔다.
+// 소리는 lib/sound(Web Audio, 파일 없이). 브라우저는 사용자가 한 번 누르기 전에는 소리를 막으므로, 처음 누르거나 키를 칠 때 소리 장치를 깨워 둔다.
 // 앱(탭)이 열려 있을 때만 울린다 - 닫혀 있으면 울리지 않는다(설명서에 적었다).
 import { useEffect, useRef, useState } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
@@ -10,6 +10,7 @@ import { subscribeDocWithServerFallback } from '../lib/firestoreSubscribe';
 import { BELL_MUTE_KEY, DEFAULT_BELL, bellDay, bellMessage, bellTimes, bellsDue, sanitizeBell, type ClassBellSettings } from '../lib/classBell';
 import { usePeriodTimes } from './usePeriodTimes';
 import { showToast } from '../utils/toast';
+import { playBell, wakeAudioOnGesture } from '../lib/sound';
 
 const bellRef = (uid: string) => doc(db, 'users', uid, 'settings', 'v4_classBell');
 
@@ -50,40 +51,8 @@ export function setBellMutedHere(muted: boolean) {
   }
 }
 
-// ── 소리 ──
-let audio: AudioContext | null = null;
-function audioContext(): AudioContext | null {
-  try {
-    const Ctor = (window as any).AudioContext || (window as any).webkitAudioContext;
-    if (!Ctor) return null;
-    if (!audio) audio = new Ctor();
-    return audio;
-  } catch {
-    return null;
-  }
-}
-/** 학교 종처럼 네 음 두 번 (딩동댕동). 몇 번 울렸는지는 점검이 window.__spBellCount로 본다 */
-export function playBell() {
-  (window as any).__spBellCount = ((window as any).__spBellCount || 0) + 1;
-  const ctx = audioContext();
-  if (!ctx) return;
-  void ctx.resume?.();
-  const notes = [659.25, 523.25, 587.33, 392.0, 392.0, 587.33, 659.25, 523.25]; // 미 도 레 솔 / 솔 레 미 도
-  const t0 = ctx.currentTime + 0.05;
-  notes.forEach((f, i) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = f;
-    const at = t0 + i * 0.55 + (i >= 4 ? 0.4 : 0);
-    gain.gain.setValueAtTime(0.0001, at);
-    gain.gain.exponentialRampToValueAtTime(0.35, at + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, at + 1.1);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(at);
-    osc.stop(at + 1.15);
-  });
-}
+// 소리는 lib/sound (일정 알림과 함께 쓴다). ClassBellPanel이 이 자리에서 가져가므로 다시 내보낸다
+export { playBell };
 
 const secOfDay = (d: Date) => d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
 
@@ -102,13 +71,7 @@ export function useClassBellRunner(periodNames: string[] = []) {
   // 처음 누르거나 키를 칠 때 소리 장치를 깨운다 (브라우저가 그 전에는 소리를 막는다)
   useEffect(() => {
     if (!bell.enabled) return;
-    const wake = () => void audioContext()?.resume?.();
-    window.addEventListener('pointerdown', wake, { once: true });
-    window.addEventListener('keydown', wake, { once: true });
-    return () => {
-      window.removeEventListener('pointerdown', wake);
-      window.removeEventListener('keydown', wake);
-    };
+    return wakeAudioOnGesture();
   }, [bell.enabled]);
 
   useEffect(() => {

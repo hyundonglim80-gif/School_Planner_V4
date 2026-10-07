@@ -4,6 +4,7 @@ import { db, auth } from '../lib/firebase';
 import { useAppStore } from '../store/useAppStore';
 import { formatDateStr } from '../lib/dateUtils';
 import { eventDocPayload, readEventList } from '../lib/eventText';
+import { wakeAudioOnGesture } from '../lib/sound';
 
 export interface RingingAlarm {
   id: string;
@@ -35,6 +36,9 @@ export function useEventAlarms() {
       Notification.requestPermission().catch(() => {});
     }
   }, []);
+
+  // 알림 소리(EventAlarmPopup): 브라우저는 이 페이지를 한 번 누르기 전에는 소리를 막는다 - 처음 누를 때 소리 장치를 깨워 둔다
+  useEffect(() => wakeAudioOnGesture(), []);
 
   useEffect(() => {
     const user = auth.currentUser;
