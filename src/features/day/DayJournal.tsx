@@ -8,11 +8,15 @@ import { openEntryPanel } from '../../components/EntryPanelHost';
 import { useMainWidth } from '../../hooks/useMainWidth';
 import {
   EMPTY_FILTER,
-  filterLabelSet,
+  matchEntry,
+  otherKey,
+  isOtherKey,
+  otherParentOf,
+  isEmptyFilter,
+  filterChipOrder,
   labelPath,
   orderByTree,
   pruneFilter,
-  toggleFilterChildren,
   clickFilterLabel,
   useLabelTree,
   type LabelFilter,
@@ -97,14 +101,6 @@ export default function DayJournal({
     return names;
   };
 
-  const resolveLabel = (entry: JournalEntry) => {
-    const name = resolveLabelNames(entry)[0];
-    return name ? journalLabels.find((l) => l.name === name) || null : null;
-  };
-
-  // 등록된 라벨을 찾지 못하면(설정에서 지운 라벨 등) 칩을 숨긴다.
-  const getLabelName = (entry: JournalEntry) => resolveLabel(entry)?.name || '';
-
   const openCreate = () =>
     openEntryPanel({
       kind: 'journal',
@@ -121,7 +117,7 @@ export default function DayJournal({
   // 휴대폰에서도 2열 (일정 칸과 같게). 넓으면 3·4열.
   const columnsCount = mainWidth >= 980 ? 4 : mainWidth >= 720 ? 3 : 2;
 
-  // 라벨 상위/하위 (lib/labelTree). 라벨은 여러 개 고르고, 상위 앞 '하위 포함' 체크를 켜야 하위까지 거른다.
+  // 라벨 상위/하위 (lib/labelTree). 라벨은 여러 개 고르고, 상위를 고르면 하위도 함께 (19번 U8). 하위는 처음에 접혀 있다.
   const journalParents = useLabelTree().journal;
   const [openParents, setOpenParents] = useState<Record<string, boolean>>({});
 
@@ -130,9 +126,9 @@ export default function DayJournal({
   const anchorRef = useRef<string | null>(null);
   const treeRows = orderByTree(journalLabels.map((l) => l.name), journalParents);
   /** 화면에 보이는 라벨 차례 (접힌 하위는 빼되, 고른 것은 보인다) - Shift 범위에 쓴다 */
-  const visibleLabelOrder = treeRows
-    .filter((r) => r.depth === 0 || !!openParents[r.parent!] || labelFilter.labels.includes(r.name))
-    .map((r) => r.name);
+  const isChipSelected = (key: string) =>
+    isOtherKey(key) ? labelFilter.others.includes(otherParentOf(key)) : labelFilter.labels.includes(key);
+  const visibleLabelOrder = filterChipOrder(treeRows, (p) => !!openParents[p], isChipSelected);
   const clickLabel = (name: string, e: React.MouseEvent) => {
     const click = { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey };
     setLabelFilter(clickFilterLabel(labelFilter, name, click, visibleLabelOrder, anchorRef.current));
@@ -143,19 +139,17 @@ export default function DayJournal({
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       anchorRef.current = null;
-      setLabelFilter((prev) => (prev.labels.length === 0 ? prev : EMPTY_FILTER));
+      setLabelFilter((prev) => (isEmptyFilter(prev) ? prev : EMPTY_FILTER));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   // 필터 적용된 리스트
-  const allowedLabels = filterLabelSet(labelFilter, journalParents);
-  // 즐겨찾기한 기록은 그날 기록의 맨 위 (19번 U6). 나머지 차례는 그대로
-  const filteredJournals = (allowedLabels === null
-    ? journals
-    : journals.filter((entry) => allowedLabels.has(getLabelName(entry)))
-  ).slice().sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite));
+  // 기록에 붙은 라벨을 모두 본다 (예전에는 첫 라벨만). 즐겨찾기한 기록은 그날 기록의 맨 위 (19번 U6)
+  const filteredJournals = journals
+    .filter((entry) => matchEntry(resolveLabelNames(entry), labelFilter, journalParents))
+    .sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite));
 
   const distributeJournals = (items: JournalEntry[]) => {
     const columns = Array.from({ length: columnsCount }, () => [] as { entry: JournalEntry; idx: number }[]);
@@ -230,56 +224,60 @@ export default function DayJournal({
               <div className="order-3 sm:order-2 w-full sm:w-auto sm:flex-1 flex flex-wrap items-center gap-1.5">
                 <button
                   onClick={() => setLabelFilter(EMPTY_FILTER)}
-                  aria-pressed={labelFilter.labels.length === 0}
+                  aria-pressed={isEmptyFilter(labelFilter)}
                   className={`px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm ${
-                    labelFilter.labels.length === 0
+                    isEmptyFilter(labelFilter)
                       ? 'bg-slate-800 text-white'
                       : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                   }`}
                 >
                   전체
                 </button>
-                {/* 라벨은 눌러서 붙이고 떼며 여러 개 고른다. 모양 (2026-09-30 다듬음):
+                {/* 라벨은 눌러서 붙이고 떼며 여러 개 고른다 (19번 U8 - 2026-10-06 사용자가 바꿈):
                     - 하위가 있는 상위는 상위와 하위를 한 묶음(테두리)으로 둔다 - 휴대폰에서 줄이 바뀌어도 떨어지지 않게.
-                    - 묶음 맨 앞 ▸/▾로 하위를 펼치고, 펼치면 '하위 포함' 토글과 하위 칩이 묶음 안에 보인다.
-                    - '하위 포함'을 켠 채 접으면 상위 칩에 +하위가 붙는다. 고른 하위는 접어도 보인다. */}
+                    - 묶음 맨 앞 ▸/▾로 하위를 펼친다(처음에는 접혀 있다). 상위를 고르면 하위도 함께 걸린다(하위·기타가 옅게).
+                    - 하위 끝의 '기타'(점선) = 하위 없이 그 상위만 붙은 기록. 고른 하위·기타는 접어도 보인다. */}
                 {treeRows
                   .filter((row) => row.depth === 0)
                   .map((row) => {
-                    const chip = (name: string, opts?: { included?: boolean; plus?: boolean }) => {
-                      const selected = labelFilter.labels.includes(name);
-                      /** 고르지 않았지만 상위의 '하위 포함'으로 함께 걸러지는 하위 */
+                    const chip = (key: string, opts?: { included?: boolean; other?: boolean }) => {
+                      const selected = isChipSelected(key);
+                      /** 고르지 않았지만 상위를 골라 함께 걸러지는 하위·기타 */
                       const included = !selected && !!opts?.included;
+                      const name = opts?.other ? '기타' : key;
+                      const parent = opts?.other ? otherParentOf(key) : '';
+                      const empty = !!opts?.other && !journals.some((j) => matchEntry(resolveLabelNames(j), { labels: [], others: [parent] }, journalParents));
                       return (
                         <button
-                          key={name}
-                          onClick={(e) => clickLabel(name, e)}
+                          key={key}
+                          onClick={(e) => clickLabel(key, e)}
                           // Shift+누르기가 글자를 긁어 고르지 않게
                           onMouseDown={(e) => e.shiftKey && e.preventDefault()}
                           aria-pressed={selected}
-                          title={opts?.plus ? `${name} (하위 라벨 포함)` : labelPath(name, journalParents)}
+                          data-filter-other={opts?.other ? parent : undefined}
+                          title={opts?.other ? `하위 라벨 없이 ${parent}만 붙은 기록` : labelPath(key, journalParents)}
                           className={`px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm whitespace-nowrap ${
+                            empty && !selected ? 'opacity-40' : ''
+                          } ${
                             selected
                               ? 'bg-blue-600 text-white'
                               : included
-                              ? 'bg-blue-50 text-blue-700 border border-dashed border-blue-400'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-300'
+                              : opts?.other
+                              ? 'bg-white text-slate-500 border border-dashed border-slate-400 hover:bg-slate-50'
                               : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                           }`}
                         >
                           {name}
-                          {opts?.plus && (
-                            <span aria-hidden className={`ml-1 px-1 rounded text-2xs ${selected ? 'bg-white/25' : 'bg-blue-100 text-blue-700'}`}>
-                              +하위
-                            </span>
-                          )}
                         </button>
                       );
                     };
                     if (!row.hasChildren) return chip(row.name);
                     const open = !!openParents[row.name];
-                    const withChildren = labelFilter.withChildren.includes(row.name);
+                    const parentOn = labelFilter.labels.includes(row.name);
                     const children = treeRows.filter((r) => r.parent === row.name);
                     const shown = open ? children : children.filter((c) => labelFilter.labels.includes(c.name));
+                    const other = otherKey(row.name);
                     return (
                       <span
                         key={row.name}
@@ -295,24 +293,9 @@ export default function DayJournal({
                         >
                           {open ? '▾' : '▸'}
                         </button>
-                        {/* +하위 표시는 접었을 때만 (펼치면 옆의 '하위 포함' 체크가 보인다) */}
-                        {chip(row.name, { plus: withChildren && !open })}
-                        {open && (
-                          <label
-                            className="inline-flex items-center gap-1 px-1.5 text-2xs font-bold text-slate-500 cursor-pointer select-none"
-                            title={`${row.name}을(를) 고르면 하위 라벨 기록까지 함께 보기`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={withChildren}
-                              onChange={() => setLabelFilter((prev) => toggleFilterChildren(prev, row.name))}
-                              aria-label={`${row.name} 하위 라벨 포함`}
-                              className="w-3 h-3 accent-blue-600 cursor-pointer"
-                            />
-                            하위 포함
-                          </label>
-                        )}
-                        {shown.map((c) => chip(c.name, { included: withChildren }))}
+                        {chip(row.name)}
+                        {shown.map((c) => chip(c.name, { included: parentOn }))}
+                        {(open || isChipSelected(other)) && chip(other, { included: parentOn, other: true })}
                       </span>
                     );
                   })}

@@ -2,13 +2,15 @@ import { describe, it, expect } from 'vitest';
 import {
   EMPTY_FILTER,
   expandLabel,
-  filterLabelSet,
+  matchEntry,
+  readLabelFilter,
+  otherKey,
+  isOtherKey,
   labelPath,
   orderByTree,
   parentCandidates,
   pruneFilter,
   sanitizeParents,
-  toggleFilterChildren,
   toggleFilterLabel,
   clickFilterLabel,
   readLabelTree,
@@ -37,49 +39,67 @@ describe('라벨 트리', () => {
     expect(expandLabel('A초', parents)).toEqual(['A초']);
   });
 
-  it('거르개: 아무것도 안 고르면 전체, 상위만 고르면 하위는 빠진다', () => {
-    expect(filterLabelSet(EMPTY_FILTER, parents)).toBeNull();
-    expect([...filterLabelSet({ labels: ['학교'], withChildren: [] }, parents)!]).toEqual(['학교']);
+  // 19번 U8 (2026-10-06 사용자가 바꿈): 상위를 고르면 하위도, 가상 칩 '기타' = 상위만 붙고 하위는 없는 항목
+  it('거르개: 아무것도 안 고르면 전체, 상위를 고르면 하위가 붙은 항목도', () => {
+    expect(matchEntry(['아무거나'], EMPTY_FILTER, parents)).toBe(true);
+    const school = { labels: ['학교'], others: [] };
+    expect(matchEntry(['학교'], school, parents)).toBe(true);
+    expect(matchEntry(['A초'], school, parents)).toBe(true);
+    expect(matchEntry(['업무'], school, parents)).toBe(false);
+    // 하위 하나만 고르면 그것만
+    expect(matchEntry(['B초'], { labels: ['A초'], others: [] }, parents)).toBe(false);
+    expect(matchEntry(['학교'], { labels: ['A초'], others: [] }, parents)).toBe(false);
   });
 
-  it("거르개: '하위 포함'을 켠 상위만 하위까지, 여러 개는 합친다", () => {
-    const set = filterLabelSet({ labels: ['학교', '업무'], withChildren: ['학교'] }, parents)!;
-    expect([...set].sort()).toEqual(['A초', 'B초', 'C초', '업무', '학교'].sort());
+  it("'기타' = 그 상위가 붙었지만 하위는 하나도 안 붙은 항목", () => {
+    const other = { labels: [], others: ['학교'] };
+    expect(matchEntry(['학교'], other, parents)).toBe(true);
+    expect(matchEntry(['학교', '업무'], other, parents)).toBe(true);
+    expect(matchEntry(['학교', 'A초'], other, parents)).toBe(false);
+    expect(matchEntry(['A초'], other, parents)).toBe(false);
+    // 여러 개는 하나라도
+    expect(matchEntry(['업무'], { labels: ['업무'], others: ['학교'] }, parents)).toBe(true);
   });
 
-  it('거르개 칩 누르기: 붙이고 떼기, 뗀 상위는 하위 포함도 꺼진다', () => {
+  it("옛 기억값({ labels, withChildren }·글자 하나)을 읽는다 - withChildren은 버린다", () => {
+    expect(readLabelFilter({ labels: ['학교'], withChildren: ['학교'] })).toEqual({ labels: ['학교'], others: [] });
+    expect(readLabelFilter('업무')).toEqual({ labels: ['업무'], others: [] });
+    expect(readLabelFilter(null)).toEqual(EMPTY_FILTER);
+    expect(readLabelFilter({ labels: ['a', 3], others: ['학교'] })).toEqual({ labels: ['a'], others: ['학교'] });
+  });
+
+  it('거르개 칩 누르기: 붙이고 떼기 (기타 칩도)', () => {
     const one = toggleFilterLabel(EMPTY_FILTER, '학교');
-    expect(one).toEqual({ labels: ['학교'], withChildren: [] });
-    const withKids = toggleFilterChildren(one, '학교');
-    expect(withKids).toEqual({ labels: ['학교'], withChildren: ['학교'] });
-    expect(toggleFilterLabel(withKids, '학교')).toEqual(EMPTY_FILTER);
-    expect(toggleFilterChildren(withKids, '학교')).toEqual({ labels: ['학교'], withChildren: [] });
+    expect(one).toEqual({ labels: ['학교'], others: [] });
+    const two = toggleFilterLabel(one, otherKey('학교'));
+    expect(two).toEqual({ labels: ['학교'], others: ['학교'] });
+    expect(toggleFilterLabel(two, '학교')).toEqual({ labels: [], others: ['학교'] });
+    expect(isOtherKey(otherKey('학교'))).toBe(true);
+    expect(isOtherKey('기타')).toBe(false); // 진짜 '기타' 라벨과 다르다
   });
 
-  it('탐색기처럼 고르기: 그냥 = 하나, Ctrl = 더하기·빼기, Shift = 범위, Ctrl+Shift = 범위 더하기', () => {
-    const order = ['업무', '학교', 'A초', 'B초', '개인'];
+  it('탐색기처럼 고르기: 그냥 = 하나, Ctrl = 더하기·빼기, Shift = 범위(기타 칩 포함), Ctrl+Shift = 범위 더하기', () => {
+    const order = ['업무', '학교', 'A초', 'B초', otherKey('학교'), '개인'];
     const plain = { ctrl: false, shift: false };
-    const f1 = clickFilterLabel({ labels: ['업무', '학교'], withChildren: ['학교'] }, 'A초', plain, order, null);
-    expect(f1).toEqual({ labels: ['A초'], withChildren: [] });
-    // 계속 골라져 있는 상위의 '하위 포함'은 남는다
-    expect(clickFilterLabel({ labels: ['학교'], withChildren: ['학교'] }, '학교', plain, order, null)).toEqual({ labels: ['학교'], withChildren: ['학교'] });
+    const f1 = clickFilterLabel({ labels: ['업무', '학교'], others: ['학교'] }, 'A초', plain, order, null);
+    expect(f1).toEqual({ labels: ['A초'], others: [] });
     const f2 = clickFilterLabel(f1, '업무', { ctrl: true, shift: false }, order, 'A초');
     expect(f2.labels).toEqual(['A초', '업무']);
     expect(clickFilterLabel(f2, '업무', { ctrl: true, shift: false }, order, '업무').labels).toEqual(['A초']);
     // 기준(업무)부터 B초까지, 거꾸로 눌러도 같다
     expect(clickFilterLabel(EMPTY_FILTER, 'B초', { ctrl: false, shift: true }, order, '업무').labels).toEqual(['업무', '학교', 'A초', 'B초']);
     expect(clickFilterLabel(EMPTY_FILTER, '업무', { ctrl: false, shift: true }, order, 'A초').labels).toEqual(['업무', '학교', 'A초']);
-    expect(clickFilterLabel({ labels: ['개인'], withChildren: [] }, 'B초', { ctrl: true, shift: true }, order, 'A초').labels).toEqual(['개인', 'A초', 'B초']);
+    expect(clickFilterLabel({ labels: ['개인'], others: [] }, 'B초', { ctrl: true, shift: true }, order, 'A초').labels).toEqual(['개인', 'A초', 'B초']);
+    // 범위에 기타 칩이 들면 others로
+    expect(clickFilterLabel(EMPTY_FILTER, '개인', { ctrl: false, shift: true }, order, 'B초')).toEqual({ labels: ['B초', '개인'], others: ['학교'] });
     // 기준이 없으면 Shift도 하나만
     expect(clickFilterLabel(EMPTY_FILTER, '학교', { ctrl: false, shift: true }, order, null).labels).toEqual(['학교']);
-  });
-
-  it("'하위 포함'을 켜면 상위도 함께 골라진다", () => {
-    expect(toggleFilterChildren(EMPTY_FILTER, '학교')).toEqual({ labels: ['학교'], withChildren: ['학교'] });
+    // 기타 칩 그냥 누르기
+    expect(clickFilterLabel(f2, otherKey('학교'), plain, order, null)).toEqual({ labels: [], others: ['학교'] });
   });
 
   it('지워진 라벨은 거르개에서 뺀다', () => {
-    expect(pruneFilter({ labels: ['학교', '없음'], withChildren: ['없음'] }, names)).toEqual({ labels: ['학교'], withChildren: [] });
+    expect(pruneFilter({ labels: ['학교', '없음'], others: ['없음', '학교'] }, names)).toEqual({ labels: ['학교'], others: ['학교'] });
   });
 
   it("하위 칩에 마우스를 올리면 '상위 › 하위'", () => {

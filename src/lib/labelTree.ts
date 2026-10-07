@@ -87,86 +87,117 @@ export function expandLabel(name: string, parents: ParentMap): string[] {
 }
 
 /**
- * 라벨 거르개 (여러 개 고르기). 2026-09-30 사용자가 정함:
+ * 라벨 거르개 (여러 개 고르기). 2026-10-06 사용자가 바꿈 (19번 U8 - 예전 9-30 규칙 '상위를 골라도 하위는 들어가지 않는다'를 버림):
  *   - 라벨은 여러 개 고를 수 있고, 고른 라벨 중 하나라도 붙은 항목이 보인다.
- *   - 상위를 골라도 하위는 들어가지 않는다. 상위 앞 '하위 포함' 체크를 켠 상위만 하위까지 넣는다.
+ *   - **상위를 고르면 하위도 함께** 걸린다. 하위 하나만 고르면 그것만.
+ *   - 하위가 있는 상위 밑에 가상 칩 **'기타'**: 그 상위가 붙었지만 그 하위는 하나도 안 붙은 항목 (others = 상위 이름).
+ *   - '하위 포함' 체크는 없앴다. 옛 기억값의 withChildren은 읽을 때 버린다(readLabelFilter).
  */
 export interface LabelFilter {
   labels: string[];
-  /** '하위 포함'을 켠 상위 (labels에 든 것만 뜻이 있다) */
-  withChildren: string[];
+  /** '기타' 칩을 고른 상위 이름 */
+  others: string[];
 }
 
-export const EMPTY_FILTER: LabelFilter = { labels: [], withChildren: [] };
+export const EMPTY_FILTER: LabelFilter = { labels: [], others: [] };
 
-/** 거르개가 보여 줄 라벨 이름. 아무것도 안 골랐으면 null (= 전체) */
-export function filterLabelSet(filter: LabelFilter, parents: ParentMap): Set<string> | null {
-  if (filter.labels.length === 0) return null;
-  const out = new Set<string>();
+/** '기타' 칩의 열쇠 (칩 차례·Shift 범위에서 라벨 이름과 함께 다룬다). 라벨 이름에 들 수 없는 글자로 시작한다 */
+const OTHER_MARK = '\u0000기타:';
+export const otherKey = (parent: string) => OTHER_MARK + parent;
+export const isOtherKey = (key: string) => key.startsWith(OTHER_MARK);
+export const otherParentOf = (key: string) => key.slice(OTHER_MARK.length);
+
+/** 기억해 둔 값(옛 모양 { labels, withChildren }·글자 하나 포함)을 지금 모양으로 */
+export function readLabelFilter(raw: unknown): LabelFilter {
+  if (typeof raw === 'string') return raw ? { labels: [raw], others: [] } : EMPTY_FILTER;
+  if (!raw || typeof raw !== 'object') return EMPTY_FILTER;
+  const r = raw as { labels?: unknown; others?: unknown };
+  const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x !== '') : []);
+  return { labels: strs(r.labels), others: strs(r.others) };
+}
+
+export const isEmptyFilter = (f: LabelFilter) => f.labels.length === 0 && f.others.length === 0;
+
+/** 하위 이름들 */
+const childrenOf = (parent: string, parents: ParentMap) => Object.keys(parents).filter((c) => parents[c] === parent);
+
+/**
+ * 이 항목(붙은 라벨 이름들)이 거르개에 걸리나. 아무것도 안 골랐으면 늘 참.
+ * 고른 라벨이 붙었거나(상위면 그 하위 하나라도), '기타'를 고른 상위가 붙고 그 하위는 하나도 없으면 참.
+ */
+export function matchEntry(itemLabels: string[], filter: LabelFilter, parents: ParentMap): boolean {
+  if (isEmptyFilter(filter)) return true;
+  const has = new Set(itemLabels);
   for (const name of filter.labels) {
-    if (filter.withChildren.includes(name)) expandLabel(name, parents).forEach((n) => out.add(n));
-    else out.add(name);
+    if (has.has(name)) return true;
+    if (childrenOf(name, parents).some((c) => has.has(c))) return true;
   }
-  return out;
+  for (const parent of filter.others) {
+    if (has.has(parent) && !childrenOf(parent, parents).some((c) => has.has(c))) return true;
+  }
+  return false;
 }
 
-/** 라벨 칩을 눌렀을 때. 고른 것을 다시 누르면 빠지고, 빠진 상위의 '하위 포함'도 끈다 */
-export function toggleFilterLabel(filter: LabelFilter, name: string): LabelFilter {
-  if (filter.labels.includes(name)) {
-    return {
-      labels: filter.labels.filter((l) => l !== name),
-      withChildren: filter.withChildren.filter((l) => l !== name),
-    };
-  }
-  return { labels: [...filter.labels, name], withChildren: filter.withChildren };
+const toKeys = (f: LabelFilter) => [...f.labels, ...f.others.map(otherKey)];
+const fromKeys = (keys: string[]): LabelFilter => ({
+  labels: keys.filter((k) => !isOtherKey(k)),
+  others: keys.filter(isOtherKey).map(otherParentOf),
+});
+
+/** 칩(라벨 이름 또는 otherKey)을 붙이고 뗀다 */
+export function toggleFilterLabel(filter: LabelFilter, key: string): LabelFilter {
+  const keys = toKeys(filter);
+  return fromKeys(keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key]);
 }
 
 /**
  * 라벨 칩을 윈도우 탐색기처럼 고른다 (2026-09-30 사용자가 정함).
- *   - 그냥 누르기: 그 라벨 하나만 (다른 것은 뗀다)
+ *   - 그냥 누르기: 그 칩 하나만 (다른 것은 뗀다)
  *   - Ctrl(맥은 ⌘) + 누르기: 붙이고 떼기 (여러 개)
- *   - Shift + 누르기: 기준(마지막으로 그냥·Ctrl로 누른 라벨)부터 여기까지 보이는 차례대로 (Ctrl+Shift는 더하기)
- * order는 화면에 보이는 라벨 차례. '하위 포함'은 계속 골라져 있는 상위에만 남긴다.
+ *   - Shift + 누르기: 기준(마지막으로 그냥·Ctrl로 누른 칩)부터 여기까지 보이는 차례대로 (Ctrl+Shift는 더하기)
+ * key·order·anchor는 라벨 이름 또는 '기타' 칩의 otherKey(상위).
  */
 export type FilterClick = { ctrl: boolean; shift: boolean };
 
 export function clickFilterLabel(
   filter: LabelFilter,
-  name: string,
+  key: string,
   click: FilterClick,
   order: string[],
   anchor: string | null
 ): LabelFilter {
-  const keepWith = (labels: string[]) => ({
-    labels,
-    withChildren: filter.withChildren.filter((l) => labels.includes(l)),
-  });
-  if (click.shift && anchor && order.includes(anchor) && order.includes(name)) {
-    const [a, b] = [order.indexOf(anchor), order.indexOf(name)].sort((x, y) => x - y);
+  const keys = toKeys(filter);
+  if (click.shift && anchor && order.includes(anchor) && order.includes(key)) {
+    const [a, b] = [order.indexOf(anchor), order.indexOf(key)].sort((x, y) => x - y);
     const range = order.slice(a, b + 1);
-    const labels = click.ctrl ? [...filter.labels, ...range.filter((l) => !filter.labels.includes(l))] : range;
-    return keepWith(labels);
+    return fromKeys(click.ctrl ? [...keys, ...range.filter((k) => !keys.includes(k))] : range);
   }
-  if (click.ctrl) return toggleFilterLabel(filter, name);
-  return keepWith([name]);
+  if (click.ctrl) return toggleFilterLabel(filter, key);
+  return fromKeys([key]);
 }
 
-/** '하위 포함' 체크. 켜면 그 상위도 함께 고른다. 끄면 상위만 남는다 */
-export function toggleFilterChildren(filter: LabelFilter, parent: string): LabelFilter {
-  if (filter.withChildren.includes(parent)) {
-    return { labels: filter.labels, withChildren: filter.withChildren.filter((l) => l !== parent) };
+/**
+ * 화면에 보이는 거르개 칩 차례 (Shift 범위에 쓴다): 상위 → 그 하위들 → 그 상위의 '기타'.
+ * 접힌 상위의 하위·기타는 빼되, 골라 둔 것은 보인다.
+ */
+export function filterChipOrder(rows: TreeRow[], isOpen: (parent: string) => boolean, isSelected: (key: string) => boolean): string[] {
+  const out: string[] = [];
+  for (const r of rows) {
+    if (r.depth === 1) continue;
+    out.push(r.name);
+    if (!r.hasChildren) continue;
+    const open = isOpen(r.name);
+    for (const c of rows) if (c.parent === r.name && (open || isSelected(c.name))) out.push(c.name);
+    const other = otherKey(r.name);
+    if (open || isSelected(other)) out.push(other);
   }
-  return {
-    labels: filter.labels.includes(parent) ? filter.labels : [...filter.labels, parent],
-    withChildren: [...filter.withChildren, parent],
-  };
+  return out;
 }
 
-/** 지금 있는 라벨만 남긴다 (지워진 라벨을 기억한 채로 두지 않는다) */
+/** 지금 있는 라벨만 남긴다 (지워진 라벨을 기억한 채로 두지 않는다). 트리는 늦게 올 수 있어 '기타'도 이름만 본다 */
 export function pruneFilter(filter: LabelFilter, names: string[]): LabelFilter {
   const known = new Set(names);
-  const labels = filter.labels.filter((l) => known.has(l));
-  return { labels, withChildren: filter.withChildren.filter((l) => labels.includes(l)) };
+  return { labels: filter.labels.filter((l) => known.has(l)), others: filter.others.filter((p) => known.has(p)) };
 }
 
 /** 칩에 마우스를 올렸을 때 보일 이름. 하위면 '상위 › 하위' */

@@ -103,11 +103,12 @@ interface AppState {
   semesterFilter: 'all' | 1 | 2;
   /**
    * 메모 화면에서 마지막에 고른 거르개. 없으면 즐겨찾기로 연다.
-   * '전체'·'⭐ 즐겨찾기'는 글자로, 라벨(여러 개)은 { labels, withChildren }로 둔다.
+   * '전체'·'⭐ 즐겨찾기'는 글자로, 라벨(여러 개)은 { labels, others }로 둔다(lib/labelTree.LabelFilter, 19번 U8).
+   * 옛 기억값 { labels, withChildren }도 읽는다(readLabelFilter가 withChildren을 버린다).
    * 예전에는 라벨 하나를 글자로 두었다 - 읽는 쪽(MemoScreen)이 둘 다 읽는다.
    */
-  memoFilter: string | { labels: string[]; withChildren: string[] } | null;
-  setMemoFilter: (filter: string | { labels: string[]; withChildren: string[] } | null) => void;
+  memoFilter: string | { labels: string[]; others?: string[]; withChildren?: string[] } | null;
+  setMemoFilter: (filter: string | { labels: string[]; others?: string[]; withChildren?: string[] } | null) => void;
   showWeekend: boolean;
   showClass: boolean;
   showEvents: boolean;

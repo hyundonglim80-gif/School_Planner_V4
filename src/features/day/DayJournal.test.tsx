@@ -424,8 +424,8 @@ describe('기록 거르개 - 라벨 상위/하위', () => {
     journalParents = {};
   });
 
-  // 2026-09-30: 라벨은 여러 개 고르고, 상위만 고르면 하위는 빠진다. 상위 앞 '하위 포함' 체크로 하위까지.
-  it('하위 칩은 ▾로 펼치고, 상위만 고르면 하위 기록은 빠지며, 하위 포함 체크로 들어간다', async () => {
+  // 19번 U8 (2026-10-06): 상위를 고르면 하위 기록도, 하위 끝 '기타' = 하위 없이 상위만, 하위는 처음에 접혀 있다.
+  it("하위 칩은 ▾로 펼치고, 상위를 고르면 하위 기록도 보이며, '기타'는 상위만 붙은 기록", async () => {
     const user = userEvent.setup();
     renderJournal([
       { id: 'jr_a', content: '학급 기록', createdAt: 1, label: '학급활동', labelIds: ['j_1'] },
@@ -440,13 +440,16 @@ describe('기록 거르개 - 라벨 상위/하위', () => {
 
     await user.click(screen.getByRole('button', { name: '학급활동' }));
     expect(screen.getByText('학급 기록')).toBeInTheDocument();
-    expect(screen.queryByText('상담 기록')).toBeNull();
-    expect(screen.queryByText('업무 기록')).toBeNull();
-
-    await user.click(screen.getByRole('checkbox', { name: '학급활동 하위 라벨 포함' }));
-    expect(screen.getByText('학급 기록')).toBeInTheDocument();
     expect(screen.getByText('상담 기록')).toBeInTheDocument();
     expect(screen.queryByText('업무 기록')).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: /하위 라벨 포함/ })).toBeNull();
+
+    // 기타: 하위(학생상담) 없이 학급활동만
+    await user.click(document.querySelector('[data-filter-other="학급활동"]') as HTMLElement);
+    expect(screen.getByText('학급 기록')).toBeInTheDocument();
+    expect(screen.queryByText('상담 기록')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: '학급활동' }));
 
     // 여러 개: Ctrl+누르기로 업무전달도 더한다
     await user.keyboard('{Control>}');
@@ -470,8 +473,8 @@ describe('기록 거르개 - 라벨 상위/하위', () => {
 
     // 전체를 누르면 모두 뗀다
     await user.click(screen.getByRole('button', { name: '전체' }));
-    expect(screen.getByRole('checkbox', { name: '학급활동 하위 라벨 포함' })).not.toBeChecked();
     expect(screen.getByRole('button', { name: '학급활동' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: '전체' })).toHaveAttribute('aria-pressed', 'true');
   });
 });
 
