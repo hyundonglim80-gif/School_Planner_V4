@@ -62,8 +62,23 @@ describe('gcalPlan', () => {
     expect(plan.post.map((p) => p.extendedProperties.private.sp_id)).toEqual(['e2']);
     expect(plan.put).toEqual([]);
     expect(plan.del.sort()).toEqual(['g1dup', 'g9']);
-    // 그날 V4에 아직 있으면(라벨만 바뀜) 지우지 않는다
+    // 판단할 수 없을 때(라벨 설정을 못 받음) 남길 id를 주면 그 일정은 지우지 않는다
     expect(planDateSync(existing, [p1, p2], new Set(['e1', 'e2', 'e9'])).del).toEqual(['g1dup']);
+  });
+
+  it("'구글 캘린더'를 끈 일정(그날 V4에 있음)은 구글에서 지운다 (2026-10-07)", () => {
+    const list = [
+      { id: 'e1', content: '하나', label: '공문' },
+      { id: 'e2', content: '둘', label: '공문', gcal: false }, // 일정 칸에서 끔
+    ];
+    const payloads = autoPayloads('2026-10-27', list, labels, on);
+    expect(payloads.map((p) => p.extendedProperties.private.sp_id)).toEqual(['e1']);
+    const existing = [ev('g1', 'e1', { sp_auto: 'true' }, payloads[0].summary), ev('g2', 'e2', { sp_auto: 'true' })];
+    const plan = planDateSync(existing, payloads);
+    expect(plan.del).toEqual(['g2']);
+    expect(plan.post).toEqual([]);
+    // 라벨에서 끈 것도 같다 (켠 라벨이 없으면 보낼 것이 없어 둘 다 지운다)
+    expect(planDateSync(existing, autoPayloads('2026-10-27', list, labels, new Set())).del.sort()).toEqual(['g1', 'g2']);
   });
 
   it('완료로 글이 바뀌거나 자동 표시가 없던 짝은 PUT', () => {

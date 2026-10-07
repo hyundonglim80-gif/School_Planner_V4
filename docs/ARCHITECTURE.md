@@ -248,7 +248,9 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   링크·알림·라벨 이름 바꾸기만 tx.set 그대로(구글 글이 바뀌지 않는다). gcalNote는 가볍게 둔다(useAppStore도 부른다 - 구글 모듈을 들이면 고리).
   `lib/gcalAuto`: 켠 라벨이 있을 때만 알린 날짜를 1.2초 모아 `users/{uid}/v4_gcalQueue/{날짜} {date, at, fails}`에 쓰고 `flushGcalQueue` - 조용한 토큰으로
   그날 일정을 **서버에서 다시 읽어** 구글의 그날 것(`privateExtendedProperty` app·dateStr)과 맞춘다(`lib/gcalPlan.planDateSync`: 짝 = isSameItem, 고칠 것만 PUT,
-  같은 sp_id 중복은 지움, `sp_auto=true`인데 그날 V4에 없는 것만 DELETE - 라벨을 바꾸거나 끈 것은 남긴다). 무엇을 바꿨는지 들고 다니지 않아 이월(옛 날짜에서 빠지고 새 id로)·
+  같은 sp_id 중복은 지움, `sp_auto=true`인데 보낼 것에 없는 것은 DELETE - 지운 것·옮긴 것·'구글 캘린더'를 끈 것. 2026-10-07 사용자 요청으로 끈 것도 지운다 -
+  예전에는 남겼다. 라벨 설정·일정 라벨을 아직 못 받았으면(`canJudge` 거짓) 그날 V4에 있는 일정은 `keepIds`로 남긴다. 라벨 관리에서 라벨을 끄면
+  `saveGcalLabels`가 `queueSentDates` - 구글의 `sp_auto=true` 일정이 있는 날을 모두 큐에 넣고 `flushGcalQueue(false, force)`(켠 라벨이 하나도 없어도 보낸다)). 무엇을 바꿨는지 들고 다니지 않아 이월(옛 날짜에서 빠지고 새 id로)·
   기간·다중 선택·끌어 옮기기가 따로 처리 없이 맞는다. 보낸 날은 at이 그대로일 때만 큐에서 지운다(그새 또 쌓였으면 남김), 실패는 fails+1(3번째에 안내), 401·403은
   토큰을 잊고 멈춘다. 부르는 때: 큐에 넣은 직후, 앱을 열 때(설정을 처음 받은 뒤), 탭으로 돌아올 때. 토큰이 없으면 머리줄 `data-gcal-pending`(Layout `useGcalAuto`) -
   누르면 토큰부터 받고(누른 직후라 창이 열린다) 보낸다. 일정 칸 `data-event-gcal`(`useGcalEnabled`). 개인 공간만(1차). 수동 보내기(calendarSync)와 같은 캘린더·글·sp_id.

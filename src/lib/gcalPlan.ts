@@ -2,7 +2,7 @@
 //
 // 구글 캘린더 자동 보내기(19번 U11)의 순수한 부분 - 무엇을 넣고 고치고 지울지 정한다. Firestore·fetch 없음.
 // 보낸 것은 수동 '구글 캘린더로 보내기'(lib/calendarSync)와 같은 캘린더 SP(work)·같은 글 모양·같은 sp_id라 서로 겹치지 않는다.
-// 자동으로 보낸 것에는 sp_auto=true를 단다 - 그날 V4에 없는(지웠거나 옮겼거나 라벨을 바꾼) 일정 가운데 이 표시가 있는 것만 지운다.
+// 자동으로 보낸 것에는 sp_auto=true를 단다 - 그날 보낼 것에 없는(지웠거나 옮겼거나 '구글 캘린더'를 끈) 일정 가운데 이 표시가 있는 것만 지운다.
 // 수동으로만 보낸 것(표시 없음)은 지우지 않는다.
 import { buildPayloads, isSameItem, needsUpdate, type GoogleEventPayload, type LabelDef } from './calendarSync';
 
@@ -55,9 +55,10 @@ export interface DatePlan {
  * 구글에 이미 있는 그날 일정(existing, 우리 표시 app이 붙은 것) ↔ 보낼 것 맞추기.
  *  - 짝이 있으면 고칠 것이 있을 때만 PUT (자동 표시가 없던 것도 PUT - 이제부터 자동이 맡는다)
  *  - 같은 sp_id가 둘 이상이면(두 기기가 동시에 넣었다) 남는 것은 지운다
- *  - 짝이 없는 자동 일정은 지운다 - 그날 V4에서 빠졌을 때만(dayIds: 그날 V4에 있는 모든 일정 id)
+ *  - 짝이 없는 자동 일정은 지운다 - 지웠거나 옮겼거나 '구글 캘린더'를 끈 것(2026-10-07 사용자 요청 - 끄고 저장하면 구글에서도 지운다).
+ *    keepIds: 보낼지 판단할 수 없을 때(라벨 설정을 아직 못 받음) 남겨 둘 일정 id - 그날 V4에 있는 일정을 넘기면 V4에서 빠진 것만 지운다.
  */
-export function planDateSync(existing: any[], payloads: GoogleEventPayload[], dayIds: Set<string> = new Set()): DatePlan {
+export function planDateSync(existing: any[], payloads: GoogleEventPayload[], keepIds: Set<string> = new Set()): DatePlan {
   const plan: DatePlan = { post: [], put: [], del: [] };
   const matched = new Set<string>();
   const events = existing.filter((ev) => ev?.extendedProperties?.private?.type === 'event');
@@ -77,10 +78,10 @@ export function planDateSync(existing: any[], payloads: GoogleEventPayload[], da
       }
     }
   }
-  // 그날 V4에 아직 있는 일정(라벨을 바꿨거나 '구글 캘린더'를 끈 것)은 지우지 않는다 - 지운 것·다른 날로 옮긴 것만
+  // 짝이 없는 자동 일정: 지운 것·다른 날로 옮긴 것·'구글 캘린더'를 끈 것 (keepIds에 든 것은 남긴다)
   for (const ev of events) {
     const priv = ev.extendedProperties?.private;
-    if (!matched.has(ev.id) && priv?.sp_auto === 'true' && !dayIds.has(String(priv.sp_id || ''))) plan.del.push(ev.id);
+    if (!matched.has(ev.id) && priv?.sp_auto === 'true' && !keepIds.has(String(priv.sp_id || ''))) plan.del.push(ev.id);
   }
   return plan;
 }

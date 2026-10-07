@@ -40,6 +40,7 @@ const state = {
   timer: null as ReturnType<typeof setTimeout> | null,
   flushing: false,
   rerun: false,
+  rerunForce: false,
   calId: '' as string,
 };
 const listeners = new Set<() => void>();
@@ -52,12 +53,51 @@ const settingsRef = (uid: string) => doc(db, 'users', uid, 'settings', 'v4_gcal'
 export async function saveGcalLabels(ids: string[]): Promise<void> {
   const uid = auth.currentUser?.uid;
   if (!uid) return;
+  const turnedOff = [...state.enabled].some((id) => !ids.includes(id));
   // merge로 쓰면 끈 라벨이 지도에 남는다 - 문서를 통째로 쓴다(이 문서에는 이것뿐)
   await setDoc(settingsRef(uid), {
     labels: Object.fromEntries(ids.map((id) => [id, true])),
     ...(state.used ? { used: true } : {}),
     updatedAt: Date.now(),
   });
+  // 라벨에서 끄면 그 라벨로 보낸 일정도 구글에서 지운다(2026-10-07) - 어느 날인지 모르므로 구글에 자동으로 보낸 날을 모두 큐에 넣고 맞춘다
+  if (turnedOff) {
+    state.enabled = new Set(ids);
+    void queueSentDates();
+  }
+}
+
+/**
+ * 구글에 자동으로 보낸(sp_auto) 일정이 있는 날을 모두 큐에 넣고 보낸다. 조용한 토큰이 없으면 하지 않는다
+ * (그 날 일정을 다음에 저장할 때 맞춰진다). 라벨을 모두 꺼도 보내도록 force.
+ */
+async function queueSentDates(): Promise<void> {
+  const uid = state.uid;
+  if (!uid) return;
+  try {
+    const token = await getGoogleTokenQuietly();
+    if (!token) return;
+    if (!state.calId) state.calId = await getOrCreateCalendarByName(token, CALENDAR);
+    const dates = new Set<string>();
+    let pageToken = '';
+    do {
+      const params = new URLSearchParams({ singleEvents: 'true', maxResults: '250' });
+      params.append('privateExtendedProperty', `app=${APP_TAG}`);
+      params.append('privateExtendedProperty', 'sp_auto=true');
+      if (pageToken) params.append('pageToken', pageToken);
+      const res = await googleFetch<any>(`${API}/calendars/${encodeURIComponent(state.calId)}/events?${params}`, 'GET', token);
+      for (const ev of res?.items || []) {
+        const d = ev?.extendedProperties?.private?.dateStr;
+        if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) dates.add(d);
+      }
+      pageToken = res?.nextPageToken || '';
+    } while (pageToken);
+    if (dates.size === 0) return;
+    await Promise.all([...dates].map((date) => setDoc(doc(queueCol(uid), date), { date, at: Date.now() }, { merge: true })));
+    void flushGcalQueue(false, true);
+  } catch (e) {
+    console.warn('라벨을 끈 일정을 구글 캘린더에서 지우지 못했습니다:', e);
+  }
 }
 
 /** 일정 칸에서 '구글 캘린더'를 켰다 - 처음 한 번 계정에 적는다(다른 기기에서도 날짜를 큐에 넣게) */
@@ -131,8 +171,11 @@ async function syncDate(token: string, calId: string, uid: string, date: string)
   const list = snap.exists() ? readEventList(snap.data()) : [];
   const payloads = autoPayloads(date, list, state.eventLabels, state.enabled);
   const existing = await listDay(token, calId, date);
-  const dayIds = new Set(list.map((e: any) => String(e?.id || '')).filter(Boolean));
-  const plan = planDateSync(existing, payloads, dayIds);
+  // '구글 캘린더'를 끈 일정도 구글에서 지운다(2026-10-07 사용자 요청). 다만 라벨 설정·일정 라벨 목록을 아직 못 받았으면
+  // 라벨로 켠 일정을 '끈 것'으로 잘못 알 수 있다 - 그때는 그날 V4에 있는 일정을 남기고 V4에서 빠진 것만 지운다.
+  const canJudge = state.settingsLoaded && (state.enabled.size === 0 || state.eventLabels.length > 0);
+  const keepIds = canJudge ? new Set<string>() : new Set(list.map((e: any) => String(e?.id || '')).filter(Boolean));
+  const plan = planDateSync(existing, payloads, keepIds);
   const base = `${API}/calendars/${encodeURIComponent(calId)}/events`;
   for (const p of plan.post) await googleFetch(base, 'POST', token, p);
   for (const { id, payload } of plan.put) await googleFetch(`${base}/${id}`, 'PUT', token, payload);
@@ -152,11 +195,12 @@ export type FlushResult = 'done' | 'no-token' | 'busy' | 'empty' | 'off';
  * 큐의 날짜를 보낸다. interactive면 토큰이 없을 때 로그인 창을 연다(단추를 누른 때만).
  * 보낸 날은 큐에서 지운다 - 그새 다시 쌓였으면(at이 바뀜) 남긴다. 실패는 큐에 남기고 다음에 다시.
  */
-export async function flushGcalQueue(interactive: boolean): Promise<FlushResult> {
+export async function flushGcalQueue(interactive: boolean, force = false): Promise<FlushResult> {
   const uid = state.uid;
   if (!uid) return 'empty';
   if (state.flushing) {
     state.rerun = true;
+    if (force) state.rerunForce = true;
     return 'busy';
   }
   state.flushing = true;
@@ -167,7 +211,8 @@ export async function flushGcalQueue(interactive: boolean): Promise<FlushResult>
     const queued = await getDocsFromServer(queueCol(uid));
     if (queued.empty) return 'empty';
     // 라벨을 모두 껐고 일정에서 켠 적도 없으면 보내지 않는다(쌓인 것은 다시 켜면 보낸다)
-    if (!active()) return 'off';
+    // force: 라벨을 끈 뒤 지우기 (queueSentDates)
+    if (!active() && !force) return 'off';
     if (!token) token = await getGoogleTokenQuietly();
     if (!token) return 'no-token';
     if (!state.calId) state.calId = await getOrCreateCalendarByName(token, CALENDAR);
@@ -204,8 +249,10 @@ export async function flushGcalQueue(interactive: boolean): Promise<FlushResult>
     state.flushing = false;
     notify();
     if (state.rerun) {
+      const force = state.rerunForce;
       state.rerun = false;
-      void flushGcalQueue(false);
+      state.rerunForce = false;
+      void flushGcalQueue(false, force);
     }
   }
 }

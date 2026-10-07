@@ -6,6 +6,7 @@
 //   - '달력' 라벨에 켜 둔 채 새 일정 저장 → 큐 → SP(work)에 sp_id·sp_auto로 들어간다, 큐가 빈다, 켜지 않은 라벨 일정은 안 간다
 //   - 완료 → 구글 글 앞 ✅ (PUT)
 //   - 토큰이 없을 때 지우기 → 머리줄 '📅 못 보낸 날 1' → (로그인한 셈 치고) 누르면 DELETE, 단추가 사라진다
+//   - 일정 칸에서 '구글 캘린더'를 끄고 저장 → 구글에서 지운다, 라벨 관리에서 라벨을 끄면 그 라벨 일정도 지운다 (2026-10-07)
 // 점검이 바꾼 일정·설정·큐·휴지통은 끝에 되돌린다.
 //
 //   npm run emu / node tools/serve-both.mjs / npm run seed / VITE_USE_EMULATOR=1 npm run build
@@ -186,6 +187,13 @@ try {
   const one = await until(() => mine().find((ev) => ev.summary.includes('안 보낼 일')));
   const evNow = (await read(dayRef))?.eventList?.find((e) => e.id === 'ev_u11_other');
   check("라벨이 꺼진 일정도 칸에서 '구글 캘린더'를 켜면 보낸다 (일정에 gcal:true)", wasOff && !!one && evNow?.gcal === true, JSON.stringify({ wasOff, gcal: evNow?.gcal }));
+  // ── 일정 칸에서 '구글 캘린더'를 끄고 저장 → 구글에서 지운다 (2026-10-07 사용자 요청) ──
+  await drawer2.locator('[data-event-attr="gcal"]').uncheck();
+  await drawer2.getByRole('button', { name: '저장', exact: true }).click();
+  const offGone = await until(() => !mine().some((ev) => ev.summary.includes('안 보낼 일')));
+  const evOff = (await read(dayRef))?.eventList?.find((e) => e.id === 'ev_u11_other');
+  check("일정 칸에서 '구글 캘린더'를 끄고 저장 → 구글 캘린더에서 지운다 (일정 값은 꺼짐 - 라벨도 꺼져 있어 null)", !!offGone && evOff?.gcal !== true && calls.some((c) => c.startsWith('DELETE')), JSON.stringify({ gcal: evOff?.gcal }));
+  check('  같은 날 켜 둔 일정(공문)은 그대로', mine().some((ev) => ev.summary.includes('공문')));
   await drawer2.getByTitle('닫기').first().click().catch(() => {});
   await page.waitForTimeout(500);
 
@@ -205,6 +213,27 @@ try {
   await pending.click();
   const gone = await until(() => !mine().some((ev) => ev.summary.includes('공문')));
   check('단추를 누르면 DELETE, 단추가 사라진다', !!gone && (await until(async () => (await pending.count()) === 0)));
+
+  // ── 라벨 관리에서 '달력'의 '구글 캘린더'를 끄면 그 라벨로 보낸 일정도 지운다 (2026-10-07) ──
+  await page.getByRole('button', { name: '일정 추가' }).click();
+  await page.getByPlaceholder('새로운 일정을 입력하세요...').fill(`${MARK} 라벨끔`);
+  const drawer3 = page.locator('aside', { has: page.getByPlaceholder('새로운 일정을 입력하세요...') }).first();
+  const box3 = drawer3.locator('[data-event-attr="gcal"]');
+  await box3.waitFor({ timeout: 5000 });
+  if (!(await box3.isChecked())) await drawer3.getByRole('button', { name: '달력', exact: true }).first().click();
+  await drawer3.getByRole('button', { name: '저장', exact: true }).click();
+  const sent3 = await until(() => mine().some((ev) => ev.summary.includes('라벨끔')));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  await page.getByTitle('더보기 메뉴').click();
+  await page.getByRole('button', { name: /라벨 관리/ }).click();
+  const dlg2 = page.locator('[role=dialog]', { hasText: '라벨 관리' }).last();
+  await dlg2.locator('[data-gcal-label="달력"]').waitFor({ timeout: 10000 });
+  await page.waitForTimeout(800);
+  await dlg2.locator('[data-gcal-label="달력"]').uncheck();
+  await dlg2.getByRole('button', { name: /^💾\s*저장$/ }).click();
+  const gone3 = await until(() => !mine().some((ev) => ev.summary.includes('라벨끔')), 15000);
+  check("라벨 관리에서 '달력'의 '구글 캘린더'를 끄면 그 라벨로 보낸 일정도 지운다", !!sent3 && !!gone3);
   check('페이지 오류 없음', errors.length === 0, errors.join(' / '));
 } catch (e) {
   check('점검이 끝까지 돌았다', false, e.message.split('\n')[0]);
