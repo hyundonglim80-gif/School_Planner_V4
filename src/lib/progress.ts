@@ -3,12 +3,12 @@
 // 진도 관리 (docs/ROADMAP.md 5번, 2026-10-01 사용자와 정함).
 //
 // - 단위는 '시간표 칸 글자'다. 과목 칸이 '국어'면 국어 하나, '3-2 국어'·'3-3 국어'면 반마다 따로(앞뒤 공백만 정리해 견준다).
-// - 차시 목록(단원·차시·내용·준비물)은 엑셀·한셀에서 표를 복사해 붙여 넣는다. 한 줄이 한 교시다.
+// - 차시 목록(단원·차시·내용·교과서·준비물)은 엑셀·한셀에서 표를 복사해 붙여 넣는다. 한 줄이 한 교시다.
 // - 시작일부터 그 글자가 적힌 교시를 날짜·교시 차례로 세어 k번째 교시 = k번째 차시. 수업 문서(schedules)에
 //   실제로 적힌 과목을 읽기만 한다(시간표 적용·손으로 고친 것 모두 반영). 수업이 없는 날(lib/classDays)은 건너뛴다.
 // - 수업이 빠진 교시는 '밀기'(Planbook의 Bump): 그 교시는 차시를 받지 않고 뒤가 한 칸씩 밀린다. 되돌리면 다시 당겨진다.
 //
-// 저장: users/{uid}/v4_progress/{id} = { key, startDate, lessons: [{unit, no, content, supplies}], bumps: ['YYYY-MM-DD#교시'], updatedAt }
+// 저장: users/{uid}/v4_progress/{id} = { key, startDate, lessons: [{unit, no, content, page, supplies}], bumps: ['YYYY-MM-DD#교시'], updatedAt }
 // 과정(교과 모드, docs/ROADMAP-SUBJECT.md S4): { …, subject: '과학', classes: ['5-1','5-2'] } - 차시 목록 하나를 여러 반이
 // 반마다 따로 센다. 반 열쇠는 '5-1 과학'(planKeys)이고 칸 글자는 정규화해 견준다(lib/teachingSlot). key에는 첫 열쇠를 채워 둔다.
 // bumps는 과정 하나에 한 배열 - 같은 날·교시에 두 반을 가르칠 수 없으니 '날짜#교시'가 반마다 저절로 다르다.
@@ -40,6 +40,8 @@ export interface ProgressLesson {
   /** 표에 적힌 차시 글자 그대로 ('5', '5~6' …). 없으면 '' */
   no: string;
   content: string;
+  /** 교과서 쪽 ('12~15' 같은 글자 그대로, 19번 U2). 옛 문서에는 없다 - 빈 글자로 읽는다 */
+  page: string;
   supplies: string;
 }
 
@@ -149,6 +151,7 @@ function headerField(cell: string): Field | null {
   if (/^(단원|단원명|대단원|중단원|소단원|영역)$/.test(t)) return 'unit';
   if (/^(차시|순서|번호)$/.test(t)) return 'no';
   if (/^(준비물|준비|자료|학습자료|수업자료|교구)$/.test(t)) return 'supplies';
+  if (/^(교과서|교과서\(쪽\)|교과서쪽|교과서쪽수|쪽|쪽수|페이지)$/.test(t)) return 'page';
   if (/^(내용|학습내용|수업내용|주제|학습주제|차시주제|차시명|제재|활동|학습활동|주요활동|학습목표|목표)$/.test(t)) return 'content';
   return null;
 }
@@ -176,17 +179,24 @@ const looksLikeNo = (cell: string) => /^\d{1,3}(\s*[~\-–,]\s*\d{1,3})?\s*(차�
 /**
  * 머리줄이 없을 때 칸 차례로 정한다. 차시처럼 보이는(숫자) 칸이 있으면 그 칸을 기준으로.
  * 단원 번호도 숫자일 수 있다 - 합친 칸이라 듬성듬성하니, 숫자 칸 가운데 가장 많이 채워진 칸을 차시로 본다.
+ * 숫자로 된 단원 칸이 다 채워졌거나 교과서 쪽 칸이 있으면 뒤에 내용(글자) 칸이 오는 왼쪽 칸이 차시다.
  */
 function positionalFields(rows: string[][]): Array<Field | null> {
   const width = Math.max(...rows.map((r) => r.length));
+  const filled = (c: number) => rows.map((r) => r[c] || '').filter(Boolean);
+  const isNumeric = (c: number) => {
+    const cells = filled(c);
+    return cells.length > 0 && cells.filter(looksLikeNo).length / cells.length >= 0.6;
+  };
+  // 같은 만큼 채워졌으면 바로 뒤에 글자 칸(내용)이 오는 쪽, 그래도 같으면 왼쪽 - 교과서 쪽 '12~13'도 숫자처럼 보인다(19번 U2)
   let noCol: number | undefined;
   let best = 0;
   for (let c = 0; c < width; c++) {
-    const cells = rows.map((r) => r[c] || '').filter(Boolean);
-    const numeric = cells.length > 0 && cells.filter(looksLikeNo).length / cells.length >= 0.6;
-    if (numeric && cells.length >= best) {
+    if (!isNumeric(c)) continue;
+    const score = filled(c).length * 2 + (c + 1 < width && filled(c + 1).length > 0 && !isNumeric(c + 1) ? 1 : 0);
+    if (score > best) {
       noCol = c;
-      best = cells.length;
+      best = score;
     }
   }
 
@@ -194,8 +204,11 @@ function positionalFields(rows: string[][]): Array<Field | null> {
   if (noCol !== undefined) {
     if (noCol >= 1) fields[noCol - 1] = 'unit';
     fields[noCol] = 'no';
-    if (noCol + 1 < width) fields[noCol + 1] = 'content';
-    if (noCol + 2 < width) fields[noCol + 2] = 'supplies';
+    // 차시 뒤 칸이 셋 이상이면 새 차례(내용·교과서·준비물), 둘이면 옛 4칸 표(내용·준비물) - 19번 U2
+    const after: Field[] = width - noCol - 1 >= 3 ? ['content', 'page', 'supplies'] : ['content', 'supplies'];
+    after.forEach((f, i) => {
+      if (noCol! + 1 + i < width) fields[noCol! + 1 + i] = f;
+    });
     return fields;
   }
   const order: Field[][] = [
@@ -203,15 +216,17 @@ function positionalFields(rows: string[][]): Array<Field | null> {
     ['content'],
     ['unit', 'content'],
     ['unit', 'content', 'supplies'],
+    ['unit', 'no', 'content', 'supplies'],
   ];
-  const pick = order[width] || ['unit', 'no', 'content', 'supplies'];
+  const pick = order[width] || ['unit', 'no', 'content', 'page', 'supplies'];
   pick.forEach((f, i) => (fields[i] = f));
   return fields;
 }
 
 /**
  * 엑셀·한셀에서 복사한 차시 표를 읽는다.
- * - 머리줄(단원·차시·내용·준비물 …)이 있으면 건너뛰고, 그 이름으로 칸을 맞춘다. 없으면 '단원 | 차시 | 내용 | 준비물' 차례.
+ * - 머리줄(단원·차시·내용·교과서·준비물 …)이 있으면 건너뛰고, 그 이름으로 칸을 맞춘다. 없으면 '단원 | 차시 | 내용 | 교과서 | 준비물' 차례
+ *   (칸이 넷이면 옛 표 '단원 | 차시 | 내용 | 준비물' - 교과서 칸을 더하기 전의 표도 그대로 읽는다).
  * - 빈 줄은 뺀다. 단원 칸만 있는 줄은 단원 제목으로 보고 아래 차시들에 붙인다.
  * - 단원 칸이 비면 위 줄의 단원을 잇는다(엑셀에서 합친 칸은 첫 줄에만 글자가 온다).
  */
@@ -219,7 +234,7 @@ export function parseLessonTable(text: string): ProgressLesson[] {
   return parseLessonRows(parseClipboardGrid(text));
 }
 
-/** CSV 파일의 차시 표 (예시 CSV를 엑셀에서 고쳐 저장한 것 - '단원,차시,내용,준비물'). 읽는 규칙은 붙여넣기와 같다 */
+/** CSV 파일의 차시 표 (예시 CSV를 엑셀에서 고쳐 저장한 것 - '단원,차시,내용,교과서,준비물'). 읽는 규칙은 붙여넣기와 같다 */
 export function parseLessonCsv(text: string): ProgressLesson[] {
   return parseLessonRows(parseCsv(text).map((r) => r.map((c) => c.trim())));
 }
@@ -237,12 +252,12 @@ function parseLessonRows(grid: string[][]): ProgressLesson[] {
   const out: ProgressLesson[] = [];
   let unit = '';
   for (const row of body) {
-    const lesson: ProgressLesson = { unit: '', no: '', content: '', supplies: '' };
+    const lesson: ProgressLesson = { unit: '', no: '', content: '', page: '', supplies: '' };
     fields.forEach((f, i) => {
       if (f && row[i] && !lesson[f]) lesson[f] = row[i];
     });
     if (lesson.unit) unit = lesson.unit;
-    if (!lesson.no && !lesson.content && !lesson.supplies) continue; // 단원 제목 줄 (또는 쓸 칸이 없는 줄)
+    if (!lesson.no && !lesson.content && !lesson.page && !lesson.supplies) continue; // 단원 제목 줄 (또는 쓸 칸이 없는 줄)
     out.push({ ...lesson, unit });
   }
   return out;
@@ -542,7 +557,13 @@ export function sanitizePlan(id: string, raw: any): ProgressPlan {
   const lessons: ProgressLesson[] = Array.isArray(raw?.lessons)
     ? raw.lessons
         .filter((l: any) => l && typeof l === 'object')
-        .map((l: any) => ({ unit: str(l.unit), no: str(l.no), content: str(l.content), supplies: str(l.supplies) }))
+        .map((l: any) => ({
+          unit: str(l.unit),
+          no: str(l.no),
+          content: str(l.content),
+          page: str(l.page),
+          supplies: str(l.supplies),
+        }))
     : [];
   const classes = sanitizeClasses(raw?.classes);
   const course = classes.length > 0 ? { subject: str(raw?.subject).trim().replace(/\s+/g, ' '), classes } : null;
@@ -609,7 +630,7 @@ export async function saveProgressPlan(
       key: course ? planKeys(plan)[0] : progressKey(plan.key),
       ...(course ? { subject: (plan.subject || '').trim(), classes: sanitizeClasses(plan.classes) } : {}),
       startDate: plan.startDate,
-      lessons: plan.lessons.map((l) => ({ unit: l.unit, no: l.no, content: l.content, supplies: l.supplies })),
+      lessons: plan.lessons.map((l) => ({ unit: l.unit, no: l.no, content: l.content, page: l.page, supplies: l.supplies })),
       updatedAt: Date.now(),
     },
     { merge: true }

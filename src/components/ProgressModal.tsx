@@ -2,11 +2,13 @@
 //
 // 진도 관리 창 (docs/ROADMAP.md 5-2, 사용 설명서 '진도 관리'). ⋮ 메뉴 '📘 진도 관리'와 시간표 설정 창에서 연다.
 //
-// 시간표 칸 글자(예: '국어', '3-2 국어')마다 차시 목록을 둔다. 엑셀·한셀의 표를 붙여 넣고 칸에서 고친다.
+// 수업 칸의 과목(예: '국어', 교과 모드 '3-2 국어')마다 차시 목록을 둔다. 엑셀·한셀의 표를 붙여 넣고 칸에서 고친다.
 // 시작일부터 수업 문서에 적힌 그 글자의 교시를 차례로 세어 어느 날 몇 교시에 몇 차시인지 미리 본다(lib/progress).
 // 저장은 V4 전용 v4_progress - 수업 문서(V3와 함께 씀)에는 쓰지 않는다. 진도는 개인 공간의 수업으로 센다.
-// 교과 모드에서는 '과정 (여러 반)'도 만든다(docs/ROADMAP-SUBJECT.md S4): 과목 하나 + 반 여럿, 차시 목록은 하나이고
+// 교과 모드에서는 과정을 만든다(docs/ROADMAP-SUBJECT.md S4): 과목 하나 + 반(하나든 여럿이든), 차시 목록은 하나이고
 // 반마다 제 수업 칸에서 따로 센다. 미리보기·밀기는 반 탭을 골라 그 반으로 본다.
+// 19번 U2: 교과 모드의 '+ 진도'·'+ 과정'을 하나로 - 늘 과목 + 반 칩. 옛 '칸 글자 하나' 진도('5-2 과학')는 '과목 + 반 하나'로
+// 보이되 반을 하나만 두면 그 모양 그대로 저장한다(과정으로 바꾸면 칸 견주기가 정규화로 바뀌어 옛 결과가 달라질 수 있다).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 import { auth } from '../lib/firebase';
@@ -21,7 +23,6 @@ import {
   deleteProgressPlan,
   isCourse,
   NEW_COURSE_PLAN_ID,
-  newProgressId,
   parseLessonCsv,
   parseLessonTable,
   progressKey,
@@ -32,10 +33,24 @@ import {
   schoolYearEnd,
   setProgressBump,
   type ProgressLesson,
-  type ProgressPlan,
   type ProgressTimeline,
 } from '../lib/progress';
 import { useProgressInputs, useProgressPlans } from '../hooks/useProgress';
+import {
+  cleanLessons,
+  draftTarget,
+  emptyLesson,
+  hasText,
+  insertRowAfter,
+  newCourseDraft,
+  newDraft,
+  sameAsSaved,
+  squeeze,
+  toDraft,
+  trimLesson,
+  withKey,
+  type Draft,
+} from '../lib/progressDraft';
 import { decodeTextBytes } from '../lib/csv';
 import { downloadProgressSample, PROGRESS_SAMPLE_FILENAME } from '../lib/progressSample';
 import { useTimetableTemplate } from '../hooks/useTimetableTemplate';
@@ -52,57 +67,17 @@ interface ProgressModalProps {
   onClose: () => void;
 }
 
-interface Draft {
-  id: string;
-  key: string;
-  startDate: string;
-  lessons: ProgressLesson[];
-  /** 과정(여러 반)의 과목 */
-  subject: string;
-  /** 과정이면 고른 반들(고르는 중이면 빈 배열), 칸 글자 하나의 진도면 null */
-  classes: string[] | null;
-}
-
-const FIELDS: Array<{ key: keyof ProgressLesson; label: string }> = [
+const FIELDS: Array<{ key: keyof ProgressLesson; label: string; title?: string }> = [
   { key: 'unit', label: '단원' },
   { key: 'no', label: '차시' },
   { key: 'content', label: '내용' },
+  { key: 'page', label: '교과서', title: '교과서 쪽 (예: 12~15)' },
   { key: 'supplies', label: '준비물' },
 ];
-// 단원 | 차시 | 내용 | 준비물 | 지우기 - 오른쪽 칸(340~512px)에도 들어가게 내용 칸만 늘어난다
-const ROW_GRID = 'grid grid-cols-[5rem_2.75rem_minmax(0,1fr)_5rem_1.5rem] gap-1';
-
 const isDay = (s: string) => /^(20\d\d)-\d\d-\d\d$/.test(s);
-const emptyLesson = (): ProgressLesson => ({ unit: '', no: '', content: '', supplies: '' });
-const hasText = (l: ProgressLesson) => !!(l.unit.trim() || l.no.trim() || l.content.trim() || l.supplies.trim());
-/** 저장할 모양: 앞뒤 공백을 떼고 빈 줄은 뺀다 */
-const cleanLessons = (lessons: ProgressLesson[]): ProgressLesson[] =>
-  lessons
-    .map((l) => ({ unit: l.unit.trim(), no: l.no.trim(), content: l.content.trim(), supplies: l.supplies.trim() }))
-    .filter(hasText);
-const toDraft = (p: ProgressPlan): Draft => ({
-  id: p.id,
-  key: p.key,
-  startDate: p.startDate,
-  lessons: p.lessons,
-  subject: p.subject || '',
-  classes: isCourse(p) ? [...p.classes!] : null,
-});
-const newDraft = (key = ''): Draft => ({
-  id: newProgressId(),
-  key,
-  startDate: formatDate(new Date()),
-  lessons: [],
-  subject: '',
-  classes: null,
-});
-const newCourseDraft = (subject = ''): Draft => ({ ...newDraft(), subject, classes: [] });
-const sameAsSaved = (d: Draft, p: ProgressPlan) =>
-  d.startDate === p.startDate &&
-  JSON.stringify(cleanLessons(d.lessons)) === JSON.stringify(p.lessons) &&
-  (d.classes
-    ? isCourse(p) && d.subject.trim() === (p.subject || '') && d.classes.join(',') === p.classes!.join(',')
-    : !isCourse(p) && progressKey(d.key) === p.key);
+// 단원 | 차시 | 내용 | 교과서 | 준비물 | 삭제 - 오른쪽 칸(340~512px)에서도 내용 칸이 가장 넓게(비율로 나눈다)
+const ROW_GRID =
+  'grid grid-cols-[minmax(0,0.9fr)_2.25rem_minmax(0,2fr)_minmax(0,0.7fr)_minmax(0,0.9fr)_1.25rem] gap-1';
 
 export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   const uid = auth.currentUser?.uid;
@@ -123,16 +98,24 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   const previewRef = useRef<HTMLOListElement>(null);
   const today = formatDate(new Date());
 
-  // 처음: 고른 진도 → 첫 진도 → 새 진도
+  /** 새 진도: 교과 모드는 과목 + 반, 초등 담임은 과목 하나 */
+  const freshDraft = () => (isClassUnit ? newCourseDraft(mode.subjects[0] || '') : newDraft());
+
+  // 처음: 고른 진도 → 첫 진도 → 새 진도 (교과 모드면 옛 진도도 과목 + 반으로 연다)
   useEffect(() => {
     if (!loaded || draft) return;
     if (wantedId === NEW_COURSE_PLAN_ID) return setDraft(newCourseDraft(mode.subjects[0] || ''));
     const first = plans.find((p) => p.id === wantedId) || plans[0];
-    setDraft(first ? toDraft(first) : isClassUnit ? newCourseDraft(mode.subjects[0] || '') : newDraft());
+    setDraft(first ? toDraft(first, isClassUnit) : freshDraft());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, plans, draft, wantedId, isClassUnit, mode.subjects]);
 
   const saved = draft ? plans.find((p) => p.id === draft.id) : undefined;
+  // 과목 + 반 칩으로 고치나 (교과 모드, 또는 초등 담임이 연 과정)
   const courseDraft = !!draft?.classes;
+  const target = draft ? draftTarget(draft) : null;
+  // 과정으로 저장되나 (반마다 따로 센다)
+  const courseTarget = !!target?.classes;
   const dirty =
     !!draft &&
     (saved
@@ -183,22 +166,23 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   }, [templates, inputs]);
 
   const lessons = useMemo(() => cleanLessons(draft?.lessons || []), [draft?.lessons]);
-  // 세는 열쇠: 칸 글자, 과정이면 보는 반의 '5-2 과학' (과목·반이 없으면 '')
-  const key = !draft
+  // 세는 열쇠: 과목(칸 글자), 과정이면 보는 반의 '5-2 과학' (과목·반이 없으면 '')
+  const key = !target
     ? ''
-    : courseDraft
-      ? viewClass && draft.subject.trim()
-        ? formatSlot(viewClass, draft.subject)
+    : courseTarget
+      ? viewClass && target.subject
+        ? formatSlot(viewClass, target.subject)
         : ''
-      : progressKey(draft.key);
-  const planRef = draft
-    ? {
-        id: draft.id,
-        key: draft.key,
-        startDate: draft.startDate,
-        ...(courseDraft ? { subject: draft.subject.trim(), classes: draftClasses } : {}),
-      }
-    : null;
+      : target.key;
+  const planRef =
+    draft && target
+      ? {
+          id: draft.id,
+          key: target.key,
+          startDate: draft.startDate,
+          ...(courseTarget ? { subject: target.subject, classes: target.classes } : {}),
+        }
+      : null;
   const until = planRef && key ? progressUntil(planRef, plans, key) : undefined;
   const timeline = useMemo(() => {
     if (!planRef || !inputs || !key || !from) return null;
@@ -214,7 +198,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
 
   // 과정: 반별 현황 (S5) - 반마다 따로 센 것을 한 표로. 오늘까지 한 차시, 다음 수업, 가장 앞선 반과의 차이
   const statusRows = useMemo(() => {
-    if (!planRef || !courseDraft || !inputs || !from || lessons.length === 0 || !draft!.subject.trim()) return [];
+    if (!planRef || !courseTarget || !inputs || !from || lessons.length === 0 || !target!.subject) return [];
     const plan = { ...planRef, startDate: from, lessons, bumps: saved?.bumps || [] };
     const timelines: Record<string, ProgressTimeline> = {};
     for (const k of planKeys(plan)) {
@@ -222,7 +206,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
     }
     return courseStatus(plan, timelines, today);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, courseDraft, inputs, from, lessons, saved?.bumps, isOffDay, plans, today]);
+  }, [draft, courseTarget, inputs, from, lessons, saved?.bumps, isOffDay, plans, today]);
 
   const bumpNext = async (cls: string, date: string, period: string) => {
     if (!uid || !saved) return;
@@ -252,6 +236,16 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
 
   const update = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
 
+  // 교사 유형이 창을 연 뒤에 바뀌거나 늦게 읽히면 손대지 않은 진도를 그 모양으로 다시 연다
+  const shapedFor = useRef(isClassUnit);
+  useEffect(() => {
+    if (shapedFor.current === isClassUnit || !draft) return;
+    shapedFor.current = isClassUnit;
+    if (dirty) return;
+    setDraft(saved ? toDraft(saved, isClassUnit) : freshDraft());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isClassUnit, draft]);
+
   // 고치던 것을 버리고 다른 진도로 옮길 때만 묻는다
   const switchTo = (next: Draft) => {
     if (dirty && !window.confirm('고치던 진도를 저장하지 않고 옮길까요?')) return;
@@ -264,19 +258,16 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   useEffect(() => {
     if (!draft || !wantedId || handledWanted.current === wantedToken) return;
     handledWanted.current = wantedToken;
-    if (wantedId === NEW_COURSE_PLAN_ID) return startNew(true);
+    if (wantedId === NEW_COURSE_PLAN_ID) return startNew();
     const plan = plans.find((p) => p.id === wantedId);
-    if (plan && plan.id !== draft.id) switchTo(toDraft(plan));
+    if (plan && plan.id !== draft.id) switchTo(toDraft(plan, isClassUnit));
     if (wantedClass) setPreviewClass(wantedClass);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wantedToken, draft, plans]);
 
-  /** 새 진도·새 과정: 저장한 진도를 보고 있으면 새로 열고, 아직 저장 안 한 것이면 적던 것을 두고 종류만 바꾼다 */
-  const startNew = (course: boolean) => {
-    if (!draft) return;
-    if (saved) return switchTo(course ? newCourseDraft(mode.subjects[0] || '') : newDraft());
-    if (course === courseDraft) return;
-    update(course ? { classes: [], subject: draft.subject || mode.subjects[0] || '' } : { classes: null });
+  /** 새 진도: 저장한 진도를 보고 있으면 새로 연다 (아직 저장 안 한 새 진도면 그대로) */
+  const startNew = () => {
+    if (draft && saved) switchTo(freshDraft());
   };
 
   const toggleClass = (cls: string) => {
@@ -300,7 +291,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
     if (!draft) return;
     const cur = cleanLessons(draft.lessons).length;
     if (cur > 0 && !window.confirm(`지금 차시 목록 ${cur}개를 ${how} ${parsed.length}개로 바꿀까요?`)) return;
-    update({ lessons: parsed });
+    update({ lessons: parsed.map(withKey) });
     showToast(`✅ ${parsed.length}차시를 ${how === '붙여 넣은' ? '붙여 넣었습니다' : '불러왔습니다'}. 미리보기를 보고 💾 저장을 누르세요.`);
   };
 
@@ -324,7 +315,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
     try {
       const parsed = parseLessonCsv(decodeTextBytes(await file.arrayBuffer()));
       if (parsed.length === 0) {
-        showErrorToast(`'${file.name}'에서 차시를 찾지 못했습니다. 예시 CSV처럼 '단원, 차시, 내용, 준비물' 칸으로 적어 주세요.`);
+        showErrorToast(`'${file.name}'에서 차시를 찾지 못했습니다. 예시 CSV처럼 '단원, 차시, 내용, 교과서, 준비물' 칸으로 적어 주세요.`);
         return;
       }
       replaceLessons(parsed, '불러온');
@@ -347,17 +338,37 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
     el.select();
   };
 
-  const addRow = (focusCol?: number) => {
+  // 마지막으로 커서가 있던 칸 - '+ 행 추가'는 그 행 바로 아래에 넣는다 (19번 U2). 다른 진도로 옮기면 잊는다
+  const lastFocus = useRef<CellPos | null>(null);
+  useEffect(() => {
+    lastFocus.current = null;
+  }, [draft?.id]);
+
+  /** after 행 바로 아래에 빈 행을 넣고 그 행의 col 칸에 커서. after가 없으면 마지막으로 커서가 있던 행(없었으면 맨 아래) */
+  const addRow = (after?: number, col?: number) => {
     if (!draft) return;
-    const row = draft.lessons.length;
-    update({ lessons: [...draft.lessons, emptyLesson()] });
-    requestAnimationFrame(() => focusCell({ row, col: focusCol ?? 2 }));
+    const len = draft.lessons.length;
+    const last = lastFocus.current;
+    const { lessons: next, at } = insertRowAfter(draft.lessons, after ?? (last && last.row < len ? last.row : len - 1));
+    const focusCol = col ?? last?.col ?? 2;
+    update({ lessons: next });
+    requestAnimationFrame(() => focusCell({ row: at, col: focusCol }));
   };
 
-  const removeRow = (row: number) => update({ lessons: (draft?.lessons || []).filter((_, i) => i !== row) });
+  const removeRow = (row: number) => {
+    const last = lastFocus.current;
+    if (last && last.row > row) lastFocus.current = { ...last, row: last.row - 1 };
+    update({ lessons: (draft?.lessons || []).filter((_, i) => i !== row) });
+  };
 
   const handleCellKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, row: number, col: number) => {
     if (e.nativeEvent.isComposing) return; // 한글 조합 중 Enter - 글자가 다음 칸으로 넘어가지 않게
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      // Ctrl + Enter: 어느 행에서나 그 아래에 행 추가
+      e.preventDefault();
+      addRow(row, col);
+      return;
+    }
     const el = e.currentTarget;
     const rowsCount = draft?.lessons.length || 0;
     const target = nextCell(
@@ -369,13 +380,13 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
       e.preventDefault();
       focusCell(target);
     } else if (e.key === 'Enter' && !e.shiftKey && row === rowsCount - 1) {
-      // 마지막 줄에서 Enter - 줄을 하나 더해 이어 적는다
+      // 마지막 행에서 Enter - 행을 하나 더해 이어 적는다
       e.preventDefault();
-      addRow(col);
+      addRow(row, col);
     }
   };
 
-  /** 칸 위에 여러 칸을 붙여 넣으면 그 칸부터 엑셀처럼 채운다 (모자라는 줄은 더한다) */
+  /** 칸 위에 여러 칸을 붙여 넣으면 그 칸부터 엑셀처럼 채운다 (모자라는 행은 더한다) */
   const handleCellPaste = (e: React.ClipboardEvent<HTMLInputElement>, row: number, col: number) => {
     const text = e.clipboardData.getData('text/plain');
     if (!text || isSingleCell(text) || !draft) return;
@@ -402,23 +413,23 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   const handleSave = async () => {
     if (!uid || !draft || saving) return;
     const clean = cleanLessons(draft.lessons);
-    const subject = draft.subject.trim().replace(/\s+/g, ' ');
-    if (courseDraft) {
-      if (!subject) return showErrorToast('과목을 고르거나 적어 주세요.');
-      if (draftClasses.length === 0) return showErrorToast('이 과정을 배우는 반을 하나 이상 골라 주세요.');
-    } else if (!progressKey(draft.key)) return showErrorToast('시간표 칸 글자를 고르거나 적어 주세요.');
+    const t = draftTarget(draft);
+    if (courseDraft && !squeeze(draft.subject)) return showErrorToast('과목을 고르거나 적어 주세요.');
+    if (!t.key && !t.classes) return showErrorToast('과목을 고르거나 적어 주세요.');
+    // 과정을 반 없는 진도로 바꾸지 않는다 (저장은 합쳐 쓰기라 반 목록이 남는다)
+    if (!t.classes && saved && isCourse(saved)) return showErrorToast('이 과정을 배우는 반을 하나 이상 골라 주세요.');
     if (!isDay(draft.startDate)) return showErrorToast('시작일을 정해 주세요.');
     if (clean.length === 0) return showErrorToast('차시 목록을 붙여 넣거나 적어 주세요.');
-    const next = courseDraft
-      ? { id: draft.id, key: '', startDate: draft.startDate, lessons: clean, subject, classes: draftClasses }
-      : { id: draft.id, key: progressKey(draft.key), startDate: draft.startDate, lessons: clean };
+    const next = t.classes
+      ? { id: draft.id, key: '', startDate: draft.startDate, lessons: clean, subject: t.subject!, classes: t.classes }
+      : { id: draft.id, key: t.key, startDate: draft.startDate, lessons: clean };
     // 같은 열쇠(과정이면 반마다)에 같은 시작일의 진도가 이미 있으면 둘이 같은 교시를 다툰다
     const mine = planKeys(next).map(normalizeSlotText);
     const clash = plans.find(
       (p) =>
         p.id !== draft.id &&
         p.startDate === draft.startDate &&
-        (courseDraft || isCourse(p)
+        (t.classes || isCourse(p)
           ? planKeys(p).some((k) => mine.includes(normalizeSlotText(k)))
           : p.key === next.key)
     );
@@ -427,7 +438,14 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
     setSaving(true);
     try {
       await saveProgressPlan(uid, next);
-      setDraft({ ...draft, key: planKeys(next)[0], subject, lessons: clean });
+      setDraft({
+        ...draft,
+        key: planKeys(next)[0],
+        subject: t.subject ?? draft.subject,
+        lessons: draft.lessons.filter(hasText).map((l) => ({ ...trimLesson(l), _k: l._k })),
+        // 반 없이(또는 옛 모양 그대로) 저장했으면 다음에도 그 글자로, 과정이 되었으면 과정으로
+        legacyKey: draft.classes && !t.classes ? t.key : null,
+      });
       showToast(`✅ '${label}' 진도를 저장했습니다.`);
     } catch (e) {
       showErrorToast('진도를 저장하지 못했습니다.', e);
@@ -442,7 +460,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
       const trashId = await deleteProgressPlan(uid, saved);
       showDeletedToast(`🗑️ '${planLabel(saved)}' 진도를 지웠습니다. 휴지통에서 복원할 수 있습니다.`, trashId);
       const rest = plans.filter((p) => p.id !== saved.id);
-      setDraft(rest[0] ? toDraft(rest[0]) : newDraft());
+      setDraft(rest[0] ? toDraft(rest[0], isClassUnit) : freshDraft());
     } catch (e) {
       showErrorToast('진도를 지우지 못했습니다.', e);
     }
@@ -466,7 +484,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
     if (!key)
       summary = courseDraft
         ? '과목과 반을 고르면 반마다 시간표를 따라 몇 차시인지 보입니다.'
-        : '칸 글자를 고르면 시간표를 따라 몇 차시인지 보입니다.';
+        : '과목을 고르면 시간표를 따라 몇 차시인지 보입니다.';
     else if (!from) summary = '시작일을 정해 주세요.';
     else if (!inputs) summary = '수업을 세는 중...';
     else if (lessons.length === 0) summary = '차시 목록을 붙여 넣으면 어느 날 몇 교시에 몇 차시인지 보입니다.';
@@ -534,7 +552,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
                 key={p.id}
                 type="button"
                 data-progress-plan={p.id}
-                onClick={() => p.id !== draft.id && switchTo(toDraft(p))}
+                onClick={() => p.id !== draft.id && switchTo(toDraft(p, isClassUnit))}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${
                   p.id === draft.id
                     ? 'bg-indigo-600 text-white border-indigo-600'
@@ -554,30 +572,21 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
             ))}
             <button
               type="button"
-              onClick={() => startNew(false)}
+              data-new-course={isClassUnit ? '' : undefined}
+              onClick={startNew}
+              title={
+                isClassUnit
+                  ? '과목과 반(하나든 여럿이든)을 골라 진도를 만듭니다 - 차시 목록 하나를 반마다 제 수업 칸에서 따로 셉니다'
+                  : undefined
+              }
               className={`px-2.5 py-1 rounded-lg text-xs font-bold border border-dashed ${
-                saved || courseDraft
+                saved
                   ? 'text-indigo-700 border-indigo-300 hover:bg-indigo-50'
                   : 'bg-indigo-50 text-indigo-700 border-indigo-400'
               }`}
             >
-              {saved || courseDraft ? '+ 새 진도' : '✏️ 새 진도'}
+              {saved ? '+ 새 진도' : '✏️ 새 진도'}
             </button>
-            {(isClassUnit || courseDraft) && (
-              <button
-                type="button"
-                data-new-course
-                onClick={() => startNew(true)}
-                title="차시 목록 하나를 여러 반에 - 반마다 제 수업 칸에서 따로 셉니다"
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold border border-dashed ${
-                  saved || !courseDraft
-                    ? 'text-emerald-700 border-emerald-300 hover:bg-emerald-50'
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-400'
-                }`}
-              >
-                {saved || !courseDraft ? '+ 과정 (여러 반)' : '✏️ 과정 (여러 반)'}
-              </button>
-            )}
           </div>
 
           {inGroup && (
@@ -587,7 +596,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
           )}
 
           {courseDraft ? (
-            /* 과정: 과목 + 반 */
+            /* 교과 모드(또는 과정): 과목 + 반 */
             <section className="space-y-2" data-course-form>
               <label className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-600 shrink-0 w-14">과목</span>
@@ -595,7 +604,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
                   value={draft.subject}
                   onChange={(e) => update({ subject: e.target.value })}
                   placeholder="예: 과학"
-                  aria-label="과정 과목"
+                  aria-label="과목"
                   className="flex-1 min-w-0 px-2.5 py-1.5 text-sm font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </label>
@@ -647,24 +656,30 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
                   <p className="text-xs text-slate-400 pt-1">시간표에 '5-2 과학'처럼 반을 적거나 환경설정 '가르치는 반'에 적으세요.</p>
                 )}
               </div>
-              {draftClasses.length > 0 && draft.subject.trim() && (
-                <p className="pl-16 text-xs text-slate-400">
-                  {courseTitle({ subject: draft.subject, classes: draftClasses })} - 반마다 수업 칸의 '
-                  {formatSlot(draftClasses[0], draft.subject)}' 같은 칸을 따로 셉니다.
+              {draft.subject.trim() && (
+                <p className="pl-16 text-xs text-slate-400" data-course-hint>
+                  {draftClasses.length > 0 ? (
+                    <>
+                      {courseTitle({ subject: draft.subject, classes: draftClasses })} - 반마다 수업 칸의 학년-반 과목 '
+                      {formatSlot(draftClasses[0], draft.subject)}'을(를) 따로 셉니다.
+                    </>
+                  ) : (
+                    <>반을 고르지 않으면 수업 칸에 반 없이 '{squeeze(draft.subject)}'(이)라고만 적힌 교시를 셉니다.</>
+                  )}
                 </p>
               )}
             </section>
           ) : (
             <>
-            {/* 칸 글자 */}
+            {/* 과목 (초등 담임 - 수업 칸에 적힌 글자 그대로) */}
             <section className="space-y-1.5">
               <label className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-600 shrink-0 w-14">칸 글자</span>
+                <span className="text-xs font-bold text-slate-600 shrink-0 w-14">과목</span>
                 <input
                   value={draft.key}
                   onChange={(e) => update({ key: e.target.value })}
-                  placeholder="시간표 칸에 적힌 그대로 (예: 국어, 3-2 국어)"
-                  aria-label="칸 글자"
+                  placeholder="수업 칸에 적힌 과목 그대로 (예: 국어)"
+                  aria-label="과목"
                   className="flex-1 min-w-0 px-2.5 py-1.5 text-sm font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </label>
@@ -682,7 +697,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
                             ? 'bg-indigo-100 text-indigo-800 border-indigo-300 font-bold'
                             : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-300'
                         }`}
-                        title={has ? '이 글자의 진도가 이미 있습니다' : '이 글자로 세기'}
+                        title={has ? '이 과목의 진도가 이미 있습니다' : '이 과목으로 세기'}
                       >
                         {k}
                         {has && ' ✓'}
@@ -692,7 +707,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
                 </div>
               ) : (
                 <p className="pl-16 text-xs text-slate-400">
-                  시간표 설정에서 시간표를 만들면 칸 글자를 여기서 고를 수 있습니다.
+                  시간표 설정에서 시간표를 만들면 과목을 여기서 고를 수 있습니다.
                 </p>
               )}
             </section>
@@ -732,14 +747,14 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <h3 className="text-xs font-black text-slate-700">
                 차시 목록 {lessons.length > 0 && `(${lessons.length})`}
-                <span className="ml-1.5 font-normal text-slate-400">한 줄 = 한 교시</span>
+                <span className="ml-1.5 font-normal text-slate-400">한 행 = 한 차시</span>
               </h3>
               <div className="flex items-center gap-1">
                 <button
                   type="button"
                   data-progress-sample
                   onClick={downloadProgressSample}
-                  title={`'단원·차시·내용·준비물' 예시 표(${PROGRESS_SAMPLE_FILENAME})를 받습니다. 엑셀에서 열어 고친 뒤 불러오거나 표를 복사해 붙여 넣으세요.`}
+                  title={`'단원·차시·내용·교과서·준비물' 예시 표(${PROGRESS_SAMPLE_FILENAME})를 받습니다. 엑셀에서 열어 고친 뒤 불러오거나 표를 복사해 붙여 넣으세요.`}
                   className="px-2 py-1 text-xs font-bold text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 rounded-md"
                 >
                   ⬇️ 예시 CSV 받기
@@ -770,26 +785,30 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
               rows={2}
               data-progress-paste
               aria-label="차시 표 붙여넣기"
-              placeholder={"엑셀·한셀에서 '단원 | 차시 | 내용 | 준비물' 표를 복사해 여기를 누르고 Ctrl + V\n(머리줄이 있으면 그 이름으로 칸을 맞춥니다)"}
+              placeholder={"엑셀·한셀에서 '단원 | 차시 | 내용 | 교과서 | 준비물' 표를 복사해 여기를 누르고 Ctrl + V\n(머리줄이 있으면 그 이름으로 칸을 맞춥니다)"}
               className="w-full px-3 py-2 text-xs bg-indigo-50/40 border border-dashed border-indigo-300 rounded-lg resize-none focus:outline-none focus:ring-1 focus:ring-indigo-400 placeholder:text-indigo-400"
             />
             {draft.lessons.length > 0 && (
               <div ref={tableRef} className="space-y-1" data-progress-table>
                 <div className={`${ROW_GRID} text-xs font-bold text-slate-500 px-0.5`}>
                   {FIELDS.map((f) => (
-                    <span key={f.key}>{f.label}</span>
+                    <span key={f.key} title={f.title} className="truncate">
+                      {f.label}
+                    </span>
                   ))}
                   <span />
                 </div>
                 <div className="max-h-72 overflow-y-auto space-y-1 pr-0.5">
                   {draft.lessons.map((l, r) => (
-                    <div key={r} className={ROW_GRID}>
+                    <div key={l._k} className={ROW_GRID}>
                       {FIELDS.map((f, c) => (
                         <input
                           key={f.key}
                           value={l[f.key]}
                           data-cell={`${r}-${c}`}
-                          aria-label={`${r + 1}번째 줄 ${f.label}`}
+                          aria-label={`${r + 1}번째 행 ${f.label}`}
+                          title={f.title}
+                          onFocus={() => (lastFocus.current = { row: r, col: c })}
                           onChange={(e) => setCell(r, f.key, e.target.value)}
                           onKeyDown={(e) => handleCellKeyDown(e, r, c)}
                           onPaste={(e) => handleCellPaste(e, r, c)}
@@ -800,8 +819,8 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
                         type="button"
                         onClick={() => removeRow(r)}
                         className="text-slate-300 hover:text-rose-500 text-xs"
-                        title="이 줄 빼기"
-                        aria-label={`${r + 1}번째 줄 빼기`}
+                        title="행 삭제"
+                        aria-label={`${r + 1}번째 행 삭제`}
                       >
                         ✕
                       </button>
@@ -812,10 +831,12 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
             )}
             <button
               type="button"
+              data-progress-add-row
               onClick={() => addRow()}
+              title="마지막으로 커서가 있던 행 바로 아래에 행을 넣습니다 (칸에서 Ctrl + Enter)"
               className="px-2.5 py-1 text-xs font-bold text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 rounded-md"
             >
-              + 줄 더하기
+              + 행 추가
             </button>
           </section>
 

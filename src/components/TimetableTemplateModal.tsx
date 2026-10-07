@@ -451,7 +451,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
           <button
             type="button"
             onClick={() => useAppStore.getState().setProgressModalOpen(true)}
-            title="시간표 칸 글자마다 차시 목록을 붙여 넣고 시간표를 따라 몇 차시인지 봅니다"
+            title="과목마다 차시 목록을 붙여 넣고 시간표를 따라 몇 차시인지 봅니다"
             className="px-2.5 py-1.5 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition-colors"
           >
             📘 진도 관리

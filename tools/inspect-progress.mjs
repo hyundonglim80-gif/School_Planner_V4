@@ -184,7 +184,7 @@ async function progressModal() {
     await dlg.waitFor({ timeout: 10000 });
     check('⋮ 메뉴 📘 진도 관리로 창이 열린다', true);
 
-    await dlg.getByLabel('칸 글자').fill(KEY);
+    await dlg.getByLabel('과목', { exact: true }).fill(KEY);
     await dlg.getByLabel('시작일').fill(DAYS[0]);
     // 표 붙여넣기 (엑셀에서 복사한 것처럼 text/plain)
     await dlg.locator('[data-progress-paste]').evaluate((el, text) => {
@@ -212,7 +212,7 @@ async function progressModal() {
     await page.getByText(`'${KEY}' 진도를 저장했습니다`).first().waitFor({ timeout: 10000 });
     const docs = (await getDocsFromServer(collection(db, 'users', uid, 'v4_progress'))).docs.filter((d) => d.data().key === KEY);
     const saved = docs[0]?.data();
-    check('v4_progress에 저장된다 (칸 글자·시작일·5차시)', docs.length === 1 && saved.startDate === DAYS[0] && saved.lessons?.length === 5, JSON.stringify(saved?.lessons?.[0]));
+    check('v4_progress에 저장된다 (과목·시작일·5차시)', docs.length === 1 && saved.startDate === DAYS[0] && saved.lessons?.length === 5, JSON.stringify(saved?.lessons?.[0]));
     const planRef = docs[0]?.ref;
 
     // 밀기 - 3/8 3교시
@@ -236,16 +236,16 @@ async function progressModal() {
     );
     check('되돌리기: bumps가 빈다', (afterUndo.bumps || []).length === 0, `${undoMs}ms`);
 
-    // 칸 고치기: 둘째 줄 내용 → 화살표 아래로 → 마지막 줄 Enter로 줄 더하기
+    // 칸 고치기: 둘째 행 내용 → 화살표 아래로 → 마지막 행 Enter로 행 추가
     const cell = dlg.locator('input[data-cell="1-2"]');
     await cell.fill('둘째 차시 (고침)');
     await cell.press('ArrowDown');
     const focused = await page.evaluate(() => document.activeElement?.getAttribute('data-cell'));
-    check('화살표 아래로 다음 줄 같은 칸', focused === '2-2', focused);
+    check('화살표 아래로 다음 행 같은 칸', focused === '2-2', focused);
     await dlg.locator('input[data-cell="4-2"]').press('Enter');
     await page.waitForTimeout(200);
     const rowsNow = await dlg.locator('[data-progress-table] input[data-cell$="-2"]').count();
-    check('마지막 줄에서 Enter로 줄을 더한다', rowsNow === 6, String(rowsNow));
+    check('마지막 행에서 Enter로 행을 더한다', rowsNow === 6, String(rowsNow));
     const active = await page.evaluate(() => document.activeElement?.getAttribute('data-cell'));
     await page.keyboard.press('Control+s');
     const [afterEdit, editMs] = await serverUntil(
@@ -355,7 +355,7 @@ async function classOverlay() {
     await pm.locator('button').first().click();
     const dlg = page.getByRole('dialog').filter({ hasText: '차시 목록' }).first();
     await dlg.waitFor({ timeout: 10000 });
-    check('진도 줄을 누르면 진도 관리 창이 그 진도로', (await dlg.getByLabel('칸 글자').inputValue()) === KEY);
+    check('진도 줄을 누르면 진도 관리 창이 그 진도로', (await dlg.getByLabel('과목', { exact: true }).inputValue()) === KEY);
     await page.keyboard.press('Escape');
   } finally {
     await cleanup();

@@ -69,7 +69,7 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
 | `users/{uid}/settings/v4_school` | `{ officeCode, schoolCode, officeName, name, kind, grade }` (학교를 지우면 `{ updatedAt }`만) | V4 전용. 우리 학교 - 나이스 급식·학사일정(`lib/schoolSetting`, `lib/neis`) |
 | `users/{uid}/settings/v4_teaching` | `{ unit:'subject'\|'class', hasHomeroom, homeroomClass:'5-2', subjects:[], classes:['5-1'], classColors:{} }` | V4 전용. 교사 유형(`lib/teachingMode`) - 문서가 없으면 초등 담임(`unit:'subject', hasHomeroom:true`)이고 하루 화면에 처음 안내 띠. App이 한 번 구독해 store에 넣고 화면은 `useTeachingMode()`로만 읽는다. 과목·가르치는 반(`classes`, 19번 U1 - 시간표·명렬표에 없는 반을 미리 적어 두는 곳)은 `arrayUnion/Remove`. 수업마다의 반은 시간표·수업 칸 글자 `5-2 과학`에 담는다 - `lib/teachingSlot`(`parseSlot`·`normalizeSlotText`·`classesForYear`)로 읽고, 교과 모드에서만 시간표 창·하루 수업 칸·수업 수정 팝업이 저장 전에 정규화한다(`SlotCombobox` ▼ 목록 = `useSlotOptions`). 초등 담임은 적은 그대로 |
 | `users/{uid}/v4_subjectAttendance/{classKey}_{date}` | `{ classKey, year, grade, classNum, date, periods: { '교시': { '번호': { num, name, kind: 'absent'(결과)·'late'·'early', reason, note? } } }, updatedAt }` | V4 전용. 교과 출결(`lib/subjectAttendance`·`subjectAttendanceStore`, 교과 모드 S6). 담임 출석부(`attendance`)와 따로 - 기록 칸을 만들지 않는다. 쓰기는 `saveSubjectRecord`가 학생 한 칸(`FieldPath('periods', 교시, 번호)`)만 mergeFields, 지우기는 deleteField |
-| `users/{uid}/v4_progress/{id}` | `{ key(시간표 칸 글자), startDate, lessons: [{unit, no, content, supplies}], bumps: ['YYYY-MM-DD#교시'], subject?, classes?: ['5-1',…] }` (subject·classes가 있으면 과정 - key에는 첫 반 열쇠) | V4 전용. 진도 관리(`lib/progress`). 수업 문서에는 쓰지 않고 화면에서만 겹쳐 본다. 차시 목록은 `saveProgressPlan`(merge, bumps 빼고), 밀기는 `setProgressBump`(arrayUnion/Remove 한 칸) - 다른 기기에서 민 것을 덮지 않게 |
+| `users/{uid}/v4_progress/{id}` | `{ key(시간표 칸 글자), startDate, lessons: [{unit, no, content, page, supplies}], bumps: ['YYYY-MM-DD#교시'], subject?, classes?: ['5-1',…] }` (subject·classes가 있으면 과정 - key에는 첫 반 열쇠) | V4 전용. 진도 관리(`lib/progress`). 수업 문서에는 쓰지 않고 화면에서만 겹쳐 본다. 차시 목록은 `saveProgressPlan`(merge, bumps 빼고), 밀기는 `setProgressBump`(arrayUnion/Remove 한 칸) - 다른 기기에서 민 것을 덮지 않게 |
 | `sharedConfig/neis` | `{ key, updatedAt, updatedBy }` | 나이스 인증키. **로그인하면 누구나 읽고** 개발자만 쓴다(`admin/config`는 개발자만 읽어 따로 둠). 없거나 못 읽으면 키 없이 5건씩 나눠 받는다 |
 | `users/{uid}/settings/v4_autoBackup` | `{ enabled, intervalDays, keep, lastAt?, lastName?, lastSummary?, folderLink? }` | V4 전용. 드라이브 자동 백업(`lib/autoBackup`, `hooks/useAutoBackup`). PC에서 토큰이 이미 있을 때만 조용히 백업. '나중에'는 기기별 localStorage `sp4_autoBackupSnoozeUntil` |
 | (메모·기록 항목의) `tables` | 붙인 표 `[{ id, rows: [{ h?, cells: [{ v, cs?, rs?, x?, s? }] }], cols?, styles?, createdAt }]` | V4 전용 칸. `lib/entryTable` |
@@ -395,8 +395,18 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   **과정(여러 반, 교과 모드 S4)**: `classes`가 있으면 `planKeys`가 반마다 열쇠 '5-1 과학'을 내고, `progressMarks`가 열쇠마다
   `computeProgress(…, keyOverride)`로 **따로** 센다(목록 끝 `break`도 반마다, 표식에 `cls`). 과정의 칸 견주기는 `normalizeSlotText`,
   옛 진도는 그대로 `progressKey` - 옛 진도끼리의 결과는 바뀌지 않는다. `progressUntil(plan, plans, key)`는 과정이 끼면 반 열쇠를
-  정규화해 견준다. bumps는 과정에 한 배열(같은 날·교시에 두 반은 없다). 창은 '+ 과정 (여러 반)'(`data-new-course`, `isClassUnit`만),
+  정규화해 견준다. bumps는 과정에 한 배열(같은 날·교시에 두 반은 없다).
   반 탭(`data-course-preview`)으로 미리 보고, 진도 줄을 누르면 store `progressModalClass`로 그 반 탭. 이름은 `courseTitle`·`planLabel`.
+  **19번 U2 (2026-10-07)**: 창의 '칸 글자' → **과목**(aria '과목'), '줄' → **행**. 교과 모드는 '+ 진도'·'+ 과정'을 **'+ 새 진도' 하나**로
+  (`data-new-course`는 교과 모드에서 그 단추에) - 늘 과목 + 반 칩. 고치는 모양·저장 모양은 `lib/progressDraft`(순수 함수, 테스트):
+  `toDraft(plan, isClassUnit)`는 교과 모드에서 옛 칸 글자 진도도 `parseSlot`으로 과목 + 반 하나(`legacyKey`에 원래 글자),
+  `draftTarget`이 저장 모양을 정한다 - 반 둘 이상 = 과정, **옛 진도에 반 하나 이하 = 옛 모양**(과목·반이 그대로면 글자도 그대로 - 과정으로
+  바꾸면 견주기가 `normalizeSlotText`로 바뀌어 옛 결과가 달라질 수 있다), 새 진도에 반 하나 = 과정, 반 없음 = 과목만('창체').
+  과정을 반 없는 진도로는 저장하지 않는다(저장이 merge라 classes가 남는다). 행마다 임시 key `_k`(가운데 넣어도 IME가 엉키지 않게,
+  `cleanLessons`가 뺀다). '+ 행 추가'(`data-progress-add-row`)는 마지막으로 커서가 있던 행 아래(`insertRowAfter`), 칸에서 Ctrl+Enter도.
+  **교과서(쪽) 칸** `lessons[].page`(글자): 머리줄 '교과서'·'쪽'·'쪽수'·'교과서(쪽)', 머리줄 없는 표는 **칸 수로 가른다**(차시 뒤 칸이
+  셋 이상 = 내용·교과서·준비물, 둘 = 옛 4칸 표의 내용·준비물). 쪽 '12~13'도 차시 숫자처럼 보여서 차시 칸 고르기는 같은 만큼 채워졌으면
+  바로 뒤가 글자 칸인 쪽, 그다음 왼쪽. 예시 CSV도 5칸. 하루 칸 진도 줄에 쪽을 보이는 것은 U3.
   **S5**: `ProgressInputs.notesByDate`(같은 수업 스냅숏에서 `scheduleNotes` - memo, 없으면 content의 첫 줄)와
   `teachingSlot.previousSlotOf`(정규화한 같은 칸 글자의 바로 앞 교시, 수업 없는 날 건너뜀)로 하루 카드의 '지난 시간' 줄(`data-prev-note`).
   그래서 `useProgressMarks`는 **교과 모드면 진도가 없어도** 그 학년도 3월 1일부터 읽는다(초등 담임은 그대로 진도가 있을 때만).
@@ -528,6 +538,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-subject-finish.mjs` | 교과 모드 마무리(6) - 명령 창 '과정 만들기'·'교사 유형 바꾸기', 휴대폰 390px 하루 카드·교과 출결 칸 넘침 없음(폭 점검은 S10에서 한 번만 - CLAUDE.md 2장) |
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번. `SITE=http://localhost:4190/School_Planner_V4/`(기본값 4173은 vite preview) |
+| `tools/inspect-refine-u2.mjs` | 19번 U2 진도 관리(24) - teacher 과목 칸·교과서 칸(5칸·옛 4칸 붙여넣기)·'+ 행 추가'·Ctrl+Enter·page 저장, teacher3 새 진도 하나·과목 + 반 하나·옛 칸 글자 진도 그대로 저장·하루 칸 차시. 만든 진도는 지운다 |
 | `tools/inspect-progress-csv.mjs` | 진도 관리 예시 CSV(6) - 받기(머리줄·예시 내용)·불러오기 15차시·CP949 CSV 한글. 저장하지 않아 자료는 그대로 |
 | `tools/inspect-slot-live.mjs` | 과목을 고치면 배너도 따라감·학년반 숫자 403(8) - teacher3 주간 1교시 수정 배너에 '403과학' → 서버·배너 '4-3 과학', 연 채로 다른 곳에서 고친 과목, 고치는 중이면 그대로, 하루 출결 배너 머리줄. 2026-11-02 수업 문서를 끝에 되돌린다 |
 | `tools/inspect-today-scroll.mjs` | 상단 날짜 → 오늘로(17) - 휴대폰 390px·PC에서 하루(맨 위)·주간·월간(다음 달에서)·년간 학사력·자세히(지난 학년도에서). 자료를 바꾸지 않는다 |

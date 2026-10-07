@@ -93,7 +93,7 @@ export default function CourseEvalOverview({ rosterList, spaces, reloadTick, ope
   if (courses.length === 0) {
     return (
       <p className="text-center text-slate-400 py-8">
-        과정이 없습니다. ⋮ 메뉴 → 📘 진도 관리 → <b>+ 과정 (여러 반)</b>으로 차시 목록 하나를 여러 반에 두면 여기서 반 × 평가로 봅니다.
+        과정이 없습니다. ⋮ 메뉴 → 📘 진도 관리 → <b>+ 새 진도</b>에서 과목과 반을 골라 차시 목록 하나를 여러 반에 두면 여기서 반 × 평가로 봅니다.
       </p>
     );
   }

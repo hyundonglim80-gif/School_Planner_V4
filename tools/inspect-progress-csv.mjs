@@ -43,7 +43,7 @@ try {
   const file = join(dir, 'sample.csv');
   await dl.saveAs(file);
   const text = readFileSync(file, 'utf8').replace(/^﻿/, '');
-  check('[받기] 예시 CSV가 내려온다 (머리줄 단원,차시,내용,준비물)', text.startsWith('단원,차시,내용,준비물'), dl.suggestedFilename());
+  check('[받기] 예시 CSV가 내려온다 (머리줄 단원,차시,내용,교과서,준비물)', text.startsWith('단원,차시,내용,교과서,준비물'), dl.suggestedFilename());
   check('[받기] 예시 데이터가 들어 있다', text.includes('잎의 생김새 관찰하기') && text.includes('2. 물의 상태 변화'));
 
   await dialog.locator('[data-progress-csv-input]').setInputFiles(file);

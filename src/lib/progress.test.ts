@@ -35,6 +35,7 @@ const L = (content: string, extra: Partial<ProgressLesson> = {}): ProgressLesson
   unit: '',
   no: '',
   content,
+  page: '',
   supplies: '',
   ...extra,
 });
@@ -49,15 +50,15 @@ describe('차시 표 붙여넣기', () => {
       ['2. 이야기 속 세상', '3', '인물 말 읽기', '활동지']
     );
     expect(parseLessonTable(text)).toEqual([
-      { unit: '1. 비유하는 표현', no: '1', content: '비유 표현 찾기', supplies: '교과서' },
-      { unit: '1. 비유하는 표현', no: '2', content: '비유 표현 만들기', supplies: '' },
-      { unit: '2. 이야기 속 세상', no: '3', content: '인물 말 읽기', supplies: '활동지' },
+      { unit: '1. 비유하는 표현', no: '1', content: '비유 표현 찾기', page: '', supplies: '교과서' },
+      { unit: '1. 비유하는 표현', no: '2', content: '비유 표현 만들기', page: '', supplies: '' },
+      { unit: '2. 이야기 속 세상', no: '3', content: '인물 말 읽기', page: '', supplies: '활동지' },
     ]);
   });
 
   it('머리줄 이름으로 칸을 맞춘다 (차례가 달라도, 모르는 칸은 버린다)', () => {
     const text = tsv(['차시', '학습 내용', '비고', '준비물'], ['1', '자기소개', '모둠', '이름표']);
-    expect(parseLessonTable(text)).toEqual([{ unit: '', no: '1', content: '자기소개', supplies: '이름표' }]);
+    expect(parseLessonTable(text)).toEqual([{ unit: '', no: '1', content: '자기소개', page: '', supplies: '이름표' }]);
   });
 
   it('단원 칸만 있는 줄은 단원 제목 - 아래 차시들에 붙는다', () => {
@@ -70,23 +71,55 @@ describe('차시 표 붙여넣기', () => {
 
   it('머리줄이 없으면 단원 | 차시 | 내용 | 준비물 차례', () => {
     expect(parseLessonTable(tsv(['1단원', '1', '큰 수 읽기', '공책']))).toEqual([
-      { unit: '1단원', no: '1', content: '큰 수 읽기', supplies: '공책' },
+      { unit: '1단원', no: '1', content: '큰 수 읽기', page: '', supplies: '공책' },
     ]);
     // 내용 칸에 머리줄 이름 같은 글자가 하나 있어도 머리줄로 보지 않는다
     expect(parseLessonTable(tsv(['1단원', '1', '활동', '공책']))).toHaveLength(1);
   });
 
+  // 교과서(쪽) 칸 (19번 U2) - 옛 4칸 표는 4번째를 준비물로, 5칸 표는 단원·차시·내용·교과서·준비물
+  it('머리줄이 없을 때 칸 수로 가른다: 4칸 = 옛 차례(준비물), 5칸 = 교과서 칸이 든 새 차례', () => {
+    expect(parseLessonTable(tsv(['1단원', '1', '큰 수 읽기', '공책']))[0]).toMatchObject({ page: '', supplies: '공책' });
+    expect(parseLessonTable(tsv(['1단원', '1', '큰 수 읽기', '12~13', '공책']))).toEqual([
+      { unit: '1단원', no: '1', content: '큰 수 읽기', page: '12~13', supplies: '공책' },
+    ]);
+    // 숫자 칸이 없을 때도 같다
+    expect(parseLessonTable(tsv(['가', '나', '다', '라', '마']))).toEqual([
+      { unit: '가', no: '나', content: '다', page: '라', supplies: '마' },
+    ]);
+    expect(parseLessonTable(tsv(['가', '나', '다', '라']))[0]).toMatchObject({ page: '', supplies: '라' });
+    // 교과서 쪽도 숫자처럼 보이고 준비물이 비어도 - 차시는 내용 앞의 숫자 칸
+    expect(parseLessonTable(tsv(['1', '1', '가', '8~9', ''], ['1', '2', '나', '10', '']))).toEqual([
+      { unit: '1', no: '1', content: '가', page: '8~9', supplies: '' },
+      { unit: '1', no: '2', content: '나', page: '10', supplies: '' },
+    ]);
+  });
+
+  it("머리줄 '교과서'·'쪽'·'쪽수'·'교과서(쪽)'은 교과서 칸", () => {
+    for (const name of ['교과서', '쪽', '쪽수', '교과서(쪽)', '교과서 쪽']) {
+      expect(parseLessonTable(tsv(['차시', '내용', name], ['1', '자기소개', '8~9']))).toEqual([
+        { unit: '', no: '1', content: '자기소개', page: '8~9', supplies: '' },
+      ]);
+    }
+  });
+
+  it('교과서 칸만 적힌 줄도 차시로 센다 (단원 제목 줄이 아니다)', () => {
+    expect(parseLessonTable(tsv(['단원', '차시', '내용', '교과서'], ['1단원', '', '', ''], ['', '', '', '10']))).toEqual([
+      { unit: '1단원', no: '', content: '', page: '10', supplies: '' },
+    ]);
+  });
+
   it('내용 칸 이름을 모르면 이름을 모르는 첫 칸이 내용', () => {
     expect(parseLessonTable(tsv(['차시', '오늘 배울 것', '준비물'], ['1', '자기소개', '이름표']))).toEqual([
-      { unit: '', no: '1', content: '자기소개', supplies: '이름표' },
+      { unit: '', no: '1', content: '자기소개', page: '', supplies: '이름표' },
     ]);
   });
 
   it('머리줄이 없어도 차시(숫자) 칸을 찾아 맞춘다', () => {
     // 차시 | 내용 | 준비물
     expect(parseLessonTable(tsv(['1', '자기소개', '이름표'], ['2~3', '규칙 정하기', '']))).toEqual([
-      { unit: '', no: '1', content: '자기소개', supplies: '이름표' },
-      { unit: '', no: '2~3', content: '규칙 정하기', supplies: '' },
+      { unit: '', no: '1', content: '자기소개', page: '', supplies: '이름표' },
+      { unit: '', no: '2~3', content: '규칙 정하기', page: '', supplies: '' },
     ]);
     // 단원 번호도 숫자일 때 - 듬성듬성한 단원 칸이 아니라 차시 칸을 고른다
     const parsed = parseLessonTable(tsv(['1', '1', '가'], ['', '2', '나'], ['2', '3', '다']));
@@ -255,7 +288,7 @@ describe('저장된 모양 읽기', () => {
       id: 'pg_1',
       key: '국어',
       startDate: '',
-      lessons: [{ unit: '', no: '', content: '3', supplies: '' }],
+      lessons: [{ unit: '', no: '', content: '3', page: '', supplies: '' }],
       bumps: ['a'],
       updatedAt: undefined,
     });
@@ -464,7 +497,8 @@ describe('예시 CSV · parseLessonCsv', () => {
   it('예시 CSV를 그대로 불러오면 15차시, 단원 칸이 비면 위 단원을 잇고 단원만 적힌 줄은 세지 않는다', () => {
     const lessons = parseLessonCsv(toCsv(PROGRESS_SAMPLE_ROWS));
     expect(lessons).toHaveLength(15);
-    expect(lessons[0]).toEqual({ unit: '1. 식물의 생활', no: '1', content: '우리 주변 식물 이야기하기', supplies: '식물 사진 카드' });
+    expect(lessons[0]).toEqual({ unit: '1. 식물의 생활', no: '1', content: '우리 주변 식물 이야기하기', page: '8~9', supplies: '식물 사진 카드' });
+    expect(lessons[8].page).toBe('28~29');
     expect(lessons[1]).toMatchObject({ unit: '1. 식물의 생활', no: '2', supplies: '돋보기, 여러 가지 잎' });
     expect(lessons[3].supplies).toBe('');
     expect(lessons[8]).toMatchObject({ unit: '2. 물의 상태 변화', no: '1', content: '물의 세 가지 상태 알아보기' });
@@ -474,8 +508,8 @@ describe('예시 CSV · parseLessonCsv', () => {
   it('엑셀에서 고쳐 저장한 모양(따옴표 없음·칸 차례 바뀜·앞뒤 빈칸)도 읽는다', () => {
     const csv = '차시,내용,준비물,단원\r\n1, 비유 표현 알기 ,,1. 생각과 느낌\r\n2,"시를 읽고, 느낌 나누기",시집,\r\n';
     expect(parseLessonCsv(csv)).toEqual([
-      { unit: '1. 생각과 느낌', no: '1', content: '비유 표현 알기', supplies: '' },
-      { unit: '1. 생각과 느낌', no: '2', content: '시를 읽고, 느낌 나누기', supplies: '시집' },
+      { unit: '1. 생각과 느낌', no: '1', content: '비유 표현 알기', page: '', supplies: '' },
+      { unit: '1. 생각과 느낌', no: '2', content: '시를 읽고, 느낌 나누기', page: '', supplies: '시집' },
     ]);
   });
 

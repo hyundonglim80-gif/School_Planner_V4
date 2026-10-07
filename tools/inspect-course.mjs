@@ -1,7 +1,7 @@
 // tools/inspect-course.mjs
 //
 // 18번 교과 전담 S4 '과정 - 차시 목록 하나를 여러 반에' - 바뀐 부분만 실제 크롬으로 본다 (PC 1400px).
-//   - teacher3: 진도 관리 창 '과정 (여러 반)' → 과목 '과학', 5-1~5-4, 2026-11-02 시작, 차시 6개 붙여 넣기 → 저장
+//   - teacher3: 진도 관리 창 '+ 새 진도'(과목 + 반) → 과목 '과학', 5-1~5-4, 2026-11-02 시작, 차시 6개 붙여 넣기 → 저장
 //     (서버 subject·classes·key), 반 탭 미리보기, 목록 '5학년 과학 · 5-1, 5-2, 5-3, 5-4'
 //   - 하루 11-02 1교시(5-1)·3교시(5-2) 모두 1/6차시, 11-04 1교시(5-2)·2교시(5-1) 2/6차시
 //   - 5-2의 11-02 3교시를 밀면 5-2만 밀리고 5-1은 그대로, 진도 줄을 누르면 창이 5-2 탭으로 열린다, 되돌리기
@@ -124,7 +124,7 @@ try {
   // ── 과정 만들기 ──────────────────────────────────────────────
   let dlg = await openProgress();
   const newCourse = dlg.locator('[data-new-course]');
-  check("교과 전담의 진도 관리 창에 '과정 (여러 반)' 단추", (await newCourse.count()) === 1);
+  check("교과 전담의 진도 관리 창의 새 진도 단추(과목 + 반)", (await newCourse.count()) === 1);
   await newCourse.click();
   await dlg.locator('[data-course-form]').waitFor({ timeout: 5000 });
   await dlg.locator('[data-course-subject="과학"]').click();
@@ -234,7 +234,7 @@ try {
   // ── 회귀: 초등 담임 ──────────────────────────────────────────
   await openApp('');
   dlg = await openProgress();
-  check("초등 담임(teacher) 진도 관리 창에는 '과정' 단추가 없다", (await dlg.locator('[data-new-course]').count()) === 0);
+  check("초등 담임(teacher) 진도 관리 창의 새 진도는 과목 하나 (과정 단추 없음)", (await dlg.locator('[data-new-course]').count()) === 0);
   await page.keyboard.press('Escape');
 
   check('페이지 오류 없음', errors.length === 0, errors.join(' / '));
