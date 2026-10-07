@@ -718,6 +718,8 @@ export default function EntryDrawer({
                   <button
                     key={label}
                     type="button"
+                    data-entry-label-chip={label}
+                    aria-pressed={isSelected}
                     title={labelPath(label, labelParents)}
                     onClick={() => toggleLabel(label)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${

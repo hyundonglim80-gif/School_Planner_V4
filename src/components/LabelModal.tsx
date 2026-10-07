@@ -15,6 +15,13 @@ import { scanForMissingLabels, pickRecoveryColor } from '../utils/labelRecovery'
 import { applyLabelRenames, diffLabelNames } from '../utils/labelRename';
 import { orderByTree, sanitizeParents, saveLabelTree, useLabelTree } from '../lib/labelTree';
 import { moveToTrash } from '../utils/trashHelper';
+import {
+  mergeEntryLabels,
+  toJournalLabels,
+  toMemoLabels,
+  type EntryLabel,
+  type RawJournalLabel,
+} from '../lib/entryLabels';
 import PopupFrame from './PopupFrame';
 import { showToast, showErrorToast } from '../utils/toast';
 
@@ -164,8 +171,14 @@ function ColorPickerDropdown({
 interface LabelModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: 'event' | 'journal' | 'memo';
+  /** 'journal'·'memo'는 예전 이름 - 19번 U5부터 메모·기록 라벨은 한 탭('entry') */
+  initialTab?: 'event' | 'journal' | 'memo' | 'entry';
 }
+
+type LabelTab = 'event' | 'entry';
+const tabOf = (t: LabelModalProps['initialTab']): LabelTab => (t === 'event' || !t ? 'event' : 'entry');
+/** 저장한 뒤의 목록: 두 배열의 i번째가 목록의 i번째다 */
+const rebaseEntries = (list: EntryLabel[]): EntryLabel[] => list.map((l, i) => ({ ...l, inJournal: true, memoIndex: i }));
 
 /** 같은 상위 아래(또는 맨 위 단계)에서 한 칸 위/아래로. 하위는 제 상위 밑을 벗어나지 않는다. */
 function moveSibling<T extends { id: string }>(list: T[], id: string, dir: 'up' | 'down', parentIds: Record<string, string>): T[] {
@@ -344,12 +357,12 @@ function TreeLabelRows({
 
 export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: LabelModalProps) {
   const { groups } = useGroups();
-  const [activeTab, setActiveTab] = useState<'event' | 'journal' | 'memo'>(initialTab);
+  const [activeTab, setActiveTab] = useState<LabelTab>(tabOf(initialTab));
   const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     if (isOpen && initialTab) {
-      setActiveTab(initialTab);
+      setActiveTab(tabOf(initialTab));
     }
   }, [isOpen, initialTab]);
 
@@ -363,24 +376,20 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   const [newEventPeriod, setNewEventPeriod] = useState(false);
   const [newEventRecur, setNewEventRecur] = useState(false);
 
-  // 메모 라벨 상태
-  const [memoLabels, setMemoLabels] = useState<MemoLabel[]>([]);
-  const [newMemoName, setNewMemoName] = useState('');
-  const [newMemoColor, setNewMemoColor] = useState('green');
-
-  // 기록 라벨 상태
-  const [journalLabels, setJournalLabels] = useState<JournalLabel[]>([]);
+  // 메모·기록 라벨 한 목록 (19번 U5, lib/entryLabels). 저장은 V3와 같이 쓰는 두 배열(memoLabels·journalLabels)에 같은 목록을
+  // 원래 모양 그대로 - 불러온 두 배열을 들고 있다가 toMemoLabels·toJournalLabels로 쓴다.
+  const [entryLabels, setEntryLabels] = useState<EntryLabel[]>([]);
+  const rawMemoRef = useRef<unknown[]>([]);
+  const rawJournalRef = useRef<RawJournalLabel[]>([]);
   // 상위/하위 (하위 id → 상위 id). 저장된 트리는 이름으로 있어서 열 때 id로 바꾼다.
   const labelTree = useLabelTree();
-  const [journalParentIds, setJournalParentIds] = useState<Record<string, string>>({});
-  const [memoParentIds, setMemoParentIds] = useState<Record<string, string>>({});
+  const [entryParentIds, setEntryParentIds] = useState<Record<string, string>>({});
   /** 이번에 연 뒤 상위/하위를 손댔나. 손댔으면 늦게 도착한 트리로 덮지 않는다. */
   const treeTouchedRef = useRef(false);
-  const [newJournalName, setNewJournalName] = useState('');
-  const [newJournalColor, setNewJournalColor] = useState('green');
+  const [newEntryName, setNewEntryName] = useState('');
+  const [newEntryColor, setNewEntryColor] = useState('green');
   // 새 라벨을 더할 때 고르는 상위 라벨 (id, 없으면 '')
-  const [newJournalParent, setNewJournalParent] = useState('');
-  const [newMemoParent, setNewMemoParent] = useState('');
+  const [newEntryParent, setNewEntryParent] = useState('');
 
   const [saving, setSaving] = useState(false);
   // 이름이 바뀐 라벨을 기존 항목에 반영하는 중 (저장보다 오래 걸릴 수 있다)
@@ -407,15 +416,13 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
       }
       return out;
     };
-    setJournalParentIds(toIds(labelTree.journal, journalLabels));
-    setMemoParentIds(toIds(labelTree.memo, memoLabels));
+    setEntryParentIds(toIds(labelTree.entry || labelTree.journal, entryLabels));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, labelsLoaded, labelTree]);
   const [loadError, setLoadError] = useState(false);
   // 저장 시점에 삭제된 라벨을 찾아내기 위한, 불러온 시점의 원본 스냅샷
   const originalEventLabelsRef = React.useRef<EventLabel[]>([]);
-  const originalJournalLabelsRef = React.useRef<JournalLabel[]>([]);
-  const originalMemoLabelsRef = React.useRef<MemoLabel[]>([]);
+  const originalEntryLabelsRef = React.useRef<EntryLabel[]>([]);
 
   const fetchLabels = async () => {
     const user = auth.currentUser;
@@ -446,22 +453,12 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
       originalEventLabelsRef.current = nextEventLabels;
 
       const rawMemos = pick(data.memoLabels, readLegacyMemoLabels(), DEFAULT_MEMO_LABELS);
-      const nextMemoLabels = rawMemos.map((l: any, i: number) => ({
-        id: (typeof l === 'object' && l.id) ? l.id : `memo_${i}_${typeof l === 'string' ? l : l.name || ''}`,
-        name: typeof l === 'string' ? l : (l.name || ''),
-        color: (typeof l === 'object' && l.color) ? l.color : 'green',
-      }));
-      setMemoLabels(nextMemoLabels);
-      originalMemoLabelsRef.current = nextMemoLabels;
-
       const rawJournals = pick(data.journalLabels, readLegacyJournalLabels(), DEFAULT_JOURNAL_LABELS);
-      const nextJournalLabels = rawJournals.map((l: any, i: number) => ({
-        id: l.id || `j_${i}_${l.name || ''}`,
-        name: l.name || '',
-        color: l.color || 'green',
-      }));
-      setJournalLabels(nextJournalLabels);
-      originalJournalLabelsRef.current = nextJournalLabels;
+      rawMemoRef.current = rawMemos;
+      rawJournalRef.current = rawJournals;
+      const nextEntryLabels = mergeEntryLabels(rawMemos, rawJournals);
+      setEntryLabels(nextEntryLabels);
+      originalEntryLabelsRef.current = nextEntryLabels;
 
       setLabelsLoaded(true);
     } catch (e) {
@@ -469,8 +466,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
       // 불러오기 자체가 실패한 경우 -> 화면에는 기본값을 임시로 보여주되,
       // labelsLoaded를 true로 만들지 않아 저장(클라우드 덮어쓰기)은 막는다.
       setEventLabels(DEFAULT_EVENT_LABELS);
-      setMemoLabels(DEFAULT_MEMO_LABELS);
-      setJournalLabels(DEFAULT_JOURNAL_LABELS);
+      setEntryLabels(mergeEntryLabels(DEFAULT_MEMO_LABELS, DEFAULT_JOURNAL_LABELS));
       setLoadError(true);
     }
   };
@@ -485,28 +481,42 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   if (!isOpen) return null;
 
   // --- 클라우드 저장 함수 ---
-  const saveLabelsToCloud = async (
-    nextEvents: EventLabel[],
-    nextMemos: MemoLabel[],
-    nextJournals: JournalLabel[]
-  ) => {
+  /** 라벨 문서에 쓸 모양: 일정은 두 이름으로, 메모·기록은 같은 목록을 두 배열에 원래 모양으로 */
+  const labelsPayload = (nextEvents: EventLabel[], nextEntries: EntryLabel[]) => {
+    const memoLabels = toMemoLabels(nextEntries, rawMemoRef.current);
+    const journalLabels = toJournalLabels(nextEntries, rawJournalRef.current);
+    return {
+      payload: {
+        eventLabels: nextEvents.map(toSharedEventLabel),
+        memoLabels,
+        journalLabels,
+        labels: nextEvents.map(toSharedEventLabel), // V3 호환성 (두 이름으로 - normalizeEventLabel 참고)
+        updatedAt: Date.now(),
+      },
+      memoLabels,
+      journalLabels,
+    };
+  };
+  /** 쓴 뒤: 들고 있는 두 배열과 목록을 쓴 것으로 맞춘다 (다음 저장이 같은 항목을 고치게) */
+  const afterWrite = (nextEvents: EventLabel[], nextEntries: EntryLabel[], memoLabels: unknown[], journalLabels: RawJournalLabel[]) => {
+    rawMemoRef.current = memoLabels;
+    rawJournalRef.current = journalLabels;
+    const rebased = rebaseEntries(nextEntries);
+    setEntryLabels(rebased);
+    originalEventLabelsRef.current = nextEvents;
+    originalEntryLabelsRef.current = rebased;
+    return rebased;
+  };
+
+  const saveLabelsToCloud = async (nextEvents: EventLabel[], nextEntries: EntryLabel[]) => {
     const user = auth.currentUser;
     if (!user || !labelsLoaded) return;
 
     try {
       const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
-      const payload = {
-        eventLabels: nextEvents.map(toSharedEventLabel),
-        memoLabels: nextMemos,
-        journalLabels: nextJournals,
-        labels: nextEvents.map(toSharedEventLabel), // V3 호환성 (두 이름으로 - normalizeEventLabel 참고)
-        updatedAt: Date.now(),
-      };
-
+      const { payload, memoLabels, journalLabels } = labelsPayload(nextEvents, nextEntries);
       await setDoc(docRef, payload, { merge: true });
-      originalEventLabelsRef.current = nextEvents;
-      originalJournalLabelsRef.current = nextJournals;
-      originalMemoLabelsRef.current = nextMemos;
+      afterWrite(nextEvents, nextEntries, memoLabels, journalLabels);
 
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -533,7 +543,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     setNewEventName('');
     setNewEventPeriod(false);
     setNewEventRecur(false);
-    await saveLabelsToCloud(next, memoLabels, journalLabels);
+    await saveLabelsToCloud(next, entryLabels);
   };
 
   const handleDeleteEventLabel = (id: string) => {
@@ -550,49 +560,43 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     setEventLabels(updated);
   };
 
-  /** 상위/하위(id)를 지금 이름으로 바꿔 저장한다 (lib/labelTree) */
-  const saveTree = (
-    journalIds: Record<string, string>,
-    journalList: { id: string; name: string }[],
-    memoIds: Record<string, string>,
-    memoList: { id: string; name: string }[]
-  ) => {
-    const toNames = (parentIds: Record<string, string>, list: { id: string; name: string }[]) => {
-      const nameOf = (id: string) => list.find((l) => l.id === id)?.name?.trim();
-      const out: Record<string, string> = {};
-      for (const [c, pr] of Object.entries(parentIds)) {
-        const cn = nameOf(c);
-        const pn = nameOf(pr);
-        if (cn && pn && cn !== pn) out[cn] = pn;
-      }
-      return sanitizeParents(out);
-    };
-    return saveLabelTree({ journal: toNames(journalIds, journalList), memo: toNames(memoIds, memoList) });
+  /** 상위/하위(id)를 지금 이름으로 바꿔 저장한다 (lib/labelTree - 메모·기록 한 트리) */
+  const saveTree = (parentIds: Record<string, string>, list: { id: string; name: string }[]) => {
+    const nameOf = (id: string) => list.find((l) => l.id === id)?.name?.trim();
+    const out: Record<string, string> = {};
+    for (const [c, pr] of Object.entries(parentIds)) {
+      const cn = nameOf(c);
+      const pn = nameOf(pr);
+      if (cn && pn && cn !== pn) out[cn] = pn;
+    }
+    return saveLabelTree({ entry: sanitizeParents(out) });
   };
 
-  // --- 메모 라벨 핸들러 ---
-  const handleAddMemoLabel = async () => {
-    if (!newMemoName.trim()) return;
-    const newLbl: MemoLabel = {
-      id: `memo_${Date.now()}`,
-      name: newMemoName.trim(),
-      color: newMemoColor,
-    };
-    const next = [...memoLabels, newLbl];
-    setMemoLabels(next);
-    setNewMemoName('');
+  // --- 메모·기록 라벨 핸들러 ---
+  const handleAddEntryLabel = async () => {
+    const name = newEntryName.trim();
+    if (!name) return;
+    if (entryLabels.some((l) => l.name.trim() === name)) {
+      showErrorToast(`'${name}' 라벨이 이미 있습니다.`);
+      return;
+    }
+    // 기록 라벨 id를 새로 만든다 (있던 id는 절대 새로 만들지 않는다 - 새 라벨만)
+    const newLbl: EntryLabel = { id: `j_${Date.now()}`, name, color: newEntryColor, inJournal: false };
+    const next = [...entryLabels, newLbl];
+    setEntryLabels(next);
+    setNewEntryName('');
     // 상위를 골랐으면 그 밑에 둔다. 라벨은 더하는 즉시 저장되므로 상위/하위도 함께 저장한다
     // (저장 단추를 안 누르고 닫아도 라벨만 남고 상위가 빠지지 않게).
-    const parent = memoLabels.some((l) => l.id === newMemoParent && !memoParentIds[l.id]) ? newMemoParent : '';
-    const nextParents = parent ? { ...memoParentIds, [newLbl.id]: parent } : memoParentIds;
+    const parent = entryLabels.some((l) => l.id === newEntryParent && !entryParentIds[l.id]) ? newEntryParent : '';
+    const nextParents = parent ? { ...entryParentIds, [newLbl.id]: parent } : entryParentIds;
     if (parent) {
       treeTouchedRef.current = true;
-      setMemoParentIds(nextParents);
+      setEntryParentIds(nextParents);
     }
-    await saveLabelsToCloud(eventLabels, next, journalLabels);
+    await saveLabelsToCloud(eventLabels, next);
     if (parent) {
       try {
-        await saveTree(journalParentIds, journalLabels, nextParents, next);
+        await saveTree(nextParents, next);
       } catch (err) {
         console.error('라벨 상위/하위 저장 실패:', err);
         showErrorToast('상위 라벨을 저장하지 못했습니다. 저장 단추를 눌러 다시 저장해 주세요.');
@@ -600,45 +604,8 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     }
   };
 
-  const handleDeleteMemoLabel = (id: string) => {
-    setMemoLabels(memoLabels.filter((l) => l.id !== id));
-  };
-
-
-
-  // --- 기록 라벨 핸들러 ---
-  const handleAddJournalLabel = async () => {
-    if (!newJournalName.trim()) return;
-    const newLbl: JournalLabel = {
-      id: `j_${Date.now()}`,
-      name: newJournalName.trim(),
-      color: newJournalColor,
-    };
-    const next = [...journalLabels, newLbl];
-    setJournalLabels(next);
-    setNewJournalName('');
-    // 상위를 골랐으면 그 밑에 둔다 (메모 라벨 더하기와 같다)
-    const parent = journalLabels.some((l) => l.id === newJournalParent && !journalParentIds[l.id]) ? newJournalParent : '';
-    const nextParents = parent ? { ...journalParentIds, [newLbl.id]: parent } : journalParentIds;
-    if (parent) {
-      treeTouchedRef.current = true;
-      setJournalParentIds(nextParents);
-    }
-    await saveLabelsToCloud(eventLabels, memoLabels, next);
-    if (parent) {
-      try {
-        await saveTree(nextParents, next, memoParentIds, memoLabels);
-      } catch (err) {
-        console.error('라벨 상위/하위 저장 실패:', err);
-        showErrorToast('상위 라벨을 저장하지 못했습니다. 저장 단추를 눌러 다시 저장해 주세요.');
-      }
-    }
-  };
-
-
-
-  const handleDeleteJournalLabel = (id: string) => {
-    setJournalLabels(journalLabels.filter((l) => l.id !== id));
+  const handleDeleteEntryLabel = (id: string) => {
+    setEntryLabels(entryLabels.filter((l) => l.id !== id));
   };
 
   // 저장 직전, 불러온 시점과 비교해 삭제된 라벨을 찾아 휴지통으로 보낸다.
@@ -646,11 +613,8 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     const removedEvents = originalEventLabelsRef.current.filter(
       (orig) => !eventLabels.some((l) => l.id === orig.id)
     );
-    const removedJournals = originalJournalLabelsRef.current.filter(
-      (orig) => !journalLabels.some((l) => l.id === orig.id)
-    );
-    const removedMemos = originalMemoLabelsRef.current.filter(
-      (orig) => !memoLabels.some((l) => l.id === orig.id)
+    const removedEntries = originalEntryLabelsRef.current.filter(
+      (orig) => !entryLabels.some((l) => l.id === orig.id)
     );
 
     for (const lbl of removedEvents) {
@@ -660,16 +624,17 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
         console.error('라벨 휴지통 이동 실패:', err);
       }
     }
-    for (const lbl of removedJournals) {
+    // 메모·기록 라벨은 기록 라벨 모양({id,name,color})으로 휴지통에 - 되살리면 journalLabels에 들어가고(기록이 id로 찾는다)
+    // 화면은 한 목록이라 메모에도 보인다. 기록 배열에 없던 라벨(메모에만 있던 것)은 메모 라벨로.
+    for (const lbl of removedEntries) {
+      const label = { id: lbl.id, name: lbl.name, color: lbl.color };
       try {
-        await moveToTrash({ id: lbl.id, type: 'label', content: `[기록] ${lbl.name}`, data: { kind: 'journal', label: lbl } });
-      } catch (err) {
-        console.error('라벨 휴지통 이동 실패:', err);
-      }
-    }
-    for (const lbl of removedMemos) {
-      try {
-        await moveToTrash({ id: lbl.id, type: 'label', content: `[메모] ${lbl.name}`, data: { kind: 'memo', label: lbl } });
+        await moveToTrash({
+          id: lbl.id,
+          type: 'label',
+          content: `[메모·기록] ${lbl.name}`,
+          data: { kind: lbl.inJournal ? 'journal' : 'memo', label },
+        });
       } catch (err) {
         console.error('라벨 휴지통 이동 실패:', err);
       }
@@ -691,31 +656,25 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
 
       // 이름이 바뀐 라벨을 먼저 추려둔다. 저장된 항목들은 라벨을 "이름"으로 들고
       // 있어서, 이름만 바꾸고 두면 그 항목들의 라벨 칩이 사라진다.
+      // 메모·기록 라벨은 한 목록이라 이름 바꾸기도 메모·기록 둘 다에 (기록은 id라 항목은 그대로지만 옛 [이름] 글 형식)
+      const entryRenames = diffLabelNames(originalEntryLabelsRef.current, entryLabels);
       const renames = {
         event: diffLabelNames(originalEventLabelsRef.current, eventLabels),
-        journal: diffLabelNames(originalJournalLabelsRef.current, journalLabels),
-        memo: diffLabelNames(originalMemoLabelsRef.current, memoLabels),
+        journal: entryRenames,
+        memo: entryRenames,
       };
 
       const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
-      const payload = {
-        eventLabels,
-        memoLabels,
-        journalLabels,
-        labels: eventLabels, // V3 호환성
-        updatedAt: Date.now(),
-      };
-
+      // 일정 라벨은 V3 이름(isForward 등)도 함께 쓴다 - 예전에는 이 저장만 V4 이름으로 써서 V3가 속성을 못 읽었다(19번 U5에서 고침)
+      const { payload, memoLabels, journalLabels } = labelsPayload(eventLabels, entryLabels);
       await setDoc(docRef, payload, { merge: true });
-      originalEventLabelsRef.current = eventLabels;
-      originalJournalLabelsRef.current = journalLabels;
-      originalMemoLabelsRef.current = memoLabels;
+      const saved = afterWrite(eventLabels, entryLabels, memoLabels, journalLabels);
 
       // 상위/하위도 함께 저장한다. id로 들고 있던 것을 지금 이름으로 바꿔 두므로 이름을 고친 것도 따라간다.
-      await saveTree(journalParentIds, journalLabels, memoParentIds, memoLabels);
+      await saveTree(entryParentIds, saved);
       treeTouchedRef.current = false;
 
-      const renameCount = renames.event.length + renames.journal.length + renames.memo.length;
+      const renameCount = renames.event.length + entryRenames.length;
       if (renameCount > 0) {
         setRenaming(true);
         try {
@@ -757,12 +716,13 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
         user.uid,
         groupIds,
         eventLabels.map((l) => l.name),
-        journalLabels.map((l) => l.name),
-        memoLabels.map((l) => l.name)
+        entryLabels.map((l) => l.name),
+        entryLabels.map((l) => l.name)
       );
+      // 메모·기록은 한 목록 - 두 쪽에서 찾은 이름을 하나로
+      const missingEntryNames = [...new Set([...result.missingJournalNames, ...result.missingMemoNames])];
 
-      const totalMissing =
-        result.missingEventNames.length + result.missingJournalNames.length + result.missingMemoNames.length;
+      const totalMissing = result.missingEventNames.length + missingEntryNames.length;
 
       if (totalMissing === 0) {
         showErrorToast('✅ 검사 완료: 삭제되었거나 누락된 라벨이 없습니다.');
@@ -771,8 +731,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
 
       const lines: string[] = [];
       if (result.missingEventNames.length > 0) lines.push(`일정: ${result.missingEventNames.join(', ')}`);
-      if (result.missingJournalNames.length > 0) lines.push(`기록: ${result.missingJournalNames.join(', ')}`);
-      if (result.missingMemoNames.length > 0) lines.push(`메모: ${result.missingMemoNames.join(', ')}`);
+      if (missingEntryNames.length > 0) lines.push(`메모·기록: ${missingEntryNames.join(', ')}`);
 
       const proceed = window.confirm(
         `다음 라벨이 실제 데이터에는 남아있지만 라벨 목록에는 없습니다. 기본값으로 복구할까요?\n\n${lines.join('\n')}\n\n(색상/속성은 나중에 목록에서 직접 조정할 수 있습니다)`
@@ -794,46 +753,24 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
         })),
       ];
 
-      let jColorIdx = journalLabels.length;
-      const restoredJournalLabels = [
-        ...journalLabels,
-        ...result.missingJournalNames.map((name) => ({
+      let jColorIdx = entryLabels.length;
+      const restoredEntryLabels: EntryLabel[] = [
+        ...entryLabels,
+        ...missingEntryNames.map((name) => ({
           id: `j_recovered_${Date.now()}_${jColorIdx++}`,
           name,
           color: pickRecoveryColor(jColorIdx),
-        })),
-      ];
-
-      let mColorIdx = memoLabels.length;
-      const restoredMemoLabels = [
-        ...memoLabels,
-        ...result.missingMemoNames.map((name) => ({
-          id: `memo_recovered_${Date.now()}_${mColorIdx++}`,
-          name,
-          color: pickRecoveryColor(mColorIdx),
+          inJournal: false,
         })),
       ];
 
       setEventLabels(restoredEventLabels);
-      setJournalLabels(restoredJournalLabels);
-      setMemoLabels(restoredMemoLabels);
 
       // 복구된 목록을 바로 저장
       const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
-      await setDoc(
-        docRef,
-        {
-          eventLabels: restoredEventLabels.map(toSharedEventLabel),
-          memoLabels: restoredMemoLabels,
-          journalLabels: restoredJournalLabels,
-          labels: restoredEventLabels, // V3 호환성
-          updatedAt: Date.now(),
-        },
-        { merge: true }
-      );
-      originalEventLabelsRef.current = restoredEventLabels;
-      originalJournalLabelsRef.current = restoredJournalLabels;
-      originalMemoLabelsRef.current = restoredMemoLabels;
+      const { payload, memoLabels, journalLabels } = labelsPayload(restoredEventLabels, restoredEntryLabels);
+      await setDoc(docRef, payload, { merge: true });
+      afterWrite(restoredEventLabels, restoredEntryLabels, memoLabels, journalLabels);
 
       showToast(`✅ ${totalMissing}개의 라벨을 복구하고 저장했습니다.`);
     } catch (e) {
@@ -867,7 +804,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
           </button>
         </div>
 
-        {/* 탭 네비게이션 (일정, 기록, 메모) */}
+        {/* 탭 네비게이션 (일정, 메모·기록) */}
         <div className="flex border-b border-slate-200 bg-slate-100/70 p-1.5 gap-1">
           <button
             onClick={() => setActiveTab('event')}
@@ -880,24 +817,15 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
             <span>📅</span> 일정 라벨 ({eventLabels.length})
           </button>
           <button
-            onClick={() => setActiveTab('journal')}
+            onClick={() => setActiveTab('entry')}
+            data-label-tab="entry"
             className={`flex-1 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 ${
-              activeTab === 'journal'
-                ? 'bg-white text-amber-700 shadow-xs border border-amber-200'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <span>📔</span> 기록(일지) 라벨 ({journalLabels.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('memo')}
-            className={`flex-1 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 ${
-              activeTab === 'memo'
+              activeTab === 'entry'
                 ? 'bg-white text-emerald-700 shadow-xs border border-emerald-200'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            <span>📝</span> 메모 라벨 ({memoLabels.length})
+            <span>📝</span> 메모·기록 라벨 ({entryLabels.length})
           </button>
         </div>
 
@@ -1124,118 +1052,65 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
             </div>
           )}
 
-          {/* TAB 2: 기록(일지) 라벨 */}
-          {activeTab === 'journal' && (
-            <div className="space-y-4">
-              <div className="bg-amber-50 border-l-4 border-amber-500 p-3 rounded-r-xl text-xs text-amber-900 leading-relaxed">
-                <strong>💡 기록(일지) 라벨 안내</strong>
-                <p className="mt-0.5 text-amber-800">
-                  하루 뷰의 일지/상담/업무 기록에 붙이는 분류 라벨입니다.
-                </p>
-              </div>
-
-              {/* 기록 라벨 목록 - 상위 밑에 하위를 들여 쓴다 */}
-              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                <TreeLabelRows
-                  labels={journalLabels}
-                  setLabels={setJournalLabels}
-                  parentIds={journalParentIds}
-                  setParentIds={(next) => {
-                    treeTouchedRef.current = true;
-                    setJournalParentIds(next);
-                  }}
-                  onDelete={handleDeleteJournalLabel}
-                  noun="기록"
-                  focusClass="focus:border-amber-500"
-                />
-              </div>
-
-              {/* 새 기록 라벨 추가 */}
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 p-3 rounded-xl">
-                <input
-                  type="text"
-                  value={newJournalName}
-                  onChange={(e) => setNewJournalName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddJournalLabel()}
-                  placeholder="새 기록 라벨 이름..."
-                  className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:border-amber-500"
-                />
-                <ColorPickerDropdown
-                  color={newJournalColor}
-                  onChange={setNewJournalColor}
-                />
-                <NewLabelParentSelect
-                  labels={journalLabels}
-                  parentIds={journalParentIds}
-                  value={newJournalParent}
-                  onChange={setNewJournalParent}
-                  noun="기록"
-                />
-                <button
-                  onClick={handleAddJournalLabel}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
-                >
-                  추가
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: 메모 라벨 */}
-          {activeTab === 'memo' && (
+          {/* TAB 2: 메모·기록 라벨 (한 목록, 19번 U5) */}
+          {activeTab === 'entry' && (
             <div className="space-y-4">
               <div className="bg-emerald-50 border-l-4 border-emerald-500 p-3 rounded-r-xl text-xs text-emerald-900 leading-relaxed">
-                <strong>💡 메모 라벨(태그) 안내</strong>
+                <strong>💡 메모·기록 라벨 안내</strong>
                 <p className="mt-0.5 text-emerald-800">
-                  메모 화면 상단의 필터 칩과 메모 작성 시 붙일 수 있는 태그입니다. 순서를 위/아래로 이동할 수 있습니다.
+                  메모와 기록에 함께 쓰는 라벨입니다. 쓰는 칸과 메모 화면·하루 화면의 거르개가 이 목록을 봅니다. 순서를 위/아래로, 상위 라벨 밑에 둘 수 있습니다.
                 </p>
               </div>
+              {(labelTree.conflicts || []).length > 0 && (
+                <p data-label-tree-conflicts className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  메모와 기록에서 상위가 달랐던 라벨: <b>{labelTree.conflicts!.join(', ')}</b> - 기록 쪽 상위로 합쳤습니다. 다르면 아래에서 고치고 저장하세요.
+                </p>
+              )}
 
-              {/* 메모 라벨 목록 - 상위 밑에 하위를 들여 쓴다 */}
+              {/* 메모·기록 라벨 목록 - 상위 밑에 하위를 들여 쓴다 */}
               <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                 <TreeLabelRows
-                  labels={memoLabels}
-                  setLabels={setMemoLabels}
-                  parentIds={memoParentIds}
+                  labels={entryLabels}
+                  setLabels={setEntryLabels}
+                  parentIds={entryParentIds}
                   setParentIds={(next) => {
                     treeTouchedRef.current = true;
-                    setMemoParentIds(next);
+                    setEntryParentIds(next);
                   }}
-                  onDelete={handleDeleteMemoLabel}
-                  noun="메모"
+                  onDelete={handleDeleteEntryLabel}
+                  noun="메모·기록"
                   focusClass="focus:border-emerald-500"
                 />
               </div>
 
-              {/* 새 메모 라벨 추가 */}
-              <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-2">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={newMemoName}
-                    onChange={(e) => setNewMemoName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddMemoLabel()}
-                    placeholder="새 메모 라벨 태그 이름..."
-                    className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:border-emerald-500"
-                  />
-                  <ColorPickerDropdown
-                    color={newMemoColor}
-                    onChange={setNewMemoColor}
-                  />
-                  <NewLabelParentSelect
-                    labels={memoLabels}
-                    parentIds={memoParentIds}
-                    value={newMemoParent}
-                    onChange={setNewMemoParent}
-                    noun="메모"
-                  />
-                  <button
-                    onClick={handleAddMemoLabel}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
-                  >
-                    추가
-                  </button>
-                </div>
+              {/* 새 메모·기록 라벨 추가 */}
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                <input
+                  type="text"
+                  value={newEntryName}
+                  onChange={(e) => setNewEntryName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddEntryLabel()}
+                  placeholder="새 메모·기록 라벨 이름..."
+                  aria-label="새 메모·기록 라벨 이름"
+                  className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:border-emerald-500"
+                />
+                <ColorPickerDropdown
+                  color={newEntryColor}
+                  onChange={setNewEntryColor}
+                />
+                <NewLabelParentSelect
+                  labels={entryLabels}
+                  parentIds={entryParentIds}
+                  value={newEntryParent}
+                  onChange={setNewEntryParent}
+                  noun="메모·기록"
+                />
+                <button
+                  onClick={handleAddEntryLabel}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+                >
+                  추가
+                </button>
               </div>
             </div>
           )}

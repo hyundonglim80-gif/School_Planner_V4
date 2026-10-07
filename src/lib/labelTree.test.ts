@@ -11,6 +11,7 @@ import {
   toggleFilterChildren,
   toggleFilterLabel,
   clickFilterLabel,
+  readLabelTree,
 } from './labelTree';
 
 // 메모·기록 라벨 상위/하위 (2단계). 예: 학교 › A초·B초·C초
@@ -100,5 +101,22 @@ describe('라벨 트리', () => {
 
   it('상위가 목록에서 사라진 하위는 맨 위 단계로 보인다', () => {
     expect(orderByTree(['A초', '업무'], { A초: '학교' }).map((r) => r.depth)).toEqual([0, 0]);
+  });
+});
+
+describe('readLabelTree - 메모·기록 한 트리 (19번 U5)', () => {
+  it('entry가 있으면 그것을 memo·journal에도', () => {
+    const t = readLabelTree({ entry: { A초: '학교' }, memo: { 숙제: '할일' }, journal: {} });
+    expect(t).toEqual({ memo: { A초: '학교' }, journal: { A초: '학교' }, entry: { A초: '학교' }, conflicts: [] });
+  });
+  it('entry가 없으면 memo·journal을 합치고 상위가 다른 하위는 기록 쪽 + 알림', () => {
+    const t = readLabelTree({ memo: { 숙제: '할일', B초: '학교' }, journal: { 숙제: '수업' } });
+    expect(t.entry).toEqual({ 숙제: '수업', B초: '학교' });
+    expect(t.memo).toEqual(t.entry);
+    expect(t.conflicts).toEqual(['숙제']);
+  });
+  it('합쳐서 3단계가 되면 끊는다', () => {
+    const t = readLabelTree({ memo: { 학교: '기관' }, journal: { A초: '학교' } });
+    expect(Object.keys(t.entry!).length).toBe(1);
   });
 });

@@ -14,6 +14,7 @@
 //
 // ⚠️ 기록은 하루치가 journals/{date} 한 배열이다. 캐시로 읽고 쓰면 그날 다른 기록이 사라질 수 있어
 //    서버에서 읽고, 서버가 답하지 않으면 옮기지 않는다(v4-cold-cache-overwrites-day).
+import { ensureEntryLabelsQuietly } from './entryLabelSync';
 import { addDoc, collection, deleteDoc, doc, runTransaction } from 'firebase/firestore';
 import { TABLE_ONLY_CONTENT } from './entryTable';
 import { auth, db } from './firebase';
@@ -131,6 +132,8 @@ export async function moveMemoToJournal(opts: {
   const { memo, groupId, dateStr } = opts;
   const uid = uidOrThrow();
   const { names, toCreate } = resolveLabelNames(opts.labelChoices);
+  // 메모·기록 라벨은 한 목록(19번 U5) - 메모에만 있던 라벨이면 기록 라벨 목록에도 채운다
+  await ensureEntryLabelsQuietly(names);
 
   // 라벨 이름 → id (기록은 V3가 id로만 찾는다)
   let labels: any[] = opts.journalLabels;
@@ -209,6 +212,7 @@ export async function moveJournalToMemo(opts: {
   const user = auth.currentUser!;
   const { names, toCreate } = resolveLabelNames(opts.labelChoices);
   if (toCreate.length > 0) await addLabels('memo', toCreate, opts.memoLabels);
+  await ensureEntryLabelsQuietly(names);
 
   // 지울 기록 묶음을 먼저 서버에서 확인한다(트랜잭션 읽기는 늘 서버). 서버가 답하지 않으면 아무것도 하지 않는다.
   // id 없는 옛 기록도 화면과 같은 이름(jr_차례)으로 찾는다 (예전엔 '찾지 못했습니다'로 옮길 수 없었다)

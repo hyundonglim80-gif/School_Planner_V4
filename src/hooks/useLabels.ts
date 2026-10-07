@@ -1,5 +1,5 @@
 //src/hooks/useLabels.ts
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
 import {
   readLegacyEventLabels,
@@ -9,6 +9,8 @@ import {
 import { subscribeDocWithServerFallback } from '../lib/firestoreSubscribe';
 import { showErrorToast } from '../utils/toast';
 import { db, auth } from '../lib/firebase';
+import { mergeEntryLabels, type EntryLabel, type RawJournalLabel } from '../lib/entryLabels';
+import { setEntryLabelCloud } from '../lib/entryLabelSync';
 
 export interface EventLabel {
   id: string;
@@ -124,8 +126,9 @@ export const labelDiagnostics: {
 
 export function useLabels() {
   const [eventLabels, setEventLabels] = useState<EventLabel[]>(DEFAULT_EVENT_LABELS);
-  const [memoLabels, setMemoLabels] = useState<string[]>(DEFAULT_MEMO_LABELS);
-  const [journalLabels, setJournalLabels] = useState<JournalLabel[]>(DEFAULT_JOURNAL_LABELS);
+  // 메모·기록 라벨은 저장된 두 배열 그대로 들고, 화면에는 이름으로 합친 한 목록을 준다 (19번 U5, lib/entryLabels)
+  const [memoRaw, setMemoRaw] = useState<unknown[]>(DEFAULT_MEMO_LABELS);
+  const [journalRaw, setJournalRaw] = useState<RawJournalLabel[]>(DEFAULT_JOURNAL_LABELS);
   const migratedRef = useRef(false);
   // 한 번이라도 라벨을 받아 봤는가. 받은 뒤에 난 오류로 사용자를 놀라게 하지 않는다.
   const loadedRef = useRef(false);
@@ -137,8 +140,8 @@ export function useLabels() {
     const user = auth.currentUser;
     if (!user) {
       setEventLabels(DEFAULT_EVENT_LABELS);
-      setMemoLabels(DEFAULT_MEMO_LABELS);
-      setJournalLabels(DEFAULT_JOURNAL_LABELS);
+      setMemoRaw(DEFAULT_MEMO_LABELS);
+      setJournalRaw(DEFAULT_JOURNAL_LABELS);
       setLabelsLoaded(false);
       return;
     }
@@ -169,11 +172,7 @@ export function useLabels() {
         Array.isArray(data?.memoLabels) && data!.memoLabels.length > 0 ? data!.memoLabels : null;
       const legacyMemo = cloudMemo ? null : readLegacyMemoLabels();
       const rawMemo = cloudMemo || legacyMemo;
-      setMemoLabels(
-        rawMemo
-          ? rawMemo.map((l: any) => (typeof l === 'string' ? l : l.name))
-          : DEFAULT_MEMO_LABELS
-      );
+      setMemoRaw(rawMemo || DEFAULT_MEMO_LABELS);
 
       const cloudJournal =
         Array.isArray(data?.journalLabels) && data!.journalLabels.length > 0
@@ -181,15 +180,9 @@ export function useLabels() {
           : null;
       const legacyJournal = cloudJournal ? null : readLegacyJournalLabels();
       const rawJournal = cloudJournal || legacyJournal;
-      setJournalLabels(
-        rawJournal
-          ? rawJournal.map((l: any, i: number) => ({
-              id: l.id || `j_${i}_${l.name || ''}`,
-              name: l.name || '',
-              color: l.color || 'green',
-            }))
-          : DEFAULT_JOURNAL_LABELS
-      );
+      setJournalRaw(rawJournal || DEFAULT_JOURNAL_LABELS);
+      // 저장 전에 빠진 라벨을 채울 때(lib/entryLabelSync) 클라우드에 무엇이 있는지 본다
+      setEntryLabelCloud(cloudMemo, cloudJournal);
 
       // localStorage에만 있던 라벨을 Firestore로 한 번 옮겨 두 앱이 같은 곳을 보게 한다
       if (!migratedRef.current && (legacyEvents || legacyMemo || legacyJournal)) {
@@ -242,5 +235,14 @@ export function useLabels() {
 
   const getLabel = (labelName: string) => eventLabels.find(l => l.name === labelName);
 
-  return { eventLabels, getLabelColor, getLabel, memoLabels, journalLabels, labelsLoaded };
+  // 메모·기록 라벨 한 목록. memoLabels(이름)와 journalLabels(id·이름·색)는 같은 목록을 두 모양으로 준다 -
+  // 메모에만 있던 라벨의 id는 entryJournalId(이름)이고, 그 라벨로 기록을 저장하기 전에 ensureEntryLabels가 채운다.
+  const entryLabels: EntryLabel[] = useMemo(() => mergeEntryLabels(memoRaw, journalRaw), [memoRaw, journalRaw]);
+  const memoLabels = useMemo(() => entryLabels.map((l) => l.name), [entryLabels]);
+  const journalLabels: JournalLabel[] = useMemo(
+    () => entryLabels.map((l) => ({ id: l.id, name: l.name, color: l.color })),
+    [entryLabels]
+  );
+
+  return { eventLabels, getLabelColor, getLabel, memoLabels, journalLabels, entryLabels, labelsLoaded };
 }

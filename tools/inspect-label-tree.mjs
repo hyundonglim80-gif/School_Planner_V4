@@ -26,11 +26,8 @@ await dlg.getByLabel('학생상담 상위 라벨').selectOption({ label: '학급
 await page.waitForTimeout(300);
 console.log(`기록 라벨: 하위가 들여 보인다: ${ok((await dlg.locator('[data-label-row="학생상담"]').getAttribute('class')).includes('ml-6'))}`);
 console.log(`  하위가 생긴 학급활동은 상위를 못 고른다(2단계): ${ok(await dlg.getByLabel('학급활동 상위 라벨').isDisabled())}`);
-// 메모 탭: 개인을 업무 밑에
-await dlg.getByRole('button', { name: /메모 라벨/ }).first().click();
-await page.waitForTimeout(500);
-const memoNames = await dlg.locator('[data-label-row]').evaluateAll((els) => els.map((e) => e.getAttribute('data-label-row')));
-const [mParent, mChild] = [memoNames[0], memoNames[1]];
+// 메모 라벨도 같은 목록(19번 U5): 개인을 업무 밑에
+const [mParent, mChild] = ['업무', '개인'];
 await dlg.getByLabel(`${mChild} 상위 라벨`).selectOption({ label: mParent });
 await dlg.getByRole('button', { name: /클라우드 저장/ }).click();
 await page.waitForTimeout(2000);

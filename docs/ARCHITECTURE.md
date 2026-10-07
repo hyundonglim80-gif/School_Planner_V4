@@ -73,7 +73,7 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
 | `sharedConfig/neis` | `{ key, updatedAt, updatedBy }` | 나이스 인증키. **로그인하면 누구나 읽고** 개발자만 쓴다(`admin/config`는 개발자만 읽어 따로 둠). 없거나 못 읽으면 키 없이 5건씩 나눠 받는다 |
 | `users/{uid}/settings/v4_autoBackup` | `{ enabled, intervalDays, keep, lastAt?, lastName?, lastSummary?, folderLink? }` | V4 전용. 드라이브 자동 백업(`lib/autoBackup`, `hooks/useAutoBackup`). PC에서 토큰이 이미 있을 때만 조용히 백업. '나중에'는 기기별 localStorage `sp4_autoBackupSnoozeUntil` |
 | (메모·기록 항목의) `tables` | 붙인 표 `[{ id, rows: [{ h?, cells: [{ v, cs?, rs?, x?, s? }] }], cols?, styles?, createdAt }]` | V4 전용 칸. `lib/entryTable` |
-| `users/{uid}/settings/v4_labelTree` | `{ memo, journal }` 각각 "하위 이름 → 상위 이름" | V4 전용. 메모·기록 라벨 상위/하위 |
+| `users/{uid}/settings/v4_labelTree` | `{ entry, memo, journal }` 각각 "하위 이름 → 상위 이름" (19번 U5부터 셋이 같다 - entry가 정본) | V4 전용. 메모·기록 라벨 상위/하위 |
 | `users/{uid}/trash/{id}` | `{ id, type, originalDateStr, fId, content, data, deletedAt }` | 휴지통. **V3와 같이 쓴다** |
 | `groups/{gid}` | `{ name, ownerId, members: uid[], inviteCode }` | 공유 그룹. 내 그룹은 `members array-contains uid`로 찾는다 |
 | `inviteCodes/{code}` | `{ groupId }` | 초대 코드 → 그룹. 그룹 목록을 열지 않으려고 따로 둔다 |
@@ -176,6 +176,18 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   메모 화면은 이 거르개를 `memoFilter`로 기억한다. 예전에 라벨 하나를 글자로 기억한 것도 읽는다.
   칩 누르기는 윈도우 탐색기처럼(`clickFilterLabel`): 그냥 = 하나만, Ctrl = 더하기·빼기, Shift = 기준부터 범위(보이는 차례).
   ESC는 고른 라벨을 모두 뗀다(각 화면이 듣는다. 오른쪽 칸·팝업은 Layout의 ESC가 닫는다).
+- **메모·기록 라벨 한 목록** (19번 U5, 2026-10-07): 사용자에게는 '메모·기록 라벨' 하나(라벨 관리 탭 둘 - 일정 / 메모·기록).
+  저장 자리는 그대로 `settings/labels`의 `memoLabels`(문자열 또는 객체)·`journalLabels`({id,name,color}) 두 배열.
+  `lib/entryLabels.mergeEntryLabels`가 이름(trim)으로 합친다(차례: 기록 → 메모에만 있는 것, 같은 이름은 기록 id·색).
+  `useLabels`는 두 배열을 그대로 들고 `memoLabels`(이름)·`journalLabels`(id)·`entryLabels`를 **같은 한 목록**으로 준다.
+  메모에만 있던 라벨의 기록 id는 `entryJournalId(이름)` = `jm_이름`(어느 기기에서나 같다). 읽기만으로는 쓰지 않고,
+  **저장할 일이 생기면** 채운다: 쓰는 칸 저장·옮기기 전에 `lib/entryLabelSync.ensureEntryLabels`(트랜잭션, 클라우드에 배열이 없는
+  쪽은 안 씀 - 기본값을 한 개로 덮지 않게), 라벨 관리 저장은 `toMemoLabels`(원래 모양·모르는 칸, `memoIndex`로 같은 항목)·
+  `toJournalLabels`(있던 id·모르는 칸)로 두 배열에 같은 목록. 이름 바꾸기는 메모·기록 둘 다 `applyLabelRenames`. 지운 라벨은
+  휴지통 `[메모·기록]`(기록 배열에 있던 것은 kind journal). 트리는 `readLabelTree`(entry, 없으면 memo·journal을 합침 - 상위가
+  다르면 기록 쪽, `conflicts`를 라벨 관리 창에 안내) / `saveLabelTree({entry})`가 entry·memo·journal 셋에 같은 것을.
+  옮기기 창(`MoveEntryModal`)은 라벨 고르기 단계가 없다(그대로 간다). 쓰는 칸 칩 `data-entry-label-chip`(aria-pressed).
+  **함께 고친 것**: 라벨 관리 '💾 클라우드 저장'이 일정 라벨을 V4 이름으로만 써서 V3가 이월 등 속성을 못 읽던 것 - 이제 `toSharedEventLabel`.
 - 라벨 관리 창에서 기록·메모 라벨을 **더할 때 상위도 고른다**. 라벨은 더하는 즉시 저장되므로 트리도 곧바로 저장한다.
 
 ---
@@ -543,6 +555,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번. `SITE=http://localhost:4190/School_Planner_V4/`(기본값 4173은 vite preview) |
 | `tools/inspect-refine-u2.mjs` | 19번 U2 진도 관리(24) - teacher 과목 칸·교과서 칸(5칸·옛 4칸 붙여넣기)·'+ 행 추가'·Ctrl+Enter·page 저장, teacher3 새 진도 하나·과목 + 반 하나·옛 칸 글자 진도 그대로 저장·하루 칸 차시. 만든 진도는 지운다 |
 | `tools/inspect-refine-u3.mjs` | 19번 U3 하루 수업 칸(12) - '📘 진도 만들기'(하루 카드·N교시 수정 팝업, teacher 과목·teacher3 과목 + 반), 칸 aria, 진도 줄 단원·📖 쪽, 카드 차례. 고친 수업·진도는 되돌린다 |
+| `tools/inspect-refine-u5.mjs` | 19번 U5 메모·기록 라벨 한 목록(11) - 라벨 관리 탭 둘·한 목록, 새 라벨이 두 배열에(문자열 모양·기록 id 그대로), 일정 라벨 V3 이름, 쓰는 칸 칩 같음, 메모에만 있던 라벨로 기록 저장 → jm_ id 채움, 이름 바꾸기. 라벨 문서·트리·자료를 되돌린다 |
 | `tools/inspect-progress-csv.mjs` | 진도 관리 예시 CSV(6) - 받기(머리줄·예시 내용)·불러오기 15차시·CP949 CSV 한글. 저장하지 않아 자료는 그대로 |
 | `tools/inspect-slot-live.mjs` | 과목을 고치면 배너도 따라감·학년반 숫자 403(8) - teacher3 주간 1교시 수정 배너에 '403과학' → 서버·배너 '4-3 과학', 연 채로 다른 곳에서 고친 과목, 고치는 중이면 그대로, 하루 출결 배너 머리줄. 2026-11-02 수업 문서를 끝에 되돌린다 |
 | `tools/inspect-today-scroll.mjs` | 상단 날짜 → 오늘로(17) - 휴대폰 390px·PC에서 하루(맨 위)·주간·월간(다음 달에서)·년간 학사력·자세히(지난 학년도에서). 자료를 바꾸지 않는다 |

@@ -671,9 +671,9 @@ if (ONLY !== 'mobile') {
   });
 
   // ── 메뉴 도구 ──
-  await check('[통합 라벨 관리] 세 탭', async () => {
+  await check('[통합 라벨 관리] 두 탭 (일정 / 메모·기록)', async () => {
     await openMenu('통합 라벨 관리');
-    for (const t of [/일정 라벨/, /기록\(일지\) 라벨/, /메모 라벨/]) assert((await page.getByRole('button', { name: t }).count()) > 0, `${t} 탭 없음`);
+    for (const t of [/일정 라벨/, /메모·기록 라벨/]) assert((await page.getByRole('button', { name: t }).count()) > 0, `${t} 탭 없음`);
     assert((await page.getByRole('button', { name: /삭제된 라벨 복구/ }).count()) > 0, '복구 버튼 없음');
     await closeAll();
   });

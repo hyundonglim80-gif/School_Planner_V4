@@ -8,6 +8,7 @@
 //
 // 저장 로직도 여기로 옮겼다. 배너가 화면보다 오래 살기 때문에, 저장하는 쪽도
 // 화면이 아니라 배너 곁에 있어야 한다.
+import { ensureEntryLabelsQuietly } from '../lib/entryLabelSync';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { PanelRaiseContext } from './panelRaise';
 import MoveEntryModal from './MoveEntryModal';
@@ -188,6 +189,8 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
     : null;
 
   const handleSave = async (draft: EntryDraft) => {
+    // 메모에만 있던 라벨이면 기록 라벨 목록에도 채운다 - V3는 기록 라벨을 id로만 찾는다 (19번 U5, lib/entryLabelSync)
+    await ensureEntryLabelsQuietly(draft.labels);
     // 표만 있고 글이 없으면 '[표]'로 둔다. V3는 글·라벨·첨부가 없는 기록을 그날 저장할 때 빼 버린다.
     const content = !draft.content.trim() && draft.tables.length > 0 ? TABLE_ONLY_CONTENT : draft.content;
     // 라벨을 고르지 않았으면 빈 값으로 둔다 ('일반'은 어떤 라벨에도 없는 이름이다)
@@ -320,6 +323,8 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
     : null;
 
   const handleSave = async (draft: EntryDraft) => {
+    // 기록에만 있던 라벨이면 메모 라벨 목록에도 채운다 (19번 U5 - V3 메모 라벨 목록에 보이게)
+    await ensureEntryLabelsQuietly(draft.labels);
     if (target.entryId) {
       await updateMemo(target.entryId, draft);
       return;

@@ -3,14 +3,12 @@
 // 메모 ↔ 기록 옮기기 창 (lib/moveEntry).
 //   메모 → 기록: 날짜를 고른다(처음에는 지금 보는 날).
 //   기록 → 메모: 원래 날짜를 첫 줄에 남긴다고 알려 준다.
-//   라벨: 같은 이름이 옮겨 갈 쪽에 있으면 그대로. 없는 라벨은 여기서 고른다
-//         - 옮겨 갈 쪽의 다른 라벨로 / 같은 이름으로 새로 만들기 / 빼기.
+//   라벨: 메모·기록 라벨은 한 목록(19번 U5)이라 그대로 간다 - 고르는 단계가 없다. 목록에서 지운 라벨만 빠진다.
 import { useEffect, useState } from 'react';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 import {
   initialLabelChoices,
   journalDateLine,
-  resolveLabelNames,
   type LabelChoice,
 } from '../lib/moveEntry';
 
@@ -30,8 +28,6 @@ interface MoveEntryModalProps {
   onConfirm: (result: { dateStr: string; labelChoices: LabelChoice[] }) => Promise<void>;
 }
 
-const DROP = '__drop__';
-const CREATE = '__create__';
 
 export default function MoveEntryModal({
   isOpen,
@@ -43,7 +39,6 @@ export default function MoveEntryModal({
   hasStudentTag,
   onConfirm,
 }: MoveEntryModalProps) {
-  const toNoun = from === 'memo' ? '기록' : '메모';
   // 받침에 따라 '기록으로' / '메모로'
   const toWith = from === 'memo' ? '기록으로' : '메모로';
   const [date, setDate] = useState(dateStr);
@@ -59,20 +54,6 @@ export default function MoveEntryModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  const setChoice = (from: string, value: string) =>
-    setChoices((prev) =>
-      prev.map((c) =>
-        c.from !== from
-          ? c
-          : value === DROP
-            ? { from, action: 'drop' }
-            : value === CREATE
-              ? { from, action: 'create' }
-              : { from, action: 'map', to: value }
-      )
-    );
-
-  const { names } = resolveLabelNames(choices);
   const canMove = !busy && (from === 'journal' || /^\d{4}-\d{2}-\d{2}$/.test(date));
 
   const doMove = async () => {
@@ -127,39 +108,23 @@ export default function MoveEntryModal({
 
         <div>
           <p className="text-xs font-bold text-slate-600 mb-1.5">라벨</p>
+          {/* 메모·기록 라벨은 한 목록(19번 U5) - 고를 것 없이 그대로 간다. 목록에서 지운 라벨만 빠진다 */}
           {choices.length === 0 ? (
             <p className="text-xs text-slate-400">붙은 라벨이 없습니다. 옮긴 뒤 칸에서 고를 수 있습니다.</p>
           ) : (
-            <ul className="space-y-1.5">
+            <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600" data-move-labels>
               {choices.map((c) => (
-                <li key={c.from} className="flex items-center gap-2 flex-wrap">
-                  <span className="px-2 py-0.5 rounded-md bg-slate-100 text-xs font-bold text-slate-700">{c.from}</span>
-                  <span className="text-slate-400">→</span>
-                  {c.action === 'keep' ? (
-                    <span className="text-xs font-bold text-emerald-700">그대로 (같은 이름의 {toNoun} 라벨)</span>
-                  ) : (
-                    <select
-                      aria-label={`${c.from} 라벨을 어떻게 할까요`}
-                      value={c.action === 'map' ? c.to : c.action === 'create' ? CREATE : DROP}
-                      onChange={(e) => setChoice(c.from, e.target.value)}
-                      className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 bg-white"
-                    >
-                      <option value={DROP}>빼기</option>
-                      <option value={CREATE}>'{c.from}' {toNoun} 라벨 새로 만들기</option>
-                      {targetLabelNames.map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </li>
+                <span
+                  key={c.from}
+                  className={`px-2 py-0.5 rounded-md font-bold ${
+                    c.action === 'keep' ? 'bg-slate-100 text-slate-700' : 'bg-slate-50 text-slate-400 line-through'
+                  }`}
+                  title={c.action === 'keep' ? '그대로 갑니다' : '라벨 목록에 없는 라벨이라 빠집니다'}
+                >
+                  {c.from}
+                </span>
               ))}
-            </ul>
-          )}
-          {choices.length > 0 && (
-            <p className="text-2xs text-slate-400 mt-1.5">
-              옮긴 뒤 라벨: {names.length > 0 ? names.join(', ') : '없음'}
+              <span>그대로 옮겨 갑니다 (메모·기록 라벨은 한 목록).</span>
             </p>
           )}
         </div>

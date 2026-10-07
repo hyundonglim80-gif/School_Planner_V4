@@ -1,6 +1,7 @@
 // src/lib/labelTree.ts
 //
 // 메모·기록 라벨의 상위/하위 (2단계). 예: '학교' 밑에 'A초', 'B초', 'C초'.
+// 19번 U5(2026-10-07): 메모·기록 라벨은 한 목록 - 트리도 entry 하나(readLabelTree·saveLabelTree).
 // 사용자와 정한 것 (2026-09-29):
 //   - 메모·기록 라벨만. 일정 라벨은 속성(달력·이월…) 때문에 뺀다.
 //   - 2단계까지 (상위 › 하위). 하위를 가진 라벨은 상위를 가질 수 없고, 하위의 하위는 없다.
@@ -14,6 +15,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { auth, db } from './firebase';
 import { subscribeDocWithServerFallback } from './firestoreSubscribe';
+import { mergeEntryTrees } from './entryLabels';
 
 export type LabelTreeKind = 'memo' | 'journal';
 /** 하위 이름 → 상위 이름 */
@@ -21,9 +23,16 @@ export type ParentMap = Record<string, string>;
 export interface LabelTree {
   memo: ParentMap;
   journal: ParentMap;
+  /**
+   * 메모·기록 라벨 한 목록의 트리 (19번 U5). 문서에 entry가 있으면 그것, 없으면 memo와 journal을 합친 것
+   * (같은 하위의 상위가 다르면 기록 쪽). useLabelTree는 memo·journal에도 이것을 준다 - 화면은 하나를 본다.
+   */
+  entry?: ParentMap;
+  /** entry가 아직 없을 때 memo·journal에서 상위가 달랐던 하위 이름 (라벨 관리 창이 한 번 알린다) */
+  conflicts?: string[];
 }
 
-export const EMPTY_TREE: LabelTree = { memo: {}, journal: {} };
+export const EMPTY_TREE: LabelTree = { memo: {}, journal: {}, entry: {}, conflicts: [] };
 
 const treeRef = (uid: string) => doc(db, 'users', uid, 'settings', 'v4_labelTree');
 
@@ -174,11 +183,28 @@ export function parentCandidates(name: string, names: string[], parents: ParentM
   return names.filter((n) => n !== name && !parents[n]);
 }
 
-/** 트리를 저장한다 (계정에 하나. 메모·기록을 함께) */
-export async function saveLabelTree(tree: LabelTree): Promise<void> {
+/**
+ * 트리를 저장한다 (계정에 하나). 19번 U5부터 메모·기록 라벨은 한 목록이라 entry 하나를 memo·journal에도 같게 쓴다
+ * (아직 새 판을 받지 않은 다른 기기의 V4가 memo·journal을 읽어도 같게 보이게).
+ */
+export async function saveLabelTree(tree: { entry: ParentMap }): Promise<void> {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('로그인이 필요합니다.');
-  await setDoc(treeRef(uid), { memo: tree.memo, journal: tree.journal, updatedAt: Date.now() });
+  const entry = sanitizeParents(tree.entry);
+  await setDoc(treeRef(uid), { entry, memo: entry, journal: entry, updatedAt: Date.now() });
+}
+
+/** 저장된 문서 → 화면이 쓸 트리. entry가 있으면 그것, 없으면 memo·journal을 합친다(같은 하위는 기록 쪽 상위) */
+export function readLabelTree(data: any): LabelTree {
+  const memo = sanitizeParents(data?.memo);
+  const journal = sanitizeParents(data?.journal);
+  if (data?.entry && typeof data.entry === 'object') {
+    const entry = sanitizeParents(data.entry);
+    return { memo: entry, journal: entry, entry, conflicts: [] };
+  }
+  const merged = mergeEntryTrees(memo, journal);
+  const entry = sanitizeParents(merged.entry);
+  return { memo: entry, journal: entry, entry, conflicts: merged.conflicts };
 }
 
 /** 라벨 트리를 구독한다 */
@@ -192,7 +218,7 @@ export function useLabelTree(): LabelTree {
     }
     return subscribeDocWithServerFallback(
       treeRef(uid),
-      (data) => setTree({ memo: sanitizeParents(data?.memo), journal: sanitizeParents(data?.journal) }),
+      (data) => setTree(readLabelTree(data)),
       (err) => console.warn('라벨 상위/하위를 불러오지 못했습니다:', err)
     );
   }, [uid]);

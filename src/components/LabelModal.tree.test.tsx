@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { getDoc as getDocMock } from 'firebase/firestore';
+import { getDoc as getDocMock, setDoc as setDocMock } from 'firebase/firestore';
 import LabelModal from './LabelModal';
 import { saveLabelTree } from '../lib/labelTree';
 
-// 통합 라벨 관리 - 메모·기록 라벨에 '상위 라벨'을 고른다 (2단계). 저장하면 트리도 함께 저장한다.
+// 통합 라벨 관리 - 메모·기록 라벨(19번 U5부터 한 목록)에 '상위 라벨'을 고른다 (2단계). 저장하면 트리도 함께 저장한다.
 
 vi.mock('../hooks/useGroups', () => ({ useGroups: () => ({ groups: [] }) }));
 vi.mock('../utils/labelRename', async (importOriginal) => {
@@ -55,7 +55,7 @@ describe('통합 라벨 관리 - 상위 라벨', () => {
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(saveLabelTree).toHaveBeenCalled());
-    expect(vi.mocked(saveLabelTree).mock.calls[0][0]).toEqual({ journal: { A초등: '학교' }, memo: {} });
+    expect(vi.mocked(saveLabelTree).mock.calls[0][0]).toEqual({ entry: { A초등: '학교' } });
   });
 });
 
@@ -63,17 +63,17 @@ describe('통합 라벨 관리 - 상위 라벨', () => {
 describe('통합 라벨 관리 - 새 라벨에 상위 고르기', () => {
   it('기록 라벨을 더할 때 상위를 고르면 그 밑에 들어가고, 트리가 곧바로 저장된다', async () => {
     render(<LabelModal isOpen onClose={vi.fn()} initialTab="journal" />);
-    const parentSelect = await screen.findByLabelText('새 기록 라벨의 상위 라벨');
+    const parentSelect = await screen.findByLabelText('새 메모·기록 라벨의 상위 라벨');
     // 후보는 맨 위 단계 라벨만
     expect([...parentSelect.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['없음', '학교', 'A초', '업무']);
     fireEvent.change(parentSelect, { target: { value: 'j_1' } });
 
-    const nameBox = screen.getByPlaceholderText('새 기록 라벨 이름...');
+    const nameBox = screen.getByPlaceholderText('새 메모·기록 라벨 이름...');
     fireEvent.change(nameBox, { target: { value: 'B초' } });
     fireEvent.click(screen.getAllByRole('button', { name: '추가' }).at(-1)!);
 
     await waitFor(() => expect(saveLabelTree).toHaveBeenCalled());
-    expect(vi.mocked(saveLabelTree).mock.calls[0][0]).toEqual({ journal: { B초: '학교' }, memo: {} });
+    expect(vi.mocked(saveLabelTree).mock.calls[0][0]).toEqual({ entry: { B초: '학교' } });
     await waitFor(() => expect(document.querySelector('[data-label-row="B초"]')!.className).toContain('ml-6'));
     // 하위가 생긴 '학교'는 이제 상위를 둘 수 없다
     expect(screen.getByLabelText('학교 상위 라벨')).toBeDisabled();
@@ -81,19 +81,34 @@ describe('통합 라벨 관리 - 새 라벨에 상위 고르기', () => {
 
   it('상위를 고르지 않으면 트리는 건드리지 않는다', async () => {
     render(<LabelModal isOpen onClose={vi.fn()} initialTab="memo" />);
-    const nameBox = await screen.findByPlaceholderText('새 메모 라벨 태그 이름...');
+    const nameBox = await screen.findByPlaceholderText('새 메모·기록 라벨 이름...');
     fireEvent.change(nameBox, { target: { value: '개인' } });
     fireEvent.click(screen.getAllByRole('button', { name: '추가' }).at(-1)!);
     await waitFor(() => expect(document.querySelector('[data-label-row="개인"]')).not.toBeNull());
     expect(saveLabelTree).not.toHaveBeenCalled();
   });
 
-  it('메모 라벨도 상위를 골라 더한다', async () => {
+  it("메모 탭으로 열어도 한 목록 - 메모·기록에 같은 이름 '업무'는 하나(기록 id)", async () => {
     render(<LabelModal isOpen onClose={vi.fn()} initialTab="memo" />);
-    fireEvent.change(await screen.findByLabelText('새 메모 라벨의 상위 라벨'), { target: { value: 'm_1' } });
-    fireEvent.change(screen.getByPlaceholderText('새 메모 라벨 태그 이름...'), { target: { value: '공문' } });
+    fireEvent.change(await screen.findByLabelText('새 메모·기록 라벨의 상위 라벨'), { target: { value: 'j_3' } });
+    expect(document.querySelectorAll('[data-label-row="업무"]')).toHaveLength(1);
+    fireEvent.change(screen.getByPlaceholderText('새 메모·기록 라벨 이름...'), { target: { value: '공문' } });
     fireEvent.click(screen.getAllByRole('button', { name: '추가' }).at(-1)!);
     await waitFor(() => expect(saveLabelTree).toHaveBeenCalled());
-    expect(vi.mocked(saveLabelTree).mock.calls[0][0]).toEqual({ journal: {}, memo: { 공문: '업무' } });
+    expect(vi.mocked(saveLabelTree).mock.calls[0][0]).toEqual({ entry: { 공문: '업무' } });
+  });
+
+  it('더하면 두 배열에 같은 목록 - 메모는 원래 객체를 지키고, 기록은 있던 id 그대로', async () => {
+    render(<LabelModal isOpen onClose={vi.fn()} initialTab="entry" />);
+    fireEvent.change(await screen.findByPlaceholderText('새 메모·기록 라벨 이름...'), { target: { value: '개인' } });
+    fireEvent.click(screen.getAllByRole('button', { name: '추가' }).at(-1)!);
+    await waitFor(() => expect(setDocMock).toHaveBeenCalled());
+    const payload = vi.mocked(setDocMock).mock.calls.at(-1)![1] as any;
+    expect(payload.journalLabels.map((l: any) => l.id).slice(0, 3)).toEqual(['j_1', 'j_2', 'j_3']);
+    expect(payload.journalLabels.map((l: any) => l.name)).toEqual(['학교', 'A초', '업무', '개인']);
+    expect(payload.memoLabels.map((l: any) => l.name)).toEqual(['학교', 'A초', '업무', '개인']);
+    expect(payload.memoLabels[2]).toEqual({ id: 'm_1', name: '업무', color: 'yellow' });
+    // 일정 라벨은 V3 이름도 함께
+    expect(payload.eventLabels[0]).toMatchObject({ showInCalendar: true, isForward: false });
   });
 });
