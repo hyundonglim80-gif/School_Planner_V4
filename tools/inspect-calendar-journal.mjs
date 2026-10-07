@@ -30,9 +30,9 @@ for (const [key, name] of [['Shift+Digit2', '주간'], ['Shift+Digit3', '월간'
     && (await edit.getByText('파일 첨부').count()) === 1
     && (await edit.getByText('링크 추가').count()) === 1
     && (await edit.getByRole('button', { name: '삭제' }).count()) === 1
-    && (await edit.getByRole('button', { name: '↔ 메모로' }).count()) === 1
+    && (await edit.locator('[data-entry-date]').count()) === 1
     && /기록 ·/.test(await edit.innerText());
-  console.log(`${name} - '수정'은 하루 화면과 같은 기록 칸(옆에 붙음·날짜·첨부·링크·삭제·옮기기): ${ok(hasAll)}`);
+  console.log(`${name} - '수정'은 하루 화면과 같은 기록 칸(옆에 붙음·날짜·첨부·링크·삭제·📅 날짜 칸): ${ok(hasAll)}`);
   await edit.getByRole('button', { name: /^닫기$/ }).click();
   await page.waitForTimeout(400);
   // 새로 쓰기

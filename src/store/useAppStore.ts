@@ -321,6 +321,11 @@ interface AppState {
    * 안 그러면 칸이 옛 날짜에서 그 일정을 찾지 못해 '불러오는 중'에 머문다.
    */
   retargetEventPanels: (groupId: string | null, fromDate: string, id: string, toDate: string, newId: string) => void;
+  /**
+   * 메모·기록을 다른 자리로 옮긴 뒤(19번 U7 날짜 칸) 그 칸이 새 자리를 가리키게 한다. 메모 ↔ 기록이면 칸의 종류도 바뀐다
+   * (칸은 다시 그려지고 새 항목을 initial로 바로 보인다).
+   */
+  retargetEntryPanel: (key: number | undefined, patch: { kind: 'memo' | 'journal'; entryId: string; dateStr?: string; initial?: any }) => void;
   /** key(openedAt)의 칸을 닫는다. 주지 않으면 맨 위 칸. */
   closeEntryPanel: (key?: number) => void;
   /** 이 항목을 고치고 있던 칸을 모두 닫는다 (항목을 지웠을 때) */
@@ -779,6 +784,22 @@ export const useAppStore = create<AppState>()(
               ? { ...p, dateStr, ...(id !== undefined ? { entryId: id } : {}), ...(initial ? { initial } : {}) }
               : p
           );
+          return { entryPanels: panels, entryPanel: panels[panels.length - 1] || null };
+        }),
+      retargetEntryPanel: (key, patch) =>
+        set((st) => {
+          const k = key ?? st.entryPanel?.openedAt;
+          const panels = st.entryPanels.map((p) => {
+            if (p.openedAt !== k) return p;
+            const { dateStr: _old, ...rest } = p;
+            return {
+              ...rest,
+              kind: patch.kind,
+              entryId: patch.entryId,
+              ...(patch.dateStr ? { dateStr: patch.dateStr } : {}),
+              ...(patch.initial ? { initial: patch.initial } : {}),
+            };
+          });
           return { entryPanels: panels, entryPanel: panels[panels.length - 1] || null };
         }),
       retargetEventPanels: (groupId, fromDate, id, toDate, newId) =>

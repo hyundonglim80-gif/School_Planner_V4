@@ -34,6 +34,8 @@ export interface EntryCardProps {
   favorite?: boolean;
   /** 머리줄의 날짜·시각 글 */
   dateText: string;
+  /** 날짜 옆에 작게 (메모: 기록에서 왔으면 '📅 10/6에서') */
+  note?: string;
   attachments?: unknown[];
   /** 옛 단일 그림 */
   imageUrl?: string;
@@ -328,6 +330,11 @@ export default function EntryCard(props: EntryCardProps) {
             </span>
           ))}
           <span className="text-xs text-slate-400">{dateText}</span>
+          {props.note && (
+            <span className="text-2xs font-bold text-slate-400" data-entry-card-note>
+              {props.note}
+            </span>
+          )}
           {linkCount > 0 && (
             <button
               type="button"

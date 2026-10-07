@@ -9,14 +9,13 @@
 // 저장 로직도 여기로 옮겼다. 배너가 화면보다 오래 살기 때문에, 저장하는 쪽도
 // 화면이 아니라 배너 곁에 있어야 한다.
 import { ensureEntryLabelsQuietly } from '../lib/entryLabelSync';
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useRef } from 'react';
 import { PanelRaiseContext } from './panelRaise';
-import MoveEntryModal from './MoveEntryModal';
 import { useLabelTree } from '../lib/labelTree';
-import { isMovableJournal, moveJournalToMemo, moveMemoToJournal } from '../lib/moveEntry';
+import { isMovableJournal, relocateEntry, undoRelocate, type EntryPlace } from '../lib/moveEntry';
+import { showUndoToast } from '../lib/undoToast';
 import { findStudentTags } from '../lib/studentTag';
 import { TABLE_ONLY_CONTENT } from '../lib/entryTable';
-import { formatDateStr } from '../lib/dateUtils';
 import EntryDrawer, { type EntryDraft } from './EntryDrawer';
 import EventDrawer from './EventDrawer';
 import { lazyWithReload } from '../lib/lazyWithReload';
@@ -27,7 +26,7 @@ import { useLabels } from '../hooks/useLabels';
 import { useMinWidth } from '../hooks/useMinWidth';
 import { useGroups } from '../hooks/useGroups';
 import { shortDateLabel } from '../lib/notices';
-import { showToast, showErrorToast } from '../utils/toast';
+import { showToast } from '../utils/toast';
 import { showDeletedToast } from '../lib/undoToast';
 
 // 알림장·출석부는 열 때만 내려받는다 (학급 운영을 안 쓰는 날에는 필요 없다)
@@ -146,6 +145,44 @@ function usePanelActions(target: EntryPanelTarget) {
   };
 }
 
+/**
+ * '📅 날짜' 칸으로 자리를 옮긴다 (19번 U7). 글은 부르는 쪽이 먼저 저장했다. 옮긴 뒤 이 칸은 새 자리를 가리키고,
+ * 안내의 '되돌리기'는 새 항목을 지우고 휴지통의 원본을 되살린다(칸도 원래 자리로).
+ */
+function useRelocate(target: EntryPanelTarget) {
+  const { journalLabels } = useLabels();
+  return async (from: EntryPlace, toDate: string | null, justCreated = false) => {
+    const r = await relocateEntry({ from, toDate, groupId: target.groupId, journalLabels, justCreated });
+    if (!r) return;
+    const retarget = useAppStore.getState().retargetEntryPanel;
+    const point = (place: EntryPlace, item: any) =>
+      retarget(
+        target.openedAt,
+        place.kind === 'memo'
+          ? { kind: 'memo', entryId: place.id, initial: item }
+          : { kind: 'journal', entryId: place.id, dateStr: place.dateStr, initial: item }
+      );
+    point(r.place, r.item);
+    const where = r.place.kind === 'memo' ? '🗒️ 메모로' : `📔 ${shortDateLabel(r.place.dateStr)} 기록으로`;
+    if (justCreated || !r.trashId) {
+      showToast(`✅ ${where} 저장했습니다.`);
+      return;
+    }
+    showUndoToast(`✅ ${where} 옮겼습니다. 원래 자리의 것은 휴지통에 있습니다.`, async () => {
+      await undoRelocate(r);
+      // 칸이 아직 새 자리를 보고 있으면 원래 자리로
+      const still = useAppStore.getState().entryPanels.some((p) => p.openedAt === target.openedAt && p.entryId === r.place.id);
+      if (still) point(r.from, r.src);
+      return '↩️ 원래 자리로 되돌렸습니다.';
+    });
+  };
+}
+
+/** 학생 태그가 든 기록을 메모로 옮기면 누가기록에서 빠진다 - 한 번 묻는다 */
+const confirmStudentTagMove = (content: string) =>
+  findStudentTags(content).length === 0 ||
+  window.confirm('학생 태그가 든 기록을 메모로 옮기면 학생 누가기록에 더 이상 모이지 않습니다. 메모로 옮길까요?');
+
 function useSpaceName(groupId: string | null) {
   const { groups } = useGroups();
   return groupId ? `👥 ${groups.find((g) => g.id === groupId)?.name || '그룹'}` : '🔒 개인';
@@ -153,15 +190,14 @@ function useSpaceName(groupId: string | null) {
 
 function JournalPanel({ target }: { target: EntryPanelTarget }) {
   const { closeEntryPanel, setEntryPanelId } = usePanelActions(target);
-  // 메모로 옮기기 창 (고치던 내용째 옮긴다)
-  const [moveDraft, setMoveDraft] = useState<EntryDraft | null>(null);
+  const relocate = useRelocate(target);
   const docked = useMinWidth(DOCK_MIN_WIDTH);
   const flushRef = useFlushRegistration();
   const unsavedRef = useUnsavedRegistration();
 
   const dateStr = target.dateStr || '';
   const { journals, addJournalEntry, updateJournalEntry, deleteJournalEntry, setJournalFlags } = useDayData(dateStr, target.groupId);
-  const { journalLabels, memoLabels } = useLabels();
+  const { journalLabels } = useLabels();
   const labelTree = useLabelTree();
   const spaceName = useSpaceName(target.groupId);
 
@@ -189,6 +225,10 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
     : null;
 
   const handleSave = async (draft: EntryDraft) => {
+    // '📅 날짜'를 바꿨으면 글을 먼저 저장하고 그 자리로 옮긴다 (19번 U7)
+    const toDate = draft.targetDate === undefined ? dateStr : draft.targetDate;
+    const moving = toDate !== dateStr;
+    if (moving && toDate === null && !confirmStudentTagMove(draft.content)) throw new Error('옮기지 않았습니다. 날짜를 되돌리거나 다시 저장해 주세요.');
     // 메모에만 있던 라벨이면 기록 라벨 목록에도 채운다 - V3는 기록 라벨을 id로만 찾는다 (19번 U5, lib/entryLabelSync)
     await ensureEntryLabelsQuietly(draft.labels);
     // 표만 있고 글이 없으면 '[표]'로 둔다. V3는 글·라벨·첨부가 없는 기록을 그날 저장할 때 빼 버린다.
@@ -220,6 +260,7 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
         linkedItemsBase: draft.linkedItemsBase,
         tables: draft.tables,
       });
+      if (moving) await relocate({ kind: 'journal', id: target.entryId, dateStr }, toDate);
       return;
     }
     const flags = { ...(draft.completed ? { completed: true } : {}), ...(draft.favorite ? { favorite: true } : {}) };
@@ -244,25 +285,8 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
         tables: draft.tables,
         ...flags,
       } as JournalEntry);
-    }
-  };
-
-  const moveToMemo = async ({ labelChoices }: { labelChoices: any[] }) => {
-    if (!current || !moveDraft) return;
-    try {
-      const { newId } = await moveJournalToMemo({
-        entry: { ...current, content: moveDraft.content, attachments: moveDraft.attachments as any, linkedItems: moveDraft.linkedItems, tables: moveDraft.tables },
-        groupId: target.groupId,
-        dateStr,
-        labelChoices,
-        memoLabels,
-      });
-      setMoveDraft(null);
-      closeEntryPanel();
-      showToast('🗒️ 메모로 옮겼습니다. 원본 기록은 휴지통에 있습니다.');
-      void openEntryPanel({ kind: 'memo', groupId: target.groupId, entryId: newId });
-    } catch (e) {
-      showErrorToast('메모로 옮기지 못했습니다.', e);
+      // 새로 쓰며 날짜를 바꿨으면 방금 만든 기록을 그 자리로 (휴지통을 거치지 않는다)
+      if (moving) await relocate({ kind: 'journal', id: newId, dateStr }, toDate, true);
     }
   };
 
@@ -274,7 +298,8 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
       flushRef={flushRef}
       unsavedRef={unsavedRef}
       onClose={closeEntryPanel}
-      onMove={current && isMovableJournal(current) ? setMoveDraft : undefined}
+      placeDate={dateStr}
+      placeLocked={current && !isMovableJournal(current) ? '알림장·출석부가 만든 기록은 날짜를 바꿀 수 없습니다' : undefined}
       kind="journal"
       entry={drawerEntry}
       showFlags
@@ -295,33 +320,19 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
       defaultLabel={target.defaultLabel}
       subtitle={`${shortDateLabel(dateStr)} 기록 · ${spaceName}`}
     />
-    {moveDraft && (
-      <MoveEntryModal
-        isOpen
-        onClose={() => setMoveDraft(null)}
-        from="journal"
-        fromLabels={moveDraft.labels}
-        targetLabelNames={memoLabels}
-        dateStr={dateStr}
-        hasStudentTag={findStudentTags(moveDraft.content).length > 0}
-        onConfirm={moveToMemo}
-      />
-    )}
     </>
   );
 }
 
 function MemoPanel({ target }: { target: EntryPanelTarget }) {
   const { closeEntryPanel, setEntryPanelId } = usePanelActions(target);
-  // 기록으로 옮기기 창 (고치던 내용째 옮긴다). 날짜는 처음에 지금 보는 날.
-  const [moveDraft, setMoveDraft] = useState<EntryDraft | null>(null);
-  const viewedDate = useAppStore((s) => s.currentDate);
+  const relocate = useRelocate(target);
   const docked = useMinWidth(DOCK_MIN_WIDTH);
   const flushRef = useFlushRegistration();
   const unsavedRef = useUnsavedRegistration();
 
   const { memos, addMemo, updateMemo, deleteMemo } = useMemos(target.groupId);
-  const { memoLabels, journalLabels: journalLabelList } = useLabels();
+  const { memoLabels } = useLabels();
   const labelTree = useLabelTree();
   const spaceName = useSpaceName(target.groupId);
 
@@ -332,8 +343,11 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
   const handleSave = async (draft: EntryDraft) => {
     // 기록에만 있던 라벨이면 메모 라벨 목록에도 채운다 (19번 U5 - V3 메모 라벨 목록에 보이게)
     await ensureEntryLabelsQuietly(draft.labels);
+    // '📅 날짜'를 넣었으면 글을 먼저 저장하고 그날 기록으로 옮긴다 (19번 U7)
+    const toDate = draft.targetDate ?? null;
     if (target.entryId) {
       await updateMemo(target.entryId, draft);
+      if (toDate) await relocate({ kind: 'memo', id: target.entryId }, toDate);
       return;
     }
     const ref = await addMemo(draft);
@@ -351,25 +365,8 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
         completed: !!draft.completed,
         favorite: !!draft.favorite,
       } as Memo);
-    }
-  };
-
-  const moveToJournal = async ({ dateStr, labelChoices }: { dateStr: string; labelChoices: any[] }) => {
-    if (!current || !moveDraft) return;
-    try {
-      const { newId } = await moveMemoToJournal({
-        memo: { ...current, content: moveDraft.content, attachments: moveDraft.attachments as any, linkedItems: moveDraft.linkedItems, imageUrl: moveDraft.imageUrl, tables: moveDraft.tables },
-        groupId: target.groupId,
-        dateStr,
-        labelChoices,
-        journalLabels: journalLabelList,
-      });
-      setMoveDraft(null);
-      closeEntryPanel();
-      showToast(`📔 ${shortDateLabel(dateStr)} 기록으로 옮겼습니다. 원본 메모는 휴지통에 있습니다.`);
-      void openEntryPanel({ kind: 'journal', groupId: target.groupId, dateStr, entryId: newId });
-    } catch (e) {
-      showErrorToast('기록으로 옮기지 못했습니다.', e);
+      // 새로 쓰며 날짜를 넣었으면 방금 만든 메모를 그날 기록으로 (휴지통을 거치지 않는다)
+      if (toDate) await relocate({ kind: 'memo', id: ref.id }, toDate, true);
     }
   };
 
@@ -381,7 +378,7 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
       flushRef={flushRef}
       unsavedRef={unsavedRef}
       onClose={closeEntryPanel}
-      onMove={current ? setMoveDraft : undefined}
+      placeDate={null}
       kind="memo"
       entry={current}
       showFlags
@@ -408,17 +405,6 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
       draftFiles={target.entryId ? undefined : target.draftFiles}
       subtitle={`메모 · ${spaceName}`}
     />
-    {moveDraft && (
-      <MoveEntryModal
-        isOpen
-        onClose={() => setMoveDraft(null)}
-        from="memo"
-        fromLabels={moveDraft.labels}
-        targetLabelNames={journalLabelList.map((l) => l.name)}
-        dateStr={formatDateStr(new Date(viewedDate))}
-        onConfirm={moveToJournal}
-      />
-    )}
     </>
   );
 }

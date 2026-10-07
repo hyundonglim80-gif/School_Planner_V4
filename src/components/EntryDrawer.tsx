@@ -71,6 +71,11 @@ export interface EntryDraft {
   /** 붙인 표. 엑셀에서 복사해 본문에 붙여넣으면 생긴다 */
   tables: EntryTable[];
   /**
+   * '📅 날짜' 칸에서 고른 자리 (19번 U7): 날짜면 그날의 기록, null이면 메모. 칸이 없으면 undefined.
+   * 지금 자리와 다르면 부르는 쪽이 글을 저장한 뒤 옮긴다.
+   */
+  targetDate?: string | null;
+  /**
    * 새 항목에서 머리줄 ☐ 완료·★ 즐겨찾기를 켰으면 (19번 U6). 이미 저장된 항목은 누르는 즉시 onToggleFlag로 저장하므로
    * 여기에는 담지 않는다 - 다른 곳에서 바꾼 표시를 쓰던 칸이 덮지 않게.
    */
@@ -97,10 +102,12 @@ interface EntryDrawerProps {
   showFlags?: boolean;
   onDelete?: () => Promise<void>;
   /**
-   * 메모 ↔ 기록 옮기기. 지금 칸에 적힌 내용(저장 전 고친 것 포함)을 넘긴다.
-   * 주면 고치는 중일 때 삭제 옆에 '기록으로 / 메모로' 단추가 생긴다.
+   * '📅 날짜' 칸 (19번 U7 - 날짜 칸 = 자리). 지금 자리의 날짜(기록), 메모면 null. undefined면 칸을 그리지 않는다.
+   * 날짜를 바꾸고 저장하면 draft.targetDate로 알린다 - 부르는 쪽이 글을 먼저 저장한 뒤 그 자리로 옮긴다.
    */
-  onMove?: (draft: EntryDraft) => void;
+  placeDate?: string | null;
+  /** 날짜 칸을 잠근다 (알림장·출석부 자동 기록) - 까닭은 title로 */
+  placeLocked?: string;
   defaultLabel?: string;
   /** 새로 쓸 때 미리 채울 글 (다른 앱에서 공유받은 글). 열 때의 값만 쓴다 */
   draftText?: string;
@@ -188,7 +195,8 @@ export default function EntryDrawer({
   onToggleFlag,
   showFlags,
   onDelete,
-  onMove,
+  placeDate,
+  placeLocked,
   defaultLabel,
   draftText,
   draftFiles,
@@ -207,6 +215,12 @@ export default function EntryDrawer({
   const backdropCloseRef = useRef<() => void>(closeAllModals);
 
   const [content, setContent] = useState('');
+  // '📅 날짜' 칸 (19번 U7). '' = 날짜 없음(메모)
+  const [dateValue, setDateValue] = useState(placeDate || '');
+  useEffect(() => {
+    setDateValue(placeDate || '');
+  }, [placeDate, entry?.id, entry?.firestoreId]);
+  const dateChanged = placeDate !== undefined && (dateValue || null) !== (placeDate || null);
   // 머리줄 ☐ 완료·★ 즐겨찾기 (19번 U6). 저장된 항목은 그 항목의 값을 따라간다(카드에서 바꿔도)
   const [flags, setFlags] = useState<{ completed: boolean; favorite: boolean }>({ completed: false, favorite: false });
   const [flagBusy, setFlagBusy] = useState(false);
@@ -386,7 +400,8 @@ export default function EntryDrawer({
 
   useEffect(() => {
     handleSubmitRef.current = () => handleSubmit();
-  }, [content, selectedLabels, attachments, linkedItems, tables]);
+    // 날짜 칸·새 항목의 완료·즐겨찾기도 - 빠지면 Ctrl+S가 옛 값으로 저장한다 (19번 U6·U7)
+  }, [content, selectedLabels, attachments, linkedItems, tables, dateValue, flags]);
 
   // 💡 Esc로 닫는 동작은 useModalLayer의 전역 규칙(열린 팝업 전부 닫기)에 맡긴다.
   useEffect(() => {
@@ -586,6 +601,10 @@ export default function EntryDrawer({
   const handleSubmit = async (e?: React.FormEvent): Promise<boolean> => {
     if (e) e.preventDefault();
     if (!content.trim() && attachments.length === 0 && tables.length === 0) return true;
+    if (dateValue && !/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+      showErrorToast('날짜를 다시 골라 주세요.');
+      return false;
+    }
     // 앞선 저장이 아직 끝나지 않았다면 그냥 흘려보낸다.
     // 안 그러면 새 항목을 만드는 중에 또 만들어 같은 내용이 두 개가 된다.
     if (savingRef.current) return false;
@@ -601,6 +620,7 @@ export default function EntryDrawer({
         linkedItemsBase: baseLinksRef.current,
         imageUrl: attachments.find(isImageAttachment)?.url,
         tables: tables.map(tableForSave),
+        ...(placeDate !== undefined ? { targetDate: dateValue || null } : {}),
         // 새 항목에서 머리줄로 켠 완료·즐겨찾기 (저장된 항목은 누를 때 이미 저장했다)
         ...(!entry && flags.completed ? { completed: true } : {}),
         ...(!entry && flags.favorite ? { favorite: true } : {}),
@@ -632,13 +652,13 @@ export default function EntryDrawer({
       showToast('📥 공유받은 파일을 먼저 드라이브에 올리거나 빼 주세요.');
       return false;
     }
-    const changed = formSnapshot(content, selectedLabels, attachments, linkedItems, tables) !== snapshotRef.current;
+    const changed = formSnapshot(content, selectedLabels, attachments, linkedItems, tables) !== snapshotRef.current || dateChanged;
     return changed ? handleSubmit() : true;
   };
   if (flushRef) flushRef.current = saveIfChanged;
   if (unsavedRef)
     unsavedRef.current = () =>
-      pendingFiles.length > 0 || formSnapshot(content, selectedLabels, attachments, linkedItems, tables) !== snapshotRef.current;
+      pendingFiles.length > 0 || dateChanged || formSnapshot(content, selectedLabels, attachments, linkedItems, tables) !== snapshotRef.current;
 
   // 배경을 누르면 이 칸만 닫는다. 칸이 여럿 쌓여 있을 때 아래 칸까지 적던 것째 닫히면 안 된다.
   backdropCloseRef.current = async () => {
@@ -682,6 +702,39 @@ export default function EntryDrawer({
                 >
                   {flags.favorite ? '★' : '☆'} 즐겨찾기
                 </button>
+              </div>
+            )}
+            {placeDate !== undefined && (
+              <div className="flex flex-wrap items-center gap-1.5 mt-1.5" data-entry-place>
+                <span className="text-xs font-bold text-slate-500">📅 날짜</span>
+                <input
+                  type="date"
+                  aria-label="날짜"
+                  data-entry-date
+                  value={dateValue}
+                  disabled={!!placeLocked || saving}
+                  title={placeLocked || '날짜가 있으면 그날의 기록, 비우면 메모입니다. 바꾸고 저장하면 옮겨 갑니다.'}
+                  onChange={(e) => setDateValue(e.target.value)}
+                  className="px-2 py-0.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
+                />
+                {!dateValue && <span className="text-xs text-slate-400">날짜 없음 (메모)</span>}
+                {dateValue && !placeLocked && (
+                  <button
+                    type="button"
+                    data-entry-date-clear
+                    onClick={() => setDateValue('')}
+                    disabled={saving}
+                    title="날짜를 빼면 메모가 됩니다 (저장할 때 옮깁니다)"
+                    className="px-1.5 py-0.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded"
+                  >
+                    날짜 빼기
+                  </button>
+                )}
+                {dateChanged && (
+                  <span className="text-xs font-bold text-amber-700" data-entry-place-hint>
+                    {dateValue ? `저장하면 ${dateValue} 기록으로 옮깁니다` : '저장하면 메모로 옮깁니다'}
+                  </span>
+                )}
               </div>
             )}
             <p className="text-xs text-slate-400 mt-0.5">
@@ -1010,27 +1063,6 @@ export default function EntryDrawer({
                 className="px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-100 rounded-xl transition-colors cursor-pointer"
               >
                 삭제
-              </button>
-            )}
-            {isEditing && onMove && (
-              <button
-                type="button"
-                onClick={() =>
-                  onMove({
-                    content: content.trim(),
-                    labels: selectedLabels,
-                    attachments,
-                    linkedItems,
-                    linkedItemsBase: baseLinksRef.current,
-                    imageUrl: attachments.find(isImageAttachment)?.url,
-                    tables: tables.map(tableForSave),
-                  })
-                }
-                disabled={saving || uploadingFiles}
-                title={kind === 'memo' ? '이 메모를 기록으로 옮기기 (날짜를 고른다)' : '이 기록을 메모로 옮기기 (첫 줄에 날짜를 남긴다)'}
-                className="px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
-              >
-                {kind === 'memo' ? '↔ 기록으로' : '↔ 메모로'}
               </button>
             )}
           </div>

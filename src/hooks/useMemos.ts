@@ -39,6 +39,8 @@ export interface Memo {
   linkedItems?: any[];
   /** 붙인 표 (lib/entryTable). V3는 모르는 칸이지만 updateDoc이라 지우지 않는다 */
   tables?: EntryTable[];
+  /** 기록에서 날짜를 빼 메모가 되었으면 그 원래 날짜 (19번 U7, V4 전용 칸) */
+  fromDate?: string;
 }
 
 /** 상대 쪽에 넣을 '이 메모' 표시. 메모는 날짜가 없어서 제목에 '메모'라고 적는다. */

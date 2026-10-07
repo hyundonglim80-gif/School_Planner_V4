@@ -5,6 +5,7 @@ import type { Memo } from '../../hooks/useMemos';
 import { useAppStore } from '../../store/useAppStore';
 import { focusKey } from '../../lib/searchFocus';
 import EntryCard from '../../components/EntryCard';
+import { parseDateStr } from '../../lib/dateUtils';
 
 interface MemoCardProps {
   memo: Memo;
@@ -36,6 +37,11 @@ export default function MemoCard({ memo, onEdit, onToggleComplete, onToggleFavor
       completed={!!memo.completed}
       favorite={!!memo.favorite}
       dateText={created.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+      // 기록에서 날짜를 빼 메모가 되었으면 원래 날짜 (19번 U7)
+      note={memo.fromDate && /^\d{4}-\d{2}-\d{2}$/.test(memo.fromDate) ? (() => {
+        const d = parseDateStr(memo.fromDate);
+        return `📅 ${d.getMonth() + 1}/${d.getDate()}에서`;
+      })() : undefined}
       attachments={memo.attachments as unknown[] | undefined}
       imageUrl={memo.imageUrl}
       tables={memo.tables as unknown[] | undefined}
