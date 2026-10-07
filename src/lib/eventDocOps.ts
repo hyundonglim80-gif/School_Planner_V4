@@ -8,11 +8,12 @@
 // 쓰지 않아 id 없는 V3 항목을 못 찾았다.
 import { doc, runTransaction, type DocumentReference } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { eventDocPayload, readEventList, eventContentOf } from './eventText';
+import { readEventList, eventContentOf } from './eventText';
 import { getDocTrustingServer } from './firestoreSubscribe';
 import { addDays, daysBetween } from './dateUtils';
 import { moveToTrash } from '../utils/trashHelper';
 import { addReverseLink } from '../utils/linkUtils';
+import { setEventDoc } from './gcalNote';
 
 /**
  * 트랜잭션으로 서버의 지금 목록에서 그 항목만 바꾼다. 나머지는 서버에 있는 그대로 둔다.
@@ -34,7 +35,7 @@ export async function updateEventInDoc(
       return change(item);
     });
     if (!found) return false;
-    tx.set(ref, eventDocPayload(next), { merge: true });
+    setEventDoc(tx, ref, next);
     return true;
   });
 }
@@ -81,7 +82,7 @@ export async function deleteEventFromDoc(
     const cur = readEventList(fresh.data());
     const kept = cur.filter((item: any) => String(item.id) !== String(eventId));
     if (kept.length === cur.length) return;
-    tx.set(ref, eventDocPayload(kept), { merge: true });
+    setEventDoc(tx, ref, kept);
   });
   return trashId;
 }
@@ -159,7 +160,7 @@ export async function moveEventToDate(opts: MoveEventOptions): Promise<MoveEvent
     if (days === 0) {
       // 날짜가 같으면 고치기만 한다
       const next = fromList.map((item: any) => (String(item.id) === String(eventId) ? moved : item));
-      tx.set(fromRef, eventDocPayload(next), { merge: true });
+      setEventDoc(tx, fromRef, next);
       return { id: String(eventId), item: moved };
     }
 
@@ -175,8 +176,8 @@ export async function moveEventToDate(opts: MoveEventOptions): Promise<MoveEvent
     }
     for (const k of Object.keys(moved)) if (moved[k] === undefined) delete moved[k];
 
-    tx.set(fromRef, eventDocPayload(fromList.filter((item: any) => String(item.id) !== String(eventId))), { merge: true });
-    tx.set(toRef, eventDocPayload([...toList, moved]), { merge: true });
+    setEventDoc(tx, fromRef, fromList.filter((item: any) => String(item.id) !== String(eventId)));
+    setEventDoc(tx, toRef, [...toList, moved]);
     return { id: String(moved.id), item: moved };
   });
   if (!result || days === 0) return result;
@@ -324,7 +325,7 @@ export async function restoreEventFields(fId: string, snaps: EventFieldSnapshot[
         }
         return back;
       });
-      if (n > 0) tx.set(ref, eventDocPayload(next), { merge: true });
+      if (n > 0) setEventDoc(tx, ref, next);
       return n;
     });
   }

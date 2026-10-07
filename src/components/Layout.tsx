@@ -6,6 +6,8 @@ import { useAuth } from '../features/auth/useAuth';
 import { useAppStore } from '../store/useAppStore';
 import { useGroups } from '../hooks/useGroups';
 import { useDDay, calculateDDay } from '../hooks/useDDay';
+import { useLabels } from '../hooks/useLabels';
+import { useGcalAuto } from '../lib/gcalAuto';
 import { formatDateStr, isToday } from '../lib/dateUtils';
 import { scrollToToday } from '../lib/todayScroll';
 // 모달은 처음 열 때 받아오면 충분하다. 전부 첫 화면 번들에 넣으면
@@ -129,6 +131,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   } = useAppStore();
   const { groups, loading: groupsLoading } = useGroups();
   const { primaryDDay } = useDDay();
+  // 일정 라벨 '구글 캘린더' 자동 보내기 (19번 U11, lib/gcalAuto) - 못 보낸 날이 있으면 머리줄 단추
+  const { eventLabels: gcalEventLabels } = useLabels();
+  const gcal = useGcalAuto(gcalEventLabels);
 
   // 왼쪽 ⏳ 배지는 늘 오늘을 센다. 'D-100'은 오늘부터 100일이라는 뜻이고, 그
   // 배지는 모든 화면에 떠 있어 기준이 화면마다 달라지면 알아볼 수가 없다.
@@ -709,6 +714,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span>🗑️</span>
                 <span className="hidden sm:inline">휴지통</span>
               </button>
+              {gcal.pending > 0 && (
+                <button
+                  type="button"
+                  data-gcal-pending={gcal.pending}
+                  onClick={() => void gcal.sendNow()}
+                  className="flex p-1 sm:px-2.5 sm:py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-md sm:rounded-xl text-xs font-bold transition-all items-center gap-0.5 sm:gap-1 shadow-2xs shrink-0"
+                  title="구글 캘린더에 아직 못 보낸 날짜가 있습니다 (구글 로그인이 만료됨). 누르면 로그인하고 보냅니다."
+                >
+                  <span>📅</span>
+                  <span className="hidden sm:inline">못 보낸 날</span>
+                  <strong>{gcal.pending}</strong>
+                </button>
+              )}
             </div>
 
             {/* 우측: 검색, 스코프 탭, 그룹 선택. 이 묶음도 좁으면 줄을 바꾼다

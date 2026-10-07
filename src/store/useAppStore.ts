@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { doc, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { eventDocPayload, readEventList } from '../lib/eventText';
+import { readEventList } from '../lib/eventText';
 import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 import { moveToTrash } from '../utils/trashHelper';
 import { addMonthsClamped, formatDateStr } from '../lib/dateUtils';
@@ -15,6 +15,7 @@ import type { PopupStyle } from '../lib/preferenceSync';
 import type { FocusTarget } from '../lib/searchFocus';
 import type { NeisScheduleItem } from '../lib/neis';
 import { DEFAULT_TEACHING_MODE, type TeachingMode } from '../lib/teachingMode';
+import { setEventDoc } from '../lib/gcalNote';
 
 type Scope = 'day' | 'week' | 'month' | 'year' | 'memo' | 'class';
 
@@ -519,7 +520,7 @@ export const useAppStore = create<AppState>()(
               }
               return item;
             });
-            tx.set(eventDocRef, eventDocPayload(updatedList), { merge: true });
+            setEventDoc(tx, eventDocRef, updatedList);
           });
         });
 
@@ -629,7 +630,7 @@ export const useAppStore = create<AppState>()(
             const currentList: any[] = readEventList(fresh.data());
             const updatedList = currentList.filter((item) => !trashed.has(String(item.id)));
             if (updatedList.length === currentList.length) return;
-            tx.set(eventDocRef, eventDocPayload(updatedList), { merge: true });
+            setEventDoc(tx, eventDocRef, updatedList);
           });
           if (trashed.size < toDelete.length) throw new Error('일부를 휴지통에 옮기지 못해 지우지 않았습니다');
         });

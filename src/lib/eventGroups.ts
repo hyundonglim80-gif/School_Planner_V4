@@ -11,9 +11,10 @@
 // 그래서 V3와 같이 날짜 문서를 훑어 배열 안을 직접 본다.
 import { collection, doc, getDocsFromServer, runTransaction, type CollectionReference } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { eventDocPayload, readEventList } from './eventText';
+import { readEventList } from './eventText';
 import { moveToTrash } from '../utils/trashHelper';
 import { addDays } from './dateUtils';
+import { setEventDoc } from './gcalNote';
 
 /** 날짜 문서를 한 번에 몇 개씩 고칠지 (날짜마다 트랜잭션 하나) */
 const PARALLEL_DATES = 8;
@@ -139,7 +140,7 @@ export async function deleteGroupEvents(
           const cur = readEventList(snap.data());
           const rest = cur.filter((e: any) => !ids.has(String(e.id)));
           if (rest.length === cur.length) return 0;
-          tx.set(ref, eventDocPayload(rest), { merge: true });
+          setEventDoc(tx, ref, rest);
           return cur.length - rest.length;
         })
       )

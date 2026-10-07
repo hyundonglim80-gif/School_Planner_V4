@@ -15,6 +15,7 @@ import { scanForMissingLabels, pickRecoveryColor } from '../utils/labelRecovery'
 import { applyLabelRenames, diffLabelNames } from '../utils/labelRename';
 import { orderByTree, sanitizeParents, saveLabelTree, useLabelTree } from '../lib/labelTree';
 import { moveToTrash } from '../utils/trashHelper';
+import { readGcalLabels, saveGcalLabels } from '../lib/gcalAuto';
 import { countEntryLabelUsage, emptyEntryLabels, loadEntryLabelUsageInput, usageTotal, type LabelUsage } from '../lib/labelUsage';
 import {
   mergeEntryLabels,
@@ -404,6 +405,10 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   // 새 라벨을 더할 때 고르는 상위 라벨 (id, 없으면 '')
   const [newEntryParent, setNewEntryParent] = useState('');
 
+  // 일정 라벨 '구글 캘린더' (19번 U11, lib/gcalAuto) - V4 전용 문서 v4_gcal에 둔다(라벨 객체에 칸을 더하지 않는다)
+  const [gcalIds, setGcalIds] = useState<Set<string>>(new Set());
+  const gcalLoadedRef = useRef<string | null>(null);
+
   // 항목 수 세기·빈 라벨 정리 (19번 U10, lib/labelUsage) - 누를 때만 서버를 한 번 훑는다
   const [usage, setUsage] = useState<Record<string, LabelUsage> | null>(null);
   const [counting, setCounting] = useState<{ done: number; total: number } | null>(null);
@@ -495,7 +500,14 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     setLoadError(false);
     setUsage(null);
     setPruneList(null);
+    gcalLoadedRef.current = null;
     fetchLabels();
+    readGcalLabels()
+      .then((ids) => {
+        setGcalIds(new Set(ids));
+        gcalLoadedRef.current = JSON.stringify([...ids].sort());
+      })
+      .catch((e) => console.warn("'구글 캘린더' 라벨 설정을 읽지 못했습니다:", e));
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -693,6 +705,15 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
 
       // 상위/하위도 함께 저장한다. id로 들고 있던 것을 지금 이름으로 바꿔 두므로 이름을 고친 것도 따라간다.
       await saveTree(nextParents, saved);
+
+      // '구글 캘린더' 켠 라벨 (읽어 둔 것이 있고 바뀌었을 때만, 지운 라벨은 뺀다)
+      if (gcalLoadedRef.current !== null) {
+        const ids = [...gcalIds].filter((id) => eventLabels.some((l) => l.id === id)).sort();
+        if (JSON.stringify(ids) !== gcalLoadedRef.current) {
+          await saveGcalLabels(ids);
+          gcalLoadedRef.current = JSON.stringify(ids);
+        }
+      }
       treeTouchedRef.current = false;
 
       const renameCount = renames.event.length + entryRenames.length;
@@ -912,6 +933,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                   <li><strong>기간</strong>: 연속 기간 일정 등록 시 팝업이 지원됩니다.</li>
                   <li><strong>반복</strong>: 매주/매월 반복 일정 등록이 지원됩니다.</li>
                   <li><strong>수업X</strong>: 해당 일정 등록 시 그 날짜의 시간표 과목을 자동으로 비웁니다.</li>
+                  <li><strong>구글 캘린더</strong>: V4에서 이 라벨의 일정을 저장·완료·옮기기·지우면 구글 캘린더(SP(work))에도 반영합니다. 이미 있는 일정은 ⋮ → 구글 캘린더로 보내기로 한 번 보내세요.</li>
                 </ul>
               </div>
 
@@ -962,7 +984,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                       </div>
 
                       {/* 중간: 5대 속성 (달력 -> 이월 -> 기간 -> 반복 -> 수업X) */}
-                      <div className="flex items-center gap-2.5 text-xs text-slate-600 flex-nowrap shrink-0">
+                      <div className="flex items-center gap-x-2.5 gap-y-1 text-xs text-slate-600 flex-wrap min-w-0 flex-1">
                         <label className="flex items-center gap-1 cursor-pointer select-none hover:text-slate-900" title="월간/년간 달력에 표시">
                           <input
                             type="checkbox"
@@ -1031,6 +1053,22 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                             className="rounded text-amber-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
                           />
                           <span className="font-semibold text-xs">수업X</span>
+                        </label>
+
+                        <label className="flex items-center gap-1 cursor-pointer select-none hover:text-slate-900" title="이 라벨의 일정을 V4에서 저장·완료·옮기기·지울 때 구글 캘린더에도 반영 ('달력'과 다릅니다)">
+                          <input
+                            type="checkbox"
+                            data-gcal-label={lbl.name}
+                            checked={gcalIds.has(lbl.id)}
+                            onChange={(e) => {
+                              const next = new Set(gcalIds);
+                              if (e.target.checked) next.add(lbl.id);
+                              else next.delete(lbl.id);
+                              setGcalIds(next);
+                            }}
+                            className="rounded text-sky-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                          />
+                          <span className="font-semibold text-xs whitespace-nowrap">구글 캘린더</span>
                         </label>
                       </div>
 

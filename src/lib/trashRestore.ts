@@ -5,7 +5,7 @@
 import { doc, getDoc, setDoc, runTransaction } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { completeRestoreFromTrash, type TrashItem } from '../utils/trashHelper';
-import { eventDocPayload, readEventList } from './eventText';
+import { readEventList } from './eventText';
 import { readJournalEntries } from './journalEntries';
 import { readEvalList, evalDocPayload } from './evalList';
 import { syncAutoSourceAndTell } from './autoJournalSync';
@@ -13,6 +13,7 @@ import { restoreClipFromTrash } from './clipboardHistory';
 import { restoreProgressPlan } from './progress';
 import { restoreGroupSet, restoreSeatingChart } from './seatingStore';
 import { getDocTrustingServer } from './firestoreSubscribe';
+import { setEventDoc } from './gcalNote';
 
 /** 클립보드 휴지통 항목은 계정 휴지통과 id가 겹치지 않게 앞에 붙인다 (TrashModal이 목록을 만들 때) */
 export const CLIP_TRASH_PREFIX = 'clip:';
@@ -57,7 +58,7 @@ export async function restoreTrashItem(item: TrashItem): Promise<void> {
         const list = readEventList(currentData);
         // 이미 돌아와 있으면(두 번 누름·다른 기기에서 먼저 복원) 또 넣지 않는다
         if (!list.some((e: any) => String(e?.id) === String(data?.id))) list.push(data);
-        tx.set(targetRef, eventDocPayload(list), { merge: true });
+        setEventDoc(tx, targetRef, list);
       } else {
         // id 없는 옛 기록은 화면과 같은 이름(jr_차례)으로 맞춘다
         const entries = readJournalEntries(currentData);

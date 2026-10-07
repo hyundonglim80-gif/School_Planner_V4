@@ -42,6 +42,7 @@ import { dueOf, isDueDate, newChainId } from '../lib/eventDue';
 import { setChainDue } from '../lib/eventDueStore';
 import { auth } from '../lib/firebase';
 import { formatDateStr } from '../lib/dateUtils';
+import { useGcalEnabled } from '../lib/gcalAuto';
 
 interface EventDrawerProps {
   /** 어느 날짜의 일정인가 (YYYY-MM-DD) */
@@ -122,6 +123,12 @@ export default function EventDrawer({
 
   const [text, setText] = useState('');
   const [labels, setLabels] = useState<string[]>([]);
+  const gcalEnabled = useGcalEnabled();
+  // 개인 공간 일정만 보낸다 (1차)
+  const gcalLabelNames = groupId ? [] : labels.filter((n) => {
+    const l = eventLabels.find((x) => x.name === n || x.id === n);
+    return !!l && gcalEnabled.has(l.id);
+  });
   const [attrs, setAttrs] = useState<Attrs>({ ...NO_ATTRS, calendar: true });
   const [alarmTime, setAlarmTime] = useState('');
   /** 기한 (YYYY-MM-DD, 없으면 '') */
@@ -802,6 +809,12 @@ export default function EventDrawer({
                 </label>
               ))}
             </div>
+            {/* 라벨 속성 '구글 캘린더' (19번 U11) - 라벨에만 있다, 여기서는 보이기만 */}
+            {gcalLabelNames.length > 0 && (
+              <p data-event-gcal className="text-2xs font-bold text-sky-700">
+                📅 구글 캘린더로 보냄 - 라벨 {gcalLabelNames.join(', ')} (저장·완료·옮기기·지우기가 구글 캘린더에도)
+              </p>
+            )}
           </div>
 
         </div>

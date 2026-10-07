@@ -14,10 +14,11 @@ import { showToast, showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
 import { loadHolidayYears } from '../hooks/useGovHolidays';
-import { eventDocPayload, readEventList } from '../lib/eventText';
+import { readEventList } from '../lib/eventText';
 import { moveToTrash } from '../utils/trashHelper';
 import { formatDateStr, parseDateStr } from '../lib/dateUtils';
 import ModalShell, { ModalCloseButton } from './ModalShell';
+import { setEventDoc } from '../lib/gcalNote';
 
 // Firestore 일괄 쓰기는 한 번에 500건까지다. 그보다 길게 잡으면 커밋이 통째로 실패한다.
 const MAX_DAYS = 500;
@@ -232,7 +233,7 @@ export default function PeriodModal({
         });
 
         for (const [dateStr, list] of lists) {
-          tx.set(refs.get(dateStr)!, eventDocPayload(list), { merge: true });
+          setEventDoc(tx, refs.get(dateStr)!, list);
         }
       });
 

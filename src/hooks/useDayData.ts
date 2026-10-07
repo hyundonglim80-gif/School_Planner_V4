@@ -11,7 +11,7 @@ import { moveToTrash } from '../utils/trashHelper';
 import { DEFAULT_EVENT_LABELS, normalizeEventLabel } from './useLabels';
 import { showErrorToast, showToast, failWithToast, ShownError } from '../utils/toast';
 import { toggleCheckLine as toggleCheckLineText } from '../lib/checkLines';
-import { parseV3EventText, formatV3EventText, eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
+import { parseV3EventText, formatV3EventText, eventContentOf, readEventList } from '../lib/eventText';
 import { pastDateStrings, isForwardTarget, chooseForwardingLabels } from '../lib/forwarding';
 import { readLegacyEventLabels } from '../lib/legacyLabels';
 import { useAppStore } from '../store/useAppStore';
@@ -19,6 +19,7 @@ import { noteCacheLied, markFirestoreAlive, noteFirestoreError } from '../lib/fi
 import { getDocTrustingServer } from '../lib/firestoreSubscribe';
 import { readJournalEntries } from '../lib/journalEntries';
 import { syncAutoSourceAndTell } from '../lib/autoJournalSync';
+import { setEventDoc } from '../lib/gcalNote';
 
 // 기존 import 경로 호환을 위해 재수출한다 (직렬화 구현은 lib/eventText.ts로 이동).
 export { parseV3EventText, formatV3EventText };
@@ -391,7 +392,7 @@ async function doAutoForwarding(groupId: string | null) {
       const mergedList = [...freshList, ...toAdd].map((item: any, idx: number) =>
         normalizeEventForWrite(item, idx, user)
       );
-      tx.set(todayDocRef, eventDocPayload(mergedList), { merge: true });
+      setEventDoc(tx, todayDocRef, mergedList);
     });
 
     // 2. 이월된 항목의 링크 타겟 업데이트
@@ -445,7 +446,7 @@ async function doAutoForwarding(groupId: string | null) {
       const fresh = readEventList(freshSnap.data()) as EventItem[];
       const next = fresh.filter((item) => !update.movedIds.has(String(item.id)));
       if (next.length === fresh.length) return;
-      tx.set(pDocRef, eventDocPayload(next.map((item, idx) => normalizeEventForWrite(item, idx, user))), { merge: true });
+      setEventDoc(tx, pDocRef, next.map((item, idx) => normalizeEventForWrite(item, idx, user)));
     });
   }
 
@@ -827,7 +828,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         const merged = [...mine, ...addedByOthers].map((item: any, idx: number) =>
           normalizeEventForWrite(item, idx, user)
         );
-        tx.set(eventDocRef, eventDocPayload(merged), { merge: true });
+        setEventDoc(tx, eventDocRef, merged);
       });
     } catch (err) {
       // 안내하고 던진다. 삼키면 쓰는 칸이 성공으로 알고 적던 글을 저장된 것으로 여긴다
@@ -967,7 +968,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
         const fresh = readEventList(freshSnap.data()) as EventItem[];
         const next = fresh.filter((item) => String(item.id) !== String(id));
         if (next.length === fresh.length) return;
-        tx.set(eventDocRef, eventDocPayload(next.map((item, idx) => normalizeEventForWrite(item, idx, user))), { merge: true });
+        setEventDoc(tx, eventDocRef, next.map((item, idx) => normalizeEventForWrite(item, idx, user)));
       });
     } catch (err) {
       failWithToast('일정 삭제에 실패했습니다. 네트워크를 확인해 주세요.', err);

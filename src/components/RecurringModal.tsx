@@ -3,12 +3,13 @@ import { doc, runTransaction, type DocumentSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { showToast, showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
-import { eventDocPayload, readEventList } from '../lib/eventText';
+import { readEventList } from '../lib/eventText';
 import { useLabels } from '../hooks/useLabels';
 
 /** 한 트랜잭션에 담는 날짜 수 (Firestore는 트랜잭션 하나에 문서 500개까지) */
 const RECUR_CHUNK = 200;
 import ModalShell, { ModalCloseButton } from './ModalShell';
+import { setEventDoc } from '../lib/gcalNote';
 
 interface RecurringModalProps {
   isOpen: boolean;
@@ -174,7 +175,7 @@ export default function RecurringModal({
               recur: true,
               createdAt: Date.now()
             });
-            tx.set(ref, eventDocPayload(eventList), { merge: true });
+            setEventDoc(tx, ref, eventList);
           });
         });
       }

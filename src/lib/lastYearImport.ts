@@ -13,10 +13,11 @@
 // - 그날 같은 글이 이미 있으면 건너뛴다(두 번 눌러도 두 벌이 되지 않게, 반복 일정처럼 올해도 있는 것).
 import { doc, runTransaction } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { eventContentOf, eventDocPayload, readEventList } from './eventText';
+import { eventContentOf, readEventList } from './eventText';
 import { readJournalEntries } from './journalEntries';
 import { autoSourceOf } from './autoJournalSync';
 import { TABLE_ONLY_CONTENT } from './entryTable';
+import { setEventDoc } from './gcalNote';
 
 export interface ImportPick {
   kind: 'event' | 'journal';
@@ -146,7 +147,7 @@ export async function importLastYear(groupId: string | null, picks: ImportPick[]
             next.push(copy as any);
             added.push({ kind: 'event', date, id: copy.id });
           }
-          if (next.length > cur.length) tx.set(evRef, eventDocPayload(next), { merge: true });
+          if (next.length > cur.length) setEventDoc(tx, evRef, next);
         }
         if (jrSnap) {
           const cur = jrSnap.exists() ? readJournalEntries(jrSnap.data()) : [];
@@ -212,7 +213,7 @@ export async function undoLastYearImport(groupId: string | null, added: Imported
         const kept = cur.filter((item: any) => !evIds.has(String(item.id)));
         if (kept.length < cur.length) {
           n += cur.length - kept.length;
-          tx.set(evRef, eventDocPayload(kept), { merge: true });
+          setEventDoc(tx, evRef, kept);
         }
       }
       if (jrSnap?.exists()) {

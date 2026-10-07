@@ -5,13 +5,14 @@ import { showToast, showErrorToast } from '../utils/toast';
 import { useAppStore } from '../store/useAppStore';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 import { lazyWithReload } from '../lib/lazyWithReload';
-import { eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
+import { eventContentOf, readEventList } from '../lib/eventText';
 import { pastDateStrings, isForwardTarget } from '../lib/forwarding';
 import { useLabels } from '../hooks/useLabels';
 import { resolveEventLabelNames } from '../lib/eventLabels';
 import { addReverseLink } from '../utils/linkUtils';
 import { updateEventInDoc, deleteEventFromDoc, TrashFailedError } from '../lib/eventDocOps';
 import { showDeletedToast } from '../lib/undoToast';
+import { setEventDoc } from '../lib/gcalNote';
 
 // Layout도 같은 편집기를 따로 불러온다. 여기서 곧바로 불러오면 분리가 무너져
 // 편집기가 첫 화면 묶음에 함께 실려 온다. 그래서 여기서도 필요할 때 불러온다.
@@ -134,7 +135,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
           if (have.has(newId)) continue;
           todayEvents.push({ ...item.event, id: newId, forwardedFrom: item.dateStr });
         }
-        tx.set(todayRef, eventDocPayload(todayEvents), { merge: true });
+        setEventDoc(tx, todayRef, todayEvents);
       });
 
       // 2. 원본 날짜에서 옮긴 것만 뺀다 (날짜마다 트랜잭션).
@@ -154,7 +155,7 @@ export default function ForwardingModal({ isOpen, onClose }: ForwardingModalProp
             if (idx >= 0) removeIdx.add(idx);
           }
           if (removeIdx.size === 0) return;
-          tx.set(ref, eventDocPayload(list.filter((_: any, i: number) => !removeIdx.has(i))), { merge: true });
+          setEventDoc(tx, ref, list.filter((_: any, i: number) => !removeIdx.has(i)));
         });
       }
 
