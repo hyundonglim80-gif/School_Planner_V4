@@ -2,7 +2,7 @@
 //
 // ⋮ 메뉴 구역 제목(docs/ROADMAP.md 6-3)을 실제 크롬으로 본다.
 //   - 구역 다섯 개가 제목과 함께 차례로 있고, 항목이 제 구역에 들었다
-//   - 맨 위 명령 창은 구역 밖, 단축키 표시가 남았다
+//   - 명령 창은 없다 (19번 U4에서 지움)
 //   - 항목마다 누르면 메뉴가 닫히고 그 창(출석부·알림장은 오른쪽 칸)이 열린다
 //
 //   npm run emu / node tools/serve-both.mjs / VITE_USE_EMULATOR=1 npm run build
@@ -62,9 +62,7 @@ const run = async () => {
     const ok = items.every((it, i) => texts[i]?.includes(it)) && texts.length === items.length;
     check(`'${title}' 항목`, ok, texts.join(' | '));
   }
-  const palette = page.getByRole('button', { name: /명령 창/ });
-  check('명령 창은 구역 밖 맨 위', (await palette.locator('xpath=ancestor::*[@data-menu-section]').count()) === 0);
-  check('명령 창 옆 단축키 표시', /Ctrl\s*\+\s*K/i.test(await palette.innerText()), await palette.innerText());
+  check('⋮ 메뉴에 명령 창이 없다 (19번 U4)', (await page.getByRole('button', { name: /명령 창/ }).count()) === 0);
   await page.screenshot({ path: 'tools/report/more-menu.png' });
 
   // ── 2. 항목마다 누르면 메뉴가 닫히고 창이 열린다 ──

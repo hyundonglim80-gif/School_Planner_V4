@@ -189,3 +189,11 @@ describe('목록 자체', () => {
     expect(findConflicts(resolveBindings())).toEqual([]);
   });
 });
+
+describe('지운 기능의 저장된 키 (19번 U4 명령 창)', () => {
+  it("계정에 남은 'commandPalette' 키는 읽을 때 버린다 - Ctrl+K가 아무 기능에도 묶이지 않는다", () => {
+    const bindings = resolveBindings({ commandPalette: { key: 'K', ctrl: true } } as never);
+    expect(Object.keys(bindings)).not.toContain('commandPalette');
+    expect(Object.values(bindings).some((b) => b.key === 'K' && b.ctrl && !b.shift && !b.alt)).toBe(false);
+  });
+});

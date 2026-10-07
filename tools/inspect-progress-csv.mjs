@@ -30,9 +30,8 @@ const dir = mkdtempSync(join(tmpdir(), 'progress-csv-'));
 try {
   await page.goto(V4, { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: '하루', exact: true }).first().waitFor({ timeout: 40000 });
-  await page.keyboard.press('Control+k');
-  await page.getByRole('combobox', { name: '명령 창' }).fill('진도 관리');
-  await page.keyboard.press('Enter');
+  await page.getByTitle('더보기 메뉴').click();
+  await page.getByRole('button', { name: /진도 관리/ }).click();
   const dialog = page.getByRole('dialog').filter({ hasText: '진도 관리' }).first();
   await dialog.waitFor({ timeout: 10000 });
   // 새 진도에서 (저장한 진도를 건드리지 않게)

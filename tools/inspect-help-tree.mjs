@@ -16,6 +16,21 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, connectFirestoreEmulator, doc, deleteDoc, getDocFromServer } from 'firebase/firestore';
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'firebase/auth';
 
+/** 머리줄의 📅 달력 '직접 선택'으로 그 날짜로 (19번 U4에서 명령 창을 지운 뒤) */
+async function pickDate(page, date) {
+  const direct = page.locator('label', { hasText: '직접 선택' }).locator('input[type=date]');
+  await page.getByTitle(/달력에서 날짜 선택/).first().hover();
+  await page.waitForTimeout(300);
+  if (!(await direct.count())) {
+    await page.getByTitle(/달력에서 날짜 선택/).first().click();
+    await page.waitForTimeout(300);
+  }
+  await direct.fill(date);
+  await page.mouse.move(5, 600);
+  await page.waitForTimeout(800);
+}
+
+
 const BASE = process.env.SITE || 'http://localhost:4190';
 const V4 = `${BASE}/School_Planner_V4/`;
 const OUT = process.env.OUT || 'tools/report';
@@ -132,10 +147,7 @@ const content = (page) => page.getByRole('region', { name: '설명서 내용' })
   await page.waitForTimeout(300);
 
   // ── 월간 31일 ▶ ──
-  await page.keyboard.press('Control+k');
-  await page.getByRole('combobox', { name: '명령 창' }).fill('2026-10-31');
-  await page.keyboard.press('Enter');
-  await page.waitForTimeout(500);
+  await pickDate(page, '2026-10-31');
   await page.getByRole('button', { name: '월간', exact: true }).first().click();
   await page.waitForTimeout(800);
   const headerDate = () => page.locator('span[title^="오늘 날짜로 돌아가기"]').first().innerText();

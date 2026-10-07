@@ -16,7 +16,6 @@ export interface Binding {
 }
 
 export type ShortcutId =
-  | 'commandPalette'
   | 'search'
   | 'scopeDay'
   | 'scopeWeek'
@@ -82,8 +81,6 @@ const b = (key: string, mods: Partial<Omit<Binding, 'key'>> = {}): Binding => ({
 });
 
 export const SHORTCUT_ACTIONS: ShortcutAction[] = [
-  // 명령 창: 기능 이름·날짜·검색어를 적어 곧바로 간다 (lib/commandPalette, ROADMAP 6-2)
-  { id: 'commandPalette', label: '명령 창 (기능·날짜·검색)', group: '열기', def: b('K', { ctrl: true }) },
   { id: 'search', label: '통합 검색 열기', group: '열기', def: b('F', { ctrl: true }) },
 
   { id: 'scopeDay', label: '하루 화면', group: '화면 이동', def: b('1', { shift: true }) },

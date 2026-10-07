@@ -5,7 +5,7 @@
 //   - 주간 화면 '🕰️ 작년 이맘때'를 켜면 요일 카드 아래에 작년 학년도 같은 주 같은 요일의 일정·기록이 흐리게 붙는다
 //   - 같은 주는 학년도 몇째 주: 2029학년도 1주(2.26 주, 개학 3.2 금) ↔ 2028학년도 1주(2.28 주, 개학 3.2 목)
 //   - V3 글만 있는 날도 읽는다, 작년 칸을 눌러도 하루 화면으로 가지 않는다, 다음 주 줄에는 붙지 않는다
-//   - 주를 넘기면 작년 주도 따라간다, 명령 창 '작년'은 다른 화면에서 주간으로 가서 켠다
+//   - 주를 넘기면 작년 주도 따라간다, 다시 누르면 꺼진다
 //   7-2 올해로 가져오기
 //   - 골라서 가져오면 올해 같은 요일 서버 문서에 복사본(새 id, 라벨째, 완료·알림·링크 빼고), 작년 것은 그대로
 //   - 올해 같은 글이 있는 일정은 '올해 있음'(고를 수 없음), 안내의 되돌리기는 가져온 것만 뺀다
@@ -18,6 +18,21 @@ import { chromium } from 'playwright';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, connectFirestoreEmulator, doc, setDoc, deleteDoc, getDocFromServer } from 'firebase/firestore';
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'firebase/auth';
+
+/** 머리줄의 📅 달력 '직접 선택'으로 그 날짜로 (19번 U4에서 명령 창을 지운 뒤) */
+async function pickDate(page, date) {
+  const direct = page.locator('label', { hasText: '직접 선택' }).locator('input[type=date]');
+  await page.getByTitle(/달력에서 날짜 선택/).first().hover();
+  await page.waitForTimeout(300);
+  if (!(await direct.count())) {
+    await page.getByTitle(/달력에서 날짜 선택/).first().click();
+    await page.waitForTimeout(300);
+  }
+  await direct.fill(date);
+  await page.mouse.move(5, 600);
+  await page.waitForTimeout(800);
+}
+
 
 const BASE = process.env.SITE || 'http://localhost:4190';
 const V4 = `${BASE}/School_Planner_V4/`;
@@ -99,7 +114,6 @@ const run = async () => {
   const toggle = () => page.locator('[data-last-year-toggle]');
   const label = () => page.locator('[data-last-year-label]');
   const lastDay = (d) => page.locator(`[data-last-year="${d}"]`);
-  const box = () => page.getByRole('combobox', { name: '명령 창' });
   const picks = () => page.locator('[data-last-year-picks]');
   const pickBox = (name) => page.getByRole('checkbox', { name });
   const MON = /작년 일정 고르기: 작년 입학식/;
@@ -113,13 +127,8 @@ const run = async () => {
     await page.getByRole('button', { name: '주간', exact: true }).first().click();
     await toggle().waitFor({ timeout: 10000 });
 
-    // 2029-02-28이 든 주로 (명령 창, 주간에 남는 줄)
-    await page.locator('body').click({ position: { x: 5, y: 300 } });
-    await page.keyboard.press('Control+k');
-    await box().waitFor({ timeout: 10000 });
-    await box().fill('2029-02-28');
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('Enter');
+    // 2029-02-28이 든 주로 (📅 달력, 주간에 남는다)
+    await pickDate(page, '2029-02-28');
     await page.locator('[data-date="2029-02-26"]').first().waitFor({ timeout: 10000 });
 
     // ── 1. 처음에는 꺼져 있다 ──
@@ -212,20 +221,9 @@ const run = async () => {
     const prev = (await label().innerText()).replace(/\s+/g, ' ');
     check('이전 주 → 2027학년도 52주 (2028.2.21 주)', prev.includes('2027학년도 52주 · 2028.2.21 (월) ~ 2.27 (일)'), prev);
 
-    // ── 8. 끄기, 명령 창 '작년'은 다른 화면에서 주간으로 가서 켠다 ──
+    // ── 8. 끄기 (명령 창 '작년'은 19번 U4에서 명령 창과 함께 없어졌다 - 단축키 '작년 이맘때'로는 그대로) ──
     await toggle().click();
     check('다시 누르면 꺼지고 작년 칸이 사라진다', (await page.locator('[data-last-year]').count()) === 0);
-    await page.getByRole('button', { name: '하루', exact: true }).first().click();
-    await page.locator('body').click({ position: { x: 5, y: 300 } });
-    await page.keyboard.press('Control+k');
-    await box().waitFor({ timeout: 10000 });
-    await box().fill('작년');
-    const first = (await page.locator('[role=option][aria-selected=true]').innerText()).replace(/\s+/g, ' ');
-    check('명령 창 \'작년\' → 작년 이맘때', first.includes('작년 이맘때'), first);
-    await page.keyboard.press('Enter');
-    await toggle().waitFor({ timeout: 10000 }).catch(() => {});
-    check('하루 화면에서 → 주간으로 가서 켠다', (await toggle().getAttribute('aria-pressed').catch(() => null)) === 'true');
-    await toggle().click(); // 이 기기에 남으므로 꺼 두고 끝낸다
   } finally {
     for (const [r] of SEED) await deleteDoc(r);
     for (const r of CLEAN) await deleteDoc(r);

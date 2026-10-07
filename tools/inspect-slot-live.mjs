@@ -15,6 +15,21 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, connectFirestoreEmulator, doc, getDocFromServer, setDoc, updateDoc } from 'firebase/firestore';
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'firebase/auth';
 
+/** 머리줄의 📅 달력 '직접 선택'으로 그 날짜로 (19번 U4에서 명령 창을 지운 뒤) */
+async function pickDate(page, date) {
+  const direct = page.locator('label', { hasText: '직접 선택' }).locator('input[type=date]');
+  await page.getByTitle(/달력에서 날짜 선택/).first().hover();
+  await page.waitForTimeout(300);
+  if (!(await direct.count())) {
+    await page.getByTitle(/달력에서 날짜 선택/).first().click();
+    await page.waitForTimeout(300);
+  }
+  await direct.fill(date);
+  await page.mouse.move(5, 600);
+  await page.waitForTimeout(800);
+}
+
+
 const V4 = `${process.env.SITE || 'http://localhost:4190'}/School_Planner_V4/`;
 const DAY = '2026-11-02'; // 월요일 - seed: 1교시 '5-1 과학', 3교시 '5-2 과학'
 const app = initializeApp({ projectId: 'schoolplannerv3', apiKey: 'fake-api-key' }, 'inspect-slot-live');
@@ -63,11 +78,8 @@ try {
   await page.getByRole('button', { name: '하루', exact: true }).first().waitFor({ timeout: 40000 });
   await page.getByRole('button', { name: '하루', exact: true }).first().click();
   await page.waitForTimeout(800);
-  // 그 주의 주간 화면 (명령 창으로 날짜 → 주간)
-  await page.keyboard.press('Control+k');
-  await page.getByRole('combobox', { name: '명령 창' }).fill(DAY);
-  await page.keyboard.press('Enter');
-  await page.waitForTimeout(800);
+  // 그 주의 주간 화면 (📅 달력으로 날짜 → 주간)
+  await pickDate(page, DAY);
   await page.keyboard.press('Shift+Digit2');
   await page.waitForTimeout(2500);
 
@@ -98,7 +110,7 @@ try {
 
   // ── 하루 화면 🙋 출결 배너의 과목 ──
   await setDoc(schedRef, original);
-  await page.keyboard.press('Shift+Digit1');
+  await page.getByRole('button', { name: '하루', exact: true }).first().click();
   await page.locator(`[data-focus-key="period:${DAY}:1"]`).first().waitFor({ timeout: 15000 });
   await page.locator(`[data-focus-key="period:${DAY}:1"] [data-subject-attendance]`).click();
   const title = page.locator('[data-subject-attendance-title]').first();

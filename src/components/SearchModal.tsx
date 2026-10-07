@@ -1,6 +1,6 @@
 //src/components/SearchModal.tsx
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { showErrorToast } from '../utils/toast';
 import { collection, getDocs, query, where, documentId } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -78,8 +78,6 @@ const PAGE_SIZE = 50;
 interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** 이 검색어를 넣고 열자마자 찾는다 (명령 창에서 넘겨줄 때) */
-  initialKeyword?: string;
 }
 
 const FILTER_OPTIONS = [
@@ -97,8 +95,8 @@ const FILTER_OPTIONS = [
   { id: 'attachment', label: '첨부파일' },
 ];
 
-export default function SearchModal({ isOpen, onClose, initialKeyword = '' }: SearchModalProps) {
-  const [keyword, setKeyword] = useState(initialKeyword);
+export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
+  const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<SearchResultItem[]>([]);
   // 찾은 것을 한꺼번에 다 그리지 않는다. 검색어를 비우고 한 학기를 고르면 수업만으로도
   // 3천 건이 넘는다(하루 6교시 x 과목·메모·비고). 그 카드를 전부 만들고 그리느라
@@ -120,13 +118,6 @@ export default function SearchModal({ isOpen, onClose, initialKeyword = '' }: Se
   // 자세히 보기 팝업에 띄운 결과
   const [selected, setSelected] = useState<SearchResultItem | null>(null);
 
-  // 명령 창에서 검색어를 넘겨받아 열리면 곧바로 찾는다 (handleSearch는 아래에서 그릴 때마다 새로 만든다)
-  const searchRef = useRef<() => void>(() => {});
-  useEffect(() => {
-    if (initialKeyword.trim()) searchRef.current();
-    // 처음 열릴 때 한 번만
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   if (!isOpen) return null;
 
@@ -493,7 +484,6 @@ export default function SearchModal({ isOpen, onClose, initialKeyword = '' }: Se
       setSearching(false);
     }
   };
-  searchRef.current = () => void handleSearch();
 
   // 결과를 누르면 먼저 자세히 보여 준다. 목록에는 글이 잘려 보이고,
   // 라벨·첨부는 아예 보이지 않아 맞는 항목인지 알기 어려웠다.

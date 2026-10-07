@@ -39,7 +39,7 @@ import { readThemeMode, setThemeMode, type ThemeMode } from '../lib/theme';
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** 열자마자 보일 구역 (명령 창 '교사 유형 바꾸기') */
+  /** 열자마자 보일 구역 (단축키 '교사 유형 바꾸기') */
   focusSection?: 'teaching';
 }
 
@@ -175,7 +175,7 @@ export default function SettingsModal({ isOpen, onClose, focusSection }: Setting
     const uid = auth.currentUser?.uid;
     if (isOpen && uid) void loadTrashRetention(uid).then(setTrashDays);
   }, [isOpen]);
-  // 명령 창 '교사 유형 바꾸기'로 열면 그 구역까지 내려 둔다 (구역이 그려진 뒤)
+  // 단축키 '교사 유형 바꾸기'로 열면 그 구역까지 내려 둔다 (구역이 그려진 뒤)
   useEffect(() => {
     if (!isOpen || focusSection !== 'teaching') return;
     const t = window.setTimeout(() => {

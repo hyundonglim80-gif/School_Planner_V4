@@ -316,10 +316,9 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 `lib/shortcuts.SHORTCUT_ACTIONS`가 한 곳이다. Layout의 키 처리, 툴팁, 환경설정, 사용 설명서가 모두 여기서 읽는다.
 **설명서·툴팁에 키 조합을 글로 박지 않는다**(테스트가 잡는다). 글을 치는 중에는 Ctrl·Alt 없는 단축키가 동작하지 않는다.
 
-**명령 창**(`CommandPaletteModal`, 기본 Ctrl+K, ROADMAP 6-2): 적은 글을 `lib/commandPalette.buildPaletteItems`가 날짜(`parseDateQuery` -
-오늘 기준, 달·날만이면 이번 학년도) → 기능(`SHORTCUT_ACTIONS` + 찾을 말·첫소리) → 늘 맨 아래 통합 검색 차례로 늘어놓는다.
-기능은 Layout의 `runShortcut`을 그대로 부르므로 단축키와 늘 같다. `COMMAND_META`가 `Record<ShortcutId, …>`라 **단축키에 기능을 더하면
-찾을 말·그림을 채워야 빌드된다**. 검색은 `SearchModal`의 `initialKeyword`로 넘기고 열자마자 찾는다(다른 길로 열면 빈 칸).
+**명령 창은 없다** (19번 U4, 2026-10-07): 예전의 Ctrl+K 명령 창(`CommandPaletteModal`·`lib/commandPalette`, ROADMAP 6-2)은 지웠다 -
+날짜 고르기(📅 달력)·통합 검색·⋮ 메뉴가 같은 일을 한다. 계정에 남은 `commandPalette` 키는 `resolveBindings`가 `SHORTCUT_ACTIONS`만
+돌므로 읽을 때 버려진다. `SearchModal`의 `initialKeyword`도 명령 창만 써서 함께 지웠다.
 
 ---
 
@@ -468,7 +467,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   반 색 막대(`data-slot-color`), 반이 없는 칸·초등 담임은 예전 `data-subject` 한 칸. 주간(`WeekGrid`)은 반 색 칩. 색은
   `teachingSlot.classColor`(정한 색 `classColors` → 그 학년도 반 차례 8색 → 반 이름 해시) - Tailwind 클래스를 `CLASS_COLORS`에 통째로 적어 둔다.
   `hooks/useClassColor`가 명렬표를 **교과 모드일 때만** 구독한다(`useRoster(enabled)`). 숨기는 담임 도구: 하루 수업 머리줄 알림장·출석부,
-  ⋮ 메뉴 항목의 `homeroom: true`(주간학습안내·출석부·알림장 모아 보기), 학급 탭 `TOOLS`의 `homeroom`·오늘 출결 줄. 단축키·명령 창은 그대로.
+  ⋮ 메뉴 항목의 `homeroom: true`(주간학습안내·출석부·알림장 모아 보기), 학급 탭 `TOOLS`의 `homeroom`·오늘 출결 줄. 단축키는 그대로.
   교과 + 담임의 출석부는 `AttendanceDrawer`가 넘겨받은 학급이 없을 때 담임반(`rosterForSlot(homeroomClass)`)을 먼저 고른다.
   반 색 고르기는 환경설정 `TeachingModePanel`(`classColors: {반: 색}` merge).
   **가르치는 반 (19번 U1)**: `teachingSlot.teachingClasses` = 시간표 템플릿 칸 + 그 학년도 수업 칸(있으면 `subjectsByDate`) + 명렬표 + 설정 `classes`.
@@ -492,7 +491,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   트랜잭션**(evalDocPayload 두 이름)으로 하나씩 - id는 `원본_n`, 명단·rosterMeta는 그 반, 조별이면 번호 차례로 다시 나눈다. 실패해도 되돌리지 않고 알린다.
   **S9 과정별 평가 모아 보기**: `EvalOverviewModal`의 '학급별/과정별' 탭(교과 모드만) → `CourseEvalOverview` - 과정의 반마다 `loadClassEvals`(학급별과
   같은 읽기)를 `lib/courseEvals.groupCourseEvals`(종류|제목으로 묶고 과정 과목만, 반마다 이른 것)로 묶어 `courseEvalCompletion`('완료 n/m')을 그린다.
-  **S10**: 명령 창·단축키 `teachingMode`(환경설정을 `focusSection: 'teaching'`으로 열어 그 구역까지 내림)·`newCourse`(진도 창을
+  **S10**: 단축키 `teachingMode`(환경설정을 `focusSection: 'teaching'`으로 열어 그 구역까지 내림)·`newCourse`(진도 창을
   `NEW_COURSE_PLAN_ID`로 열면 새 과정 칸). 교과 모드의 새 자료는 모두 V4 전용(`v4_progress`의 subject·classes, `v4_subjectAttendance`) -
   V3와 같이 쓰는 문서(수업·명렬표·시간표·출석부)에는 칸을 더하지 않았다. 반·과목은 칸 글자 `5-2 과학`에만 있다.
   **회귀를 볼 때**: 초등 담임(teacher)은 `unit:'subject'`라 S1~S9의 새 동작이 모두 꺼져 있어야 한다 - 각 `inspect-*`의 끝 항목이 teacher로 그것을 본다.
@@ -510,7 +509,6 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-scenarios.mjs` | 같은 기능을 여러 조건(공간·날짜·여는 길·자료 모양·칸 상태·두 탭·PC/휴대폰)에서. 점검 자료를 에뮬레이터에 직접 심는다 |
 | `tools/inspect-event-move.mjs` | 일정 날짜 옮기기 - 쓰는 칸·묶음 범위 창·주간/월간 끌기·다중 선택을 크롬으로 누르고 서버를 확인(26항목) |
 | `tools/inspect-undo.mjs` | 안내의 되돌리기 - 일정·기록·메모 지우기, 칸에서 옮기기, 다중 선택 완료·삭제, 메모 완료, 마우스 올려 두기(19항목) |
-| `tools/inspect-command-palette.mjs` | 명령 창 - 날짜로 가기(하루·주간에 남기)·기능 열기(첫소리)·통합 검색 넘기기·⋮ 메뉴·ESC(19항목). 자료를 심지 않는다 |
 | `tools/inspect-more-menu.mjs` | ⋮ 메뉴 구역(`Layout.moreMenuSections`) - 구역 차례·제목·항목, 항목마다 창이 열리는지(29항목). 자료를 심지 않는다 |
 | `tools/inspect-event-panel-order.mjs` | 일정 칸 차례 - 새 일정·수정 칸 모두 내용 칸이 맨 위, 열자마자 커서(7항목). 만든 일정은 지운다 |
 | `tools/inspect-check-lines.mjs` | 메모 카드의 ☐/☑ 줄 - 누르면 서버 글에서 그 줄 글자만 바뀌는지, 쓰는 칸이 안 열리는지(10항목). 메모를 심고 지운다 |
@@ -540,7 +538,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-subject-attendance-summary.mjs` | 교과 출결 누계·학급 탭(16) - teacher3 5-2에 출결을 심고 학급 탭 학년 줄 칩·교과 출결 도구, 누계 학기별 수·내역·CSV, 누가기록 줄, 칸의 📊 누계, teacher ⋮ 메뉴 없음. CSV 이름은 이 컨테이너 Chromium이 'download'로 줘서 그때는 보지 않는다 |
 | `tools/inspect-course-evals.mjs` | 반 도구·조사표(11) - teacher3 과정을 심고 11-02 1교시 반 도구 줄, 조사표 5-1·과학 자동, 다른 반 교시 안내, 만들기 → 서버 11-02·11-03 네 반(명단·두 이름), 자리표 5-1, teacher 줄 없음. 조사표 문서를 끝에 되돌린다 |
 | `tools/inspect-course-overview.mjs` | 과정별 평가 모아 보기(8) - teacher3 과정·조사표를 심고 과정별 탭 줄·칸·'-'·완료 수, 점수를 넣고 다시 열면 바뀜, 칸 → 그 반 조사표, teacher 탭 없음. 조사표 문서를 끝에 되돌린다 |
-| `tools/inspect-subject-finish.mjs` | 교과 모드 마무리(6) - 명령 창 '과정 만들기'·'교사 유형 바꾸기', 휴대폰 390px 하루 카드·교과 출결 칸 넘침 없음(폭 점검은 S10에서 한 번만 - CLAUDE.md 2장) |
+| `tools/inspect-subject-finish.mjs` | 교과 모드 마무리(6) - Ctrl+K가 아무것도 열지 않음·⋮ 진도 관리의 과목 + 반 칸, 휴대폰 390px 하루 카드·교과 출결 칸 넘침 없음(폭 점검은 S10에서 한 번만 - CLAUDE.md 2장) |
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번. `SITE=http://localhost:4190/School_Planner_V4/`(기본값 4173은 vite preview) |
 | `tools/inspect-refine-u2.mjs` | 19번 U2 진도 관리(24) - teacher 과목 칸·교과서 칸(5칸·옛 4칸 붙여넣기)·'+ 행 추가'·Ctrl+Enter·page 저장, teacher3 새 진도 하나·과목 + 반 하나·옛 칸 글자 진도 그대로 저장·하루 칸 차시. 만든 진도는 지운다 |
@@ -577,8 +575,8 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 11. **일정에 새 칸을 더하나?** V4 이월 사본(`doAutoForwarding`)·`addEventItem`·주간 요약(`useCalendarData.mapEvents`)이 정해진 칸만 옮긴다 -
     셋에 더한다. V3 이월(`forwarding.js`)도 정해진 칸만 옮기니, V3가 빼먹는 칸은 `forwardChainId`로 찾게 한다(기한 `v4_eventDue`처럼).
 12. **새 지우기·옮기기 길인가?** 지우기 함수는 휴지통 id, 옮기기는 `trail`을 돌려주고 안내는 `showDeletedToast`/`showMovedToast`(되돌리기).
-13. **새 기능(창)을 더하나?** ⋮ 메뉴 `Layout.moreMenuSections`의 알맞은 구역에 한 줄, 단축키(`SHORTCUT_ACTIONS`), 명령 창 `COMMAND_META`
-    (빠지면 빌드가 안 된다). 화면 종류를 더하면 7장 '화면 종류를 더하면' 목록을 모두.
+13. **새 기능(창)을 더하나?** ⋮ 메뉴 `Layout.moreMenuSections`의 알맞은 구역에 한 줄, 단축키(`SHORTCUT_ACTIONS`).
+    (명령 창 `COMMAND_META`는 19번 U4에서 지웠다.) 화면 종류를 더하면 7장 '화면 종류를 더하면' 목록을 모두.
 14. **색을 주나?** Tailwind 색 클래스, style이면 `var(--color-…)`(hex는 다크 모드에서 안 바뀐다). `src/dark.css`는 `tools/gen-dark-css.mjs`로만.
 15. **인쇄할 화면인가?** `lib/print.printNode`, 찍지 않을 것에 `data-print-hide`.
 16. **매니페스트·서비스 워커를 바꾸나?** 설치된 앱은 늦게 받는다 - 사용자에게 '다시 설치'를 함께 알린다(8장 공유받기).

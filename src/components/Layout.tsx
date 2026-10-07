@@ -13,7 +13,6 @@ import { scrollToToday } from '../lib/todayScroll';
 const GroupModal = lazyWithReload(() => import('./GroupModal'));
 const DDayModal = lazyWithReload(() => import('./DDayModal'));
 const SearchModal = lazyWithReload(() => import('./SearchModal'));
-const CommandPaletteModal = lazyWithReload(() => import('./CommandPaletteModal'));
 const RosterModal = lazyWithReload(() => import('./RosterModal'));
 const LabelModal = lazyWithReload(() => import('./LabelModal'));
 const BackupModal = lazyWithReload(() => import('./BackupModal'));
@@ -178,14 +177,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isDDayModalOpen, setIsDDayModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  /** 명령 창에서 넘겨받아 통합 검색을 열 때 넣어 둘 검색어 */
-  const [searchInitial, setSearchInitial] = useState('');
-  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isRosterModalOpen, setIsRosterModalOpen] = useState(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  /** 환경설정을 열 때 먼저 보일 구역 (명령 창 '교사 유형 바꾸기') */
+  /** 환경설정을 열 때 먼저 보일 구역 (단축키 '교사 유형 바꾸기') */
   const [settingsFocus, setSettingsFocus] = useState<'teaching' | undefined>(undefined);
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
   const [isForwardingModalOpen, setIsForwardingModalOpen] = useState(false);
@@ -371,8 +367,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     ) : null;
   };
   // ⋮ 메뉴 구역. 기능이 15개를 넘어 한 줄로 늘어서 있으니 찾기 어려워 구역 제목을 붙였다(로드맵 6-3).
-  // 항목을 더할 때는 알맞은 구역에 넣는다. 명령 창(Ctrl+K)과 단축키 목록에도 같은 기능이 있어야 한다.
-  // homeroom: 담임 도구 - 교과 전담(담임반 없음)에서는 메뉴에서 숨긴다. 단축키·명령 창으로는 그대로 연다(자료가 남아 있으니, S3).
+  // 항목을 더할 때는 알맞은 구역에 넣는다. 단축키 목록(lib/shortcuts)과 설명서의 ⋮ 메뉴 목록에도 같은 기능이 있어야 한다.
+  // (명령 창 Ctrl+K는 19번 U4에서 지웠다 - 날짜 고르기·통합 검색·⋮ 메뉴가 같은 일을 한다.)
+  // homeroom: 담임 도구 - 교과 전담(담임반 없음)에서는 메뉴에서 숨긴다. 단축키로는 그대로 연다(자료가 남아 있으니, S3).
   // classUnit: 교과 모드 도구 - 초등 담임에서는 메뉴에서 숨긴다 (S7 교과 출결 누계).
   type MoreMenuItem = { icon: string; label: string; shortcut?: ShortcutId; tone?: 'install'; homeroom?: true; classUnit?: true; onClick: () => void };
   const moreMenuSections: Array<{ title: string; items: MoreMenuItem[] }> = [
@@ -442,8 +439,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     const store = useAppStore.getState();
 
     switch (id) {
-      case 'commandPalette': setIsCommandPaletteOpen(true); return;
-      case 'search': setSearchInitial(''); setIsSearchModalOpen(true); return;
+      case 'search': setIsSearchModalOpen(true); return;
       case 'scopeDay': setScope('day'); return;
       case 'scopeWeek': setScope('week'); return;
       case 'scopeMonth': setScope('month'); return;
@@ -556,7 +552,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       // ESC: 열려있는 모든 모달 및 메뉴 닫기
       if (e.key === 'Escape') {
         setIsHelpModalOpen(false);
-        setIsCommandPaletteOpen(false);
         setIsSearchModalOpen(false);
         setIsGroupModalOpen(false);
         setIsBackupModalOpen(false);
@@ -719,7 +714,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div className="flex flex-wrap items-center gap-0.5 sm:gap-2 gap-y-1.5 shrink min-w-0">
               {/* 통합 검색 버튼 */}
             <button
-              onClick={() => { setSearchInitial(''); setIsSearchModalOpen(true); }}
+              onClick={() => setIsSearchModalOpen(true)}
               className="p-1 sm:px-2.5 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md sm:rounded-xl text-xs sm:text-xs font-bold transition-all flex items-center gap-0 sm:gap-1 shrink-0"
               title={withShortcut('통합 검색', 'search')}
             >
@@ -818,19 +813,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       <span>🚪</span> 로그아웃
                     </button>
                   </div>
-
-                  {/* 명령 창: 기능 이름·날짜·검색어를 적어 곧바로 간다. 휴대폰은 키가 없어 여기로 연다. */}
-                  <button
-                    onClick={() => {
-                      setIsMoreMenuOpen(false);
-                      setIsCommandPaletteOpen(true);
-                    }}
-                    className="w-full px-4 py-2.5 text-left font-bold text-slate-700 hover:bg-slate-50 hover:text-primary flex items-center gap-2"
-                  >
-                    <span>⚡</span> 명령 창
-                    <span className="text-2xs font-medium text-slate-400 whitespace-nowrap">기능·날짜·검색</span>
-                    {menuKey('commandPalette')}
-                  </button>
 
                   {moreMenuSections.map((section) => (
                     <div
@@ -1053,20 +1035,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         {isSearchModalOpen && (
-          <SearchModal isOpen initialKeyword={searchInitial} onClose={() => setIsSearchModalOpen(false)} />
-        )}
-
-        {isCommandPaletteOpen && (
-          <CommandPaletteModal
-            isOpen
-            onClose={() => setIsCommandPaletteOpen(false)}
-            onCommand={runShortcut}
-            onSearch={(text) => {
-              setSearchInitial(text);
-              setIsSearchModalOpen(true);
-            }}
-            keyHint={shortcutHint}
-          />
+          <SearchModal isOpen onClose={() => setIsSearchModalOpen(false)} />
         )}
 
         {isRosterModalOpen && (

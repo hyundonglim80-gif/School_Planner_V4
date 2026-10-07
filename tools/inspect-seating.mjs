@@ -4,7 +4,7 @@
 //   - ⋮ 메뉴 → 자리표, 학급 고르기, 빈 학급은 '+ 자리표 만들기' → 재학생만 번호 차례로 앉는다(전출 빠짐)
 //   - 끌어다 놓기로 맞바꾸기, '자리 고치기'에서 두 자리 눌러 바꾸기·고정·책상 없애기
 //   - 떨어뜨릴 학생 더하기(v4_classHub), 섞기(고정 칸 그대로, 떨어뜨릴 학생 안 붙음, 남녀 짝, 지난 짝 기록) → 되돌리기
-//   - 줄 줄이기 → 자리 없는 학생, 새 자리표·지우기(휴지통) → 되돌리기, 명령 창 '자리', ESC
+//   - 줄 줄이기 → 자리 없는 학생, 새 자리표·지우기(휴지통) → 되돌리기, ⋮ 메뉴로 다시 열기, ESC
 // 점검용 학급(2030학년도 9학년 9반)을 명렬표 끝에 더하고 끝에 뺀다. 그 학급의 자리표·허브·휴지통 항목도 지운다.
 //
 //   npm run emu / node tools/serve-both.mjs / VITE_USE_EMULATOR=1 npm run build
@@ -234,16 +234,13 @@ const run = async () => {
     await until(async () => modal().getByRole('tab').count(), (n) => n === 2, 5000);
     check('화면에도 두 장', (await modal().getByRole('tab').count()) === 2);
 
-    // ── 8. ESC·명령 창 ──
+    // ── 8. ESC·⋮ 메뉴로 다시 열기 ──
     await page.keyboard.press('Escape');
     await page.waitForTimeout(400);
     check('ESC로 닫힌다', (await modal().count()) === 0);
     await page.locator('body').click({ position: { x: 5, y: 300 } });
-    await page.keyboard.press('Control+k');
-    await page.getByRole('combobox', { name: '명령 창' }).fill('자리');
-    await page.waitForTimeout(300);
-    check('명령 창 "자리" 맨 위가 자리표', (await page.locator('[role=option][aria-selected=true]').innerText()).includes('자리표'));
-    await page.keyboard.press('Enter');
+    await page.getByTitle('더보기 메뉴').click();
+    await page.getByRole('button', { name: /자리표/ }).first().click();
     await page.locator('[data-seating-grid]').waitFor({ timeout: 10000 });
     check('Enter → 자리표 창, 보던 학급·자리표 그대로', (await modal().getByRole('combobox', { name: '학급' }).inputValue()) === KEY);
   } catch (e) {

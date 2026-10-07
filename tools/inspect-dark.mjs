@@ -2,7 +2,7 @@
 //
 // ROADMAP 17 다크 모드 - 바뀐 부분만 실제 크롬으로 본다.
 //   - 처음은 '기기 설정 따라'(밝은 기기면 밝게), ⋮ '어둡게 보기' → 어둡게(바탕·카드·글자·흰 글자 단추), 다시 열어도 어둡게(이 기기)
-//   - 인쇄는 어두워도 밝게, 명령 창 '다크', 환경설정 '화면 밝기'(밝게·기기 설정 따라 - 기기가 어두우면 어둡게)
+//   - 인쇄는 어두워도 밝게, 환경설정 '화면 밝기'(밝게·기기 설정 따라 - 기기가 어두우면 어둡게)
 //   - 코드에 적힌 회색(끝낸 일정 라벨 칩)도 어둡게 따라간다
 //
 //   npm run emu / node tools/serve-both.mjs / VITE_USE_EMULATOR=1 npm run build
@@ -91,14 +91,6 @@ try {
   check('다시 열어도 어둡게 (그리기 전부터)', await isDark());
   await page.locator('[data-month-week]').first().waitFor({ timeout: 40000 });
 
-  // 명령 창
-  await page.keyboard.press('Control+k');
-  await page.getByPlaceholder(/기능|날짜|검색/).first().fill('다크');
-  await page.waitForTimeout(400);
-  const hit = await page.getByRole('dialog').getByText('어둡게 / 밝게 보기').count();
-  check('명령 창 "다크" → 어둡게 / 밝게 보기', hit > 0);
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
 
   // 환경설정 - 밝게 / 기기 설정 따라
   await openMenu();

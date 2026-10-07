@@ -1,7 +1,7 @@
 // tools/inspect-subject-finish.mjs
 //
-// 18번 교과 전담 S10 '마무리' - 명령 창의 새 항목과 휴대폰 폭(390px) 한 번 (CLAUDE.md 2장: 폭 점검은 이 세션에서만).
-//   - teacher3 명령 창 '과정 만들기' → 진도 관리 창이 과정 칸(과목·반)으로, '교사 유형 바꾸기' → 환경설정이 교사 유형 구역으로
+// 18번 교과 전담 S10 '마무리' - 휴대폰 폭(390px) 한 번 (CLAUDE.md 2장: 폭 점검은 이 세션에서만).
+//   - teacher3: Ctrl+K는 아무것도 열지 않는다(명령 창은 19번 U4에서 지움), ⋮ 메뉴 진도 관리 → 과목 + 반 칸
 //   - 휴대폰 390px: 교과 모드 하루 카드(11-02)·교과 출결 칸이 가로로 넘치지 않는다, 반 도구 줄·출결 단추가 보인다
 //   점검은 아무것도 저장하지 않는다.
 //
@@ -27,38 +27,19 @@ async function openApp(page) {
   await page.getByRole('heading', { name: '일정' }).first().waitFor({ timeout: 40000 });
   await page.waitForTimeout(1000);
 }
-async function palette(page, text) {
-  await page.locator('body').click({ position: { x: 5, y: 300 } });
-  await page.keyboard.press('Control+k');
-  const box = page.getByRole('combobox', { name: '명령 창' });
-  await box.waitFor({ timeout: 10000 });
-  await box.fill(text);
-  await page.waitForTimeout(300);
-  const first = (await page.locator('[role=option][aria-selected=true]').innerText()).replace(/\s+/g, ' ');
-  await page.keyboard.press('Enter');
-  return first;
-}
-
 try {
-  // ── PC: 명령 창 ─────────────────────────────────────────────
+  // ── PC: 명령 창은 없다(19번 U4), 진도 관리는 ⋮ 메뉴에서 과목 + 반 ─────────
   const pc = await (await browser.newContext({ viewport: { width: 1400, height: 900 } })).newPage();
   pc.on('pageerror', (e) => errors.push(e.message.slice(0, 160)));
   await openApp(pc);
-  const f1 = await palette(pc, '과정 만들기');
-  const form = pc.locator('[data-course-form]');
-  const okForm = await form.waitFor({ timeout: 10000 }).then(() => true, () => false);
-  check("명령 창 '과정 만들기' → 진도 관리 창이 과정 칸으로", /과정 만들기/.test(f1) && okForm, f1);
-  await pc.keyboard.press('Escape');
-  await pc.waitForTimeout(400);
-  const f2 = await palette(pc, '교사 유형');
-  const sec = pc.locator('[data-teaching-mode-setting]');
-  await sec.waitFor({ timeout: 10000 });
+  await pc.locator('body').click({ position: { x: 5, y: 300 } });
+  await pc.keyboard.press('Control+k');
   await pc.waitForTimeout(600);
-  const inView = await sec.evaluate((el) => {
-    const r = el.getBoundingClientRect();
-    return r.top < window.innerHeight && r.bottom > 0;
-  });
-  check("명령 창 '교사 유형 바꾸기' → 환경설정 교사 유형 구역이 보인다", /교사 유형 바꾸기/.test(f2) && inView, f2);
+  check('Ctrl+K가 아무 창도 열지 않는다 (명령 창 없음)', (await pc.getByRole('dialog').count()) === 0 && (await pc.getByRole('combobox', { name: '명령 창' }).count()) === 0);
+  await pc.getByTitle('더보기 메뉴').click();
+  await pc.getByRole('button', { name: /진도 관리/ }).click();
+  const okForm = await pc.locator('[data-course-form]').waitFor({ timeout: 10000 }).then(() => true, () => false);
+  check('⋮ 메뉴 진도 관리 → 교과 모드는 과목 + 반 칸', okForm);
   await pc.keyboard.press('Escape');
 
   // ── 휴대폰 390px ────────────────────────────────────────────

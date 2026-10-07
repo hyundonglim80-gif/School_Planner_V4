@@ -1,7 +1,7 @@
 // src/components/SubjectAttendanceSummaryModal.tsx
 //
 // 교과 출결 누계 (docs/ROADMAP-SUBJECT.md S7, 사용 설명서 '교과 출결'). 학급 탭 '교과 출결', 교과 출결 칸의 '📊 누계',
-// 단축키·명령 창 '교과 출결 누계'로 연다.
+// 단축키·⋮ 메뉴 '교과 출결 누계'로 연다.
 // 반을 고르고 기간(1학기·2학기·학년도)을 고르면 학생마다 결과·지각·조퇴 교시 수. 학생을 누르면 날짜·교시 내역.
 // CSV(엑셀에서 열리게 BOM 붙은 UTF-8)·인쇄. 읽기만 한다 - 적는 것은 수업 칸의 '🙋 출결'.
 import { useEffect, useMemo, useRef, useState } from 'react';

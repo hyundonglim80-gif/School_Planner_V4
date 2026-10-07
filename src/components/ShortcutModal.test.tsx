@@ -85,7 +85,7 @@ describe('단축키 팝업 - 저장', () => {
     const user = userEvent.setup();
     render(<ShortcutModal isOpen onClose={vi.fn()} />);
 
-    // Ctrl+K는 명령 창이 쓴다 - 비어 있는 조합으로
+    // 비어 있는 조합으로
     fireEvent.keyDown(keyBox('통합 검색 열기'), { key: 'j', code: 'KeyJ', ctrlKey: true });
     expect(useAppStore.getState().shortcutOverrides.search).toBeUndefined();
 
