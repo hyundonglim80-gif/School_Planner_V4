@@ -34,6 +34,7 @@
 
 ---
 
+> **V4를 처음 보면 아래 7장 'V4 시스템 지도'부터** 읽는다(무엇이 어디 있고 어떻게 도는지 한 장에).
 > **V4의 동작 원리**(데이터 모델, 읽기·쓰기 원칙, 라벨·이월·쓰는 칸·팝업 구조, 고치기 전 체크리스트)는
 > `docs/ARCHITECTURE.md`에 있다. 코드를 고치기 전에 해당 장을 읽는다. 구조가 바뀌면 같은 커밋에서 고친다.
 
@@ -67,10 +68,13 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
   설명서 전체 점검 88/89(남은 하나는 컨테이너 내려받기 파일 이름 - 앱 버그 아님). 메모·기록은 저장 자리를 그대로 두고 화면·라벨만 하나로(V3 호환,
   V3가 기록 항목의 모르는 칸을 지우지 않는 것은 GitHub의 09-18 V3 코드로 확인 - PC에만 있는 V3 수정이 있으면 다를 수 있다).
 - **10-07 사용자 요청은 모두 끝, main 배포**: 1차 묶음(첫 줄 #라벨·메모 학생 태그·일정 구글 캘린더 칸·배너 한 스크롤·체크 줄 아래·라벨 한 줄·
-  시간표 교사 구분과 두 칸·사진 확대 틀), UX-AUDIT 적용, 수업 종, 링크 미리보기, 오른쪽 칸 탭, 명렬표를 학급 화면 안으로, 암기(사진 틀 고정·여러 학급·자동 넘김·출제 수).
-  설명서 전체 점검 88/89(남은 하나는 컨테이너 내려받기 파일 이름). 자세한 것은 ARCHITECTURE. **새 요청이 오기 전에는 할 일이 없다** - '이어서'라고 하면 무엇을 할지 묻는다.
-- **사용자에게 부탁 (U11)**: 저장 → 구글 캘린더에 생기는 것은 사용자가 PC에서 확인(10-07). '구글 캘린더'를 끄고 저장하면 지우지 않던 것을 고쳤다(10-07) -
-  PC에서 일정 칸의 '구글 캘린더'를 끄고 저장 → 구글에서 지워지는지, 라벨 관리에서 라벨을 끄면 그 라벨 일정이 지워지는지 다시 확인을 부탁했다.
+  시간표 두 칸·사진 확대 틀), UX-AUDIT 적용, 수업 종, 링크 미리보기, 오른쪽 칸 탭, 명렬표를 학급 화면 안으로, 암기(사진 틀 고정·여러 학급·자동 넘김·출제 수),
+  링크 연결 창 저장 뒤 닫기, 구글 캘린더 끄면 지우기·저장 때 로그인 묻기, 교사 유형·가르치는 반·과목을 시간표 창으로, 수업 종을 하루 '수업' 옆으로.
+  설명서 전체 점검 88/89(남은 하나는 컨테이너 내려받기 파일 이름). 기능 지도는 아래 **7장**, 자세한 것은 ARCHITECTURE.
+  **새 요청이 오기 전에는 할 일이 없다** - '이어서'라고 하면 무엇을 할지 묻는다.
+- **사용자에게 부탁 (U11)**: 저장 → 구글 캘린더에 생기는 것은 사용자가 PC에서 확인(10-07). 그 뒤 고친 것 셋을 PC에서 다시 확인 부탁:
+  일정 칸 '구글 캘린더'를 끄고 저장 → 구글에서 지워짐 / 라벨 관리에서 라벨을 끄면 그 라벨 일정이 지워짐 / 로그인이 만료된 채 저장하면 구글 로그인 창이 뜸
+  (컨테이너의 인증 에뮬레이터는 실제 구글 창을 못 열어 '묻는 창의 단추가 로그인을 시도'까지만 봤다).
 - 이 절에는 **진행 중인 것·사용자에게 부탁한 것만** 둔다(이 파일은 모든 대화가 처음에 읽는다 - 길면 매번 비싸다).
   기능을 끝내면 자세한 메모는 ARCHITECTURE로 옮기고 여기서는 지운다.
 - `C:\HDL` PC의 C:는 사용자가 정리했다(10-02). 긴 점검 전후로 `df -h /c`와 로그 크기를 본다(2장).
@@ -290,3 +294,59 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
 (⋮ 메뉴 구역, 단축키 '메뉴 열기' 묶음, 둘째 줄이 안 보이는 화면, 이월이 도는 때, 메모 칸 쌓기). 새 기능을 더하면 그 장과 함께
 **'화면 구성 한눈에 보기'(⋮ 메뉴 목록)·'단축키 바꾸기'·'휴대폰에서 쓰기'의 목록**도 본다. 설명서 왼쪽에 분류 › 기능 **목차 트리**를 두었다
 (ARCHITECTURE 7장 '사용 설명서' - 목차 단추는 `data-help-tree-*`, 이름으로 찾을 때는 region '설명서 내용' 안에서).
+
+## 7. V4 시스템 지도 (2026-10-07 정리 - 다음 작업을 빠르게 시작하려고)
+
+기능을 고치기 전에 이 지도로 **자리를 찾고**, 그 기능의 ARCHITECTURE 절과 설명서 장(6장)을 읽는다. 구조를 바꾸면 이 지도도 같은 커밋에서 고친다.
+
+### 7-1. 뼈대
+- React 19 + TS + Vite + Tailwind 4, 상태 zustand(`src/store/useAppStore.ts`), 서버 Firebase(Auth·Firestore, **오프라인 저장소 없음** `memoryLocalCache`).
+  라우팅 없음 - `scope`('day'·'week'·'month'·'year'·'memo'·'class')로 화면을 바꾼다. 배포 = main 푸시 → GitHub Actions(lint·test·build) → Pages.
+- `main.tsx` → `App.tsx`(로그인, `usePreferenceSync`·`useTeachingModeSync`·이월 `runAutoForwarding`·알림) → `components/Layout.tsx`.
+  **Layout이 거의 모든 창을 쥔다**: 머리줄·⋮ 메뉴(`menuSections`)·전역 단축키(`runShortcut`의 `case '<단축키 id>'`)·모든 팝업의 열림 상태·오른쪽 줄·
+  왼쪽 클립보드·수업 종 러너(`useClassBellRunner`)·구글 캘린더 자동 보내기(`useGcalAuto`)·'구글 로그인이 필요합니다' 창.
+  화면 안에서 창을 열 때는 `lib/appActions.runAppAction({ id: 단축키 id, classKey })` → Layout의 같은 `case`.
+- 화면: `features/day`(DaySchedule 수업 · DayEvents 일정 · DayJournal 기록 · DayMeals), `week`·`month`·`year`(`useCalendarData`로 여러 날),
+  `memo`(MemoScreen·MemoMasonry), `class`(ClassScreen = 학급 도구 | 명렬표). 하루 데이터는 `hooks/useDayData(date, groupId)` 하나가 구독·저장한다.
+- 단축키는 `lib/shortcuts.SHORTCUT_ACTIONS` 한 곳(설명서·툴팁·환경설정이 읽는다, 설명서에 키를 글로 박지 않고 `{key:id}`).
+
+### 7-2. 데이터 (자세히는 ARCHITECTURE 3장)
+- 공간 `{sp}` = `users/{uid}` 또는 `groups/{gid}`. 일정 `events/{날짜}{eventList, eventText}`(하루 한 배열) · 수업 `schedules/{날짜}{periods}` ·
+  기록 `journals/{날짜}{entries}` · 메모 `tasks/{id}` · 조사표 `evaluations/{날짜}{list, evalList}` · 알림장 `notices/{날짜}`.
+- 늘 개인: 라벨 `settings/labels`(V3와 한 문서), 명렬표 `settings/rosters{classList, rosters}`, 출석부 `attendance/`, 자리표, 휴지통 `trash/`, 설정.
+- **V4 전용 문서**(V3 공유 객체에 칸을 더하지 않으려고 따로 둔다): `settings/v4_teaching`(교사 유형) · `v4_labelTree`(라벨 상위/하위) · `v4_gcal`(구글 캘린더 켠 라벨) ·
+  `v4_classBell`(수업 종) · `v4_periodTimes`(교시 시각) · `photoQuiz`(암기 성적) · `users/{uid}/v4_gcalQueue/{날짜}`(구글 캘린더 보낼 날).
+- 이 기기에만(localStorage): 클립보드(IndexedDB) · 사진 보기 켬 · 암기 설정 `sp4-photo-quiz` · 수업 종 '이 기기에서 울리기' · 학급 화면 고른 학급 `sp4-class-hub`.
+- **쓰기 규칙**(4장): 하루 배열은 서버에서 읽고 트랜잭션으로 항목 하나만 바꾼다, 일정 문서는 `lib/eventText.readEventList`로 읽고 `lib/gcalNote.setEventDoc`으로 쓴다,
+  지우기는 휴지통 먼저, 저장 실패는 던진다(`failWithToast`). V3 속성 이름(`isForward` 등)을 함께 쓴다.
+
+### 7-3. 기능별 자리 (기능 → 주 파일 → 꼭 알 것)
+- **일정**: `components/EventDrawer`(쓰는 칸 - 속성 줄 달력·이월·기간·반복·수업X·구글 캘린더) · `useDayData` · `lib/eventDocOps`(화면 밖 고치기) ·
+  `forwarding`(이월) · `eventGroups`(기간·반복 묶음) · `periodBars` · `useEventMove`(옮기기). 라벨 속성이 기본값, 일정에 값이 있으면 그 값이 이긴다.
+- **구글 캘린더 자동 보내기**(U11): `lib/gcalNote`(일정 날짜 쓰기 알림) → `gcalAuto`(날짜 큐 → 서버에서 그날을 다시 읽어 맞춤, 토큰 없으면 '📅 못 보낸 날 N',
+  라벨을 끄면 `queueSentDates`, 저장 때 로그인 묻기 `ensureGcalLogin`) → `gcalPlan.planDateSync`(보낼 것에 없는 sp_auto 일정은 지움). 수동 보내기는 `calendarSync`.
+- **구글 로그인**: `lib/googleApi` - `getGoogleTokenQuietly`(창 없이), `getValidGoogleToken(까닭)`(누른 직후면 로그인 창, 막히면 `GoogleLoginPrompt` 묻는 창).
+  사용자가 시키지 않은 일에서 로그인 창을 띄우지 않는다. 드라이브(첨부·사진·백업)도 같은 길.
+- **수업·시간표**: `features/day/DaySchedule`(교시 카드, 🔕/🔔 종 단추·📘 진도, 교과 모드 반 색·🙋 출결·⏪ 지난 시간) · `TimetableTemplateModal`
+  (맨 위 교사 유형 구역 `TeachingModePanel` - 교사 유형·가르치는 과목·반·반 색·담임반, 표 칸은 교과 모드면 `SlotPairInput` 학년-반+과목 두 칸, 교시 시각 `PeriodTimesEditor`,
+  학기 기간·적용) · 저장 글은 '5-2 과학' 한 줄(`lib/teachingSlot` normalize·parse) · 수업 종 `lib/classBell`+`hooks/useClassBell`+`ClassBellPanel` · 진도 `ProgressModal`·`lib/progress`.
+- **교사 유형**(18번): `lib/teachingMode`(프리셋 (초등) 담임 / 전담 / (중등) 전담 + 담임 → unit·hasHomeroom), `useTeachingMode()`. 전담은 담임 도구(출석부·알림장)를 숨기고
+  교과 출결(`subjectAttendance`)·반 색을 쓴다. 고르는 곳은 **시간표 창**(환경설정에는 그리로 가는 단추만), 처음이면 하루 화면 띠(`TeachingModeBanner`).
+- **기록·메모**(한 화면 규칙): 쓰는 칸 `EntryDrawer`(📅 날짜 칸 = 자리 - 날짜 있으면 기록, 비우면 메모 `lib/moveEntry`, 첫·마지막 줄 `#라벨` `hashLabels`,
+  ☑ 체크리스트 `checkLines`, 표 붙여넣기 `entryTable`, @이름·학생 태그 `StudentTagPicker`, 링크 미리보기 `linkPreview`) · 카드 `EntryCard`(체크 끝난 줄은 아래로) ·
+  라벨 거르개 `lib/labelTree.matchEntry`. 기록 읽기는 칸을 이름으로 골라 읽는다(새 칸을 더하면 `useDayData.applyJournalData`에도).
+- **라벨**: `hooks/useLabels`, `LabelModal`(라벨 관리 - 일정 라벨 속성·구글 캘린더 체크, 메모·기록은 한 목록 + 상위/하위), `useLabels.normalizeEventLabel`(V3 이름 먼저).
+- **오른쪽 줄**: 쓰는 칸은 `openEntryPanel(target)` → `EntryPanelHost`, 팝업은 `ModalShell`/`PopupFrame`(새 팝업은 반드시 이 둘). 여러 칸이면 **탭**
+  (`PopupFrame.useSidePopups{order, active}`·`sideSlotProps`·Layout `SideTabs`) - 숨은 탭은 display:none이라 점검에서 `getByRole`로 안 잡힌다.
+  ESC = 줄 전체 닫기, Ctrl+S = 커서가 든 칸(없으면 보이는 탭). 링크 연결 `LinkerModal`(저장하면 닫힘)·`LinkViewerModal`.
+- **학급**: `features/class/ClassScreen` = '🏫 학급 도구'(학급 고르기·오늘 출결·도구 칸·학생 이름/사진) | '🧑‍🤝‍🧑 명렬표'(`RosterModal embedded` - 관리·검색·암기, store `classView`·`rosterTab`).
+  ⋮ 메뉴에는 명렬표가 없다. 암기 `roster/RosterMemorizeTab`+`hooks/usePhotoQuiz`+`lib/photoQuiz`(사진 틀 고정, 자동 넘김·출제 수·함께 외울 학급). 사진 `useStudentPhotos`(드라이브).
+  출석부 `AttendanceDrawer`·`lib/attendance` · 알림장 `NoticeDrawer`·`lib/notices` · 자리표 `SeatingModal` · 누가기록 `StudentRecordModal`(기록·메모·출결·조사표) · 조사표 `EvaluationModal`·`EvalOverviewModal`.
+- **찾기·정리·백업**: 통합 검색 `SearchModal`, 휴지통 `TrashModal`·`lib/trashRestore`, 백업 `BackupModal`·`lib/backupJson`·`autoBackup`, 구글 Keep `KeepImportModal`, 공유 그룹 `GroupModal`.
+- **환경설정** `SettingsModal`(계정에 동기화 `preferenceSync` - 창 위치·글자 크기·다크 모드·시작 화면·단축키·이월·휴지통 자동 비우기·우리 학교). **설명서** `lib/helpTopics`(기능 명세, 6장).
+
+### 7-4. 점검 도구 (ARCHITECTURE 9장 표)
+- `tools/inspect-*.mjs` - 기능마다 한 스크립트(실제 크롬, 에뮬레이터 자료를 심고 끝에 되돌린다). 10-07에 더한 것: `inspect-class-roster`·`inspect-memorize`·
+  `inspect-gcal-login`·`inspect-side-tabs`·`inspect-link-preview`·`inspect-class-bell`·`inspect-batch-1007`·`inspect-ux-audit`. 구글 API·드라이브는 `page.route`로 흉내 낸다.
+- 전체 점검 `inspect-manual.mjs`(89항목), 바뀐 화면 이름은 `grep -rn '<옛 글자>' tools/`로 스크립트도 고친다(2장).
+
