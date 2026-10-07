@@ -198,9 +198,9 @@ try {
   await page.waitForTimeout(800);
   check('선택창을 취소하면 아무것도 올리지 않는다', uploaded.size === upCount && (await page.getByText(/가져오지 못했습니다/).count()) === 0);
 
-  // 4) 명렬표 관리 - 여러 장
+  // 4) 명렬표 - 여러 장 (2026-10-07부터 학급 화면 안의 판)
   await screen.locator('[data-class-tool="roster"]').click();
-  const roster = page.getByRole('dialog').last();
+  const roster = page.locator('[data-roster-embedded]');
   await roster.waitFor({ timeout: 10000 });
   const photoToggle = roster.getByTitle(/사진 칸을 내고|사진 칸을 감추고/);
   if ((await photoToggle.getAttribute('title')).includes('사진 칸을 내고')) await photoToggle.click();
@@ -229,6 +229,8 @@ try {
 } finally {
   // 사진 보기 켬/끔을 처음처럼 (다른 점검이 이름 보기를 기대한다)
   await page.evaluate(() => { localStorage.setItem('sp4-class-photos', '0'); localStorage.setItem('sp4-roster-photos', '0'); localStorage.removeItem('sp4-photo-pick-parent'); }).catch(() => {});
+  // 학급 화면을 학급 도구 쪽으로 되돌린다 (명렬표 판이 다음 점검을 가리지 않게)
+  await page.locator('[data-class-mode="hub"]').click({ timeout: 2000 }).catch(() => {});
   if (!hasClass) await setDoc(rosterRef, { classList: before, rosters: before, updatedAt: Date.now() }, { merge: true });
   await browser.close();
 }

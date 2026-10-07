@@ -162,7 +162,7 @@ export default function SubjectAttendancePanel({
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-3 text-xs text-slate-700" data-scroll-lock>
         {!rosterLoading && !roster ? (
           <p className="text-center text-slate-400 py-8">
-            이 반의 명렬표가 없습니다. ⋮ 메뉴 → 학급 정보(명렬표) 관리에서 학급과 학생을 먼저 넣어 주세요.
+            이 반의 명렬표가 없습니다. 학급 화면 → 🧑‍🤝‍🧑 명렬표에서 학급과 학생을 먼저 넣어 주세요.
           </p>
         ) : records === null ? (
           <p className="text-center text-slate-400 py-6">불러오는 중...</p>

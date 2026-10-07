@@ -628,7 +628,7 @@ export default function SeatingModal({ isOpen, onClose, onOpenStudentRecord, onO
     <ModalShell isOpen={isOpen} onClose={onClose} width="2xl" title="🪑 자리표" footer={<ModalCloseButton onClose={onClose} />}>
       {!rosterLoading && rosterList.length === 0 ? (
         <p className="text-center text-slate-400 py-8 text-sm">
-          명렬표가 없습니다. ⋮ 메뉴 → 학급 정보(명렬표) 관리에서 학급과 학생을 먼저 넣어 주세요.
+          명렬표가 없습니다. 학급 화면 → 🧑‍🤝‍🧑 명렬표에서 학급과 학생을 먼저 넣어 주세요.
         </p>
       ) : (
         <div className="flex flex-col gap-3 text-sm">

@@ -369,7 +369,7 @@ export default function AttendanceDrawer({
 
         {!rosterLoading && rosterList.length === 0 ? (
           <p className="text-center text-slate-400 py-8">
-            명렬표가 없습니다. ⋮ 메뉴 → 학급 정보(명렬표) 관리에서 학급과 학생을 먼저 넣어 주세요.
+            명렬표가 없습니다. 학급 화면 → 🧑‍🤝‍🧑 명렬표에서 학급과 학생을 먼저 넣어 주세요.
           </p>
         ) : tab === 'check' ? (
           <div className="space-y-3">

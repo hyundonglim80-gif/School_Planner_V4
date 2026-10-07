@@ -207,7 +207,7 @@ export default function EvalOverviewModal({ isOpen, onClose }: EvalOverviewModal
     <ModalShell isOpen={isOpen} onClose={onClose} width="2xl" title="📊 조사표 모아 보기" footer={<ModalCloseButton onClose={onClose} />}>
       {!rosterLoading && rosterList.length === 0 ? (
         <p className="text-center text-slate-400 py-8 text-sm">
-          명렬표가 없습니다. ⋮ 메뉴 → 학급 정보(명렬표) 관리에서 학급과 학생을 먼저 넣어 주세요.
+          명렬표가 없습니다. 학급 화면 → 🧑‍🤝‍🧑 명렬표에서 학급과 학생을 먼저 넣어 주세요.
         </p>
       ) : (
         <div className="flex flex-col gap-3 text-xs text-slate-700">

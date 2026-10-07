@@ -180,7 +180,7 @@ export default function BackupModal({ isOpen, onClose }: BackupModalProps) {
     csv: ['event', 'class', 'journal', 'roster', 'memo'],
     json: ['event', 'class', 'journal', 'roster', 'eval', 'memo'],
     // 명렬표만 담는 대상은 없앴다. 전체 학급 CSV는 명단을 다루는 자리인
-    // '학급 정보(명렬표) 관리' 화면으로 옮겼다.
+    // '학급 정보(명렬표) 관리' 화면(지금은 학급 화면의 명렬표)으로 옮겼다.
   };
 
   const availableItems = ITEMS.filter((it) => ITEMS_BY_TARGET[exportTarget].includes(it.key));

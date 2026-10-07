@@ -115,7 +115,7 @@ export const SHORTCUT_ACTIONS: ShortcutAction[] = [
   { id: 'labels', label: '라벨 관리', group: '메뉴 열기', def: b('') },
   { id: 'recurring', label: '반복 일정 등록', group: '메뉴 열기', def: b('') },
   { id: 'forwarding', label: '지난 일정 오늘로 가져오기', group: '메뉴 열기', def: b('') },
-  { id: 'roster', label: '학급 정보(명렬표) 관리', group: '메뉴 열기', def: b('') },
+  { id: 'roster', label: '명렬표 (학급 화면)', group: '메뉴 열기', def: b('') },
   { id: 'notices', label: '알림장 모아 보기', group: '메뉴 열기', def: b('') },
   { id: 'attendance', label: '출석부', group: '메뉴 열기', def: b('') },
   { id: 'subjectAttendance', label: '교과 출결 누계', group: '메뉴 열기', def: b('') },

@@ -169,7 +169,7 @@ async function run() {
 
   const menuPopups = [
     '라벨 관리', '반복 일정 등록', '지난 일정 오늘로 가져오기',
-    '학급 정보', '공유 그룹 관리', '시간표',
+    '공유 그룹 관리', '시간표',
     '내보내기 / 가져오기', '환경설정', '사용 설명서',
   ];
   for (const label of menuPopups) {

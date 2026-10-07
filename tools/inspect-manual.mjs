@@ -715,9 +715,13 @@ if (ONLY !== 'mobile') {
     assert(has > 0, '그날 기준 D-9 표시가 없음');
   });
 
-  await check('[명렬표] 관리·검색·암기 탭, 새 학급 → 학생 추가 → 초성 검색', async () => {
-    await openMenu('학급 정보');
-    for (const t of ['관리', '검색', '암기']) assert((await page.getByRole('button', { name: t, exact: true }).count()) > 0, `${t} 탭 없음`);
+  await check('[명렬표] 학급 화면의 명렬표: 관리·검색·암기 탭, 새 학급 → 학생 추가 → 초성 검색', async () => {
+    // 2026-10-07: ⋮ '학급 정보(명렬표) 관리'를 학급 화면 안으로 옮겼다
+    await goScope('학급');
+    await page.locator('[data-class-mode="roster"]').click();
+    const roster = page.locator('[data-roster-embedded]');
+    await roster.waitFor({ timeout: 10000 });
+    for (const t of ['관리', '검색', '암기']) assert((await roster.getByRole('button', { name: t, exact: true }).count()) > 0, `${t} 탭 없음`);
     await page.getByTitle(/학급을 더하거나 지우고/).click();
     await wait(400);
     await page.getByRole('button', { name: /새 학급 추가/ }).click();
@@ -725,23 +729,26 @@ if (ONLY !== 'mobile') {
     await page.getByPlaceholder('인원').fill('2');
     await page.getByRole('button', { name: /학생 추가/ }).click();
     await wait(500);
-    const nameInputs = page.locator('[data-scroll-lock] table input[type=text]:not([placeholder])');
+    const nameInputs = roster.locator('table input[type=text]:not([placeholder])');
     const count = await nameInputs.count();
     if (count >= 2) {
       await nameInputs.nth(0).fill('김지우');
       await nameInputs.nth(1).fill('박하늘');
     }
-    await page.getByRole('button', { name: /^💾\s*저장$/ }).click();
+    await roster.getByRole('button', { name: /^💾\s*저장$/ }).click();
     await wait(2500);
     // 저장 뒤에도 새 학급에 머물러야 한다 (예전에는 1반으로 튀었다)
     const firstName = await nameInputs.first().inputValue().catch(() => '');
     assert(firstName === '김지우', `저장 뒤 첫 학생이 '${firstName}' (다른 학급으로 튐)`);
-    await page.getByRole('button', { name: '검색', exact: true }).click();
+    await roster.getByRole('button', { name: '검색', exact: true }).click();
     await wait(600);
     await page.getByPlaceholder(/ㄱㅈㅇ/).fill('ㄱㅈㅇ');
     await wait(800);
-    const hit = await page.locator('[data-scroll-lock]').getByText('김지우').count();
+    const hit = await roster.getByText('김지우').count();
+    await roster.getByRole('button', { name: '관리', exact: true }).click();
+    await page.locator('[data-class-mode="hub"]').click();
     await closeAll();
+    await goScope('하루');
     assert(hit > 0, `초성 검색 결과 없음 (이름칸 ${count}개)`);
   });
 

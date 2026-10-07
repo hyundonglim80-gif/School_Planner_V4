@@ -16,7 +16,6 @@ import { scrollToToday } from '../lib/todayScroll';
 const GroupModal = lazyWithReload(() => import('./GroupModal'));
 const DDayModal = lazyWithReload(() => import('./DDayModal'));
 const SearchModal = lazyWithReload(() => import('./SearchModal'));
-const RosterModal = lazyWithReload(() => import('./RosterModal'));
 const LabelModal = lazyWithReload(() => import('./LabelModal'));
 const BackupModal = lazyWithReload(() => import('./BackupModal'));
 const HelpModal = lazyWithReload(() => import('./HelpModal'));
@@ -202,7 +201,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isDDayModalOpen, setIsDDayModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  const [isRosterModalOpen, setIsRosterModalOpen] = useState(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -426,7 +424,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { icon: '📊', label: '조사표 모아 보기', shortcut: 'evalOverview', onClick: () => setIsEvalOverviewOpen(true) },
         { icon: '🪑', label: '자리표', shortcut: 'seating', onClick: () => setIsSeatingOpen(true) },
         { icon: '🙋', label: '교과 출결 누계', shortcut: 'subjectAttendance', classUnit: true, onClick: () => setSubjectAttSummaryClass('') },
-        { icon: '🧑‍🤝‍🧑', label: '학급 정보(명렬표) 관리', shortcut: 'roster', onClick: () => setIsRosterModalOpen(true) },
       ],
     },
     {
@@ -500,7 +497,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       case 'labels': openLabelModal('event'); return;
       case 'recurring': setIsRecurringModalOpen(true); return;
       case 'forwarding': setIsForwardingModalOpen(true); return;
-      case 'roster': setIsRosterModalOpen(true); return;
+      // 명렬표는 학급 화면 안에 있다 (2026-10-07 ⋮ 메뉴에서 옮김)
+      case 'roster': useAppStore.getState().openClassRoster(); return;
       case 'notices': openClassroomPanel('notice', 'list'); return;
       case 'attendance': openClassroomPanel('attendance'); return;
       case 'subjectAttendance': setSubjectAttSummaryClass(''); return;
@@ -579,7 +577,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         setIsBackupModalOpen(false);
         closeLabelModal();
         setIsDDayModalOpen(false);
-        setIsRosterModalOpen(false);
         setIsSettingsModalOpen(false);
         setIsRecurringModalOpen(false);
         setIsTimetableModalOpen(false);
@@ -1084,10 +1081,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {isSearchModalOpen && (
           <SearchModal isOpen onClose={() => setIsSearchModalOpen(false)} />
-        )}
-
-        {isRosterModalOpen && (
-          <RosterModal isOpen onClose={() => setIsRosterModalOpen(false)} />
         )}
 
         {isLabelModalOpen && (

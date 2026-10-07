@@ -344,12 +344,17 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   폭에 따라 바꾸면 팝업이 붙어 본문이 좁아지는 순간 다시 읽으며 화면이 '불러오는 중'으로 바뀌어 팝업이 닫혔다(`dc8a3ad`).
 - **메모** `MemoScreen` = 왼쪽 라벨 거르개 + 메이슨리 카드. `useMemos(groupId)`.
 - **학급** `ClassScreen`(ROADMAP 16) = 학급 고르기 + 오늘 출결 + 학급 도구 + 학생 명단. 날짜가 없다(날짜 이동 줄·위아래 밀어 날짜 넘기기 없음).
-  학생 명단은 '이름 / 📷 사진'(`data-class-view`, 켬/끔은 이 기기 localStorage `sp4-class-photos` - 명렬표 관리의 `sp4-roster-photos`와 따로).
+  학생 명단은 '이름 / 📷 사진'(`data-class-view`, 켬/끔은 이 기기 localStorage `sp4-class-photos` - 명렬표의 `sp4-roster-photos`와 따로).
   사진은 명렬표 관리와 같은 `useStudentPhotos`(켤 때만 드라이브, 켜는 단추에서 `authorize`)·`StudentPhoto` 카드·`ImageViewerModal`('📷 사진 바꾸기').
   카드의 사진은 크게, 이름은 누가기록. 토큰이 없으면 저절로 로그인 창을 띄우지 않고 '구글 연결하고 사진 불러오기' 띠(2026-10-02).
   도구 창의 열림 상태는 Layout이 쥐므로 화면은 `lib/appActions.runAppAction({ id: 단축키 이름, classKey, num })`으로 부탁한다.
   고른 학급은 `lib/classMemory.rememberHubClass`가 도구들(자리표·뽑기·출석부 등)의 '마지막 학급' 기억에도 넣는다 - 도구를 특정 학급으로
   열려면 먼저 이것을 부르고 `runAppAction`.
+  **명렬표는 학급 화면 안에 있다**(2026-10-07 사용자 요청 - ⋮ '학급 정보(명렬표) 관리'를 지웠다). 맨 위 `data-class-mode-switch`
+  ('🏫 학급 도구 | 🧑‍🤝‍🧑 명렬표', `data-class-mode="hub|roster"`)가 store의 `classView`(저장 안 함 - 다른 화면에 갔다 와도 그대로)를 바꾸고,
+  명렬표는 `RosterModal embedded`(창 대신 `data-roster-embedded` 판, 닫기 없음, 판 안 Ctrl+S = 저장). 처음 학급은 `readHubClass`(hubKeyRef -
+  명렬표를 받기 전의 빈 1-1을 지나치려고 받은 뒤 한 번만 본다). 탭은 `rosterTab`에 기억(onTabChange). 단축키·`runAppAction({id:'roster'})`는
+  `openClassRoster(tab)`. `data-class-view`는 학생 명단의 이름/사진 단추라 겹치지 않게 `data-class-mode`를 썼다.
   화면 종류를 더하면: store `Scope`·`App`·Layout `scopes`·`scopeOrder`·`MobileTabBar`·`shortcuts`·`COMMAND_META`·`PaletteScope`·
   `useGlobalGestures`·시작 화면(`preferenceSync`·`SettingsModal`).
 - 화면 폭 판단은 창이 아니라 **본문 폭**(`useMainWidth`, `@container`)으로 한다. 오른쪽 칸이 열리면 그만큼 좁아진다.
@@ -633,6 +638,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-refine-u7.mjs` | 19번 U7 날짜 칸 = 자리(12) - 메모에 날짜 → 그날 기록(글·라벨·첨부·표·처음 쓴 때), 메모 사라짐·휴지통 '(날짜를 바꿈)'·링크된 일정이 새 기록을, 칸이 따라감, 되돌리기, 기록 날짜 바꾸기·빼기(fromDate·카드 '📅 m/d에서'). 자료를 지운다 |
 | `tools/inspect-side-tabs.mjs` | 오른쪽 칸 탭(9) - 칸 하나면 탭 없음, 메모+기록 → 탭 둘, 탭 누르기·글 남음, 탭 이름, 팝업도 탭, × 그 칸만, ESC 모두 |
 | `tools/inspect-link-preview.mjs` | 링크 미리보기(6) - 메모 카드의 유튜브·지도·사이트 카드, 지도 보기, 새 탭·쓰는 칸 안 열림, 쓰는 칸 글 아래 |
+| `tools/inspect-class-roster.mjs` | 명렬표를 학급 화면 안으로(10) - ⋮에 없음, 학급 도구 \| 명렬표 전환, 창 아닌 판·세 탭, 고른 학급으로, 닫기 없음, 다른 화면 갔다 와도 그대로, 도구 칸 '명렬표' |
 | `tools/inspect-class-bell.mjs` | 수업 종(5) - 시간표 창에서 켜기·1분 전, 시계를 돌려 08:59 시작 종·09:40 끝 종, 이 기기에서 끄기. 교시 시각·종 설정을 되돌린다 |
 | `tools/inspect-ux-audit.mjs` | UX-AUDIT 적용(12) - 머리줄 ?, ⋮ 차례·환경설정의 설치·밝기, 일정 ☐ 완료, 📘 진도, ✏️, + 메모, + 새 라벨, 라벨로 보기 ?, 구글 캘린더 안내 |
 | `tools/inspect-batch-1007.mjs` | 10-07 요청 묶음(13) - 첫 줄 #라벨, 카드 라벨 한 줄·체크한 줄 아래, 라벨 관리 한 스크롤, teacher3 시간표 교사 구분·두 칸, 메모 학생 태그(명렬표·직접)·누가기록 '📝 메모'. 메모·라벨을 되돌린다 |

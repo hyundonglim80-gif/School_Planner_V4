@@ -110,7 +110,7 @@ export default function SubjectAttendanceSummaryModal({ isOpen, onClose, initial
         <p className="py-10 text-center text-xs text-slate-400">명렬표를 불러오는 중...</p>
       ) : classes.length === 0 ? (
         <p className="py-10 text-center text-sm text-slate-500">
-          {schoolYear}학년도 명렬표가 없습니다. ⋮ 메뉴 → 학급 정보(명렬표) 관리에서 반을 먼저 만드세요.
+          {schoolYear}학년도 명렬표가 없습니다. 학급 화면 → 🧑‍🤝‍🧑 명렬표에서 반을 먼저 만드세요.
         </p>
       ) : (
         <div className="space-y-3 text-xs text-slate-700" data-subject-att-summary-modal>

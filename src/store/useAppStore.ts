@@ -145,6 +145,12 @@ interface AppState {
   setTeachingModeState: (mode: TeachingMode, exists: boolean) => void;
 
   setScope: (scope: Scope) => void;
+  /** 학급 화면에서 보는 것: 학급 도구(hub) / 명렬표(관리·검색·암기) - 2026-10-07 ⋮ 명렬표 관리를 학급 화면으로 옮겼다 */
+  classView: 'hub' | 'roster';
+  rosterTab: 'manage' | 'search' | 'memorize';
+  setClassView: (view: 'hub' | 'roster') => void;
+  /** 학급 화면의 명렬표를 연다 (단축키·안내 단추) */
+  openClassRoster: (tab?: 'manage' | 'search' | 'memorize') => void;
   setSemesterFilter: (filter: 'all' | 1 | 2) => void;
   setShowWeekend: (show: boolean) => void;
   setShowClass: (show: boolean) => void;
@@ -376,6 +382,10 @@ export const useAppStore = create<AppState>()(
       }),
 
       setScope: (scope) => set({ scope }),
+      classView: 'hub',
+      rosterTab: 'manage',
+      setClassView: (classView) => set({ classView }),
+      openClassRoster: (tab = 'manage') => set({ scope: 'class', classView: 'roster', rosterTab: tab }),
       setSemesterFilter: (filter) => set({ semesterFilter: filter }),
       setMemoFilter: (memoFilter) => set({ memoFilter }),
       setShowWeekend: (showWeekend) => set({ showWeekend }),

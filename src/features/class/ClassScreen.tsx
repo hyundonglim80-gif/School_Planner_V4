@@ -11,6 +11,8 @@
 //   교과 + 담임은 담임반이 아닌 반에서 출석부·알림장·오늘 출결 대신 교과 출결.
 //   학생 명단은 '이름 / 사진'으로 본다(2026-10-02 사용자 요청 - 명렬표 관리의 사진 보기와 같게). 사진은 켤 때만 드라이브를 부른다
 //   (useStudentPhotos). 사진을 누르면 크게(ImageViewerModal, 아래 '사진 바꾸기'), 이름을 누르면 누가기록.
+//   명렬표(관리·검색·암기)도 이 화면 안에 있다(2026-10-07 사용자 요청 - ⋮ '학급 정보(명렬표) 관리'를 옮기고 메뉴는 지웠다).
+//   위의 '🏫 학급 도구 | 🧑‍🤝‍🧑 명렬표' 전환은 store의 classView(이 화면을 떠났다 와도 그대로), 단축키 'roster'는 openClassRoster.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRoster, type ClassRoster } from '../../hooks/useRoster';
 import { classKeyOf, KIND_LABEL, type AttendanceRecord } from '../../lib/attendance';
@@ -29,6 +31,8 @@ import ImageViewerModal from '../../components/ImageViewerModal';
 import type { Student } from '../../hooks/useRoster';
 import { showErrorToast, showToast } from '../../utils/toast';
 import { pickStudentPhotoFromDrive } from '../../components/roster/drivePhotoPick';
+import RosterModal from '../../components/RosterModal';
+import { useAppStore } from '../../store/useAppStore';
 
 /** 학급 화면의 사진 보기 켬/끔 - 이 기기에만 (명렬표 관리의 'sp4-roster-photos'와 따로) */
 const PHOTOS_KEY = 'sp4-class-photos';
@@ -50,10 +54,10 @@ const TOOLS: { id: ShortcutId; icon: string; label: string; desc: string; homero
   { id: 'drawStudent', icon: '🎯', label: '발표자 뽑기', desc: '겹치지 않게 차례로' },
   { id: 'studentRecord', icon: '🧑‍🎓', label: '학생 기록(누가기록)', desc: '학생마다 기록 · 출결 · 조사표' },
   { id: 'evalOverview', icon: '📊', label: '조사표 모아 보기', desc: '조사표를 학생 × 조사표 표로' },
-  { id: 'roster', icon: '🧑‍🤝‍🧑', label: '명렬표 관리', desc: '학생 · 학급 정보' },
+  { id: 'roster', icon: '🧑‍🤝‍🧑', label: '명렬표', desc: '관리 · 검색 · 암기' },
 ];
 
-export default function ClassScreen() {
+function ClassHub() {
   const { rosterList, loading } = useRoster();
   const { showHomeroomTools: modeHomeroomTools, isClassUnit, preset, mode } = useTeachingMode();
   const [classKey, setClassKey] = useState<string | null>(null);
@@ -326,7 +330,7 @@ export default function ClassScreen() {
                 onClick={() => open('roster')}
                 className="px-2.5 py-1 bg-white border border-red-300 rounded text-xs font-bold text-red-700 hover:bg-red-100 cursor-pointer shrink-0"
               >
-                명렬표 관리에서 사진 폴더 보기
+                명렬표에서 사진 폴더 보기
               </button>
             </div>
           ) : photoState.status === 'checking' || photoState.status === 'loading' || photoState.resolving ? (
@@ -337,7 +341,7 @@ export default function ClassScreen() {
         )}
 
         {students.length === 0 ? (
-          <p className="text-sm text-slate-400">이 학급에 학생이 없습니다. 명렬표 관리에서 더합니다.</p>
+          <p className="text-sm text-slate-400">이 학급에 학생이 없습니다. 위의 🧑‍🤝‍🧑 명렬표에서 더합니다.</p>
         ) : showPhotos ? (
           /* 명렬표 관리의 타일 보기와 같은 카드. 휴대폰 세 칸(한 칸이 너무 좁으면 얼굴·이름을 못 읽는다) */
           <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-8 gap-2" data-class-photo-grid>
@@ -435,6 +439,31 @@ export default function ClassScreen() {
           />
         </>
       )}
+    </div>
+  );
+}
+
+/** 학급 화면 = 학급 도구 | 명렬표(관리·검색·암기) */
+export default function ClassScreen() {
+  const view = useAppStore((s) => s.classView);
+  const rosterTab = useAppStore((s) => s.rosterTab);
+  const setView = useAppStore((s) => s.setClassView);
+  const openRoster = useAppStore((s) => s.openClassRoster);
+  const item = (on: boolean) =>
+    `px-3 py-1.5 rounded-lg text-sm font-black transition-colors cursor-pointer ${
+      on ? 'bg-white text-primary shadow-2xs' : 'text-slate-500 hover:text-slate-700'
+    }`;
+  return (
+    <div className="flex flex-col gap-3">
+      <div role="tablist" aria-label="학급 화면" data-class-mode-switch className="self-start flex gap-1 bg-slate-100 rounded-xl p-1">
+        <button type="button" role="tab" aria-selected={view === 'hub'} data-class-mode="hub" onClick={() => setView('hub')} className={item(view === 'hub')}>
+          🏫 학급 도구
+        </button>
+        <button type="button" role="tab" aria-selected={view === 'roster'} data-class-mode="roster" onClick={() => openRoster(rosterTab)} className={item(view === 'roster')}>
+          🧑‍🤝‍🧑 명렬표 (관리 · 검색 · 암기)
+        </button>
+      </div>
+      {view === 'roster' ? <RosterModal embedded isOpen onClose={() => setView('hub')} initialTab={rosterTab} onTabChange={openRoster} /> : <ClassHub />}
     </div>
   );
 }

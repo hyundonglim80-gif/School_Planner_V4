@@ -14,6 +14,7 @@ import {
 } from '../lib/rosterCsv';
 import { downloadCsv, parseCsv } from '../lib/csv';
 import { moveToTrash } from '../utils/trashHelper';
+import { readHubClass } from '../lib/classMemory';
 import ModalShell, { ModalCloseButton } from './ModalShell';
 import RosterManageTab, { type RosterView } from './roster/RosterManageTab';
 import RosterSearchTab from './roster/RosterSearchTab';
@@ -103,9 +104,18 @@ async function restoreRosterSheetTitles(token: string, spreadsheetId: string): P
 interface RosterModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /**
+   * 학급 화면 안에 그대로 그린다 (2026-10-07 - ⋮ '학급 정보(명렬표) 관리'를 학급 화면으로 옮겼다).
+   * 창(ModalShell) 대신 판으로, 닫기는 '학급 도구로'.
+   */
+  embedded?: boolean;
+  /** 처음 열 탭 (관리·검색·암기) */
+  initialTab?: RosterTab;
+  /** 탭을 바꾸면 알린다 (학급 화면이 기억해 다시 열 때 그 탭으로) */
+  onTabChange?: (tab: RosterTab) => void;
 }
 
-export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
+export default function RosterModal({ isOpen, onClose, embedded = false, initialTab = 'manage', onTabChange }: RosterModalProps) {
   const { rosterList, saveRosterList } = useRoster();
 
   const [currentClasses, setCurrentClasses] = useState<ClassRoster[]>([]);
@@ -134,7 +144,12 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   /** 타일 위로 파일을 끌어왔는가 */
   const [dragging, setDragging] = useState(false);
 
-  const [tab, setTab] = useState<RosterTab>('manage');
+  const [tab, setTab] = useState<RosterTab>(initialTab);
+  // 학급 화면의 단추로 다른 탭을 고르면 따라간다
+  React.useEffect(() => setTab(initialTab), [initialTab]);
+  const onTabChangeRef = useRef(onTabChange);
+  onTabChangeRef.current = onTabChange;
+  useEffect(() => onTabChangeRef.current?.(tab), [tab]);
   /**
    * 사진 보기. 꺼져 있으면 드라이브를 아예 부르지 않는다.
    *
@@ -167,6 +182,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
 
   // 지금 고른 학급. 목록이 새로 들어와도 같은 학급을 계속 가리키게 하려고 적어 둔다.
   const currentKeyRef = React.useRef<string | null>(null);
+  const hubKeyRef = React.useRef<string | null>(embedded ? readHubClass() : null);
   // 학급 식별 키 (id가 없어 year+grade+classNum 조합으로 식별)
   const classKey = (c: ClassRoster) => `${c.year}_${c.grade}_${c.classNum}`;
 
@@ -181,7 +197,11 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
     if (rosterList && rosterList.length > 0) {
       setCurrentClasses(JSON.parse(JSON.stringify(rosterList)));
       originalClassesRef.current = JSON.parse(JSON.stringify(rosterList));
-      const kept = keepKey ? rosterList.findIndex((c) => classKey(c) === keepKey) : -1;
+      // 학급 화면 안에서는 처음 한 번 그 화면에서 고른 학급으로 연다 (명렬표를 받기 전의 빈 학급 1-1을 지나친다)
+      const hubKey = hubKeyRef.current;
+      hubKeyRef.current = null;
+      const want = hubKey && rosterList.some((c) => classKey(c) === hubKey) ? hubKey : keepKey;
+      const kept = want ? rosterList.findIndex((c) => classKey(c) === want) : -1;
       setCurrentIndex(kept >= 0 ? kept : 0);
     } else {
       setCurrentClasses([
@@ -955,16 +975,8 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
   const selectCls =
     'appearance-none bg-white border border-blue-200 rounded-lg pl-2.5 pr-6 py-1.5 text-xs font-bold text-slate-700 shadow-2xs focus:outline-none focus:border-primary cursor-pointer';
 
-  return (
-    <ModalShell
-      isOpen={isOpen}
-      onClose={onClose}
-      // Ctrl+S = 저장 단추 (누를 수 없을 때는 하지 않는다)
-      onSave={() => { if (!saving) void handleSave(); }}
-      width="4xl"
-      bare
-      title="학급 정보(명렬표) 관리"
-      footer={
+  const footer = (
+
         <div className="w-full flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-1.5">
             <button
@@ -997,7 +1009,8 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            <ModalCloseButton onClose={onClose} />
+            {/* 학급 화면 안에서는 위의 '학급 도구' 단추로 돌아간다 */}
+            {!embedded && <ModalCloseButton onClose={onClose} />}
             <button
               title="저장"
               onClick={handleSave}
@@ -1008,8 +1021,9 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
             </button>
           </div>
         </div>
-      }
-    >
+  );
+  const body = (
+    <>
       {/* 왼쪽 학년도·학년·반, 오른쪽 세 탭 */}
       <div className="flex items-center justify-between gap-2.5 px-4 py-2.5 bg-blue-50 border-b border-blue-100 flex-wrap shrink-0">
         <div className="flex items-center gap-1.5">
@@ -1619,6 +1633,42 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
           />
         </>
       )}
+    </>
+  );
+
+  if (embedded) {
+    // 학급 화면 안의 판. Ctrl+S는 이 판 안에 커서가 있을 때만 저장한다
+    return (
+      <section
+        data-roster-embedded
+        aria-label="명렬표"
+        className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col"
+        onKeyDown={(e) => {
+          if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!saving) void handleSave();
+          }
+        }}
+      >
+        {body}
+        <div className="px-4 py-3 border-t border-slate-100 bg-slate-50">{footer}</div>
+      </section>
+    );
+  }
+
+  return (
+    <ModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      // Ctrl+S = 저장 단추 (누를 수 없을 때는 하지 않는다)
+      onSave={() => { if (!saving) void handleSave(); }}
+      width="4xl"
+      bare
+      title="학급 정보(명렬표) 관리"
+      footer={footer}
+    >
+      {body}
     </ModalShell>
   );
 }
