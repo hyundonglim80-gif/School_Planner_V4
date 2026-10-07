@@ -219,6 +219,9 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   쓰는 칸은 글을 바꾼 뒤 커서를 `useLayoutEffect`에서 둔다 - requestAnimationFrame으로 미루면 그새 친 글자 앞으로 커서가 돌아가 '달걀'이 '걀달'이 됐다.
   카드의 체크 줄(`data-check-line`) 누르기: 메모는 `updateMemo`, 기록은 `useDayData.toggleJournalCheckLine`(mutateJournals로 그 항목 글만,
   `toggleCheckLine(text, i, 보던 줄)`이 null이면 그새 고쳐진 것이라 저장하지 않고 안내).
+- **링크 미리보기** (2026-10-07): `lib/linkPreview`(findUrls·previewOf - 유튜브 그림 / 구글·네이버·카카오 지도: 주소의 장소 이름, 구글은 `maps.google.com/maps?q=…&output=embed`
+  / 그 밖: google s2 아이콘·도메인·길), `components/LinkPreviewCards`(`data-link-preview`=youtube|map|site, 지도는 '지도 보기'를 누를 때만 iframe). 서버가 없어 og: 제목은 못 읽는다.
+  메모·기록 카드(EntryCard 본문 아래)와 쓰는 칸(글 아래). 점검 `tools/inspect-link-preview.mjs`.
 - **수업 종** (2026-10-07): `lib/classBell`(설정 `settings/v4_classBell` - enabled·start/end{on, amount, unit 분/초, when 전/후}·weekdaysOnly, `bellTimes`·`bellsDue`(지난번 본 초~지금, 60초 넘게 지난 종은 버림)·`bellMessage`),
   `hooks/useClassBell`(Layout의 `useClassBellRunner` - 1초마다 보고 Web Audio로 '딩동댕동', `window.__spBellCount`·`__spBellLast`를 점검이 본다, 첫 누르기에 소리 장치를 깨운다),
   `components/ClassBellPanel`(시간표 창 교시 시각 아래, 누르는 즉시 저장 - 낙관적으로 먼저 보인다). '이 기기에서 울리기'는 localStorage `sp4-class-bell-muted`. 앱이 열려 있을 때만 울린다.
@@ -625,6 +628,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-refine-u5.mjs` | 19번 U5 메모·기록 라벨 한 목록(11) - 라벨 관리 탭 둘·한 목록, 새 라벨이 두 배열에(문자열 모양·기록 id 그대로), 일정 라벨 V3 이름, 쓰는 칸 칩 같음, 메모에만 있던 라벨로 기록 저장 → jm_ id 채움, 이름 바꾸기. 라벨 문서·트리·자료를 되돌린다 |
 | `tools/inspect-refine-u6.mjs` | 19번 U6 한 카드·쓰는 칸(11) - 기록·메모 카드 칩 위·#라벨 없음, 기록 완료(서버 그 항목만·기록 수 그대로·새로고침 뒤), ★ 맨 위, 쓰는 칸 머리줄 ★(글은 칸에), 새 메모 완료 저장. 기록 문서·메모를 되돌린다 |
 | `tools/inspect-refine-u7.mjs` | 19번 U7 날짜 칸 = 자리(12) - 메모에 날짜 → 그날 기록(글·라벨·첨부·표·처음 쓴 때), 메모 사라짐·휴지통 '(날짜를 바꿈)'·링크된 일정이 새 기록을, 칸이 따라감, 되돌리기, 기록 날짜 바꾸기·빼기(fromDate·카드 '📅 m/d에서'). 자료를 지운다 |
+| `tools/inspect-link-preview.mjs` | 링크 미리보기(6) - 메모 카드의 유튜브·지도·사이트 카드, 지도 보기, 새 탭·쓰는 칸 안 열림, 쓰는 칸 글 아래 |
 | `tools/inspect-class-bell.mjs` | 수업 종(5) - 시간표 창에서 켜기·1분 전, 시계를 돌려 08:59 시작 종·09:40 끝 종, 이 기기에서 끄기. 교시 시각·종 설정을 되돌린다 |
 | `tools/inspect-ux-audit.mjs` | UX-AUDIT 적용(12) - 머리줄 ?, ⋮ 차례·환경설정의 설치·밝기, 일정 ☐ 완료, 📘 진도, ✏️, + 메모, + 새 라벨, 라벨로 보기 ?, 구글 캘린더 안내 |
 | `tools/inspect-batch-1007.mjs` | 10-07 요청 묶음(13) - 첫 줄 #라벨, 카드 라벨 한 줄·체크한 줄 아래, 라벨 관리 한 스크롤, teacher3 시간표 교사 구분·두 칸, 메모 학생 태그(명렬표·직접)·누가기록 '📝 메모'. 메모·라벨을 되돌린다 |

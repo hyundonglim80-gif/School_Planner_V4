@@ -16,6 +16,7 @@ import ImageViewerModal, { type ViewerImage } from './ImageViewerModal';
 import { isImageAttachment } from '../lib/attachments';
 import AutoTextarea from './AutoTextarea';
 import StudentTagPicker from './StudentTagPicker';
+import LinkPreviewCards from './LinkPreviewCards';
 import StudentMentionList from './StudentMentionList';
 import { applyMention, findMention, type Mention, type MentionCandidate } from '../lib/mention';
 import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
@@ -887,6 +888,8 @@ export default function EntryDrawer({
                 />
               )}
             </div>
+            {/* 사이트 주소·지도 링크 미리보기 (2026-10-07) */}
+            <LinkPreviewCards text={content} />
             {/* 마지막 줄 '#라벨' 미리보기 (19번 U10) - 저장하면 무엇이 일어날지 */}
             {hashPreview.length > 0 && (
               <div data-hash-preview className="flex flex-wrap items-center gap-1 text-2xs font-bold text-slate-500">

@@ -10,6 +10,7 @@ import React from 'react';
 import { renderFormattedText } from '../lib/textUtils';
 import { useLabels } from '../hooks/useLabels';
 import { showErrorToastOnce } from '../utils/toast';
+import LinkPreviewCards from './LinkPreviewCards';
 import ImageViewerModal, { type ViewerImage } from './ImageViewerModal';
 import { isLongEntry, previewLine } from '../lib/entryCollapse';
 import { attachmentImageSrc } from '../lib/driveApi';
@@ -500,6 +501,8 @@ export default function EntryCard(props: EntryCardProps) {
               {renderBody()}
             </p>
           )}
+          {/* 사이트 주소·지도 링크 미리보기 (2026-10-07) */}
+          {body && <LinkPreviewCards text={body} />}
           {/* 붙인 표 - 작게 보기만 (고치기는 카드를 눌러 연 칸에서) */}
           {tables.map((t) => (
             <EntryTableView key={t.id} table={t} compact />
