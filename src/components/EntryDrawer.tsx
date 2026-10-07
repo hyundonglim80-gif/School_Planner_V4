@@ -1,7 +1,7 @@
 // src/components/EntryDrawer.tsx
 // 메모와 기록이 같은 오른쪽 배너(드로어)를 쓴다. 두 화면이 각자 입력 폼을 들고
 // 있으면 단축키·첨부·라벨 동작이 조금씩 어긋나므로 한 곳에서만 만든다.
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { showToast, showErrorToast, showErrorToastOnce } from '../utils/toast';
 import { auth } from '../lib/firebase';
 import { uploadToDrive, attachmentImageSrc, driveUrlToStore, uploadFailReason } from '../lib/driveApi';
@@ -20,6 +20,8 @@ import StudentMentionList from './StudentMentionList';
 import { applyMention, findMention, type Mention, type MentionCandidate } from '../lib/mention';
 import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
 import { labelPath, orderByTree } from '../lib/labelTree';
+import { continueOnEnter, toggleCheckAtCaret, toggleLinesPrefix } from '../lib/checkLines';
+import { formatBinding, resolveBindings } from '../lib/shortcuts';
 import { isTopSideItem } from './PopupFrame';
 import EntryTableView from './EntryTableView';
 import { isRealTable, normalizeTables, parseClipboardTable, tableForSave, tableSize, type EntryTable } from '../lib/entryTable';
@@ -295,6 +297,59 @@ export default function EntryDrawer({
       el.setSelectionRange(r.caret, r.caret);
     });
   };
+  // ── 체크 목록 (19번 U9, lib/checkLines) ──
+  /**
+   * 글을 바꾸고 커서를 그 자리에 둔다. React가 값을 다시 그린 바로 뒤(useLayoutEffect)에 둔다 -
+   * requestAnimationFrame으로 미루면 그새 친 글자 뒤에서 커서를 앞으로 되돌려 '달걀'이 '걀달'이 됐다.
+   */
+  const pendingCaretRef = useRef<[number, number] | null>(null);
+  const setContentAndCaret = (next: string, selStart: number, selEnd = selStart) => {
+    pendingCaretRef.current = [selStart, selEnd];
+    setContent(next);
+  };
+  useLayoutEffect(() => {
+    const sel = pendingCaretRef.current;
+    const el = contentRef.current;
+    if (!sel || !el) return;
+    pendingCaretRef.current = null;
+    el.focus();
+    el.setSelectionRange(sel[0], sel[1]);
+  }, [content]);
+  const toggleChecklist = () => {
+    const el = contentRef.current;
+    const start = el?.selectionStart ?? content.length;
+    const end = el?.selectionEnd ?? start;
+    const r = toggleLinesPrefix(content, start, end);
+    setContentAndCaret(r.text, r.selStart, r.selEnd);
+  };
+  const onChecklistKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // 한글 조합 중 Enter는 건드리지 않는다
+    if (e.key !== 'Enter' || e.nativeEvent.isComposing || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+    const el = e.currentTarget;
+    if (el.selectionStart !== el.selectionEnd) return;
+    const r = continueOnEnter(el.value, el.selectionStart);
+    if (!r) return;
+    e.preventDefault();
+    setContentAndCaret(r.text, r.caret);
+  };
+  const onChecklistClick = (e: React.MouseEvent<HTMLTextAreaElement>) => {
+    const el = e.currentTarget;
+    if (el.selectionStart !== el.selectionEnd) return;
+    const next = toggleCheckAtCaret(el.value, el.selectionStart);
+    if (next !== null) setContentAndCaret(next, el.selectionStart);
+  };
+  // 단축키 '체크리스트'(Layout이 sp-checklist로 알린다) - 커서가 이 칸의 글 칸에 있을 때만
+  const toggleChecklistRef = useRef(toggleChecklist);
+  toggleChecklistRef.current = toggleChecklist;
+  useEffect(() => {
+    const on = () => {
+      if (document.activeElement === contentRef.current) toggleChecklistRef.current();
+    };
+    window.addEventListener('sp-checklist', on);
+    return () => window.removeEventListener('sp-checklist', on);
+  }, []);
+  const checklistKeyHint = useAppStore((st) => formatBinding(resolveBindings(st.shortcutOverrides).checklist)) || '단축키 없음';
+
   const onMentionKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (!mention || e.nativeEvent.isComposing) return;
     if (e.key === 'Escape') {
@@ -752,9 +807,23 @@ export default function EntryDrawer({
 
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-6" data-scroll-lock>
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-slate-600">
-              {text.contentLabel} <span className="text-red-500">*</span>
-            </label>
+            <div className="flex items-center justify-between gap-2">
+              <label className="block text-xs font-semibold text-slate-600">
+                {text.contentLabel} <span className="text-red-500">*</span>
+              </label>
+              {/* 체크 목록 (19번 U9): 커서가 있는 줄(골랐으면 고른 줄들) 앞에 ☐ - 모두 붙어 있으면 뗀다 */}
+              <button
+                type="button"
+                data-checklist-toggle
+                // 누르는 동안 글 칸의 커서·고른 범위를 잃지 않게
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={toggleChecklist}
+                title={`체크리스트 - 커서가 있는 줄 앞에 ☐ (${checklistKeyHint})`}
+                className="px-2 py-0.5 text-xs font-bold text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 rounded-md"
+              >
+                ☑ 체크리스트
+              </button>
+            </div>
             <div className="relative">
               <AutoTextarea
                 ref={contentRef}
@@ -764,7 +833,13 @@ export default function EntryDrawer({
                   setContent(e.target.value);
                   updateMention(e.target);
                 }}
-                onKeyDown={onMentionKeyDown}
+                onKeyDown={(e) => {
+                  onMentionKeyDown(e);
+                  if (e.defaultPrevented) return;
+                  onChecklistKeyDown(e);
+                }}
+                // 줄 맨 앞 ☐/☑ 바로 위를 누르면 바꾼다 (쓰는 칸 안에서도 체크)
+                onClick={onChecklistClick}
                 // 커서만 옮겨도(누르기·화살표) '@' 밖으로 나가면 목록을 닫는다
                 onSelect={(e) => mention && updateMention(e.currentTarget)}
                 onBlur={() => setMention(null)}

@@ -33,6 +33,8 @@ interface DayJournalProps {
   onReorderJournals?: (sourceIndex: number, targetIndex: number) => Promise<void>;
   /** 완료·즐겨찾기 (19번 U6, useDayData.setJournalFlags) */
   onSetJournalFlags?: (id: string, patch: { completed?: boolean; favorite?: boolean }) => Promise<void>;
+  /** 카드의 '☐ 우유' 줄 체크 (19번 U9, useDayData.toggleJournalCheckLine) */
+  onToggleJournalCheckLine?: (id: string, lineIndex: number, shownLine: string) => Promise<boolean>;
 }
 
 export default function DayJournal({
@@ -40,6 +42,7 @@ export default function DayJournal({
   onDeleteJournal,
   onReorderJournals,
   onSetJournalFlags,
+  onToggleJournalCheckLine,
 }: DayJournalProps) {
   const { openLinkViewerModal, currentDate, openEvaluationModal, selectedGroupId, openLabelModal } = useAppStore();
   // store의 currentDate는 ISO 문자열(2026-09-18T05:12:33.000Z)이다. 문서 이름은
@@ -337,6 +340,9 @@ export default function DayJournal({
                       onMoveUp={origIdx > 0 && onReorderJournals ? () => void onReorderJournals(origIdx, origIdx - 1) : undefined}
                       onMoveDown={origIdx < journals.length - 1 && onReorderJournals ? () => void onReorderJournals(origIdx, origIdx + 1) : undefined}
                       onDelete={() => onDeleteJournal(entry.id)}
+                      onToggleCheckLine={
+                        onToggleJournalCheckLine ? (idx, line) => onToggleJournalCheckLine(entry.id, idx, line) : undefined
+                      }
                       collapsed={isEntryCollapsed(entry)}
                       onToggleCollapse={(current) => toggleCollapse(entry.id, current)}
                     />

@@ -17,7 +17,7 @@ import { isImageAttachment } from '../lib/attachments';
 import { normalizeTables } from '../lib/entryTable';
 import EntryTableView from './EntryTableView';
 import { showDeletedToast } from '../lib/undoToast';
-import { checkLineState, hasCheckLines } from '../lib/checkLines';
+import { checkCount, checkLineState, hasCheckLines } from '../lib/checkLines';
 import { labelPath } from '../lib/labelTree';
 
 export interface EntryCardProps {
@@ -164,6 +164,8 @@ export default function EntryCard(props: EntryCardProps) {
     else setOwnCollapsed(!isCollapsed);
   };
   const preview = previewLine(body);
+  // 체크 목록 셈 (19번 U9) - 체크 줄이 있을 때만 머리줄에 '☑ 2/5'
+  const checks = checkCount(body);
 
   // 체크 줄(☐/☑)은 누르면 체크한다. 저장하는 동안은 그 줄을 다시 받지 않는다 (두 번 눌러 되돌아가지 않게).
   const [pendingLine, setPendingLine] = React.useState<number | null>(null);
@@ -333,6 +335,17 @@ export default function EntryCard(props: EntryCardProps) {
           {props.note && (
             <span className="text-2xs font-bold text-slate-400" data-entry-card-note>
               {props.note}
+            </span>
+          )}
+          {checks.total > 0 && (
+            <span
+              data-entry-card-checks
+              title={`체크 목록 ${checks.total}개 가운데 ${checks.done}개 체크`}
+              className={`text-xs font-bold px-1.5 py-0.5 rounded border ${
+                checks.done === checks.total ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600 border-slate-200'
+              }`}
+            >
+              ☑ {checks.done}/{checks.total}
             </span>
           )}
           {linkCount > 0 && (

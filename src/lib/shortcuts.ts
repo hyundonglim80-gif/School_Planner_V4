@@ -57,7 +57,8 @@ export type ShortcutId =
   | 'settings'
   | 'teachingMode'
   | 'newCourse'
-  | 'toggleTheme';
+  | 'toggleTheme'
+  | 'checklist';
 
 export interface ShortcutAction {
   id: ShortcutId;
@@ -82,6 +83,8 @@ const b = (key: string, mods: Partial<Omit<Binding, 'key'>> = {}): Binding => ({
 
 export const SHORTCUT_ACTIONS: ShortcutAction[] = [
   { id: 'search', label: '통합 검색 열기', group: '열기', def: b('F', { ctrl: true }) },
+  // 쓰는 칸(메모·기록) 글 칸에서 커서가 있는 줄 앞에 ☐ (19번 U9). 커서가 글 칸에 있을 때만 동작한다
+  { id: 'checklist', label: '체크리스트 (쓰는 칸 줄 앞에 ☐)', group: '쓰는 칸', def: b('L', { ctrl: true, shift: true }) },
 
   { id: 'scopeDay', label: '하루 화면', group: '화면 이동', def: b('1', { shift: true }) },
   { id: 'scopeWeek', label: '주간 화면', group: '화면 이동', def: b('2', { shift: true }) },

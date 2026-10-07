@@ -9,7 +9,8 @@ import { db, auth } from '../lib/firebase';
 import { addReverseLink, syncReverseLinks, mergeLinkEdits } from '../utils/linkUtils';
 import { moveToTrash } from '../utils/trashHelper';
 import { DEFAULT_EVENT_LABELS, normalizeEventLabel } from './useLabels';
-import { showErrorToast, failWithToast, ShownError } from '../utils/toast';
+import { showErrorToast, showToast, failWithToast, ShownError } from '../utils/toast';
+import { toggleCheckLine as toggleCheckLineText } from '../lib/checkLines';
 import { parseV3EventText, formatV3EventText, eventContentOf, eventDocPayload, readEventList } from '../lib/eventText';
 import { pastDateStrings, isForwardTarget, chooseForwardingLabels } from '../lib/forwarding';
 import { readLegacyEventLabels } from '../lib/legacyLabels';
@@ -1220,6 +1221,29 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     return trashId;
   }, [dateStr, groupId, journals, mutateJournals]);
 
+  /**
+   * 기록 카드에서 '☐ 우유' 줄을 누르면 그 줄의 체크 글자만 바꾼다 (19번 U9). 서버 목록에서 그 항목 글 하나만.
+   * 그새 그 줄이 바뀌었으면(toggleCheckLine이 null) 저장하지 않고 false.
+   */
+  const toggleJournalCheckLine = useCallback(async (id: string, lineIndex: number, shownLine: string): Promise<boolean> => {
+    let done = false;
+    try {
+      await mutateJournals((fresh) =>
+        fresh.map((j) => {
+          if (String(j.id) !== String(id)) return j;
+          const next = toggleCheckLineText(String(j.content || ''), lineIndex, shownLine);
+          if (next === null) return j;
+          done = true;
+          return { ...j, content: next, updatedAt: Date.now() };
+        })
+      );
+    } catch (err) {
+      failWithToast('체크 표시를 저장하지 못했습니다.', err);
+    }
+    if (!done) showToast('그 사이 기록 글이 바뀌어 체크하지 않았습니다. 바뀐 글을 보고 다시 눌러 주세요.');
+    return done;
+  }, [mutateJournals]);
+
   /** 기록 하나의 완료·즐겨찾기만 바꾼다 (19번 U6). 서버 목록에서 그 항목의 두 칸만 - 같은 날 다른 기록은 그대로 */
   const setJournalFlags = useCallback(async (id: string, patch: { completed?: boolean; favorite?: boolean }) => {
     try {
@@ -1351,6 +1375,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     deleteJournalEntry,
     updateJournalEntry,
     setJournalFlags,
+    toggleJournalCheckLine,
     reorderJournals,
     readReport,
   };

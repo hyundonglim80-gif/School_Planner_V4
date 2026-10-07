@@ -440,6 +440,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
     switch (id) {
       case 'search': setIsSearchModalOpen(true); return;
+      // 쓰는 칸의 체크리스트 - 커서가 든 쓰는 칸이 받는다 (EntryDrawer)
+      case 'checklist': window.dispatchEvent(new Event('sp-checklist')); return;
       case 'scopeDay': setScope('day'); return;
       case 'scopeWeek': setScope('week'); return;
       case 'scopeMonth': setScope('month'); return;
