@@ -42,7 +42,7 @@ import { dueOf, isDueDate, newChainId } from '../lib/eventDue';
 import { setChainDue } from '../lib/eventDueStore';
 import { auth } from '../lib/firebase';
 import { formatDateStr } from '../lib/dateUtils';
-import { markGcalUsed, useGcalEnabled } from '../lib/gcalAuto';
+import { ensureGcalLogin, markGcalUsed, useGcalEnabled } from '../lib/gcalAuto';
 
 interface EventDrawerProps {
   /** 어느 날짜의 일정인가 (YYYY-MM-DD) */
@@ -203,6 +203,8 @@ export default function EventDrawer({
    * 다른 항목을 열거나 배경을 눌러 닫을 때, 이것과 달라졌으면 저장한다.
    */
   const snapshotRef = useRef<string | null>(null);
+  /** 칸을 채울 때의 '구글 캘린더' 값 - 끄고 저장해도 구글에서 지워야 하므로 로그인을 묻는다 */
+  const loadedGcalRef = useRef(false);
   const snapshotOf = (t: string, l: string[], a: Attrs, alarm: string, links: any[], d = due) =>
     JSON.stringify([t.trim(), l, a, alarm, links.length, d]);
   const nowSnapshot = snapshotOf(text, labels, attrs, alarmTime, newLinks);
@@ -245,6 +247,7 @@ export default function EventDrawer({
     setText(t);
     setLabels(l);
     setAttrs(a);
+    loadedGcalRef.current = !!item && !!a.gcal;
     setAlarmTime(alarm);
     setAlarmDirty(false);
     setNewLinks([]);
@@ -499,6 +502,9 @@ export default function EventDrawer({
           textRef.current?.focus();
         }
       }
+      // '구글 캘린더' 일정(켜거나 방금 끈 것)을 저장했는데 구글 로그인이 없으면 로그인을 묻는다 (2026-10-07 사용자 요청)
+      if (!groupId && (attrs.gcal || loadedGcalRef.current)) void ensureGcalLogin();
+      loadedGcalRef.current = !groupId && attrs.gcal;
       return true;
     } catch (e) {
       // 저장이 안 됐다. 적은 것은 칸에 그대로 두고, '저장된 것'으로 여기지 않는다(ESC가 묻는다)

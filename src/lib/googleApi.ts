@@ -132,7 +132,7 @@ function canOpenPopupNow(): boolean {
  *    (2026-10-02 사용자 신고). 그때는 '구글 로그인이 필요합니다' 창(GoogleLoginPrompt)을 띄워
  *    그 단추를 누를 때 로그인 창을 연다. 로그인하지 않고 닫으면 GoogleAuthError를 던진다.
  */
-export async function getValidGoogleToken(): Promise<string | null> {
+export async function getValidGoogleToken(reason?: string): Promise<string | null> {
   const quiet = await getGoogleTokenQuietly();
   if (quiet) return quiet;
   if (canOpenPopupNow()) {
@@ -145,12 +145,12 @@ export async function getValidGoogleToken(): Promise<string | null> {
       if (e instanceof GoogleLoginClosedError) throw e;
     }
   }
-  return requestGoogleLogin();
+  return requestGoogleLogin(reason);
 }
 
 /** 묻는 창으로 로그인을 받는다. 묻는 창을 그릴 수 없는 곳(앱 화면 밖)이면 그대로 실패로 돌린다. */
-async function requestGoogleLogin(): Promise<string> {
-  const token = await askGoogleLogin();
+async function requestGoogleLogin(reason?: string): Promise<string> {
+  const token = await askGoogleLogin(reason);
   if (!token) throw new GoogleAuthError('구글 로그인을 하지 않아 진행하지 못했습니다.');
   return token;
 }

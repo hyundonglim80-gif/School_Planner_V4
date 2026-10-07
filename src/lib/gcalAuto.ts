@@ -189,6 +189,24 @@ async function syncDate(token: string, calId: string, uid: string, date: string)
   return plan.post.length + plan.put.length + plan.del.length;
 }
 
+/**
+ * 일정 칸에서 '구글 캘린더' 일정을 저장한 뒤 부른다 (2026-10-07 사용자 요청): 구글 로그인이 없으면(만료) 로그인을 묻는다.
+ * 저장 단추를 누른 직후라 브라우저가 로그인 창을 열어 주고, 막히면 '구글 로그인이 필요합니다' 창의 단추로 연다.
+ * 로그인하면 쌓인 날을 곧바로 보낸다. 닫으면 큐에 남아 머리줄 '📅 못 보낸 날 N'으로 나중에 보낸다.
+ */
+export async function ensureGcalLogin(): Promise<void> {
+  if (!state.uid) return;
+  if (await getGoogleTokenQuietly()) return; // 로그인돼 있다 - 큐가 알아서 보낸다
+  try {
+    const token = await getValidGoogleToken('구글 캘린더 속성을 켠 일정을 구글 캘린더(SP(work))에 반영하려면 구글 로그인이 필요합니다. 로그인하면 바로 보냅니다.');
+    if (!token) return;
+    // 큐에 아직 안 들어갔으면(1.2초 모으는 중) 들어간 뒤 commitPending이 보낸다
+    await flushGcalQueue(false);
+  } catch {
+    showToast('구글 로그인을 하지 않아 구글 캘린더에 아직 보내지 않았습니다. 맨 위 📅 못 보낸 날 단추로 나중에 보냅니다.');
+  }
+}
+
 export type FlushResult = 'done' | 'no-token' | 'busy' | 'empty' | 'off';
 
 /**

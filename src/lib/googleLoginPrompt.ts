@@ -5,7 +5,8 @@
 // 창은 components/GoogleLoginPrompt가 그린다(Layout에 하나).
 import { create } from 'zustand';
 
-export const useGoogleLoginPrompt = create<{ open: boolean }>(() => ({ open: false }));
+/** reason: 무엇 때문에 로그인이 필요한지 (없으면 드라이브 안내 - 2026-10-07 구글 캘린더도 묻는다) */
+export const useGoogleLoginPrompt = create<{ open: boolean; reason?: string }>(() => ({ open: false }));
 
 let pending: Promise<string | null> | null = null;
 let settle: ((token: string | null) => void) | null = null;
@@ -21,13 +22,13 @@ export function registerGoogleLoginHost(): () => void {
 }
 
 /** 로그인을 묻는다. 로그인하면 토큰, 닫으면 null. 이미 묻는 중이면 같은 답을 기다린다(파일 여러 개를 올릴 때 창이 겹치지 않게). */
-export function askGoogleLogin(): Promise<string | null> {
+export function askGoogleLogin(reason?: string): Promise<string | null> {
   if (hosts <= 0) return Promise.resolve(null);
   if (pending) return pending;
   pending = new Promise((resolve) => {
     settle = resolve;
   });
-  useGoogleLoginPrompt.setState({ open: true });
+  useGoogleLoginPrompt.setState({ open: true, reason });
   return pending;
 }
 
@@ -36,6 +37,6 @@ export function finishGoogleLogin(token: string | null) {
   const done = settle;
   pending = null;
   settle = null;
-  useGoogleLoginPrompt.setState({ open: false });
+  useGoogleLoginPrompt.setState({ open: false, reason: undefined });
   done?.(token);
 }

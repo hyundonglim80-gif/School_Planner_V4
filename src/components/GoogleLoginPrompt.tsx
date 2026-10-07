@@ -10,6 +10,7 @@ import { finishGoogleLogin, registerGoogleLoginHost, useGoogleLoginPrompt } from
 
 export default function GoogleLoginPrompt() {
   const open = useGoogleLoginPrompt((s) => s.open);
+  const reason = useGoogleLoginPrompt((s) => s.reason);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -66,10 +67,14 @@ export default function GoogleLoginPrompt() {
       }
     >
       <div className="space-y-2 text-sm text-slate-700" data-google-login-prompt>
-        <p>
-          구글 로그인이 만료되었습니다. 파일 첨부·학생 사진·백업처럼 <b>구글 드라이브</b>를 쓰는 일을 하려면 다시
-          로그인해야 합니다.
-        </p>
+        {reason ? (
+          <p data-google-login-reason>{reason}</p>
+        ) : (
+          <p>
+            구글 로그인이 만료되었습니다. 파일 첨부·학생 사진·백업처럼 <b>구글 드라이브</b>를 쓰는 일을 하려면 다시
+            로그인해야 합니다.
+          </p>
+        )}
         <p className="text-xs text-slate-500">
           <b>구글 로그인</b>을 누르고 <b>지금 쓰는 계정</b>을 고르세요. 권한을 물으면 모두 허용합니다. 로그인하면 하던 일을
           이어서 합니다.

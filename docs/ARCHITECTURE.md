@@ -253,7 +253,10 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   `saveGcalLabels`가 `queueSentDates` - 구글의 `sp_auto=true` 일정이 있는 날을 모두 큐에 넣고 `flushGcalQueue(false, force)`(켠 라벨이 하나도 없어도 보낸다)). 무엇을 바꿨는지 들고 다니지 않아 이월(옛 날짜에서 빠지고 새 id로)·
   기간·다중 선택·끌어 옮기기가 따로 처리 없이 맞는다. 보낸 날은 at이 그대로일 때만 큐에서 지운다(그새 또 쌓였으면 남김), 실패는 fails+1(3번째에 안내), 401·403은
   토큰을 잊고 멈춘다. 부르는 때: 큐에 넣은 직후, 앱을 열 때(설정을 처음 받은 뒤), 탭으로 돌아올 때. 토큰이 없으면 머리줄 `data-gcal-pending`(Layout `useGcalAuto`) -
-  누르면 토큰부터 받고(누른 직후라 창이 열린다) 보낸다. 일정 칸 `data-event-gcal`(`useGcalEnabled`). 개인 공간만(1차). 수동 보내기(calendarSync)와 같은 캘린더·글·sp_id.
+  누르면 토큰부터 받고(누른 직후라 창이 열린다) 보낸다. 일정 칸 `data-event-gcal`(`useGcalEnabled`).
+  일정 칸에서 '구글 캘린더' 일정(켰거나 방금 끈 것 - `loadedGcalRef`)을 저장하면 `ensureGcalLogin`(2026-10-07 사용자 요청): 조용한 토큰이 없으면
+  `getValidGoogleToken(까닭)` - 저장 단추를 누른 직후라 로그인 창, 막히면 `GoogleLoginPrompt`에 까닭 글(`useGoogleLoginPrompt.reason`, `data-google-login-reason`).
+  로그인하면 `flushGcalQueue`, 닫으면 안내만(큐에 남아 '못 보낸 날'). 점검 `tools/inspect-gcal-login.mjs`(컨테이너는 실제 구글 창을 못 연다). 개인 공간만(1차). 수동 보내기(calendarSync)와 같은 캘린더·글·sp_id.
 - **마지막 줄 '#라벨'** (19번 U10, 2026-10-07): `lib/hashLabels.takeTrailingHashLabels` - 마지막 비지 않은 줄이 `#이름`들로만 되어 있으면 이름을 떼고
   그 줄을 지운다(`#\d{8}` 학생 태그는 줄에 남김, 글이 그 줄뿐이면 그대로, 20자, 끝 문장 부호 뗌). `EntryDrawer.handleSubmit`이 저장 직전에 적용하고
   칸에도 뗀 글·칩을 남긴다. 칸 아래 미리보기 `data-hash-preview`(`data-hash-label`, 새 이름은 `data-new`). 새 이름은 `ensureEntryLabels`가 두 배열에 채우고
@@ -651,6 +654,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-ux-audit.mjs` | UX-AUDIT 적용(12) - 머리줄 ?, ⋮ 차례·환경설정의 설치·밝기, 일정 ☐ 완료, 📘 진도, ✏️, + 메모, + 새 라벨, 라벨로 보기 ?, 구글 캘린더 안내 |
 | `tools/inspect-batch-1007.mjs` | 10-07 요청 묶음(13) - 첫 줄 #라벨, 카드 라벨 한 줄·체크한 줄 아래, 라벨 관리 한 스크롤, teacher3 시간표 교사 구분·두 칸, 메모 학생 태그(명렬표·직접)·누가기록 '📝 메모'. 메모·라벨을 되돌린다 |
 | `tools/inspect-clicks.mjs` | 19번 U12 클릭 수표 - 자주 하는 일 20가지를 하루 화면에서 따라 하며 누르기·키를 센다(마지막 되돌리기 어려운 단추는 +1로). 결과는 `docs/UX-AUDIT.md`. 일정·기록·메모·출석·알림장·라벨·휴지통을 되돌린다 (8분쯤) |
+| `tools/inspect-gcal-login.mjs` | 구글 캘린더 일정 저장 때 로그인 묻기(6) - 끈 일정은 안 묻음, 토큰 없이 저장 → 로그인 창(또는 묻는 창의 단추), 닫으면 안내, 팝업이 막히면 까닭 글 있는 묻는 창. 설정·일정·큐를 되돌린다 |
 | `tools/inspect-refine-u11.mjs` | 19번 U11 일정 라벨 '구글 캘린더'(9) - 구글 캘린더 API를 page.route로 흉내 낸다: 라벨 관리 체크, 일정 칸 표시, 저장 → POST(sp_auto)·큐 비움, 켜지 않은 라벨은 안 감, 완료 → ✅ PUT, 토큰 없음 → '못 보낸 날 1' → 누르면 DELETE. 설정·일정·큐·휴지통을 되돌린다 |
 | `tools/inspect-refine-u10.mjs` | 19번 U10 '#라벨'·빈 라벨 정리(11) - 새 메모 마지막 줄 #새라벨 #업무(미리보기·저장·두 배열), 새 기록 #라벨 #학생태그(jm_ id, 태그 줄 남음), 라벨 관리 세기 → 정리 → 두 배열에서 빠짐·휴지통. 라벨·트리·자료·휴지통을 되돌린다 |
 | `tools/inspect-refine-u9.mjs` | 19번 U9 체크리스트(13) - 새 메모: 고른 줄 ☐ 붙이기·떼기, Enter 이어 쓰기·빈 줄 끝, 단축키, 저장, 카드 '☑ 0/3'·줄 누르기, 기록 카드 줄 누르기(그 기록만)·새로고침. 메모·기록 문서를 되돌린다 |
