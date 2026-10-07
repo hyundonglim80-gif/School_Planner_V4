@@ -1,6 +1,6 @@
 // src/components/ClassBellPanel.tsx
 //
-// 수업 종 설정 (hooks/useClassBell, lib/classBell) - 시간표 창의 교시 시각 아래. 고르는 즉시 저장한다.
+// 수업 종 설정 (hooks/useClassBell, lib/classBell) - 하루 화면 '⏰ 수업' 옆 🔔 단추로 펼친다(2026-10-07 시간표 창에서 옮김). 고르는 즉시 저장한다.
 // 시작·끝 종을 따로 켜고, 그 시각보다 몇 분/초 전·후에 울릴지 고른다. '이 기기에서 울리기'는 이 기기에만(교실 PC만 울리게).
 import { useEffect, useState } from 'react';
 import { saveClassBell, useClassBellSettings, isBellMutedHere, setBellMutedHere, playBell } from '../hooks/useClassBell';
@@ -73,7 +73,7 @@ export default function ClassBellPanel({ hasTimes }: { hasTimes: boolean }) {
           ▶ 미리 듣기
         </button>
       </div>
-      {!hasTimes && <p className="text-2xs text-amber-700 font-bold">위 '교시 시각'을 먼저 적어야 울립니다.</p>}
+      {!hasTimes && <p className="text-2xs text-amber-700 font-bold">⏰ 시간표 창(수업 ⚙️ 설정)의 '교시 시각'을 먼저 적어야 울립니다.</p>}
       {row('start', '시작 시각')}
       {row('end', '종료 시각')}
       <div className="flex items-center gap-4 flex-wrap text-xs text-slate-600">

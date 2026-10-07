@@ -3,7 +3,7 @@
 // 18번 교과 전담 S3 '반 중심 수업 칸 + 담임 도구 숨기기' - 바뀐 부분만 실제 크롬으로 본다 (PC 1400px).
 //   - teacher3(교과 전담) 하루 2026-11-02(월): 1교시 큰 글자 '5-1'·작은 '과학', 1·3교시 막대 색이 다르다,
 //     알림장·출석부 단추 없음, ⋮에 출석부·알림장 모아 보기·주간학습안내 없음, 학급 탭에 출석부·알림장·오늘 출결 없음,
-//     주간에 '5-2' 칩, 환경설정에서 5-1 색을 고르면 하루 카드 막대가 그 색
+//     주간에 '5-2' 칩, 시간표 창에서 5-1 색을 고르면 하루 카드 막대가 그 색
 //   - 교과 + 담임(담임반 5-3)으로 바꾸면 단추·메뉴가 돌아오고 출석부가 5-3으로 열린다
 //   - 점검이 바꾼 교사 유형 문서는 끝에 되돌린다
 //
@@ -118,15 +118,15 @@ try {
   const chipClass = (await chip.count()) ? await chip.getAttribute('class') : '';
   check("주간 11-02에 '5-2' 반 색 칩", /bg-\w+-100/.test(chipClass || ''), chipClass || '없음');
 
-  // ── 환경설정 반 색 ──────────────────────────────────────────
+  // ── 반 색 (2026-10-07 환경설정에서 시간표 창으로 옮김) ─────────
   await page.getByTitle('더보기 메뉴').click();
-  await page.getByRole('button', { name: /환경설정/ }).first().click();
+  await page.getByRole('button', { name: /^⏰\s*시간표/ }).click();
   const row = page.locator('[data-class-color-row="5-1"]');
   await row.waitFor({ timeout: 10000 });
   const pick = c1 === 'rose' ? 'violet' : 'rose';
   await row.locator(`[data-class-color="${pick}"]`).click();
   const [m, ms] = await serverUntil(readMode, (v) => v?.classColors?.['5-1'] === pick);
-  check(`환경설정 5-1 색 '${pick}' → 서버 classColors`, m?.classColors?.['5-1'] === pick, `${ms}ms`);
+  check(`시간표 창 5-1 색 '${pick}' → 서버 classColors`, m?.classColors?.['5-1'] === pick, `${ms}ms`);
   check('다른 설정 칸은 그대로 (unit·과목)', m?.unit === 'class' && m?.hasHomeroom === false && (m?.subjects || []).includes('과학'));
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);

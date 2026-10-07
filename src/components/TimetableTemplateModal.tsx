@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
-import { auth } from '../lib/firebase';
 import {
   useTimetableTemplate,
   getSemesterRanges,
@@ -26,15 +25,14 @@ import {
 import { useTeachingMode } from '../hooks/useTeachingMode';
 import { normalizeSlotText, parseSlot, slotSuggestions, teachingClasses, teachingSubjects as teachingSubjectList } from '../lib/teachingSlot';
 import SlotPairInput from './SlotPairInput';
-import ClassBellPanel from './ClassBellPanel';
-import { usePeriodTimes } from '../hooks/usePeriodTimes';
-import { validPeriods } from '../lib/periodTimes';
-import { TEACHER_PRESETS, presetPatch, saveTeachingMode, type TeacherPreset } from '../lib/teachingMode';
+import TeachingModePanel from './TeachingModePanel';
 import { useTeachingClasses } from '../hooks/useTeachingClasses';
 
 interface TimetableTemplateModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** 단축키 '교사 유형 바꾸기'로 열면 교사 유형 구역까지 내려 둔다 */
+  focusTeaching?: boolean;
 }
 
 const DAYS: { key: WeekDayKey; label: string; color: string }[] = [
@@ -45,7 +43,7 @@ const DAYS: { key: WeekDayKey; label: string; color: string }[] = [
   { key: 'fri', label: '금요일', color: 'text-rose-600' },
 ];
 
-export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTemplateModalProps) {
+export default function TimetableTemplateModal({ isOpen, onClose, focusTeaching = false }: TimetableTemplateModalProps) {
   const {
     templates,
     currentTemplateName,
@@ -58,20 +56,9 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   } = useTimetableTemplate();
   // 수업X 라벨 - V3 일정은 수업X를 라벨(labelIds)로만 들고 있다 (lib/classDays)
   const { eventLabels } = useLabels();
-  const { times: periodTimes } = usePeriodTimes();
   // 교과 모드: 칸에 '5-2 과학' - 제안 목록을 달고, 어떻게 적어도 한 모양으로 맞춘다 (lib/teachingSlot).
   // 초등 담임은 손대지 않는다 ('3-2 국어'를 그대로 쓰는 담임이 있다).
-  const { isClassUnit, preset, mode: { subjects: teachingSubjects, homeroomClass } } = useTeachingMode();
-  const choosePreset = async (p: TeacherPreset) => {
-    const uid = auth.currentUser?.uid;
-    if (!uid || p === preset) return;
-    try {
-      await saveTeachingMode(uid, presetPatch(p));
-      showToast(`👩‍🏫 교사 구분을 '${TEACHER_PRESETS.find((x) => x.value === p)?.label}'(으)로 저장했습니다.`);
-    } catch (e) {
-      showErrorToast('교사 구분을 저장하지 못했습니다.', e);
-    }
-  };
+  const { isClassUnit, mode: { subjects: teachingSubjects } } = useTeachingMode();
 
   // 현재 편집 중인 템플릿의 로컬 상태
   const [editingTemplates, setEditingTemplates] = useState<Record<string, TimetableTemplateItem>>({});
@@ -152,6 +139,15 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
 
     setHydrated(true);
   }, [isOpen, loading, hydrated, templates, currentTemplateName, semesterConfig]);
+
+  // 단축키 '교사 유형 바꾸기'로 열면 교사 유형 구역까지 내려 둔다 (구역이 그려진 뒤)
+  useEffect(() => {
+    if (!isOpen || !focusTeaching) return;
+    const t = window.setTimeout(() => {
+      document.querySelector('[data-timetable-teaching]')?.scrollIntoView({ block: 'start' });
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [isOpen, focusTeaching]);
 
   if (!isOpen) return null;
 
@@ -525,29 +521,19 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
 
         {/* 스크롤 컨텐츠 */}
         <div className="p-6 overflow-y-auto overscroll-contain space-y-5 flex-1 min-h-0" data-scroll-lock>
-          {/* 교사 구분 (2026-10-07 사용자 요청) - 환경설정의 교사 유형과 같은 값. 고르는 즉시 저장 */}
-          <div className="flex items-center gap-2 flex-wrap" data-teacher-preset>
-            <span className="text-xs font-bold text-slate-700">교사 구분</span>
-            {TEACHER_PRESETS.map((p) => (
-              <button
-                key={p.value}
-                type="button"
-                data-teacher-preset-option={p.value}
-                aria-pressed={preset === p.value}
-                title={p.desc}
-                onClick={() => void choosePreset(p.value)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${
-                  preset === p.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-            <span className="text-2xs text-slate-400">
-              {isClassUnit ? '전담: 칸마다 수업하는 학년-반과 과목을 적거나 ▼에서 고릅니다.' : '담임: 칸마다 과목을 적습니다.'}
-              {preset === 'subjectHomeroom' && !homeroomClass ? ' 담임반은 환경설정 > 교사 유형에서 고릅니다.' : ''}
-            </span>
-          </div>
+          {/* 교사 유형 · 가르치는 과목·반·반 색·담임반 (2026-10-07 사용자 요청 - 환경설정에서 시간표 창으로 옮겼다).
+              고르는 즉시 계정에 저장(TeachingModePanel). 여기 적은 반·과목이 아래 표 칸의 ▼ 목록에 나온다. */}
+          <section className="bg-indigo-50/40 p-4 rounded-xl border border-indigo-100 space-y-2" data-timetable-teaching>
+            <div className="flex flex-wrap items-baseline gap-2">
+              <span className="text-xs font-extrabold text-slate-800">👩‍🏫 교사 유형 · 가르치는 반 · 과목</span>
+              <span className="text-2xs text-slate-400">
+                {isClassUnit
+                  ? '전담: 아래 표의 칸마다 수업하는 학년-반과 과목을 적거나 ▼에서 고릅니다. 여기 적은 반·과목이 ▼ 목록에 나옵니다.'
+                  : '담임: 아래 표의 칸마다 과목을 적습니다.'}
+              </span>
+            </div>
+            <TeachingModePanel />
+          </section>
           {/* 1. 시간표 테이블 (교시 관리 포함) */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -661,8 +647,7 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
           {/* 1-1. 교시 시각 (하루 화면의 '지금 몇 교시') */}
           <PeriodTimesEditor periodNames={periodNames} />
 
-          {/* 수업 종 (2026-10-07) - 교시 시각에 맞춰 울린다 */}
-          <ClassBellPanel hasTimes={validPeriods(periodTimes).length > 0} />
+          {/* 수업 종은 하루 화면 '⏰ 수업' 옆 🔔 단추로 옮겼다 (2026-10-07 사용자 요청) */}
 
           {/* 2. 학사일정(학기 기간) 설정 */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">

@@ -9,7 +9,7 @@ import { showToast, showErrorToastOnce } from '../../utils/toast';
 import { openEntryPanel } from '../../components/EntryPanelHost';
 import { usePeriodTimes } from '../../hooks/usePeriodTimes';
 import { useClock } from '../../hooks/useClock';
-import { periodStateAt, periodRangeLabel } from '../../lib/periodTimes';
+import { periodStateAt, periodRangeLabel, validPeriods } from '../../lib/periodTimes';
 import { formatDateStr, parseDateStr } from '../../lib/dateUtils';
 import { shortDateLabel } from '../../lib/notices';
 import DayMeals from './DayMeals';
@@ -29,6 +29,8 @@ import { runAppAction } from '../../lib/appActions';
 import { useClassColorOf } from '../../hooks/useClassColor';
 import SlotPairInput from '../../components/SlotPairInput';
 import { useSlotPairOptions } from '../../hooks/useTeachingClasses';
+import ClassBellPanel from '../../components/ClassBellPanel';
+import { useClassBellSettings } from '../../hooks/useClassBell';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
 
 interface DayScheduleProps {
@@ -154,6 +156,9 @@ export default function DaySchedule({
 
   // 교시 시각을 적어 두었으면(⚙️ 설정) 오늘은 지금 몇 교시인지 짚는다 (docs/ROADMAP.md 2-2)
   const { times: periodTimes } = usePeriodTimes();
+  // 수업 종 설정 - '⏰ 수업' 옆 🔔 단추로 펼친다 (2026-10-07 사용자 요청 - 시간표 창에서 옮김)
+  const { bell } = useClassBellSettings();
+  const [bellOpen, setBellOpen] = useState(false);
   const isTodayView = !!dateStr && dateStr === formatDateStr(new Date());
   const now = useClock(isTodayView);
   const nowState = isTodayView ? periodStateAt(periodTimes, now, maxPeriods) : null;
@@ -192,6 +197,18 @@ export default function DaySchedule({
           </button>
           <span className="text-xl">⏰</span>
           <h3 className="text-base font-extrabold text-slate-800">수업</h3>
+          <button
+            type="button"
+            data-day-bell
+            aria-expanded={bellOpen}
+            onClick={() => setBellOpen((v) => !v)}
+            className={`px-2 py-1 rounded-lg text-xs font-bold border transition-colors ${
+              bell.enabled ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200' : 'bg-white hover:bg-slate-50 text-slate-500 border-slate-200'
+            }`}
+            title="수업 종 - 교시 시작·끝 시각에 종을 울립니다"
+          >
+            {bell.enabled ? '🔔 종' : '🔕 종'}
+          </button>
           {/* 알림장·출석부는 수업과 함께 매일 쓰는 것이라 수업 제목 바로 옆에 둔다 (교과 전담은 숨긴다) */}
           {showHomeroomTools && (
           <>
@@ -243,6 +260,21 @@ export default function DaySchedule({
           </div>
         )}
       </div>
+
+      {bellOpen && (
+        <div className="mb-3 relative" data-day-bell-panel>
+          <button
+            type="button"
+            onClick={() => setBellOpen(false)}
+            className="absolute -top-2 -right-2 z-10 w-6 h-6 flex items-center justify-center bg-white border border-slate-200 rounded-full shadow-xs text-slate-400 hover:text-slate-700 text-xs hover:bg-slate-100"
+            title="수업 종 설정 닫기"
+            aria-label="수업 종 설정 닫기"
+          >
+            ✕
+          </button>
+          <ClassBellPanel hasTimes={validPeriods(periodTimes).length > 0} />
+        </div>
+      )}
 
       {!isCollapsed && (
         <div className="grid grid-cols-1 gap-3">

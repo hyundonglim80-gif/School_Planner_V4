@@ -1,10 +1,10 @@
 // tools/inspect-teaching-mode.mjs
 //
 // 18번 교과 전담 S1 '교사 유형' - 바뀐 부분만 실제 크롬으로 본다 (PC 1400px).
-//   - teacher3(교과 전담): 환경설정에 '교과 전담'이 골라져 있고 과목 칩 '과학'
+//   - teacher3(교과 전담): 시간표 창에 '교과 전담'이 골라져 있고 과목 칩 '과학'
 //   - teacher3: '교과 + 담임' → 서버 unit:'class', hasHomeroom:true → 담임반 5-2 → homeroomClass:'5-2', 과목 더하기·빼기
 //   - teacher2: 교사 유형 문서를 지우고 열면 하루 화면에 처음 안내 띠 → '나중에' → 초등 담임 문서가 생기고 띠가 사라진다
-//   - teacher(기본): 띠가 없고 환경설정은 '초등 담임'
+//   - teacher(기본): 띠가 없고 시간표 창은 '초등 담임'
 //   바꾼 문서는 끝에 seed 값으로 되돌린다.
 //
 //   npm run emu / node tools/serve-both.mjs / npm run seed / VITE_USE_EMULATOR=1 npm run build
@@ -62,9 +62,10 @@ async function open(as) {
   await page.getByRole('heading', { name: '일정' }).first().waitFor({ timeout: 40000 });
   return { ctx, page };
 }
+// 2026-10-07: 교사 유형 구역은 환경설정에서 시간표 창으로 옮겼다 (이름은 그대로 둔다)
 async function openSettings(page) {
   await page.getByTitle('더보기 메뉴').click();
-  await page.getByRole('button', { name: /환경설정/ }).first().click();
+  await page.getByRole('button', { name: /^⏰\s*시간표/ }).click();
   const box = page.locator('[data-teaching-mode-setting]');
   await box.waitFor({ timeout: 10000 });
   return box;
@@ -79,7 +80,7 @@ try {
     check('teacher3: 처음 안내 띠가 없다 (문서가 있다)', (await page.locator('[data-teacher-mode-banner]').count()) === 0);
     const box = await openSettings(page);
     await box.locator('[data-teacher-preset="subject"][aria-checked="true"]').waitFor({ timeout: 10000 }).catch(() => {});
-    check("teacher3: 환경설정에 '교과 전담'이 골라져 있다", (await checked(box, 'subject')) === 'true');
+    check("teacher3: 시간표 창에 '교과 전담'이 골라져 있다", (await checked(box, 'subject')) === 'true');
     check("teacher3: 과목 칩 '과학', 담임반 칸은 없다",
       (await box.locator('[data-teaching-subject="과학"]').count()) === 1 && (await box.locator('[data-teaching-homeroom]').count()) === 0);
 
@@ -129,7 +130,7 @@ try {
     check('teacher: 처음 안내 띠가 없다', (await page.locator('[data-teacher-mode-banner]').count()) === 0);
     const box = await openSettings(page);
     await box.locator('[data-teacher-preset="homeroom"][aria-checked="true"]').waitFor({ timeout: 10000 }).catch(() => {});
-    check("teacher: 환경설정은 '초등 담임', 과목 칸은 없다",
+    check("teacher: 시간표 창은 '초등 담임', 과목 칸은 없다",
       (await checked(box, 'homeroom')) === 'true' && (await box.locator('[data-teaching-subjects]').count()) === 0);
     await ctx.close();
   }

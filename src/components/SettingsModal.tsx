@@ -26,7 +26,7 @@ import ShortcutModal from './ShortcutModal';
 import { loadAdminConfig, saveAdminGovApiKey } from '../lib/adminConfig';
 import { clearNeisCache, loadNeisKey, saveNeisKey, testNeisKey } from '../lib/neis';
 import SchoolSettingPanel from './SchoolSettingPanel';
-import TeachingModePanel from './TeachingModePanel';
+import { runAppAction } from '../lib/appActions';
 import { loadSharedHolidays, saveSharedHolidays } from '../lib/holidays';
 import { fetchHolidaysFromGovApi } from '../lib/govApi';
 import { clearHolidayCache } from '../hooks/useGovHolidays';
@@ -40,7 +40,6 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   /** 열자마자 보일 구역 (단축키 '교사 유형 바꾸기') */
-  focusSection?: 'teaching';
 }
 
 const POPUP_STYLE_OPTIONS: { value: PopupStyle; label: string }[] = [
@@ -115,7 +114,7 @@ const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: 'dark', label: '🌙 어둡게' },
 ];
 
-export default function SettingsModal({ isOpen, onClose, focusSection }: SettingsModalProps) {
+export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const developer = isDeveloper(auth.currentUser?.email);
   // 화면 밝기는 이 기기에만, 누르는 즉시 바뀐다 ('저장'과 상관없다)
   const [themeMode, setThemeModeState] = useState<ThemeMode>(readThemeMode);
@@ -175,14 +174,6 @@ export default function SettingsModal({ isOpen, onClose, focusSection }: Setting
     const uid = auth.currentUser?.uid;
     if (isOpen && uid) void loadTrashRetention(uid).then(setTrashDays);
   }, [isOpen]);
-  // 단축키 '교사 유형 바꾸기'로 열면 그 구역까지 내려 둔다 (구역이 그려진 뒤)
-  useEffect(() => {
-    if (!isOpen || focusSection !== 'teaching') return;
-    const t = window.setTimeout(() => {
-      document.querySelector('[data-teaching-mode-setting]')?.scrollIntoView({ block: 'center' });
-    }, 150);
-    return () => window.clearTimeout(t);
-  }, [isOpen, focusSection]);
   const chooseTrashDays = async (days: TrashRetentionDays) => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
@@ -853,9 +844,19 @@ export default function SettingsModal({ isOpen, onClose, focusSection }: Setting
 
         <Section
           title="교사 유형"
-          desc="초등 담임은 한 반의 여러 과목을, 교과 전담은 여러 반에 한두 과목을 가르칩니다. 고르는 즉시 계정에 저장되고 PC·휴대폰이 같은 유형을 씁니다. 바꿔도 적어 둔 자료는 그대로입니다."
+          desc="교사 유형(초등 담임 · 전담 · 중등 전담 + 담임)과 가르치는 반·과목·반 색·담임반은 ⏰ 시간표 창에서 고릅니다 (2026-10-07에 옮겼습니다)."
         >
-          <TeachingModePanel />
+          <button
+            type="button"
+            data-settings-open-teaching
+            onClick={() => {
+              onClose();
+              runAppAction({ id: 'teachingMode' });
+            }}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 text-slate-600 hover:border-primary hover:text-primary"
+          >
+            ⏰ 시간표에서 교사 유형 · 가르치는 반 · 과목 고르기
+          </button>
         </Section>
 
         <Section

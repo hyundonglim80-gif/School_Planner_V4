@@ -3,7 +3,7 @@
 // 19번 U1 '버그 셋' - 바뀐 부분만 실제 크롬으로 본다 (docs/ROADMAP-REFINE.md U1).
 //   - teacher3: 명렬표에 없는 반(6-3)을 시간표에만 적어도 수업 칸 ▼에 나온다
 //   - teacher3: '5-3 과학'이 적힌 칸에 들어가면 ▼ 목록에 다른 반(5-1)도 나온다, 글자를 치면 거른다, ESC는 목록만 닫는다
-//   - teacher3: 환경설정 '가르치는 반'에 '7-1~7-2' → 계정에 저장, ▼ 목록과 진도 관리의 반 칩에 나온다
+//   - teacher3: 시간표 창 '가르치는 반'(2026-10-07 환경설정에서 옮김)에 '7-1~7-2' → 계정에 저장, ▼ 목록과 진도 관리의 반 칩에 나온다
 //   - teacher(휴대폰 폭): 월간 날짜 목록의 라벨 칩을 누르면 완료, 다시 누르면 풀림 (일정을 열지 않는다)
 //   - 회귀: teacher 수업 칸은 예전 그대로 (콤보 없음)
 // 점검이 바꾼 시간표·교사 유형·일정 문서는 끝에 되돌린다.
@@ -150,16 +150,16 @@ try {
     await page.waitForTimeout(300);
     check('teacher3: 목록이 닫힌 뒤의 ESC는 수정 칸을 닫는다', (await input.count()) === 0);
 
-    // ── 환경설정 '가르치는 반' ─────────────────────────────────
+    // ── 시간표 창 '가르치는 반' (2026-10-07 환경설정에서 옮김) ──
     await page.getByTitle('더보기 메뉴').click();
-    await page.getByRole('button', { name: /환경설정/ }).first().click();
+    await page.getByRole('button', { name: /^⏰\s*시간표/ }).click();
     const classInput = page.locator('[data-teaching-class-input]');
     await classInput.waitFor({ timeout: 10000 });
     await classInput.scrollIntoViewIfNeeded();
     await classInput.fill('7-1~7-2');
     await classInput.press('Enter');
     const [tm] = await serverUntil(() => t3.read(tm3), (v) => (v?.classes || []).includes('7-2'));
-    check("teacher3: 환경설정 '가르치는 반' '7-1~7-2' → 계정에 7-1·7-2", ['7-1', '7-2'].every((c) => (tm?.classes || []).includes(c)), JSON.stringify(tm?.classes));
+    check("teacher3: 시간표 창 '가르치는 반' '7-1~7-2' → 계정에 7-1·7-2", ['7-1', '7-2'].every((c) => (tm?.classes || []).includes(c)), JSON.stringify(tm?.classes));
     await page.locator('[data-teaching-class="7-1"]').waitFor({ timeout: 5000 }).catch(() => {});
     check('teacher3: 저장한 반이 칩으로 보인다', (await page.locator('[data-teaching-class="7-1"]').count()) === 1);
     await page.keyboard.press('Escape');

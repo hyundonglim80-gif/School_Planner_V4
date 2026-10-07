@@ -2,7 +2,7 @@
 //
 // 교사 유형을 한 번도 고르지 않은 계정에 하루 화면 맨 위로 뜨는 띠 (docs/ROADMAP-SUBJECT.md S1).
 // 고르면 계정에 저장되어 다른 기기에도 다시 뜨지 않는다. '나중에'도 초등 담임(지금까지의 V4)을 저장한다.
-// 나중에 환경설정 > 교사 유형에서 바꿀 수 있다.
+// 나중에 ⏰ 시간표 창의 교사 유형 구역에서 바꿀 수 있다 (2026-10-07 환경설정에서 옮김).
 import { useState } from 'react';
 import { auth } from '../lib/firebase';
 import { TEACHER_PRESETS, presetPatch, saveTeachingMode, type TeacherPreset } from '../lib/teachingMode';
@@ -21,7 +21,7 @@ export default function TeachingModeBanner() {
       await saveTeachingMode(uid, presetPatch(p));
       showToast(
         later
-          ? '👩‍🏫 초등 담임으로 둡니다. 환경설정 > 교사 유형에서 바꿀 수 있습니다.'
+          ? '👩‍🏫 초등 담임으로 둡니다. ⏰ 시간표 창에서 바꿀 수 있습니다.'
           : `👩‍🏫 교사 유형을 '${TEACHER_PRESETS.find((x) => x.value === p)?.label}'(으)로 저장했습니다.`
       );
     } catch (e) {

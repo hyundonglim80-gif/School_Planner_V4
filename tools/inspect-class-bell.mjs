@@ -1,7 +1,7 @@
 // tools/inspect-class-bell.mjs
 //
 // 수업 종 (2026-10-07) - 실제 크롬으로 본다 (PC 1400px, teacher). 시계는 Playwright clock으로 돌린다.
-//   - 시간표 창 '🔔 수업 종 울리기' 칸: 켜기·시작 1분 전 고르기 → 서버 v4_classBell
+//   - 하루 화면 '⏰ 수업' 옆 🔔 종 단추(2026-10-07 시간표 창에서 옮김) → 설정 칸: 켜기·시작 1분 전 고르기 → 서버 v4_classBell, 단추가 '🔔 종'으로
 //   - 월요일 08:58:50에서 시계를 돌리면 08:59:00(1교시 1분 전)에 종 + 안내 '1교시 시작 (1분 전)'
 //   - 끝 종(09:40 정각) / '이 기기에서 울리기'를 끄면 울리지 않는다
 // 점검이 바꾼 교시 시각·종 설정은 끝에 되돌린다.
@@ -64,9 +64,11 @@ try {
   // ── 설정 칸 ──
   {
     const { ctx, page } = await open();
-    await page.getByTitle('더보기 메뉴').click();
-    await page.getByRole('button', { name: /^⏰\s*시간표/ }).click();
-    const panel = page.locator('[data-class-bell]');
+    const bellBtn = page.locator('[data-day-bell]');
+    await bellBtn.waitFor();
+    const offText = (await bellBtn.innerText()).trim();
+    await bellBtn.click();
+    const panel = page.locator('[data-day-bell-panel] [data-class-bell]');
     await panel.waitFor();
     await panel.locator('[data-bell-enabled]').check();
     await until(() => read(bellRef), (d) => d?.enabled === true);
@@ -74,7 +76,12 @@ try {
     await page.waitForTimeout(800);
     await panel.locator('[data-bell-when="start"]').selectOption('before');
     const saved = await until(() => read(bellRef), (d) => d?.start?.amount === 1 && d?.start?.when === 'before');
-    check("시간표 창 '수업 종': 켜기·시작 1분 전 → 서버", saved?.enabled === true && saved?.start?.amount === 1 && saved?.start?.unit === 'min' && saved?.end?.on === true, JSON.stringify(saved));
+    check("하루 화면 '수업' 옆 🔔 단추 → 수업 종: 켜기·시작 1분 전 → 서버", saved?.enabled === true && saved?.start?.amount === 1 && saved?.start?.unit === 'min' && saved?.end?.on === true, JSON.stringify(saved));
+    check("  꺼져 있을 때 '🔕 종' → 켜면 '🔔 종'", offText === '🔕 종' && (await bellBtn.innerText()).trim() === '🔔 종', offText);
+    await page.getByTitle('더보기 메뉴').click();
+    await page.getByRole('button', { name: /^⏰\s*시간표/ }).click();
+    await page.locator('[data-timetable-teaching]').waitFor();
+    check('  시간표 창에는 수업 종 칸이 없다', (await page.locator('[role=dialog] [data-class-bell]').count()) === 0);
     await page.waitForTimeout(1500);
     await ctx.close();
   }

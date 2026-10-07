@@ -224,7 +224,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   메모·기록 카드(EntryCard 본문 아래)와 쓰는 칸(글 아래). 점검 `tools/inspect-link-preview.mjs`.
 - **수업 종** (2026-10-07): `lib/classBell`(설정 `settings/v4_classBell` - enabled·start/end{on, amount, unit 분/초, when 전/후}·weekdaysOnly, `bellTimes`·`bellsDue`(지난번 본 초~지금, 60초 넘게 지난 종은 버림)·`bellMessage`),
   `hooks/useClassBell`(Layout의 `useClassBellRunner` - 1초마다 보고 Web Audio로 '딩동댕동', `window.__spBellCount`·`__spBellLast`를 점검이 본다, 첫 누르기에 소리 장치를 깨운다),
-  `components/ClassBellPanel`(시간표 창 교시 시각 아래, 누르는 즉시 저장 - 낙관적으로 먼저 보인다). '이 기기에서 울리기'는 localStorage `sp4-class-bell-muted`. 앱이 열려 있을 때만 울린다.
+  `components/ClassBellPanel`(하루 화면 '⏰ 수업' 옆 `data-day-bell` 단추(🔕/🔔 종)로 `data-day-bell-panel`에 펼친다 - 2026-10-07 사용자 요청으로 시간표 창에서 옮김, 누르는 즉시 저장 - 낙관적으로 먼저 보인다). '이 기기에서 울리기'는 localStorage `sp4-class-bell-muted`. 앱이 열려 있을 때만 울린다.
   점검 `tools/inspect-class-bell.mjs`(Playwright clock).
 - **UX-AUDIT 적용** (2026-10-07, `docs/UX-AUDIT.md` U12-a~d): 화면 글자를 바꿨다 - 점검 스크립트도 같이(`grep -rn '<옛 글자>' tools/`). 바뀐 이름:
   창 위치(옛 팝업 모양)·가운데 창, ⏰ 시간표(옛 '시간표 적용 (주간 템플릿)'), 조사표 모아 보기, 💾 저장(옛 클라우드 저장), 백업 (내보내기 / 가져오기), 지난 일정 오늘로 가져오기,
@@ -569,7 +569,9 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   `hooks/useClassColor`가 명렬표를 **교과 모드일 때만** 구독한다(`useRoster(enabled)`). 숨기는 담임 도구: 하루 수업 머리줄 알림장·출석부,
   ⋮ 메뉴 항목의 `homeroom: true`(주간학습안내·출석부·알림장 모아 보기), 학급 탭 `TOOLS`의 `homeroom`·오늘 출결 줄. 단축키는 그대로.
   교과 + 담임의 출석부는 `AttendanceDrawer`가 넘겨받은 학급이 없을 때 담임반(`rosterForSlot(homeroomClass)`)을 먼저 고른다.
-  반 색 고르기는 환경설정 `TeachingModePanel`(`classColors: {반: 색}` merge).
+  반 색 고르기는 `TeachingModePanel`(`classColors: {반: 색}` merge).
+  **`TeachingModePanel`(교사 유형·가르치는 과목·반·반 색·담임반)은 시간표 창 맨 위 `data-timetable-teaching`에 있다**(2026-10-07 사용자 요청 - 환경설정에서 옮김,
+  환경설정에는 `data-settings-open-teaching` 단추만). 단축키 `teachingMode`는 `TimetableTemplateModal focusTeaching`(그 구역으로 내려 연다).
   **가르치는 반 (19번 U1)**: `teachingSlot.teachingClasses` = 시간표 템플릿 칸 + 그 학년도 수업 칸(있으면 `subjectsByDate`) + 명렬표 + 설정 `classes`.
   화면은 `hooks/useTeachingClasses`(`useTeachingClasses`·`useSlotOptions` = 반 × 가르치는 과목)로 읽고, 진도 관리 과정 반 칩도 같다.
   수업 칸 입력은 `components/SlotCombobox`(예전 datalist는 크롬이 칸 글자와 맞는 것만 보여 줘 다른 반이 안 나왔다): 목록은 body에 붙인 fixed라

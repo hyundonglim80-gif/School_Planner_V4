@@ -129,10 +129,12 @@ try {
     const { ctx, page } = await open(3);
     await page.getByTitle('더보기 메뉴').click();
     await page.getByRole('button', { name: /^⏰\s*시간표/ }).click();
-    const box = page.locator('[data-teacher-preset]');
+    // 2026-10-07: 교사 유형 구역(가르치는 반·과목 포함)이 환경설정에서 시간표 창으로 옮겨 왔다
+    const box = page.locator('[data-timetable-teaching]');
     await box.waitFor();
-    const labels = await box.locator('[data-teacher-preset-option]').allInnerTexts();
-    check("시간표 창 '교사 구분' 셋: (초등) 담임 / 전담 / (중등) 전담 + 담임, 지금 '전담'", labels.join('|') === '(초등) 담임|전담|(중등) 전담 + 담임' && (await box.locator('[data-teacher-preset-option="subject"]').getAttribute('aria-pressed')) === 'true', labels.join('|'));
+    const labels = (await box.locator('[data-teacher-preset] span.text-sm').allInnerTexts()).map((t) => t.replace(/^[●○]\s*/, ''));
+    check("시간표 창 교사 유형 셋: (초등) 담임 / 전담 / (중등) 전담 + 담임, 지금 '전담'", labels.join('|') === '(초등) 담임|전담|(중등) 전담 + 담임' && (await box.locator('[data-teacher-preset="subject"]').getAttribute('aria-checked')) === 'true', labels.join('|'));
+    check('시간표 창에 가르치는 과목·가르치는 반 칸', (await box.locator('[data-teaching-subjects]').count()) === 1 && (await box.locator('[data-teaching-classes]').count()) === 1);
     check('시간표 칸은 학년-반·과목 두 칸', (await page.locator('[data-slot-pair]').count()) > 0 && (await page.locator('input[data-slot-subject-input]').count()) > 0);
     await page.getByTitle('닫기').first().click();
     await page.waitForTimeout(500);
