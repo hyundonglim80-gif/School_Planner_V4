@@ -9,6 +9,7 @@
 // 저장 로직도 여기로 옮겼다. 배너가 화면보다 오래 살기 때문에, 저장하는 쪽도
 // 화면이 아니라 배너 곁에 있어야 한다.
 import { ensureEntryLabelsQuietly } from '../lib/entryLabelSync';
+import { entryJournalId } from '../lib/entryLabels';
 import React, { Suspense, useEffect, useRef } from 'react';
 import { PanelRaiseContext } from './panelRaise';
 import { useLabelTree } from '../lib/labelTree';
@@ -236,9 +237,8 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
     // 라벨을 고르지 않았으면 빈 값으로 둔다 ('일반'은 어떤 라벨에도 없는 이름이다)
     const mainLabel = draft.labels.length > 0 ? draft.labels[0] : '';
     // labelIds는 ID로 저장한다. V3는 기록 라벨을 ID로만 찾는다.
-    const labelIds = draft.labels
-      .map((name) => journalLabels.find((l) => l.name === name)?.id)
-      .filter((id): id is string => !!id);
+    // 목록에 아직 없는 이름('#새라벨'로 막 만든 것, 19번 U10)은 ensureEntryLabels가 채운 id(entryJournalId)로
+    const labelIds = draft.labels.map((name) => journalLabels.find((l) => l.name === name)?.id || entryJournalId(name));
     // 없는 값은 키째로 뺀다 (Firestore는 배열 안의 undefined를 거부한다)
     const attachments: Attachment[] = draft.attachments.map((att) => ({
       name: att.name,

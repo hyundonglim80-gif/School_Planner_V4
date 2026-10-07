@@ -21,6 +21,7 @@ import { applyMention, findMention, type Mention, type MentionCandidate } from '
 import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
 import { labelPath, orderByTree } from '../lib/labelTree';
 import { continueOnEnter, toggleCheckAtCaret, toggleLinesPrefix } from '../lib/checkLines';
+import { takeTrailingHashLabels } from '../lib/hashLabels';
 import { formatBinding, resolveBindings } from '../lib/shortcuts';
 import { isTopSideItem } from './PopupFrame';
 import EntryTableView from './EntryTableView';
@@ -297,6 +298,8 @@ export default function EntryDrawer({
       el.setSelectionRange(r.caret, r.caret);
     });
   };
+  // 마지막 줄 '#라벨' (19번 U10) - 칸 아래에 미리 보인다
+  const hashPreview = React.useMemo(() => takeTrailingHashLabels(content).names, [content]);
   // ── 체크 목록 (19번 U9, lib/checkLines) ──
   /**
    * 글을 바꾸고 커서를 그 자리에 둔다. React가 값을 다시 그린 바로 뒤(useLayoutEffect)에 둔다 -
@@ -665,11 +668,16 @@ export default function EntryDrawer({
     if (savingRef.current) return false;
     savingRef.current = true;
 
+    // 마지막 줄의 '#라벨'은 라벨로 붙이고 그 줄은 글에서 뗀다 (19번 U10, lib/hashLabels)
+    const hash = takeTrailingHashLabels(content);
+    const saveText = hash.names.length > 0 ? hash.text : content;
+    const saveLabels = [...selectedLabels, ...hash.names.filter((n) => !selectedLabels.includes(n))];
+
     try {
       setSaving(true);
       await onSave({
-        content: content.trim(),
-        labels: selectedLabels,
+        content: saveText.trim(),
+        labels: saveLabels,
         attachments,
         linkedItems,
         linkedItemsBase: baseLinksRef.current,
@@ -682,7 +690,11 @@ export default function EntryDrawer({
       });
       // 저장해도 배너는 닫지 않는다. 닫기 버튼이나 배경 클릭으로만 닫힌다.
       showToast(`✅ ${text.noun}을(를) 저장했습니다.`);
-      snapshotRef.current = formSnapshot(content, selectedLabels, attachments, linkedItems, tables);
+      if (hash.names.length > 0) {
+        setContent(saveText);
+        setSelectedLabels(saveLabels);
+      }
+      snapshotRef.current = formSnapshot(saveText, saveLabels, attachments, linkedItems, tables);
       baseLinksRef.current = linkedItems;
       return true;
     } catch (error) {
@@ -861,6 +873,26 @@ export default function EntryDrawer({
                 />
               )}
             </div>
+            {/* 마지막 줄 '#라벨' 미리보기 (19번 U10) - 저장하면 무엇이 일어날지 */}
+            {hashPreview.length > 0 && (
+              <div data-hash-preview className="flex flex-wrap items-center gap-1 text-2xs font-bold text-slate-500">
+                <span>저장하면 마지막 줄을 라벨로:</span>
+                {hashPreview.map((n) => {
+                  const isNew = !labelOptions.includes(n);
+                  return (
+                    <span
+                      key={n}
+                      data-hash-label={n}
+                      data-new={isNew || undefined}
+                      className={`px-1.5 py-0.5 rounded border ${isNew ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}
+                    >
+                      #{n}
+                      {isNew ? ' (새로 만듦)' : ''}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
             <p className="text-2xs text-slate-400">
               ▦ 엑셀·한셀·구글 시트에서 복사해 여기에 붙여넣으면 서식째 표로 붙습니다.
               {kind === 'journal' ? ' @이름을 치면 학생 태그를 고릅니다.' : ''}

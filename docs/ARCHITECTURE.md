@@ -219,6 +219,14 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   쓰는 칸은 글을 바꾼 뒤 커서를 `useLayoutEffect`에서 둔다 - requestAnimationFrame으로 미루면 그새 친 글자 앞으로 커서가 돌아가 '달걀'이 '걀달'이 됐다.
   카드의 체크 줄(`data-check-line`) 누르기: 메모는 `updateMemo`, 기록은 `useDayData.toggleJournalCheckLine`(mutateJournals로 그 항목 글만,
   `toggleCheckLine(text, i, 보던 줄)`이 null이면 그새 고쳐진 것이라 저장하지 않고 안내).
+- **마지막 줄 '#라벨'** (19번 U10, 2026-10-07): `lib/hashLabels.takeTrailingHashLabels` - 마지막 비지 않은 줄이 `#이름`들로만 되어 있으면 이름을 떼고
+  그 줄을 지운다(`#\d{8}` 학생 태그는 줄에 남김, 글이 그 줄뿐이면 그대로, 20자, 끝 문장 부호 뗌). `EntryDrawer.handleSubmit`이 저장 직전에 적용하고
+  칸에도 뗀 글·칩을 남긴다. 칸 아래 미리보기 `data-hash-preview`(`data-hash-label`, 새 이름은 `data-new`). 새 이름은 `ensureEntryLabels`가 두 배열에 채우고
+  (클라우드 배열이 비었으면 보이던 목록 = V3 localStorage·기본값을 바탕으로 - `setEntryLabelCloud`의 shown), 기록 labelIds는 목록에 아직 없으면 `entryJournalId(이름)`.
+- **빈 라벨 정리** (19번 U10): `lib/labelUsage` - `loadEntryLabelUsageInput`(개인 + 그룹의 tasks·journals, 휴지통을 `getDocsFromServer`로, 하나라도 못 읽으면 던진다 -
+  덜 센 채로 '비었다'고 하면 쓰는 라벨을 지운다), `countEntryLabelUsage`(메모 labels, 기록 labelIds·label·옛 '[라벨]' 글, 휴지통 type memo/journal의 data, 상위는 하위 포함),
+  `emptyEntryLabels`(하위가 있는 상위·맨 위 라벨은 체크 해제). LabelModal 메모·기록 탭 `data-label-count`·`data-label-usage`·`data-label-prune`·`data-label-prune-list`·
+  `data-label-prune-item`·`data-label-prune-confirm`. 지우기는 `handleSaveAll(nextEntries, nextParents)` - 휴지통 먼저, 두 배열 + 트리. 저절로 지우지 않는다(결정 표).
 - **날짜 칸 = 자리** (19번 U7, 2026-10-07): 쓰는 칸 머리 '📅 날짜'(`EntryDrawer` `placeDate`·`data-entry-date`·`data-entry-date-clear`,
   잠금 `placeLocked`)가 자리다. 바꾸고 저장하면 `EntryDraft.targetDate` → 패널이 글을 먼저 저장한 뒤 `useRelocate` →
   `lib/moveEntry.relocateEntry`(① 원본을 트랜잭션으로 서버에서 읽고 ② 새 자리에 만들고 ③ 역링크 갈아끼우고 ④ 원본을 휴지통
@@ -587,6 +595,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-refine-u5.mjs` | 19번 U5 메모·기록 라벨 한 목록(11) - 라벨 관리 탭 둘·한 목록, 새 라벨이 두 배열에(문자열 모양·기록 id 그대로), 일정 라벨 V3 이름, 쓰는 칸 칩 같음, 메모에만 있던 라벨로 기록 저장 → jm_ id 채움, 이름 바꾸기. 라벨 문서·트리·자료를 되돌린다 |
 | `tools/inspect-refine-u6.mjs` | 19번 U6 한 카드·쓰는 칸(11) - 기록·메모 카드 칩 위·#라벨 없음, 기록 완료(서버 그 항목만·기록 수 그대로·새로고침 뒤), ★ 맨 위, 쓰는 칸 머리줄 ★(글은 칸에), 새 메모 완료 저장. 기록 문서·메모를 되돌린다 |
 | `tools/inspect-refine-u7.mjs` | 19번 U7 날짜 칸 = 자리(12) - 메모에 날짜 → 그날 기록(글·라벨·첨부·표·처음 쓴 때), 메모 사라짐·휴지통 '(날짜를 바꿈)'·링크된 일정이 새 기록을, 칸이 따라감, 되돌리기, 기록 날짜 바꾸기·빼기(fromDate·카드 '📅 m/d에서'). 자료를 지운다 |
+| `tools/inspect-refine-u10.mjs` | 19번 U10 '#라벨'·빈 라벨 정리(11) - 새 메모 마지막 줄 #새라벨 #업무(미리보기·저장·두 배열), 새 기록 #라벨 #학생태그(jm_ id, 태그 줄 남음), 라벨 관리 세기 → 정리 → 두 배열에서 빠짐·휴지통. 라벨·트리·자료·휴지통을 되돌린다 |
 | `tools/inspect-refine-u9.mjs` | 19번 U9 체크리스트(13) - 새 메모: 고른 줄 ☐ 붙이기·떼기, Enter 이어 쓰기·빈 줄 끝, 단축키, 저장, 카드 '☑ 0/3'·줄 누르기, 기록 카드 줄 누르기(그 기록만)·새로고침. 메모·기록 문서를 되돌린다 |
 | `tools/inspect-refine-u8.mjs` | 19번 U8 거르개(8) - 학교 › A·B학교를 심고 메모·기록: 처음 접힘, 학교 → 셋, 기타 → 학교만, 새로고침 뒤 접힘. 라벨·트리·자료를 되돌린다 (옛 inspect-label-tree.mjs는 '하위 포함' 규칙이라 지움) |
 | `tools/inspect-progress-csv.mjs` | 진도 관리 예시 CSV(6) - 받기(머리줄·예시 내용)·불러오기 17차시·CP949 CSV 한글. 저장하지 않아 자료는 그대로 |

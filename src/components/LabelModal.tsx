@@ -15,6 +15,7 @@ import { scanForMissingLabels, pickRecoveryColor } from '../utils/labelRecovery'
 import { applyLabelRenames, diffLabelNames } from '../utils/labelRename';
 import { orderByTree, sanitizeParents, saveLabelTree, useLabelTree } from '../lib/labelTree';
 import { moveToTrash } from '../utils/trashHelper';
+import { countEntryLabelUsage, emptyEntryLabels, loadEntryLabelUsageInput, usageTotal, type LabelUsage } from '../lib/labelUsage';
 import {
   mergeEntryLabels,
   toJournalLabels,
@@ -247,7 +248,10 @@ function TreeLabelRows({
   onDelete,
   noun,
   focusClass,
+  usage,
 }: {
+  /** '항목 수 세기'를 했으면 라벨 이름 → 수 (19번 U10) */
+  usage?: Record<string, LabelUsage> | null;
   labels: { id: string; name: string; color: string }[];
   setLabels: (next: any[]) => void;
   parentIds: Record<string, string>;
@@ -340,6 +344,15 @@ function TreeLabelRows({
                   ))}
                 </select>
               </label>
+              {usage && (
+                <span
+                  data-label-usage={lbl.name}
+                  title={row.hasChildren ? '하위 라벨이 붙은 항목도 셉니다' : undefined}
+                  className={`text-2xs font-bold ${usageTotal(usage[lbl.name]) === 0 ? 'text-rose-500' : 'text-slate-500'}`}
+                >
+                  메모 {usage[lbl.name]?.memo ?? 0} · 기록 {usage[lbl.name]?.journal ?? 0} · 휴지통 {usage[lbl.name]?.trash ?? 0}
+                </span>
+              )}
             </div>
             <button
               onClick={() => onDelete(lbl.id)}
@@ -390,6 +403,11 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   const [newEntryColor, setNewEntryColor] = useState('green');
   // 새 라벨을 더할 때 고르는 상위 라벨 (id, 없으면 '')
   const [newEntryParent, setNewEntryParent] = useState('');
+
+  // 항목 수 세기·빈 라벨 정리 (19번 U10, lib/labelUsage) - 누를 때만 서버를 한 번 훑는다
+  const [usage, setUsage] = useState<Record<string, LabelUsage> | null>(null);
+  const [counting, setCounting] = useState<{ done: number; total: number } | null>(null);
+  const [pruneList, setPruneList] = useState<{ id: string; name: string; checked: boolean }[] | null>(null);
 
   const [saving, setSaving] = useState(false);
   // 이름이 바뀐 라벨을 기존 항목에 반영하는 중 (저장보다 오래 걸릴 수 있다)
@@ -475,6 +493,8 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     if (!isOpen) return;
     setLabelsLoaded(false);
     setLoadError(false);
+    setUsage(null);
+    setPruneList(null);
     fetchLabels();
   }, [isOpen]);
 
@@ -609,12 +629,12 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   };
 
   // 저장 직전, 불러온 시점과 비교해 삭제된 라벨을 찾아 휴지통으로 보낸다.
-  const trashRemovedLabels = async () => {
+  const trashRemovedLabels = async (nextEntries: EntryLabel[]) => {
     const removedEvents = originalEventLabelsRef.current.filter(
       (orig) => !eventLabels.some((l) => l.id === orig.id)
     );
     const removedEntries = originalEntryLabelsRef.current.filter(
-      (orig) => !entryLabels.some((l) => l.id === orig.id)
+      (orig) => !nextEntries.some((l) => l.id === orig.id)
     );
 
     for (const lbl of removedEvents) {
@@ -642,7 +662,8 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
   };
 
   // --- 전체 라벨 저장 ---
-  const handleSaveAll = async () => {
+  /** 모두 저장. nextEntries·nextParents를 주면 그 목록으로(빈 라벨 정리 - state가 아직 바뀌기 전) */
+  const handleSaveAll = async (nextEntries: EntryLabel[] = entryLabels, nextParents: Record<string, string> = entryParentIds) => {
     const user = auth.currentUser;
     if (!user) return;
     if (!labelsLoaded) {
@@ -652,12 +673,12 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
 
     setSaving(true);
     try {
-      await trashRemovedLabels();
+      await trashRemovedLabels(nextEntries);
 
       // 이름이 바뀐 라벨을 먼저 추려둔다. 저장된 항목들은 라벨을 "이름"으로 들고
       // 있어서, 이름만 바꾸고 두면 그 항목들의 라벨 칩이 사라진다.
       // 메모·기록 라벨은 한 목록이라 이름 바꾸기도 메모·기록 둘 다에 (기록은 id라 항목은 그대로지만 옛 [이름] 글 형식)
-      const entryRenames = diffLabelNames(originalEntryLabelsRef.current, entryLabels);
+      const entryRenames = diffLabelNames(originalEntryLabelsRef.current, nextEntries);
       const renames = {
         event: diffLabelNames(originalEventLabelsRef.current, eventLabels),
         journal: entryRenames,
@@ -666,12 +687,12 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
 
       const docRef = doc(db, 'users', user.uid, 'settings', 'labels');
       // 일정 라벨은 V3 이름(isForward 등)도 함께 쓴다 - 예전에는 이 저장만 V4 이름으로 써서 V3가 속성을 못 읽었다(19번 U5에서 고침)
-      const { payload, memoLabels, journalLabels } = labelsPayload(eventLabels, entryLabels);
+      const { payload, memoLabels, journalLabels } = labelsPayload(eventLabels, nextEntries);
       await setDoc(docRef, payload, { merge: true });
-      const saved = afterWrite(eventLabels, entryLabels, memoLabels, journalLabels);
+      const saved = afterWrite(eventLabels, nextEntries, memoLabels, journalLabels);
 
       // 상위/하위도 함께 저장한다. id로 들고 있던 것을 지금 이름으로 바꿔 두므로 이름을 고친 것도 따라간다.
-      await saveTree(entryParentIds, saved);
+      await saveTree(nextParents, saved);
       treeTouchedRef.current = false;
 
       const renameCount = renames.event.length + entryRenames.length;
@@ -700,6 +721,55 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
     } finally {
       setSaving(false);
     }
+  };
+
+  // --- 항목 수 세기 · 빈 라벨 정리 (19번 U10) ---
+  /** 상위/하위를 이름으로 (하위 이름 → 상위 이름) */
+  const parentNames = () => {
+    const nameOf = (id: string) => entryLabels.find((l) => l.id === id)?.name;
+    const out: Record<string, string> = {};
+    for (const [c, p] of Object.entries(entryParentIds)) {
+      const cn = nameOf(c);
+      const pn = nameOf(p);
+      if (cn && pn) out[cn] = pn;
+    }
+    return out;
+  };
+  const handleCountUsage = async () => {
+    const user = auth.currentUser;
+    if (!user || counting) return;
+    setPruneList(null);
+    setCounting({ done: 0, total: 1 });
+    try {
+      const input = await loadEntryLabelUsageInput(user.uid, groups.map((g) => g.id), (done, total) => setCounting({ done, total }));
+      setUsage(countEntryLabelUsage(input, entryLabels, parentNames()));
+    } catch (e) {
+      // 덜 센 채로 '비었다'고 보이면 쓰는 라벨을 지운다 - 아무것도 보이지 않는다
+      setUsage(null);
+      showErrorToast('항목 수를 세지 못했습니다. 인터넷 연결을 보고 다시 눌러 주세요.', e);
+    } finally {
+      setCounting(null);
+    }
+  };
+  const emptyCount = usage ? entryLabels.filter((l) => usageTotal(usage[l.name]) === 0).length : 0;
+  const handlePrune = async () => {
+    if (!pruneList) return;
+    const drop = new Set(pruneList.filter((x) => x.checked).map((x) => x.id));
+    if (drop.size === 0) return;
+    const nextEntries = entryLabels.filter((l) => !drop.has(l.id));
+    // 지운 라벨이 상위였거나 하위였던 연결도 뗀다
+    const nextParents = Object.fromEntries(Object.entries(entryParentIds).filter(([c, p]) => !drop.has(c) && !drop.has(p)));
+    treeTouchedRef.current = true;
+    setEntryParentIds(nextParents);
+    setPruneList(null);
+    await handleSaveAll(nextEntries, nextParents);
+    setUsage((u) => {
+      if (!u) return u;
+      const next = { ...u };
+      for (const l of entryLabels) if (drop.has(l.id)) delete next[l.name];
+      return next;
+    });
+    showToast(`🧹 빈 라벨 ${drop.size}개를 지웠습니다. 휴지통에서 되살릴 수 있습니다.`);
   };
 
   // --- 삭제된(또는 누락된) 라벨 자동 복구 ---
@@ -1080,8 +1150,69 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
                   onDelete={handleDeleteEntryLabel}
                   noun="메모·기록"
                   focusClass="focus:border-emerald-500"
+                  usage={usage}
                 />
               </div>
+
+              {/* 항목 수 세기 · 빈 라벨 정리 (19번 U10) - 빈 라벨은 저절로 지우지 않는다 */}
+              <div className="flex items-center gap-2 flex-wrap text-xs">
+                <button
+                  type="button"
+                  data-label-count
+                  onClick={handleCountUsage}
+                  disabled={!!counting || !labelsLoaded}
+                  title="메모·기록(개인 + 내 그룹)과 휴지통을 훑어 라벨마다 붙은 항목 수를 셉니다"
+                  className="px-3 py-1.5 bg-white hover:bg-slate-50 disabled:opacity-50 border border-slate-300 rounded-lg font-bold text-slate-600"
+                >
+                  {counting ? `세는 중… ${counting.done}/${counting.total}` : usage ? '🔢 다시 세기' : '🔢 항목 수 세기'}
+                </button>
+                {usage && (
+                  <button
+                    type="button"
+                    data-label-prune
+                    disabled={emptyCount === 0}
+                    onClick={() => setPruneList(emptyEntryLabels(entryLabels, usage, parentNames()))}
+                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 border border-rose-200 rounded-lg font-bold text-rose-700"
+                  >
+                    🧹 빈 라벨 정리 ({emptyCount}개)
+                  </button>
+                )}
+              </div>
+              {pruneList && (
+                <div data-label-prune-list className="border border-rose-200 bg-rose-50/50 rounded-xl p-3 space-y-2 text-xs">
+                  <p className="text-slate-600">
+                    메모·기록·휴지통 어디에도 붙지 않은 라벨입니다. 남길 것은 체크를 빼세요. 하위가 있는 상위·맨 위(기본) 라벨은 처음부터 빼 두었습니다.
+                    지운 라벨은 휴지통으로 가고, 저장하지 않은 고침도 함께 저장합니다.
+                  </p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {pruneList.map((x) => (
+                      <label key={x.id} className="flex items-center gap-1.5 font-bold text-slate-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          data-label-prune-item={x.name}
+                          checked={x.checked}
+                          onChange={(e) => setPruneList((list) => list && list.map((y) => (y.id === x.id ? { ...y, checked: e.target.checked } : y)))}
+                        />
+                        {x.name}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <button type="button" onClick={() => setPruneList(null)} className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg font-bold text-slate-600">
+                      그만두기
+                    </button>
+                    <button
+                      type="button"
+                      data-label-prune-confirm
+                      disabled={saving || !pruneList.some((x) => x.checked)}
+                      onClick={handlePrune}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg font-bold"
+                    >
+                      고른 {pruneList.filter((x) => x.checked).length}개 지우기
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* 새 메모·기록 라벨 추가 */}
               <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 p-3 rounded-xl">
@@ -1148,7 +1279,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
           </button>
           {saveSuccess && <span className="text-emerald-500 text-xs font-bold mr-2">✅ 저장되었습니다</span>}
           <button
-            onClick={handleSaveAll}
+            onClick={() => void handleSaveAll()}
             disabled={saving || !labelsLoaded}
             title={!labelsLoaded ? '라벨 정보를 불러오는 중에는 저장할 수 없습니다' : undefined}
             className="px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"

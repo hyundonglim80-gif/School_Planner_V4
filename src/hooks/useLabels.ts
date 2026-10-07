@@ -182,7 +182,7 @@ export function useLabels() {
       const rawJournal = cloudJournal || legacyJournal;
       setJournalRaw(rawJournal || DEFAULT_JOURNAL_LABELS);
       // 저장 전에 빠진 라벨을 채울 때(lib/entryLabelSync) 클라우드에 무엇이 있는지 본다
-      setEntryLabelCloud(cloudMemo, cloudJournal);
+      setEntryLabelCloud(cloudMemo, cloudJournal, rawMemo || DEFAULT_MEMO_LABELS, rawJournal || DEFAULT_JOURNAL_LABELS);
 
       // localStorage에만 있던 라벨을 Firestore로 한 번 옮겨 두 앱이 같은 곳을 보게 한다
       if (!migratedRef.current && (legacyEvents || legacyMemo || legacyJournal)) {
