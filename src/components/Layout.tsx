@@ -50,7 +50,7 @@ import MiniCalendarPicker from './MiniCalendarPicker';
 import MobileTabBar from './MobileTabBar';
 import EntryPanelHost, { DOCK_MIN_WIDTH, openEntryPanel, closeAllEntryPanels } from './EntryPanelHost';
 import { useShareReceiver } from '../hooks/useShareReceiver';
-import { useSidePopups, RIGHT_COLUMN_CSS_WIDTH } from './PopupFrame';
+import { useSidePopups, RIGHT_COLUMN_CSS_WIDTH, SideTabs } from './PopupFrame';
 import { closeAllModals } from '../hooks/useModalLayer';
 import ClipboardPanel, { useClipboardCapture, LEFT_COLUMN_CSS_WIDTH } from './ClipboardPanel';
 import GoogleLoginPrompt from './GoogleLoginPrompt';
@@ -1045,6 +1045,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* 메모·기록 쓰는 칸. 화면과 따로 살아서, 다른 화면으로 옮겨도 남는다. */}
       <EntryPanelHost />
+      {/* 오른쪽 칸이 둘 이상이면 위에 탭 (2026-10-07) */}
+      <SideTabs />
       <ClipboardPanel />
       {/* 구글 토큰이 만료됐는데 로그인 창이 막힐 때 묻는 창 (lib/googleLoginPrompt) */}
       <GoogleLoginPrompt />

@@ -16,11 +16,11 @@
 // (SidePanelFrame)도 같은 줄이다.
 //   - 폭은 모두 같다 (RIGHT_COLUMN_WIDTH). 팝업마다 폭이 달라 오갈 때 화면이 들썩였다.
 //   - 칸이 하나면 줄을 꽉 채운다 (안쪽 목록이 스스로 스크롤하고 저장 줄은 바닥에 붙는다).
-//   - 칸 위에서 또 칸을 열면 나중에 연 것(하위)이 위, 먼저 연 것(상위)이 아래에
-//     제 길이대로 쌓이고, 줄 전체가 한 덩어리로 스크롤한다. 왼쪽 화면과는 따로 돈다.
-//   - 새 칸을 열면 줄을 맨 위로 올려 방금 연 칸이 보이게 한다.
+//   - 칸이 둘 이상이면 줄 위에 **탭**이 선다 (2026-10-07 사용자 요청 - 예전에는 나중에 연 것이 위, 먼저 연 것이
+//     아래로 쌓였다). 새 칸을 열면 탭이 하나 더해지고 그 칸이 보인다. 다른 탭을 누르면 그 칸으로 바뀐다.
+//     안 보이는 칸도 그대로 살아 있어 적던 글이 남는다(display:none). 탭의 ×는 그 칸의 '닫기'를 누른다.
 // 휴대폰 배너는 줄에 세우지 않는다 - 화면이 작아 쌓아 두면 쓸 수 없다. 위에 덮는다.
-import React, { useEffect, useId, useRef } from 'react';
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { create } from 'zustand';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
@@ -56,8 +56,21 @@ const CENTER_WIDTH: Record<ModalWidth, string> = {
   '4xl': 'max-w-4xl',
 };
 
-/** 지금 오른쪽 줄에 선 칸들. 연 순서(먼저 연 것이 앞). Layout은 하나라도 있으면 화면을 줄인다. */
-export const useSidePopups = create<{ order: string[] }>(() => ({ order: [] }));
+/**
+ * 지금 오른쪽 줄에 선 칸들. 연 순서(먼저 연 것이 앞). Layout은 하나라도 있으면 화면을 줄인다.
+ * active: 탭에서 보이는 칸 (없으면 맨 나중에 연 것)
+ */
+export const useSidePopups = create<{ order: string[]; active?: string | null }>(() => ({ order: [], active: null }));
+
+/** 지금 보이는 칸 id (active가 줄에 없으면 맨 나중에 연 것) */
+const activeOf = (s: { order: string[]; active?: string | null }) =>
+  s.active && s.order.includes(s.active) ? s.active : s.order[s.order.length - 1] ?? null;
+
+/** 탭을 눌러 그 칸을 보인다 */
+export function activateSideSlot(id: string) {
+  useSidePopups.setState({ active: id });
+  getSideColumn().scrollTop = 0;
+}
 
 let columnEl: HTMLElement | null = null;
 
@@ -79,6 +92,10 @@ export interface SideSlot {
   row: number;
   /** 줄에 선 칸 수 */
   rows: number;
+  /** 줄 안의 이름 (탭이 칸을 찾는다) */
+  id?: string;
+  /** 탭에서 지금 보이는 칸인가 */
+  shown?: boolean;
 }
 
 /**
@@ -89,29 +106,133 @@ export function useSideSlot(active: boolean, raise?: number): SideSlot {
   const id = useId();
   useEffect(() => {
     if (!active) return;
-    useSidePopups.setState((s) => ({ order: [...s.order, id] }));
-    // 방금 연 칸은 맨 위에 선다. 줄을 아래로 굴려 둔 채였으면 올려서 보이게 한다.
+    // 방금 연(다시 연) 칸이 보이는 탭이 된다
+    useSidePopups.setState((s) => ({ order: [...s.order.filter((x) => x !== id), id], active: id }));
     getSideColumn().scrollTop = 0;
     return () => {
-      useSidePopups.setState((s) => ({ order: s.order.filter((x) => x !== id) }));
+      useSidePopups.setState((s) => {
+        const order = s.order.filter((x) => x !== id);
+        return { order, active: s.active === id ? order[order.length - 1] ?? null : s.active };
+      });
     };
   }, [active, id, raise]);
 
   const order = useSidePopups((s) => s.order);
+  const shownId = useSidePopups(activeOf);
   const index = order.indexOf(id);
-  if (!active || index < 0) return { row: 0, rows: 1 };
-  return { row: order.length - 1 - index, rows: order.length };
+  if (!active || index < 0) return { row: 0, rows: 1, id, shown: true };
+  return { row: order.length - 1 - index, rows: order.length, id, shown: shownId === id };
 }
 
 /**
  * 줄 안에서 한 칸의 자리. 혼자면 줄을 꽉 채우고, 여럿이면 제 길이대로 쌓인다
  * (나중에 연 것이 위 - order). 칸 사이에는 굵은 줄을 둔다.
  */
-export function sideSlotProps({ row, rows }: SideSlot): { className: string; style: React.CSSProperties } {
+export function sideSlotProps({ rows, id, shown }: SideSlot): { className: string; style: React.CSSProperties; 'data-side-slot'?: string } {
+  // 탭 방식: 보이는 칸 하나만 줄을 채우고(order 0 = 맨 위 칸 - isTopSideItem), 나머지는 숨겨 둔다(적던 것은 그대로)
+  if (rows > 1 && !shown) return { className: 'flex flex-col bg-white', style: { display: 'none', order: 1 }, 'data-side-slot': id };
   return {
-    className: `flex flex-col bg-white shrink-0 ${row > 0 ? 'border-t-4 border-t-slate-300' : ''}`,
-    style: rows > 1 ? { order: row } : { order: row, height: '100%' },
+    className: 'flex flex-col bg-white shrink-0',
+    style: rows > 1 ? { order: 0, flex: '1 1 0%', minHeight: 0 } : { order: 0, height: '100%' },
+    'data-side-slot': id,
   };
+}
+
+/** 칸의 탭 이름: 칸 이름(aria-label·제목) + 쓰던 글 첫 줄 */
+function slotTitle(el: Element | null): string {
+  if (!el) return '…';
+  const head = el.querySelector('h1, h2, h3');
+  let label = (el.getAttribute('aria-label') || head?.textContent || '창').trim().replace(/\s+/g, ' ');
+  label = label.replace(/ 쓰기$/, '');
+  const ta = el.querySelector('textarea') as HTMLTextAreaElement | null;
+  const first = (ta?.value || '').split('\n').find((l) => l.trim())?.trim() || '';
+  const text = first ? `${label} · ${first}` : label;
+  return text.length > 22 ? text.slice(0, 21) + '…' : text;
+}
+
+/** 칸 안의 닫기 단추를 누른다 (칸마다 닫는 일 - 저장 안 한 글 묻기 등 - 을 그대로 따른다) */
+function closeSlot(id: string) {
+  const el = getSideColumn().querySelector(`[data-side-slot="${CSS.escape(id)}"]`);
+  const btn = [...(el?.querySelectorAll('button') || [])].find((b) => {
+    const t = (b.getAttribute('title') || b.getAttribute('aria-label') || b.textContent || '').trim();
+    return /^(닫기|✕|×)$/.test(t) || /^닫기\b/.test(b.getAttribute('title') || '');
+  }) as HTMLButtonElement | undefined;
+  btn?.click();
+}
+
+/**
+ * 오른쪽 줄 위의 탭 (칸이 둘 이상일 때만). Layout이 한 번 그린다.
+ * 탭 이름은 칸의 이름표·제목과 쓰던 글 첫 줄에서 읽는다(칸이 이름을 따로 넘기지 않아도 되게).
+ */
+export function SideTabs() {
+  const order = useSidePopups((s) => s.order);
+  const shownId = useSidePopups(activeOf);
+  const [titles, setTitles] = useState<Record<string, string>>({});
+  const [tick, setTick] = useState(0);
+  // 글을 칠 때 탭 이름도 따라가게 (가볍게 - 1초에 한 번)
+  useEffect(() => {
+    if (order.length < 2) return;
+    const col = getSideColumn();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const on = () => {
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        setTick((t) => t + 1);
+      }, 1000);
+    };
+    col.addEventListener('input', on);
+    return () => {
+      col.removeEventListener('input', on);
+      if (timer) clearTimeout(timer);
+    };
+  }, [order.length]);
+  useLayoutEffect(() => {
+    const col = getSideColumn();
+    const next: Record<string, string> = {};
+    for (const id of order) next[id] = slotTitle(col.querySelector(`[data-side-slot="${CSS.escape(id)}"]`));
+    if (JSON.stringify(next) !== JSON.stringify(titles)) setTitles(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order, shownId, tick]);
+  if (order.length < 2) return null;
+  return createPortal(
+    <div
+      role="tablist"
+      aria-label="오른쪽 칸"
+      data-side-tabs
+      className="sticky top-0 z-20 flex items-end gap-1 overflow-x-auto bg-slate-100 border-b border-slate-200 px-1.5 pt-1.5 shrink-0"
+      style={{ order: -1 }}
+    >
+      {order.map((id) => {
+        const on = id === shownId;
+        return (
+          <div
+            key={id}
+            role="tab"
+            aria-selected={on}
+            data-side-tab={id}
+            className={`group flex items-center max-w-[11rem] shrink-0 rounded-t-lg border border-b-0 text-xs font-bold ${
+              on ? 'bg-white text-slate-800 border-slate-200' : 'bg-slate-50 text-slate-500 border-transparent hover:bg-white/70'
+            }`}
+          >
+            <button type="button" onClick={() => activateSideSlot(id)} title={titles[id]} className="pl-2.5 pr-1 py-1.5 truncate">
+              {titles[id] || '…'}
+            </button>
+            <button
+              type="button"
+              aria-label="탭 닫기"
+              title="이 칸 닫기"
+              onClick={() => closeSlot(id)}
+              className="px-1.5 py-1 text-slate-400 hover:text-rose-600"
+            >
+              ×
+            </button>
+          </div>
+        );
+      })}
+    </div>,
+    getSideColumn()
+  );
 }
 
 interface PopupFrameProps {
@@ -213,13 +334,14 @@ export default function PopupFrame({
   if (!isOpen) return null;
 
   if (docked) {
-    const { className, style } = sideSlotProps(slot);
+    const { className, style, 'data-side-slot': slotId } = sideSlotProps(slot);
     return createPortal(
       <section
         ref={cardRef}
         role="dialog"
         data-popup-card
         data-popup-frame="side"
+        data-side-slot={slotId}
         className={`${className} animate-fade-in`}
         style={style}
       >

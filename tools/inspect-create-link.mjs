@@ -17,7 +17,8 @@ await page.locator('[data-focus-key^="event"]').first().click();
 await page.waitForTimeout(800);
 await page.locator('#side-column aside[aria-label="일정 쓰기"]').getByRole('button', { name: /링크 추가/ }).click();
 await page.waitForTimeout(1200);
-const linker = page.locator('#side-column section[role=dialog]', { has: page.getByRole('heading', { name: /새 데이터 연결하기/ }) });
+// 탭 방식(2026-10-07): 숨은 탭 안의 제목은 getByRole로 안 잡혀 글자로 찾는다
+const linker = page.locator('#side-column section[role=dialog]', { hasText: '새 데이터 연결하기' });
 await linker.getByRole('button', { name: /기록/ }).first().click();
 await page.waitForTimeout(800);
 await linker.getByRole('button', { name: /새 기록 만들어 연결/ }).click();
@@ -38,6 +39,7 @@ console.log(`저장하면 연결 목록에 담긴다: ${ok((await linker.getByTe
 console.log(`저장 뒤에도 기록 칸에 적은 것이 남는다(기록 수정): ${ok((await box.inputValue()) === T && (await jr.getByRole('heading', { name: '기록 수정' }).count()) === 1)}`);
 await jr.getByRole('button', { name: /^닫기$/ }).click();
 await page.waitForTimeout(500);
+// 기록 칸을 닫으면 연결 창 탭이 다시 보인다
 await linker.getByRole('button', { name: '연결 저장' }).click();
 await page.waitForTimeout(1800);
 const ev = page.locator('#side-column aside[aria-label="일정 쓰기"]');

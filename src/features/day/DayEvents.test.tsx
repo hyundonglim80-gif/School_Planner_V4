@@ -142,8 +142,8 @@ describe('DayEvents - 일정을 누르면 오른쪽 칸에서 고친다', () => 
     expect(rows[1].className).not.toContain('ring-primary');
   });
 
-  it('칸을 연 채 다른 일정을 누르면 새 칸이 위에 쌓이고, 먼저 연 칸은 적던 것째 아래에 남는다', async () => {
-    // 예전에는 먼저 연 칸을 저장하고 새 칸으로 바꿨다. 이제 다른 팝업 칸처럼 쌓인다.
+  it('칸을 연 채 다른 일정을 누르면 새 칸(탭)이 보이고, 먼저 연 칸은 적던 것째 숨은 탭으로 남는다', async () => {
+    // 예전에는 먼저 연 칸을 저장하고 새 칸으로 바꿨다. 그 뒤 위아래로 쌓였고, 2026-10-07부터 위 탭으로 바꾼다.
     const user = userEvent.setup();
     renderEvents();
 
@@ -151,18 +151,20 @@ describe('DayEvents - 일정을 누르면 오른쪽 칸에서 고친다', () => 
     await user.type(await screen.findByDisplayValue('교직원 회의'), '!');
     await user.click(screen.getByText('안전 점검'));
 
-    const panels = await screen.findAllByRole('complementary', { name: '일정 쓰기' });
+    await screen.findAllByRole('complementary', { name: '일정 쓰기' });
+    // 숨은 탭은 접근성 트리 밖이라 이름으로 찾지 않고 그대로 센다
+    const panels = [...document.querySelectorAll<HTMLElement>('aside[aria-label="일정 쓰기"]')];
     expect(panels).toHaveLength(2);
-    // 나중에 연 것이 위(order 0), 먼저 연 것이 아래(order 1)
+    // 나중에 연 것이 보이는 탭(order 0), 먼저 연 것은 숨은 탭(display none)
     const top = panels.find((p) => p.style.order === '0')!;
-    const below = panels.find((p) => p.style.order === '1')!;
+    const below = panels.find((p) => p.style.display === 'none')!;
     expect(within(top).getByDisplayValue('안전 점검')).toBeInTheDocument();
     expect(within(below).getByDisplayValue('교직원 회의!')).toBeInTheDocument();
     // 쓰던 중이므로 저장하지 않는다
     expect(hook.updateEventItem).not.toHaveBeenCalled();
   });
 
-  it('이미 열린 일정을 다시 누르면 새 칸을 만들지 않고 그 칸을 맨 위로 올린다', async () => {
+  it('이미 열린 일정을 다시 누르면 새 칸을 만들지 않고 그 칸(탭)을 보인다', async () => {
     const user = userEvent.setup();
     renderEvents();
 
@@ -171,7 +173,9 @@ describe('DayEvents - 일정을 누르면 오른쪽 칸에서 고친다', () => 
     await user.click(screen.getByText('안전 점검'));
     await user.click(screen.getByText('교직원 회의'));
 
-    const panels = await screen.findAllByRole('complementary', { name: '일정 쓰기' });
+    await screen.findAllByRole('complementary', { name: '일정 쓰기' });
+    // 숨은 탭은 접근성 트리 밖이라 이름으로 찾지 않고 그대로 센다
+    const panels = [...document.querySelectorAll<HTMLElement>('aside[aria-label="일정 쓰기"]')];
     expect(panels).toHaveLength(2);
     const top = panels.find((p) => p.style.order === '0')!;
     // 적던 것이 그대로 남아 있다 (다시 그리지 않았다)
@@ -439,7 +443,7 @@ describe('쓰는 칸 - ESC와 Ctrl+S', () => {
     renderEvents();
     await user.click(screen.getByText('교직원 회의'));
     await user.click(screen.getByText('안전 점검'));
-    expect(screen.getAllByRole('complementary', { name: '일정 쓰기' })).toHaveLength(2);
+    expect(document.querySelectorAll('aside[aria-label="일정 쓰기"]')).toHaveLength(2);
 
     act(() => {
       expect(closeAllEntryPanels()).toBe(true);

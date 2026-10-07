@@ -52,13 +52,14 @@ export default function SidePanelFrame({
 
   if (docked) {
     // 팝업과 같은 오른쪽 줄(PopupFrame.getSideColumn)에 선다. 폭도, 스크롤도 줄이 맡는다.
-    const { className, style } = sideSlotProps(slot);
+    const { className, style, 'data-side-slot': slotId } = sideSlotProps(slot);
     return createPortal(
       <aside
         ref={panelRef}
         aria-label={ariaLabel}
         className={className}
         style={style}
+        data-side-slot={slotId}
       >
         {children}
       </aside>,

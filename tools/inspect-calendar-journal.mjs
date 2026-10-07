@@ -40,7 +40,8 @@ for (const [key, name] of [['Shift+Digit2', '주간'], ['Shift+Digit3', '월간'
   await page.waitForTimeout(1000);
   await page.getByRole('button', { name: '이 날 기록 추가' }).click();
   await page.waitForTimeout(800);
-  const add = page.locator('#side-column aside[aria-label="기록 쓰기"]').first();
+  // 탭 방식(2026-10-07): 보이는 칸(방금 연 탭)
+  const add = page.locator('#side-column aside[aria-label="기록 쓰기"]:visible').first();
   const okAdd = (await page.getByRole('heading', { name: '새 기록' }).count()) === 1 && (await add.getByText('파일 첨부').count()) === 1 && (await add.getByText('링크 추가').count()) === 1;
   console.log(`${name} - '+ 추가'는 하루 화면과 같은 새 기록 칸: ${ok(okAdd)}`);
   if (name === '주간') {
@@ -49,10 +50,22 @@ for (const [key, name] of [['Shift+Digit2', '주간'], ['Shift+Digit3', '월간'
     await box.fill(T);
     await box.press('Control+s');
     await page.waitForTimeout(1500);
+    // 그 칸의 날짜로 하루 화면을 연다 (기록 N건 보기 창의 날짜)
+    const savedDate = await add.locator('[data-entry-date]').inputValue().catch(() => '');
     await add.getByRole('button', { name: /^닫기$/ }).click();
+    await page.keyboard.press('Escape');
     await page.evaluate(() => document.activeElement?.blur());
     await page.keyboard.press('Shift+Digit1');
     await page.waitForTimeout(1500);
+    if (savedDate) {
+      await page.getByTitle(/달력에서 날짜 선택/).first().hover();
+      await page.waitForTimeout(300);
+      const direct = page.locator('label', { hasText: '직접 선택' }).locator('input[type=date]');
+      if (!(await direct.count())) await page.getByTitle(/달력에서 날짜 선택/).first().click();
+      await direct.fill(savedDate);
+      await page.mouse.move(5, 600);
+      await page.waitForTimeout(1500);
+    }
     console.log(`  주간에서 쓴 기록이 하루 화면에 보인다: ${ok((await page.locator('[data-focus-key^="journal"]', { hasText: T }).count()) === 1)}`);
   } else {
     await add.getByRole('button', { name: /^닫기$/ }).click();

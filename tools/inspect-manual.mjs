@@ -1226,8 +1226,8 @@ if (ONLY !== 'mobile') {
     assert((await entryPanel().count()) === 0, '닫기로 닫히지 않음');
   });
 
-  // 쓰는 칸은 쌓인다: 다른 메모를 누르면 새 칸이 위에 생기고, 고치던 칸은 적던 것째 아래에 남는다
-  await check('[옆 칸] 메모를 고치다 다른 메모를 누르면 새 칸이 위에 쌓이고, 고치던 칸은 적던 것째 아래에', async () => {
+  // 쓰는 칸은 탭으로 더해진다 (2026-10-07): 다른 메모를 누르면 새 칸(탭)이 보이고, 고치던 칸은 적던 것째 숨은 탭으로 남는다
+  await check('[옆 칸] 메모를 고치다 다른 메모를 누르면 새 탭이 보이고, 고치던 칸은 적던 것째 탭으로 남는다', async () => {
     await page.keyboard.press('Shift+Digit5');
     await wait(2000);
     await page.getByRole('button', { name: /전체 메모/ }).click();
@@ -1240,14 +1240,20 @@ if (ONLY !== 'mobile') {
     await ta.first().fill(M);
     await cards.nth(1).click();
     await wait(1500);
-    assert((await ta.count()) === 2, `칸이 쌓이지 않음 (${await ta.count()}개)`);
-    const stacked = await page.$$eval('#side-column > aside', (els) =>
-      els.map((e) => ({ top: e.getBoundingClientRect().top, v: e.querySelector('textarea')?.value || '' })).sort((a, b) => a.top - b.top)
-    );
-    assert(stacked[0].v !== M, '새 칸이 맨 위가 아님');
-    assert(stacked[1].v === M, '고치던 칸의 글이 남지 않음');
+    assert((await ta.count()) === 2, `칸이 둘이 아님 (${await ta.count()}개)`);
+    const tabs = page.locator('[data-side-tabs] [role=tab]');
+    assert((await tabs.count()) === 2, `탭이 둘이 아님 (${await tabs.count()}개)`);
+    const shown = await page.$$eval('#side-column > aside', (els) => els.filter((e) => getComputedStyle(e).display !== 'none').map((e) => e.querySelector('textarea')?.value || ''));
+    assert(shown.length === 1 && shown[0] !== M, '새 칸이 보이는 탭이 아님');
+    await tabs.nth(0).locator('button').first().click();
+    await wait(400);
+    const back = await page.$$eval('#side-column > aside', (els) => els.filter((e) => getComputedStyle(e).display !== 'none').map((e) => e.querySelector('textarea')?.value || ''));
+    assert(back[0] === M, '고치던 칸의 글이 남지 않음');
     for (let i = 0; i < 2; i++) {
-      await page.locator('#side-column > aside').first().getByRole('button', { name: '닫기' }).click();
+      await page.locator('[data-side-tabs] [role=tab], #side-column > aside').first().waitFor().catch(() => {});
+      const x = page.locator('[data-side-tabs] [aria-label="탭 닫기"]').first();
+      if (await x.count()) await x.click();
+      else await page.locator('#side-column > aside').first().getByRole('button', { name: '닫기' }).click();
       await wait(400);
     }
     await page.keyboard.press('Shift+Digit1');
