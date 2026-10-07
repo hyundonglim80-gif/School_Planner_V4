@@ -565,6 +565,8 @@ export default function LinkerModal({
       }
 
       showToast('✅ 데이터가 연결되었습니다.');
+      // 연결이 끝나면 닫는다 (2026-10-07 오른쪽 칸 탭 - 열어 두면 링크 수가 바뀐 쓰는 칸이 숨은 탭에 가려진다)
+      onClose();
     } catch (e: any) {
       console.error('saveLinks error:', e);
       showErrorToast('연결 저장 중 오류가 발생했습니다: ' + e.message);
