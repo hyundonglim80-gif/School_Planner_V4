@@ -240,6 +240,7 @@ export default function MemoScreen() {
             memo={memo}
             onEdit={handleOpenEdit}
             onToggleComplete={toggleComplete}
+            labelParents={memoParents}
             onToggleFavorite={toggleFavorite}
             onToggleCheckLine={toggleCheckLine}
             onDelete={deleteMemo}

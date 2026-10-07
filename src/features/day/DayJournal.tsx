@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { JournalEntry, Attachment } from '../../hooks/useDayData';
+import type { JournalEntry } from '../../hooks/useDayData';
 import { useAppStore } from '../../store/useAppStore';
 import { focusKey } from '../../lib/searchFocus';
-import { isLongEntry, previewLine } from '../../lib/entryCollapse';
+import { isLongEntry } from '../../lib/entryCollapse';
 import { useLabels } from '../../hooks/useLabels';
-import { attachmentImageSrc } from '../../lib/driveApi';
-import { isImageAttachment as isImageAtt } from '../../lib/attachments';
-import ImageViewerModal, { type ViewerImage } from '../../components/ImageViewerModal';
 import { openEntryPanel } from '../../components/EntryPanelHost';
 import { useMainWidth } from '../../hooks/useMainWidth';
 import {
@@ -20,24 +17,25 @@ import {
   useLabelTree,
   type LabelFilter,
 } from '../../lib/labelTree';
-import { showErrorToastOnce } from '../../utils/toast';
 import { formatDateStr } from '../../lib/dateUtils';
 import { TABLE_ONLY_CONTENT, normalizeTables } from '../../lib/entryTable';
-import EntryTableView from '../../components/EntryTableView';
 import { useDayEvalCounts } from '../../hooks/useDayEvalCounts';
-import { showDeletedToast } from '../../lib/undoToast';
+import EntryCard from '../../components/EntryCard';
 
 interface DayJournalProps {
   journals: JournalEntry[];
   /** 휴지통 문서 id를 돌려주면 안내에 '되돌리기'가 붙는다 */
   onDeleteJournal: (id: string) => Promise<string | void>;
   onReorderJournals?: (sourceIndex: number, targetIndex: number) => Promise<void>;
+  /** 완료·즐겨찾기 (19번 U6, useDayData.setJournalFlags) */
+  onSetJournalFlags?: (id: string, patch: { completed?: boolean; favorite?: boolean }) => Promise<void>;
 }
 
 export default function DayJournal({
   journals,
   onDeleteJournal,
   onReorderJournals,
+  onSetJournalFlags,
 }: DayJournalProps) {
   const { openLinkViewerModal, currentDate, openEvaluationModal, selectedGroupId, openLabelModal } = useAppStore();
   // store의 currentDate는 ISO 문자열(2026-09-18T05:12:33.000Z)이다. 문서 이름은
@@ -107,52 +105,6 @@ export default function DayJournal({
   // 등록된 라벨을 찾지 못하면(설정에서 지운 라벨 등) 칩을 숨긴다.
   const getLabelName = (entry: JournalEntry) => resolveLabel(entry)?.name || '';
 
-  const getLabelColorClass = (entry: JournalEntry) => {
-    const color = resolveLabel(entry)?.color || 'gray';
-
-    const map: Record<string, string> = {
-      blue: 'bg-blue-50 text-blue-700 border-blue-200',
-      green: 'bg-green-50 text-green-700 border-green-200',
-      red: 'bg-red-50 text-red-700 border-red-200',
-      orange: 'bg-orange-50 text-orange-700 border-orange-200',
-      yellow: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-      indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-      purple: 'bg-purple-50 text-purple-700 border-purple-200',
-      gray: 'bg-slate-50 text-slate-700 border-slate-200',
-    };
-    return map[color] || map.gray;
-  };
-
-  const [viewerImages, setViewerImages] = useState<ViewerImage[] | null>(null);
-  const [viewerIndex, setViewerIndex] = useState(0);
-
-  // 가려내는 규칙은 lib/attachments.ts 한 곳에 둔다. 예전에는 화면마다 같은
-  // 정규식이 복사돼 있어, 드라이브 주소처럼 확장자가 없는 것을 한 곳에서만
-  // 고치고 나머지를 잊었다.
-  const isImageAttachment = (att: Attachment) => isImageAtt(att);
-
-  // 기록에 붙은 이미지(구버전 imageUrl 포함)를 뷰어용 목록으로 모은다.
-  const getEntryImages = (entry: JournalEntry): ViewerImage[] => {
-    const list: ViewerImage[] = [];
-    if (entry.imageUrl) list.push({ url: attachmentImageSrc({ url: entry.imageUrl }), name: '첨부 이미지' });
-    (entry.attachments || []).forEach((att) => {
-      if (isImageAttachment(att)) list.push({ url: attachmentImageSrc(att), name: att.name });
-    });
-    return list;
-  };
-
-  const getEntryFiles = (entry: JournalEntry): Attachment[] =>
-    (entry.attachments || []).filter((att) => !isImageAttachment(att));
-
-  // 클릭한 썸네일부터 보여준다.
-  const openEntryViewer = (entry: JournalEntry, clickedUrl?: string) => {
-    const images = getEntryImages(entry);
-    if (images.length === 0) return;
-    const idx = clickedUrl ? images.findIndex((img) => img.url === clickedUrl) : 0;
-    setViewerIndex(idx >= 0 ? idx : 0);
-    setViewerImages(images);
-  };
-
   const openCreate = () =>
     openEntryPanel({
       kind: 'journal',
@@ -199,9 +151,11 @@ export default function DayJournal({
 
   // 필터 적용된 리스트
   const allowedLabels = filterLabelSet(labelFilter, journalParents);
-  const filteredJournals = allowedLabels === null
+  // 즐겨찾기한 기록은 그날 기록의 맨 위 (19번 U6). 나머지 차례는 그대로
+  const filteredJournals = (allowedLabels === null
     ? journals
-    : journals.filter((entry) => allowedLabels.has(getLabelName(entry)));
+    : journals.filter((entry) => allowedLabels.has(getLabelName(entry)))
+  ).slice().sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite));
 
   const distributeJournals = (items: JournalEntry[]) => {
     const columns = Array.from({ length: columnsCount }, () => [] as { entry: JournalEntry; idx: number }[]);
@@ -374,189 +328,35 @@ export default function DayJournal({
             {journalColumns.map((col, colIndex) => (
               <div key={colIndex} className="flex flex-col gap-4">
                 {col.map(({ entry }) => {
-                  const linkCount = (entry.linkedItems || []).length;
-                  const isCollapsedItem = isEntryCollapsed(entry);
                   const origIdx = journals.findIndex(j => j.id === entry.id);
-
+                  const tableOnly = entry.content === TABLE_ONLY_CONTENT && normalizeTables(entry.tables).length > 0;
+                  // 카드는 메모와 같은 EntryCard (19번 U6) - 라벨 칩은 위, 완료·즐겨찾기
                   return (
-                    <div
+                    <EntryCard
                       key={entry.id}
-                      data-focus-key={focusKey.journal(dateStr, entry.id)}
-                      onClick={() => openEdit(entry)}
-                      title="클릭하여 수정"
-                      className="w-full group p-4 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300 bg-white transition-all flex flex-col gap-2 cursor-pointer"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {/* 항목 접기/펼치기 삼각형 토글 버튼 */}
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); toggleCollapse(entry.id, isCollapsedItem); }}
-                            className="text-slate-400 hover:text-primary transition-colors p-0.5 text-xs cursor-pointer"
-                            title={isCollapsedItem ? '펼치기' : '접기'}
-                          >
-                            {isCollapsedItem ? '▶' : '▼'}
-                          </button>
-
-                          {/* 순서 변경 아이콘 */}
-                          <div className="flex flex-col items-center gap-0.5 shrink-0 px-0.5">
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); if (origIdx > 0 && onReorderJournals) onReorderJournals(origIdx, origIdx - 1); }}
-                              disabled={origIdx <= 0}
-                              className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-xs cursor-pointer"
-                            >
-                              ▲
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); if (origIdx < journals.length - 1 && onReorderJournals) onReorderJournals(origIdx, origIdx + 1); }}
-                              disabled={origIdx >= journals.length - 1}
-                              className="text-slate-300 hover:text-primary disabled:opacity-30 disabled:hover:text-slate-300 p-0.5 leading-none text-xs cursor-pointer"
-                            >
-                              ▼
-                            </button>
-                          </div>
-
-                          {/* 💡 라벨이 삭제되지 않고 남아있을 때만 뱃지 표시 */}
-                          {getLabelName(entry) && (
-                            <span
-                              title={labelPath(getLabelName(entry), journalParents)}
-                              className={`px-2 py-0.5 rounded-md text-xs font-bold border ${getLabelColorClass(entry)}`}
-                            >
-                              {getLabelName(entry)}
-                            </span>
-                          )}
-
-                          <span className="text-xs text-slate-400">
-                            {new Date(entry.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-
-                          {linkCount > 0 && (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); openLinkViewerModal('journal', dateStr, entry.id); }}
-                              className="bg-yellow-100 text-yellow-800 text-xs px-1.5 py-0.5 rounded font-bold border border-yellow-300 hover:bg-yellow-200 cursor-pointer"
-                            >
-                                🔗 {linkCount}
-                            </button>
-                          )}
-                          {/* 접힌 상태에서는 썸네일이 안 보이므로 이때만 이미지 아이콘을 노출한다.
-                              (펼친 상태에서는 썸네일 자체가 표시 역할을 하므로 중복) */}
-                          {isCollapsedItem && getEntryImages(entry).length > 0 && (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); openEntryViewer(entry); }}
-                              className="bg-indigo-50 text-indigo-700 text-xs px-1.5 py-0.5 rounded font-bold border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer"
-                              title="첨부 이미지 보기"
-                            >
-                              🖼️ {getEntryImages(entry).length}
-                            </button>
-                          )}
-                          {getEntryFiles(entry).length > 0 && (
-                            <span className="bg-slate-100 text-slate-600 text-xs px-1.5 py-0.5 rounded font-bold border border-slate-200">
-                                📎 {getEntryFiles(entry).length}
-                            </span>
-                          )}
-                          {normalizeTables(entry.tables).length > 0 && (
-                            <span className="bg-emerald-50 text-emerald-700 text-xs px-1.5 py-0.5 rounded font-bold border border-emerald-200" title="붙인 표">
-                              ▦ {normalizeTables(entry.tables).length}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* 파일/링크 추가는 수정 배너 안에 있으므로 수정/삭제만 노출한다 */}
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); openEdit(entry); }}
-                            className="text-slate-400 hover:text-blue-600 p-1 rounded-md text-xs font-bold cursor-pointer"
-                            title="기록 수정"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              let trashId: string | void;
-                              try {
-                                trashId = await onDeleteJournal(entry.id);
-                              } catch (err) {
-                                showErrorToastOnce('기록을 지우지 못했습니다.', err);
-                                return;
-                              }
-                              showDeletedToast('🗑️ 기록을 삭제했습니다. 휴지통에서 복원할 수 있습니다.', trashId || undefined);
-                            }}
-                            className="text-slate-400 hover:text-red-500 p-1 rounded-md text-xs transition-colors cursor-pointer"
-                            title="기록 삭제"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 접혀 있을 때는 한 줄만 보여 준다. 아무것도 안 보이면
-                          어느 기록인지 알 수 없어 하나씩 펼쳐 봐야 한다. */}
-                      {isCollapsedItem && previewLine(entry.content) && (
-                        <p className="text-sm text-slate-500 truncate leading-relaxed">
-                          {previewLine(entry.content)}
-                        </p>
-                      )}
-
-                      {/* 항목이 접히지 않았을 때만 본문 및 첨부파일 표시 */}
-                      {!isCollapsedItem && (
-                        <div className="flex flex-col gap-3 mt-1">
-                          {/* 표만 있는 기록의 '[표]'(V3가 빼지 않게 넣은 글)는 보이지 않는다 */}
-                          {!(entry.content === TABLE_ONLY_CONTENT && normalizeTables(entry.tables).length > 0) && (
-                            <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
-                              {entry.content}
-                            </p>
-                          )}
-                          {normalizeTables(entry.tables).map((t) => (
-                            <EntryTableView key={t.id} table={t} compact />
-                          ))}
-                          {entry.imageUrl && (
-                            <div
-                              className="mt-1 rounded-lg overflow-hidden border border-slate-200/60 bg-slate-50 inline-block max-w-fit cursor-pointer"
-                              onClick={(e) => { e.stopPropagation(); openEntryViewer(entry, entry.imageUrl!); }}
-                              title="클릭하여 크게 보기"
-                            >
-                              <img src={attachmentImageSrc({ url: entry.imageUrl })} alt="첨부 이미지" className="max-w-full h-auto object-cover max-h-48" loading="lazy" />
-                            </div>
-                          )}
-                          {entry.attachments && entry.attachments.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              {entry.attachments.map((att, attIdx) => (
-                                isImageAttachment(att) ? (
-                                  <button
-                                    key={attIdx}
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); openEntryViewer(entry, att.url); }}
-                                    className="block w-16 h-16 rounded-lg overflow-hidden border border-slate-200 hover:shadow-sm transition-shadow cursor-pointer"
-                                    title="클릭하여 크게 보기"
-                                  >
-                                    <img src={attachmentImageSrc(att)} alt={att.name} className="w-full h-full object-cover" loading="lazy" />
-                                  </button>
-                                ) : (
-                                  <a
-                                    key={attIdx}
-                                    href={att.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="block px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 truncate max-w-[150px] hover:bg-slate-100 transition-colors"
-                                    title={att.name}
-                                  >
-                                    📎 {att.name}
-                                  </a>
-                                )
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                      kind="journal"
+                      focusKey={focusKey.journal(dateStr, entry.id)}
+                      // 표만 있는 기록의 '[표]'(V3가 빼지 않게 넣은 글)는 보이지 않는다
+                      content={tableOnly ? '' : entry.content}
+                      labels={resolveLabelNames(entry)}
+                      labelParents={journalParents}
+                      completed={!!entry.completed}
+                      favorite={!!entry.favorite}
+                      dateText={new Date(entry.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                      attachments={entry.attachments}
+                      imageUrl={entry.imageUrl}
+                      tables={entry.tables}
+                      linkCount={(entry.linkedItems || []).length}
+                      onOpenLinks={() => openLinkViewerModal('journal', dateStr, entry.id)}
+                      onOpen={() => openEdit(entry)}
+                      onToggleComplete={onSetJournalFlags ? () => void onSetJournalFlags(entry.id, { completed: !entry.completed }) : undefined}
+                      onToggleFavorite={onSetJournalFlags ? () => void onSetJournalFlags(entry.id, { favorite: !entry.favorite }) : undefined}
+                      onMoveUp={origIdx > 0 && onReorderJournals ? () => void onReorderJournals(origIdx, origIdx - 1) : undefined}
+                      onMoveDown={origIdx < journals.length - 1 && onReorderJournals ? () => void onReorderJournals(origIdx, origIdx + 1) : undefined}
+                      onDelete={() => onDeleteJournal(entry.id)}
+                      collapsed={isEntryCollapsed(entry)}
+                      onToggleCollapse={(current) => toggleCollapse(entry.id, current)}
+                    />
                   );
                 })}
               </div>
@@ -573,12 +373,6 @@ export default function DayJournal({
         )
       )}
 
-      <ImageViewerModal
-        isOpen={!!viewerImages}
-        onClose={() => setViewerImages(null)}
-        images={viewerImages || []}
-        startIndex={viewerIndex}
-      />
     </div>
   );
 }

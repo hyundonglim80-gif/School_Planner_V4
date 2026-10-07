@@ -160,7 +160,7 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
   const unsavedRef = useUnsavedRegistration();
 
   const dateStr = target.dateStr || '';
-  const { journals, addJournalEntry, updateJournalEntry, deleteJournalEntry } = useDayData(dateStr, target.groupId);
+  const { journals, addJournalEntry, updateJournalEntry, deleteJournalEntry, setJournalFlags } = useDayData(dateStr, target.groupId);
   const { journalLabels, memoLabels } = useLabels();
   const labelTree = useLabelTree();
   const spaceName = useSpaceName(target.groupId);
@@ -222,10 +222,12 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
       });
       return;
     }
+    const flags = { ...(draft.completed ? { completed: true } : {}), ...(draft.favorite ? { favorite: true } : {}) };
     const newId = await addJournalEntry(content, mainLabel, labelIds, undefined, {
       attachments,
       linkedItems: draft.linkedItems,
       ...(draft.tables.length > 0 ? { tables: draft.tables } : {}),
+      ...flags,
     });
     if (typeof newId === 'string') {
       target.onCreated?.({ id: newId, type: 'journal', title: draft.content, date: dateStr, fId: target.groupId || 'personal' });
@@ -240,6 +242,7 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
         attachments,
         linkedItems: draft.linkedItems,
         tables: draft.tables,
+        ...flags,
       } as JournalEntry);
     }
   };
@@ -274,6 +277,10 @@ function JournalPanel({ target }: { target: EntryPanelTarget }) {
       onMove={current && isMovableJournal(current) ? setMoveDraft : undefined}
       kind="journal"
       entry={drawerEntry}
+      showFlags
+      onToggleFlag={
+        target.entryId ? (flag, value) => setJournalFlags(target.entryId!, { [flag]: value }) : undefined
+      }
       labelOptions={journalLabels.map((l) => l.name)}
       labelParents={labelTree.journal}
       onSave={handleSave}
@@ -341,6 +348,8 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
         attachments: draft.attachments,
         linkedItems: draft.linkedItems,
         tables: draft.tables,
+        completed: !!draft.completed,
+        favorite: !!draft.favorite,
       } as Memo);
     }
   };
@@ -375,6 +384,14 @@ function MemoPanel({ target }: { target: EntryPanelTarget }) {
       onMove={current ? setMoveDraft : undefined}
       kind="memo"
       entry={current}
+      showFlags
+      onToggleFlag={
+        target.entryId
+          ? async (flag, value) => {
+              await updateMemo(target.entryId!, { [flag]: value });
+            }
+          : undefined
+      }
       labelOptions={memoLabels}
       labelParents={labelTree.memo}
       onSave={handleSave}

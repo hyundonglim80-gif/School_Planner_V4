@@ -108,7 +108,7 @@ export function useMemos(groupId: string | null = null) {
     return () => unsubscribe();
   }, [groupId, auth.currentUser?.uid]);
 
-  const addMemo = async (data: { content: string; labels?: string[]; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[]; keepId?: string; tables?: EntryTable[] }) => {
+  const addMemo = async (data: { content: string; labels?: string[]; imageUrl?: string; attachments?: MemoAttachment[]; linkedItems?: any[]; keepId?: string; tables?: EntryTable[]; completed?: boolean; favorite?: boolean }) => {
     const user = auth.currentUser;
     if (!user) throw new Error('로그인이 필요합니다.');
 
@@ -120,7 +120,10 @@ export function useMemos(groupId: string | null = null) {
     const newMemoData = {
       text: data.content,
       content: data.content,
-      completed: false,
+      // 쓰는 칸 머리줄에서 미리 켠 완료·즐겨찾기 (19번 U6)
+      completed: !!data.completed,
+      ...(data.completed ? { completedAt: now } : {}),
+      ...(data.favorite ? { favorite: true } : {}),
       order: -now,
       createdAt: now,
       labels: data.labels || [],

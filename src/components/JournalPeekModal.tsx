@@ -39,6 +39,9 @@ interface PeekEntry {
   label?: string;
   attachments?: unknown[];
   imageUrl?: string;
+  /** V4 전용 칸 (19번 U6) - 완료는 줄 긋기, 즐겨찾기는 ★ */
+  completed?: boolean;
+  favorite?: boolean;
 }
 
 export default function JournalPeekModal({
@@ -73,6 +76,9 @@ export default function JournalPeekModal({
           label: j.label,
           attachments: j.attachments || [],
           imageUrl: j.imageUrl || '',
+          // 기록 읽기는 칸을 이름으로 골라 읽는다 - 칸을 더하면 여기에도 (CLAUDE.md 5장 표)
+          completed: !!j.completed,
+          favorite: !!j.favorite,
         }))
         .filter(
           (j: PeekEntry) =>
@@ -140,6 +146,8 @@ export default function JournalPeekModal({
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1 min-w-0">
+                  {j.favorite && <span className="text-amber-500 text-xs" title="즐겨찾기">★</span>}
+                  {j.completed && <span className="text-2xs font-bold text-slate-400" title="완료">✓ 완료</span>}
                   {names.map((key) => {
                     // 기록 화면과 같은 방식으로 푼다. 라벨을 id로만 들고 있는 항목도
                     // 있어서 id와 이름을 둘 다 맞춰 본다. 못 찾으면 칩을 숨긴다.
@@ -182,7 +190,7 @@ export default function JournalPeekModal({
               </div>
               {/* 표만 있는 기록의 '[표]'(V3가 빼지 않게 넣은 글) 대신 표를 보인다 */}
               {!(j.content === TABLE_ONLY_CONTENT && normalizeTables(j.raw?.tables).length > 0) && (
-                <p className="text-xs text-slate-700 whitespace-pre-wrap break-words mt-1 leading-relaxed">
+                <p className={`text-xs whitespace-pre-wrap break-words mt-1 leading-relaxed ${j.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>
                   {long && !open ? previewLine(j.content) : j.content}
                 </p>
               )}

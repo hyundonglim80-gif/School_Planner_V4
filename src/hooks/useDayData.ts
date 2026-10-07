@@ -90,6 +90,9 @@ export interface JournalEntry {
   attachments?: Attachment[];
   /** 붙인 표 (lib/entryTable). V3는 모르는 칸이지만 항목째 들고 다녀 지우지 않는다 */
   tables?: EntryTable[];
+  /** 완료·즐겨찾기 (19번 U6, V4 전용 칸 - V3는 기록 항목을 통째로 들고 다녀 지우지 않는다) */
+  completed?: boolean;
+  favorite?: boolean;
 }
 
 // 일정 항목 하나를 Firestore에 저장할 형태로 정규화한다.
@@ -710,6 +713,9 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
           attachments: j.attachments || [],
           // 붙인 표 (lib/entryTable). 여기서 빼면 저장은 되는데 화면에는 안 보인다 (첨부와 같은 실수)
           ...(Array.isArray(j.tables) && j.tables.length > 0 ? { tables: j.tables } : {}),
+          // 완료·즐겨찾기 (19번 U6). 여기서 빼면 저장은 되는데 화면에는 안 보인다 (첨부·표와 같은 실수)
+          ...(j.completed ? { completed: true } : {}),
+          ...(j.favorite ? { favorite: true } : {}),
         })).filter((j: JournalEntry) =>
           (j.content && j.content.trim().length > 0) ||
           !!j.imageUrl ||
@@ -1214,6 +1220,18 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     return trashId;
   }, [dateStr, groupId, journals, mutateJournals]);
 
+  /** 기록 하나의 완료·즐겨찾기만 바꾼다 (19번 U6). 서버 목록에서 그 항목의 두 칸만 - 같은 날 다른 기록은 그대로 */
+  const setJournalFlags = useCallback(async (id: string, patch: { completed?: boolean; favorite?: boolean }) => {
+    try {
+      await mutateJournals((fresh) => {
+        if (!fresh.some((j) => String(j.id) === String(id))) throw new Error('기록을 찾지 못했습니다. 다른 곳에서 지웠을 수 있습니다.');
+        return fresh.map((j) => (String(j.id) === String(id) ? { ...j, ...patch, updatedAt: Date.now() } : j));
+      });
+    } catch (err) {
+      failWithToast(patch.favorite !== undefined ? '즐겨찾기를 저장하지 못했습니다.' : '완료 표시를 저장하지 못했습니다.', err);
+    }
+  }, [mutateJournals]);
+
   const updateJournalEntry = useCallback(async (id: string, input: { content?: string; label?: string; labelIds?: string[]; imageUrl?: string; attachments?: Attachment[]; linkedItems?: any[]; tables?: EntryTable[]; linkedItemsBase?: any[] }) => {
     // linkedItemsBase는 저장할 칸이 아니다 - 링크를 합치는 기준으로만 쓴다
     const { linkedItemsBase, ...updates } = input;
@@ -1332,6 +1350,7 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
     addJournalEntry,
     deleteJournalEntry,
     updateJournalEntry,
+    setJournalFlags,
     reorderJournals,
     readReport,
   };

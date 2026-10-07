@@ -31,6 +31,7 @@ export default function DayScreen() {
     deleteJournalEntry,
     updateJournalEntry,
     reorderJournals,
+    setJournalFlags,
     reorderPeriods,
     forwardIncompleteEvents,
   } = useDayData(dateStr, selectedGroupId);
@@ -92,6 +93,7 @@ export default function DayScreen() {
               journals={journals}
               onDeleteJournal={deleteJournalEntry}
               onReorderJournals={reorderJournals}
+              onSetJournalFlags={setJournalFlags}
             />
           </div>
         </div>

@@ -52,7 +52,7 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
 |---|---|---|
 | `{sp}/events/{YYYY-MM-DD}` | `{ eventList: EventItem[], eventText: string, updatedAt }` | **하루치가 배열 하나.** eventText는 V3용 사본 (4장) |
 | `{sp}/schedules/{date}` | `{ periods: { "1": {subject, memo, content, supplies, linkedItems}, … } }` | 수업(교시). 옛 자료는 값이 문자열일 수 있다 |
-| `{sp}/journals/{date}` | `{ entries: JournalEntry[] }` | 기록. **하루치가 배열 하나** |
+| `{sp}/journals/{date}` | `{ entries: JournalEntry[] }` | 기록. **하루치가 배열 하나**. 항목의 `completed`·`favorite`는 V4 전용(19번 U6 - V3는 항목을 펼쳐 들고 다녀 지우지 않음을 V3 코드로 확인) |
 | `{sp}/tasks/{id}` | `{ text, content, labels: string[](이름), completed, favorite, order, attachments, linkedItems, createdAt, keepId? }` | 메모. 문서 하나에 메모 하나 |
 | `{sp}/evaluations/{date}` | `{ list, evalList }` | 조사표. V3는 `evalList`만 읽고 쓴다. V4는 둘 다 쓰고(`evalDocPayload`), 읽기는 `lib/evalList.readEvalList`(둘 다 있으면 `evalList`가 최신) |
 | `{sp}/notices/{date}` | `{ date, lines: string[] }` | 알림장 |
@@ -201,7 +201,15 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   같은 서식은 `styles`에 한 번. 저장 전 `tableForSave`로 undefined를 뺀다.
 - V3는 `tables`를 모르지만 메모는 updateDoc, 기록은 항목째 들고 다녀 지우지 않는다. 단 V3는 **글·라벨·첨부가 없는 기록을
   그날 저장할 때 뺀다**(viewDay.js 1662) - 그래서 표만 있는 기록은 글을 `[표]`(`TABLE_ONLY_CONTENT`)로 두고, V4는 이 글을 숨긴다.
-- 기록을 읽는 곳(`applyJournalData`, `JournalPeekModal`)은 칸을 골라 읽으므로 `tables`를 따로 넣어 두었다.
+- 기록을 읽는 곳(`applyJournalData`, `JournalPeekModal`)은 칸을 골라 읽으므로 `tables`를 따로 넣어 두었다. `completed`·`favorite`(19번 U6)도.
+- **한 카드·한 쓰는 칸** (19번 U6, 2026-10-07): 메모 카드와 기록 카드는 `components/EntryCard` 하나(`MemoCard`는 메모 칸을 넘기는 껍데기,
+  `DayJournal`이 기록 칸을 넘긴다). 머리줄 `▶ ▲▼ ☐ ★ 라벨칩 날짜 🔗 🖼️(접혔을 때) 📎 ▦ … ✏️ 삭제` - 칩은 위, 예전 메모 카드 아래 '#라벨'은 없앰.
+  칩 색은 `useLabels.entryLabels`, 목록에 없는 라벨은 그리지 않는다. 삭제 title은 메모 '삭제'·기록 '기록 삭제'(점검 스크립트가 찾는다).
+  `data-entry-card`(memo/journal)·`data-completed`·`data-favorite`·`data-entry-card-label`·`data-entry-card-complete`·`data-entry-card-favorite`.
+  기록 완료·즐겨찾기는 `useDayData.setJournalFlags`(mutateJournals로 그 항목 두 칸만), 즐겨찾기 기록은 그날 맨 위(DayJournal 정렬).
+  쓰는 칸(`EntryDrawer`) 머리줄 `data-entry-flags`의 ☐ 완료·★(`data-entry-flag`): 저장된 항목은 `onToggleFlag`로 곧바로 그 칸만 저장
+  (글은 칸에 남는다, `EntryDraft`에 담지 않아 다른 곳에서 바꾼 표시를 덮지 않는다), 새 항목은 들고 있다가 처음 저장의 `draft.completed·favorite`로.
+  자동 기록(알림장·출결)은 `autoJournal`이 항목을 `...prev`로 다시 써서 두 칸이 남는다.
 
 ---
 
@@ -560,6 +568,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-refine-u2.mjs` | 19번 U2 진도 관리(24) - teacher 과목 칸·교과서 칸(5칸·옛 4칸 붙여넣기)·'+ 행 추가'·Ctrl+Enter·page 저장, teacher3 새 진도 하나·과목 + 반 하나·옛 칸 글자 진도 그대로 저장·하루 칸 차시. 만든 진도는 지운다 |
 | `tools/inspect-refine-u3.mjs` | 19번 U3 하루 수업 칸(12) - '📘 진도 만들기'(하루 카드·N교시 수정 팝업, teacher 과목·teacher3 과목 + 반), 칸 aria, 진도 줄 단원·📖 쪽, 카드 차례. 고친 수업·진도는 되돌린다 |
 | `tools/inspect-refine-u5.mjs` | 19번 U5 메모·기록 라벨 한 목록(11) - 라벨 관리 탭 둘·한 목록, 새 라벨이 두 배열에(문자열 모양·기록 id 그대로), 일정 라벨 V3 이름, 쓰는 칸 칩 같음, 메모에만 있던 라벨로 기록 저장 → jm_ id 채움, 이름 바꾸기. 라벨 문서·트리·자료를 되돌린다 |
+| `tools/inspect-refine-u6.mjs` | 19번 U6 한 카드·쓰는 칸(11) - 기록·메모 카드 칩 위·#라벨 없음, 기록 완료(서버 그 항목만·기록 수 그대로·새로고침 뒤), ★ 맨 위, 쓰는 칸 머리줄 ★(글은 칸에), 새 메모 완료 저장. 기록 문서·메모를 되돌린다 |
 | `tools/inspect-progress-csv.mjs` | 진도 관리 예시 CSV(6) - 받기(머리줄·예시 내용)·불러오기 17차시·CP949 CSV 한글. 저장하지 않아 자료는 그대로 |
 | `tools/inspect-slot-live.mjs` | 과목을 고치면 배너도 따라감·학년반 숫자 403(8) - teacher3 주간 1교시 수정 배너에 '403과학' → 서버·배너 '4-3 과학', 연 채로 다른 곳에서 고친 과목, 고치는 중이면 그대로, 하루 출결 배너 머리줄. 2026-11-02 수업 문서를 끝에 되돌린다 |
 | `tools/inspect-today-scroll.mjs` | 상단 날짜 → 오늘로(17) - 휴대폰 390px·PC에서 하루(맨 위)·주간·월간(다음 달에서)·년간 학사력·자세히(지난 학년도에서). 자료를 바꾸지 않는다 |

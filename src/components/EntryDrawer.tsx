@@ -51,6 +51,9 @@ export interface EntrySource {
   linkedItems?: any[];
   /** 붙인 표 (lib/entryTable) */
   tables?: unknown[];
+  /** 완료·즐겨찾기 (메모, 19번 U6부터 기록도) */
+  completed?: boolean;
+  favorite?: boolean;
 }
 
 /** 저장 버튼을 눌렀을 때 화면으로 돌려주는 값. */
@@ -67,6 +70,12 @@ export interface EntryDraft {
   imageUrl?: string;
   /** 붙인 표. 엑셀에서 복사해 본문에 붙여넣으면 생긴다 */
   tables: EntryTable[];
+  /**
+   * 새 항목에서 머리줄 ☐ 완료·★ 즐겨찾기를 켰으면 (19번 U6). 이미 저장된 항목은 누르는 즉시 onToggleFlag로 저장하므로
+   * 여기에는 담지 않는다 - 다른 곳에서 바꾼 표시를 쓰던 칸이 덮지 않게.
+   */
+  completed?: boolean;
+  favorite?: boolean;
 }
 
 interface EntryDrawerProps {
@@ -79,6 +88,13 @@ interface EntryDrawerProps {
   /** 라벨 상위/하위 (하위 이름 → 상위 이름). 주면 하위를 상위 바로 뒤에 들여 보여 준다. */
   labelParents?: Record<string, string>;
   onSave: (draft: EntryDraft) => Promise<void>;
+  /**
+   * 이미 저장된 항목의 머리줄 ☐ 완료·★ 즐겨찾기를 누르면 곧바로 그 칸만 저장한다 (19번 U6). 쓰던 글은 칸에 그대로.
+   * 주지 않으면 머리줄에 두 단추가 없다.
+   */
+  onToggleFlag?: (flag: 'completed' | 'favorite', value: boolean) => Promise<void>;
+  /** 새 항목에서도 머리줄 단추를 보인다 (처음 저장 때 draft.completed·favorite로) */
+  showFlags?: boolean;
   onDelete?: () => Promise<void>;
   /**
    * 메모 ↔ 기록 옮기기. 지금 칸에 적힌 내용(저장 전 고친 것 포함)을 넘긴다.
@@ -169,6 +185,8 @@ export default function EntryDrawer({
   labelOptions,
   labelParents = {},
   onSave,
+  onToggleFlag,
+  showFlags,
   onDelete,
   onMove,
   defaultLabel,
@@ -189,6 +207,33 @@ export default function EntryDrawer({
   const backdropCloseRef = useRef<() => void>(closeAllModals);
 
   const [content, setContent] = useState('');
+  // 머리줄 ☐ 완료·★ 즐겨찾기 (19번 U6). 저장된 항목은 그 항목의 값을 따라간다(카드에서 바꿔도)
+  const [flags, setFlags] = useState<{ completed: boolean; favorite: boolean }>({ completed: false, favorite: false });
+  const [flagBusy, setFlagBusy] = useState(false);
+  const entryCompleted = !!entry?.completed;
+  const entryFavorite = !!entry?.favorite;
+  useEffect(() => {
+    setFlags({ completed: entryCompleted, favorite: entryFavorite });
+  }, [entryCompleted, entryFavorite, entry?.id, entry?.firestoreId]);
+  const toggleFlag = async (flag: 'completed' | 'favorite') => {
+    const value = !flags[flag];
+    if (!entry) {
+      // 새 항목: 들고 있다가 처음 저장할 때
+      setFlags((f) => ({ ...f, [flag]: value }));
+      return;
+    }
+    if (!onToggleFlag || flagBusy) return;
+    setFlagBusy(true);
+    setFlags((f) => ({ ...f, [flag]: value }));
+    try {
+      await onToggleFlag(flag, value);
+    } catch (err) {
+      setFlags((f) => ({ ...f, [flag]: !value }));
+      showErrorToastOnce(flag === 'favorite' ? '즐겨찾기를 저장하지 못했습니다.' : '완료 표시를 저장하지 못했습니다.', err);
+    } finally {
+      setFlagBusy(false);
+    }
+  };
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   // 라벨이 늦게 풀릴 때 '사용자가 손댔나'를 보려고 지금 값을 들고 있는다
   const selectedLabelsRef = useRef<string[]>([]);
@@ -556,6 +601,9 @@ export default function EntryDrawer({
         linkedItemsBase: baseLinksRef.current,
         imageUrl: attachments.find(isImageAttachment)?.url,
         tables: tables.map(tableForSave),
+        // 새 항목에서 머리줄로 켠 완료·즐겨찾기 (저장된 항목은 누를 때 이미 저장했다)
+        ...(!entry && flags.completed ? { completed: true } : {}),
+        ...(!entry && flags.favorite ? { favorite: true } : {}),
       });
       // 저장해도 배너는 닫지 않는다. 닫기 버튼이나 배경 클릭으로만 닫힌다.
       showToast(`✅ ${text.noun}을(를) 저장했습니다.`);
@@ -606,6 +654,36 @@ export default function EntryDrawer({
               {isEditing ? `${text.noun} 수정` : `새 ${text.noun}`}
             </h3>
             {subtitle && <p className="text-xs font-bold text-primary mt-0.5 truncate">{subtitle}</p>}
+            {(onToggleFlag || showFlags) && (
+              <div className="flex items-center gap-1.5 mt-1.5" data-entry-flags>
+                <button
+                  type="button"
+                  data-entry-flag="completed"
+                  aria-pressed={flags.completed}
+                  disabled={flagBusy}
+                  onClick={() => void toggleFlag('completed')}
+                  title={entry ? '완료 표시 (누르면 바로 저장)' : '완료 표시 (처음 저장할 때 함께)'}
+                  className={`px-2 py-0.5 rounded-md text-xs font-bold border transition-colors ${
+                    flags.completed ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
+                  }`}
+                >
+                  {flags.completed ? '☑' : '☐'} 완료
+                </button>
+                <button
+                  type="button"
+                  data-entry-flag="favorite"
+                  aria-pressed={flags.favorite}
+                  disabled={flagBusy}
+                  onClick={() => void toggleFlag('favorite')}
+                  title={entry ? '즐겨찾기 (누르면 바로 저장)' : '즐겨찾기 (처음 저장할 때 함께)'}
+                  className={`px-2 py-0.5 rounded-md text-xs font-bold border transition-colors ${
+                    flags.favorite ? 'bg-amber-50 text-amber-600 border-amber-300' : 'bg-white text-slate-500 border-slate-200 hover:border-amber-300'
+                  }`}
+                >
+                  {flags.favorite ? '★' : '☆'} 즐겨찾기
+                </button>
+              </div>
+            )}
             <p className="text-xs text-slate-400 mt-0.5">
               빠른 저장 단축키: Ctrl + S{docked ? ' · 다른 화면으로 옮겨도 이 칸은 남습니다' : ''}
             </p>
