@@ -80,9 +80,10 @@ export function presetPatch(p: TeacherPreset): Pick<TeachingMode, 'unit' | 'hasH
 }
 
 export const TEACHER_PRESETS: { value: TeacherPreset; label: string; desc: string }[] = [
-  { value: 'homeroom', label: '초등 담임', desc: '한 반의 여러 과목 - 지금까지의 V4' },
-  { value: 'subject', label: '교과 전담', desc: '여러 반에 한두 과목 - 알림장·출석부를 숨깁니다' },
-  { value: 'subjectHomeroom', label: '교과 + 담임', desc: '여러 반에 과목 + 내 담임반 (중등 담임)' },
+  // 이름은 2026-10-07 사용자가 정함: (초등) 담임 / 전담 / (중등) 전담 + 담임
+  { value: 'homeroom', label: '(초등) 담임', desc: '한 반의 여러 과목 - 지금까지의 V4' },
+  { value: 'subject', label: '전담', desc: '여러 반에 한두 과목 - 시간표 칸에 학년-반과 과목, 알림장·출석부를 숨깁니다' },
+  { value: 'subjectHomeroom', label: '(중등) 전담 + 담임', desc: '여러 반에 과목 + 내 담임반 - 시간표 칸에 학년-반과 과목' },
 ];
 
 /** 그 학년도 명렬표의 반을 '5-2'처럼, 학년·반 차례로 */

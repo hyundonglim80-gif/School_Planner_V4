@@ -28,6 +28,7 @@ import ObservationPhrases from './ObservationPhrases';
 import { observationContent } from '../lib/classHub';
 import { addJournalLine, removeJournalLine } from '../lib/classHubStore';
 import { formatDateStr } from '../lib/dateUtils';
+import { openEntryPanel } from './EntryPanelHost';
 import { showUndoToast } from '../lib/undoToast';
 import { showToast, showErrorToast } from '../utils/toast';
 import { useTeachingMode } from '../hooks/useTeachingMode';
@@ -45,10 +46,12 @@ interface StudentRecordModalProps {
 interface TimelineItem {
   date: string;
   /** subjectAttendance: 교과 출결 (교과 모드, ROADMAP-SUBJECT S7) */
-  kind: 'journal' | 'attendance' | 'subjectAttendance';
+  kind: 'journal' | 'memo' | 'attendance' | 'subjectAttendance';
   text: string;
   /** 기록일 때: 어느 공간의 어느 항목인가 (눌러서 그 자리로 간다) */
   journalId?: string;
+  /** 메모일 때: 메모 문서 id (눌러서 메모 쓰는 칸을 연다, 2026-10-07) */
+  memoId?: string;
   space?: string | null;
   spaceName?: string;
   label?: string;
@@ -171,12 +174,41 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
       return out;
     };
 
+    // 메모에 붙인 태그도 모은다 (2026-10-07 사용자 요청). 메모는 날짜가 없어 쓴 날(기록에서 옮겨 온 것은 그 날)에 둔다.
+    // 태그에 학년도가 들어 있어 기간으로 거르지 않는다.
+    const readMemos = async (space: { id: string | null; name: string }): Promise<TimelineItem[]> => {
+      const col = space.id ? collection(db, 'groups', space.id, 'tasks') : collection(db, 'users', uid, 'tasks');
+      const snap = await getDocs(col);
+      const out: TimelineItem[] = [];
+      snap.forEach((d) => {
+        const m = d.data() as any;
+        const content = String(m?.content ?? m?.text ?? '');
+        if (!findStudentTags(content).some((t) => sameStudent(t, tag))) return;
+        const created = typeof m.createdAt === 'number' ? formatDateStr(new Date(m.createdAt)) : '';
+        out.push({
+          date: /^\d{4}-\d{2}-\d{2}$/.test(m.fromDate || '') ? m.fromDate : created || start,
+          kind: 'memo',
+          text: content,
+          memoId: d.id,
+          space: space.id,
+          spaceName: space.name,
+          label: Array.isArray(m.labels) ? m.labels.join(', ') : '',
+        });
+      });
+      return out;
+    };
+
     // 교과 모드면 이 반의 교과 출결도 날짜 차례에 섞는다 (그 학년도 것만)
     const subjectDays = isClassUnit ? loadSubjectAttendanceForClass(classKeyOf(cls)).catch(() => []) : Promise.resolve([]);
-    Promise.all([Promise.all(spaces.map(readJournals)), loadAttendanceForClass(classKeyOf(cls)), subjectDays])
-      .then(([journalLists, days, sDays]) => {
+    // 메모를 못 읽어도 기록·출결은 보인다
+    const memoLists = Promise.all(spaces.map(readMemos)).catch((e) => {
+      console.warn('누가기록: 메모를 읽지 못했습니다', e);
+      return [] as TimelineItem[][];
+    });
+    Promise.all([Promise.all(spaces.map(readJournals)), loadAttendanceForClass(classKeyOf(cls)), subjectDays, memoLists])
+      .then(([journalLists, days, sDays, memos]) => {
         if (!alive) return;
-        const journals = journalLists.flat();
+        const journals = [...journalLists.flat(), ...memos.flat()];
         const att = historyOf(days, num).map((h) => ({
           date: h.date,
           kind: 'attendance' as const,
@@ -283,6 +315,11 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
   const tagText = tag ? makeStudentTag(tag) : '';
 
   const goTo = (it: TimelineItem) => {
+    if (it.kind === 'memo' && it.memoId) {
+      openEntryPanel({ kind: 'memo', groupId: it.space || null, entryId: it.memoId });
+      onClose();
+      return;
+    }
     if (it.kind !== 'journal' || !it.journalId) return;
     if ((it.space || null) !== (selectedGroupId || null)) setSelectedGroupId(it.space || null);
     setCurrentDate(parseDateStr(it.date));
@@ -298,7 +335,7 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
     const lines = [
       ...items.map((it) => ({
         date: it.date,
-        line: `${it.date} [${it.kind === 'attendance' ? '출결' : it.kind === 'subjectAttendance' ? '교과 출결' : '기록'}] ${it.text.replace(/\n+/g, ' / ')}`,
+        line: `${it.date} [${it.kind === 'attendance' ? '출결' : it.kind === 'subjectAttendance' ? '교과 출결' : it.kind === 'memo' ? '메모' : '기록'}] ${it.text.replace(/\n+/g, ' / ')}`,
       })),
       ...(studentEvals || [])
         .filter((e) => !isEmptyCell(e.cell))
@@ -328,7 +365,7 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
       )
     );
 
-  const journalCount = items?.filter((i) => i.kind === 'journal').length || 0;
+  const journalCount = items?.filter((i) => i.kind === 'journal' || i.kind === 'memo').length || 0;
 
   return (
     <ModalShell isOpen={isOpen} onClose={onClose} width="2xl" title="🧑‍🎓 학생 누가기록" footer={<ModalCloseButton onClose={onClose} />}>
@@ -576,8 +613,8 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
                         <button
                           type="button"
                           onClick={() => goTo(it)}
-                          disabled={it.kind !== 'journal'}
-                          title={it.kind === 'journal' ? '그 날 하루 화면으로 가서 짚어 줍니다' : undefined}
+                          disabled={it.kind !== 'journal' && it.kind !== 'memo'}
+                          title={it.kind === 'journal' ? '그 날 하루 화면으로 가서 짚어 줍니다' : it.kind === 'memo' ? '메모를 엽니다' : undefined}
                           className="w-full text-left p-2.5 bg-white border border-slate-200 rounded-xl hover:border-primary/40 disabled:hover:border-slate-200 disabled:cursor-default"
                         >
                           <div className="flex items-center gap-1.5 mb-0.5">
@@ -590,10 +627,12 @@ export default function StudentRecordModal({ isOpen, onClose, initialClassKey, i
                                   ? 'bg-rose-50 text-rose-700 border-rose-200'
                                   : it.kind === 'subjectAttendance'
                                     ? 'bg-orange-50 text-orange-700 border-orange-200'
-                                    : 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : it.kind === 'memo'
+                                      ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                      : 'bg-blue-50 text-blue-700 border-blue-200'
                               }`}
                             >
-                              {it.kind === 'attendance' ? '출결' : it.kind === 'subjectAttendance' ? '교과 출결' : it.label || '기록'}
+                              {it.kind === 'attendance' ? '출결' : it.kind === 'subjectAttendance' ? '교과 출결' : it.kind === 'memo' ? `📝 메모${it.label ? ` · ${it.label}` : ''}` : it.label || '기록'}
                             </span>
                             {it.spaceName && it.space && <span className="text-slate-400">👥 {it.spaceName}</span>}
                           </div>

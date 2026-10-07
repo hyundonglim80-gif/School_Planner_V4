@@ -281,7 +281,7 @@ export default function RecurringModal({
           </button>
 
           {previewDates.length > 0 && (
-            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 max-h-32 overflow-y-auto">
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
               <div className="flex flex-wrap gap-1">
                 {previewDates.map(d => (
                   <span key={d} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-xs text-slate-600">{d}</span>

@@ -511,7 +511,7 @@ export default function KeepImportModal({
                   </span>
                 )}
               </p>
-              <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-48 overflow-y-auto">
+              <div className="border border-slate-200 rounded-xl divide-y divide-slate-100">
                 {picked.slice(0, 20).map((note, i) => (
                   <div key={i} className="px-3 py-2">
                     <p className="text-xs text-slate-800 whitespace-pre-wrap line-clamp-2">{note.content}</p>

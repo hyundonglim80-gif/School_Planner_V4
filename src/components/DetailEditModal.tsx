@@ -18,8 +18,8 @@ import AutoTextarea from './AutoTextarea';
 import { showDeletedToast } from '../lib/undoToast';
 import { useTeachingMode } from '../hooks/useTeachingMode';
 import { normalizeSlotText } from '../lib/teachingSlot';
-import SlotCombobox from './SlotCombobox';
-import { useSlotOptions } from '../hooks/useTeachingClasses';
+import SlotPairInput from './SlotPairInput';
+import { useSlotPairOptions } from '../hooks/useTeachingClasses';
 
 function formatAlarmBadge(time?: string) {
   if (!time) return null;
@@ -81,7 +81,7 @@ export default function DetailEditModal({
 
   // 교과 모드: 과목 칸에 '5-2 과학' 제안 (lib/teachingSlot)
   const { isClassUnit } = useTeachingMode();
-  const slotOptions = useSlotOptions(dateStr);
+  const pairOptions = useSlotPairOptions(dateStr);
 
   // Edit states
   const [subject, setSubject] = useState('');
@@ -432,16 +432,15 @@ export default function DetailEditModal({
               {type === 'schedule' && (
                 <>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">{isClassUnit ? '학년-반 과목' : '과목'}</label>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">{isClassUnit ? '학년-반 · 과목' : '과목'}</label>
                     {isClassUnit ? (
-                      <SlotCombobox
+                      // 전담: 학년-반 + 과목 두 칸 (2026-10-07)
+                      <SlotPairInput
                         value={subject}
                         onValueChange={setSubject}
-                        options={slotOptions}
-                        placeholder="학년-반 과목 (예: 5-2 과학)"
-                        aria-label="학년-반 과목"
-                        data-slot-input
-                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                        classOptions={pairOptions.classes}
+                        subjectOptions={pairOptions.subjects}
+                        inputClassName="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary"
                       />
                     ) : (
                       <input

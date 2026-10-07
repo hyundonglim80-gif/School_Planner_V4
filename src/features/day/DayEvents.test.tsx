@@ -83,10 +83,11 @@ describe('DayEvents - 일정을 누르면 오른쪽 칸에서 고친다', () => 
     expect(within(p).getByRole('button', { name: /링크 추가/ })).toBeInTheDocument();
     expect(within(p).getByText('라벨 (다중 선택 가능)')).toBeInTheDocument();
     expect(within(p).getByRole('button', { name: /라벨 수정/ })).toBeInTheDocument();
-    for (const name of ['달력', '이월', '기간', '반복', '수업X']) {
+    // 5대 속성 + 구글 캘린더 (개인 공간 일정, 2026-10-07)
+    for (const name of ['달력', '이월', '기간', '반복', '수업X', '구글 캘린더']) {
       expect(within(propBoxOf()).getByText(name)).toBeInTheDocument();
     }
-    expect(within(propBoxOf()).getAllByRole('checkbox')).toHaveLength(5);
+    expect(within(propBoxOf()).getAllByRole('checkbox')).toHaveLength(6);
     expect(within(p).getByText('일정 내용')).toBeInTheDocument();
     expect(within(p).getByRole('button', { name: '삭제' })).toBeInTheDocument();
     expect(within(p).getByRole('button', { name: '닫기' })).toBeInTheDocument();

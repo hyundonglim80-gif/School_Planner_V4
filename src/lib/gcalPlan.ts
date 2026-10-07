@@ -23,8 +23,11 @@ export function eventLabelIdsOf(item: any, eventLabels: LabelDef[]): string[] {
   return out;
 }
 
-/** '구글 캘린더'를 켠 라벨이 붙은 일정인가 */
+/**
+ * 구글 캘린더로 보낼 일정인가: 일정에 적은 값(gcal true/false - 일정 칸에서 고침)이 먼저, 없으면(null) '구글 캘린더'를 켠 라벨이 붙었나.
+ */
 export function isGcalEvent(item: any, enabled: Set<string>, eventLabels: LabelDef[]): boolean {
+  if (typeof item?.gcal === 'boolean') return item.gcal;
   if (enabled.size === 0) return false;
   return eventLabelIdsOf(item, eventLabels).some((id) => enabled.has(id));
 }

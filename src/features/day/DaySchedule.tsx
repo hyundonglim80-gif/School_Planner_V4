@@ -27,8 +27,8 @@ import { useSubjectAttendanceDate } from '../../hooks/useSubjectAttendance';
 import { rememberHubClass } from '../../lib/classMemory';
 import { runAppAction } from '../../lib/appActions';
 import { useClassColorOf } from '../../hooks/useClassColor';
-import SlotCombobox from '../../components/SlotCombobox';
-import { useSlotOptions } from '../../hooks/useTeachingClasses';
+import SlotPairInput from '../../components/SlotPairInput';
+import { useSlotPairOptions } from '../../hooks/useTeachingClasses';
 const TimetableTemplateModal = lazy(() => import('../../components/TimetableTemplateModal'));
 
 interface DayScheduleProps {
@@ -88,7 +88,7 @@ export default function DaySchedule({
   const classColorOf = useClassColorOf(dateStr);
   // 교과 출결 (S6): 반의 명렬표가 있는 교시에 '출결' 단추와 적힌 것 요약. 교과 모드에서만 읽는다.
   const { rosterList } = useRoster(isClassUnit);
-  const slotOptions = useSlotOptions(dateStr || undefined);
+  const pairOptions = useSlotPairOptions(dateStr || undefined);
   const subjectAttendance = useSubjectAttendanceDate(dateStr || '', isClassUnit && !selectedGroupId);
 
   const startEdit = (period: number) => {
@@ -312,15 +312,14 @@ export default function DaySchedule({
                   }}
                 >
                   {isClassUnit ? (
-                    <SlotCombobox
+                    // 전담: 수업하는 학년-반 + 과목 두 칸 (2026-10-07). 칸 글자는 '5-2 과학' 하나로 저장
+                    <SlotPairInput
                       value={editSubject}
                       onValueChange={setEditSubject}
-                      options={slotOptions}
-                      placeholder="학년-반 과목 (예: 5-2 과학)"
-                      aria-label="학년-반 과목"
-                      data-slot-input
-                      wrapperClassName="col-span-1"
-                      className="w-full px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                      classOptions={pairOptions.classes}
+                      subjectOptions={pairOptions.subjects}
+                      className="col-span-2"
+                      inputClassName="w-full px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
                       autoFocus
                     />
                   ) : (
@@ -339,7 +338,7 @@ export default function DaySchedule({
                     value={editSupplies}
                     onChange={(e) => setEditSupplies(e.target.value)}
                     placeholder="준비물"
-                    className="col-span-2 px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                    className={`${isClassUnit ? 'col-span-1' : 'col-span-2'} px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary`}
                   />
                 </div>
                 <AutoTextarea

@@ -132,6 +132,24 @@ export function teachingClasses({
   return [...set].sort(byClassOrder);
 }
 
+/** 전담 칸의 과목 ▼ 목록: 설정의 가르치는 과목 + 시간표에 적힌 과목 (가나다 차례, 2026-10-07 두 칸 입력) */
+export function teachingSubjects(
+  settingSubjects: string[],
+  templates: Record<string, { data?: Record<string, Record<string | number, unknown>> } | undefined> = {}
+): string[] {
+  const set = new Set<string>(settingSubjects.map((x) => x.trim()).filter(Boolean));
+  for (const t of Object.values(templates || {})) {
+    for (const day of Object.values(t?.data || {})) {
+      for (const v of Object.values(day || {})) {
+        if (typeof v !== 'string') continue;
+        const p = parseSlot(v);
+        if (p.cls && p.subject) set.add(p.subject);
+      }
+    }
+  }
+  return [...set].sort((a, b) => a.localeCompare(b, 'ko'));
+}
+
 /**
  * 환경설정 '가르치는 반' 입력 '5-1, 5-2 6-3', '5-1~5-6'(같은 학년 범위), '5학년 2반'을 반 목록으로. 반으로 못 읽은 조각은 bad에.
  */

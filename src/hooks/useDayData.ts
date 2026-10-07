@@ -64,6 +64,8 @@ export interface EventItem {
   createdAt?: number;
   // V3의 이월 사슬 메타데이터. V3는 원본을 원래 날짜에 남겨둔 채 사슬로 관리한다.
   forwardChainId?: string;
+  /** 구글 캘린더로 보내기 - 없거나 null이면 라벨의 '구글 캘린더' 속성을 따른다 (V4 전용, 19번 U11·2026-10-07) */
+  gcal?: boolean | null;
   originalDate?: string;
   // V3가 항목에 함께 저장하는 값들
   date?: string;
@@ -861,6 +863,8 @@ export function useDayData(dateStr: string, groupId: string | null = null) {
       ...(options?.period !== undefined ? { period: options.period } : {}),
       ...(options?.recur !== undefined ? { recur: options.recur } : {}),
       ...(options?.skip !== undefined ? { skip: options.skip } : {}),
+      // 구글 캘린더 (라벨과 다를 때만 true/false - lib/gcalPlan)
+      ...(typeof options?.gcal === 'boolean' ? { gcal: options.gcal } : {}),
       // 기한과 그 이월 사슬 (lib/eventDue - V3 이월이 due를 빼먹어도 사슬 기한으로 찾는다)
       ...(options?.due ? { due: options.due } : {}),
       ...(options?.forwardChainId ? { forwardChainId: options.forwardChainId } : {}),

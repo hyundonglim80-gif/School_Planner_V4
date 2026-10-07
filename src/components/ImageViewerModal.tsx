@@ -21,10 +21,15 @@ interface ImageViewerModalProps {
    * 사진을 크게 띄워 놓고 바꾸려면 화면 꼭대기까지 손을 올려야 했다.
    */
   footer?: React.ReactNode;
+  /**
+   * 'portrait' = 학생 사진: 그림 크기·용량과 상관없이 늘 같은 세로 틀(3:4)에 맞춰 크게 (2026-10-07 사용자 요청 -
+   * 작은 사진은 작게, 큰 사진은 크게 떠서 들쭉날쭉했다). 없으면 그림 크기대로(화면을 넘지 않게).
+   */
+  frame?: 'portrait';
 }
 
 // 메모/기록에 첨부된 캡처 이미지를 팝업으로 바로 확인하는 뷰어.
-export default function ImageViewerModal({ isOpen, onClose, images, startIndex = 0, footer }: ImageViewerModalProps) {
+export default function ImageViewerModal({ isOpen, onClose, images, startIndex = 0, footer, frame }: ImageViewerModalProps) {
   useBodyScrollLock(isOpen);
   const vv = useVisualViewport(isOpen);
   const zIndex = useModalLayer(isOpen, onClose);
@@ -82,7 +87,12 @@ export default function ImageViewerModal({ isOpen, onClose, images, startIndex =
           <img
             src={current.url}
             alt={current.name || '첨부 이미지'}
-            className="max-w-full max-h-[70vh] object-contain"
+            data-viewer-frame={frame}
+            className={
+              frame === 'portrait'
+                ? 'w-[min(80vw,24rem,52.5vh)] aspect-[3/4] object-contain'
+                : 'max-w-full max-h-[70vh] object-contain'
+            }
           />
           {hasMultiple && (
             <>

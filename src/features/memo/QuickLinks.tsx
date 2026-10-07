@@ -174,7 +174,7 @@ export default function QuickLinks() {
               {/* 현재 링크 목록 */}
               <div className="space-y-2">
                 <span className="font-bold text-slate-700 block">등록된 링크 목록 ({links.length})</span>
-                <div className="space-y-1.5 max-h-52 overflow-y-auto overscroll-contain pr-1" data-scroll-lock>
+                <div className="space-y-1.5 pr-1">
                   {links.map((link) => (
                     <div
                       key={link.id}

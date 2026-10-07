@@ -73,7 +73,10 @@ async function openTimetable(page) {
   await page.getByRole('button', { name: /템플릿 클라우드 저장/ }).waitFor({ timeout: 20000 });
   await page.waitForTimeout(1000); // 클라우드 값을 읽어 표를 채운다
 }
+// 전담 칸은 학년-반(data-cell) + 과목 두 칸 (2026-10-07) - 반 칸과 같은 칸의 과목 칸
 const cell = (page, rc) => page.locator(`input[data-cell="${rc}"]`);
+const subjOf = (page, rc) => cell(page, rc).locator('xpath=ancestor::*[@data-slot-pair][1]').locator('input[data-slot-subject-input]');
+const pairValue = async (page, rc) => `${await cell(page, rc).inputValue()} ${await subjOf(page, rc).inputValue()}`.trim();
 async function typeAndLeave(page, rc, text) {
   await cell(page, rc).fill(text);
   await cell(page, rc).evaluate((el) => el.blur());
@@ -113,24 +116,31 @@ try {
   {
     const { ctx, page } = await open(3);
     await openTimetable(page);
-    check("teacher3: 시간표 칸 placeholder '5-2 과학'", (await cell(page, '0-1').getAttribute('placeholder')) === '5-2 과학');
-    check('teacher3: 시간표 칸은 ▼ 콤보', (await cell(page, '0-1').getAttribute('role')) === 'combobox');
+    check("teacher3: 시간표 칸은 두 칸 - placeholder '학년-반'·'과목'", (await cell(page, '0-1').getAttribute('placeholder')) === '학년-반' && (await subjOf(page, '0-1').getAttribute('placeholder')) === '과목');
+    check('teacher3: 두 칸 모두 ▼ 콤보', (await cell(page, '0-1').getAttribute('role')) === 'combobox' && (await subjOf(page, '0-1').getAttribute('role')) === 'combobox');
     // 표는 화살표로 칸을 옮겨 다녀서 들어갈 때 목록을 열지 않는다 - ▼로 연다
     await cell(page, '0-1').click();
     check('teacher3: 시간표 칸에 들어가도 목록은 닫혀 있다', (await page.locator('[data-combobox-list]').count()) === 0);
     await cell(page, '0-1').locator('xpath=..').locator('[data-combobox-toggle]').click();
     await waitOptions(page, 4);
     const opts = await comboOptions(page);
-    check("teacher3: ▼ 목록 '5-1 과학'~'5-4 과학'", ['5-1 과학', '5-2 과학', '5-3 과학', '5-4 과학'].every((o) => opts.includes(o)), opts.join(','));
+    check("teacher3: 반 ▼ 목록 '5-1'~'5-4'", ['5-1', '5-2', '5-3', '5-4'].every((o) => opts.includes(o)), opts.join(','));
+    await page.keyboard.press('Escape');
+    await subjOf(page, '0-1').click();
+    await subjOf(page, '0-1').locator('xpath=..').locator('[data-combobox-toggle]').click();
+    await waitOptions(page, 1);
+    check("teacher3: 과목 ▼ 목록에 '과학'", (await comboOptions(page)).includes('과학'), (await comboOptions(page)).join(','));
     await page.keyboard.press('Escape');
 
-    const v1 = await typeAndLeave(page, '0-1', '5학년 2반 과학');
-    check("teacher3: '5학년 2반 과학' → 칸을 떠나면 '5-2 과학'", v1 === '5-2 과학', v1);
+    const v1 = await typeAndLeave(page, '0-1', '5학년 2반');
+    await subjOf(page, '0-1').fill('과학');
+    await page.waitForTimeout(200);
+    check("teacher3: 반 '5학년 2반' → 칸을 떠나면 '5-2', 과목 '과학'", v1 === '5-2' && (await pairValue(page, '0-1')) === '5-2 과학', await pairValue(page, '0-1'));
 
     await pasteInto(page, '0-2', '5 - 3 과학\t5학년4반 과학');
-    const p1 = await cell(page, '0-2').inputValue();
-    const p2 = await cell(page, '0-3').inputValue();
-    check("teacher3: 붙여 넣기 '5 - 3 과학', '5학년4반 과학' → '5-3 과학', '5-4 과학'", p1 === '5-3 과학' && p2 === '5-4 과학', `${p1} / ${p2}`);
+    const p1 = await pairValue(page, '0-2');
+    const p2 = await pairValue(page, '0-3');
+    check("teacher3: 붙여 넣기 '5 - 3 과학', '5학년4반 과학' → '5-3'·'과학', '5-4'·'과학'", p1 === '5-3 과학' && p2 === '5-4 과학', `${p1} / ${p2}`);
 
     await page.getByTitle('닫기').first().click();
     await page.waitForTimeout(800);
@@ -152,23 +162,24 @@ try {
     const card = page.locator(`[data-focus-key="period:${DAY}:2"]`);
     await card.first().waitFor({ timeout: 15000 });
     await card.first().click();
-    const subj = page.locator('input[data-slot-input]');
+    const subj = page.locator('input[data-slot-class-input]');
     await subj.waitFor({ timeout: 5000 });
     await waitOptions(page, 4);
     const dayOpts = (await comboOptions(page)).length;
-    check('teacher3: 하루 수업 칸 과목 입력에 ▼ 목록(네 반)', dayOpts >= 4, String(dayOpts));
+    check('teacher3: 하루 수업 칸 학년-반 입력에 ▼ 목록(네 반)', dayOpts >= 4, String(dayOpts));
     await subj.press('Escape');
-    await subj.fill('5-1과학');
+    await subj.fill('5-1');
+    await page.locator('input[data-slot-subject-input]').fill('과학');
     await card.first().getByRole('button', { name: '저장', exact: true }).click();
     const [d, ms] = await serverUntil(() => t3.read(day3), (v) => v?.periods?.['2']?.subject === '5-1 과학');
     const p2d = d?.periods?.['2'] || {};
-    check("teacher3: 하루 2교시 '5-1과학' 저장 → 서버 '5-1 과학'", p2d.subject === '5-1 과학', `${p2d.subject} ${ms}ms`);
+    check("teacher3: 하루 2교시 반 '5-1'·과목 '과학' 저장 → 서버 '5-1 과학'", p2d.subject === '5-1 과학', `${p2d.subject} ${ms}ms`);
     check('teacher3: 다른 교시(4교시)는 그대로', d?.periods?.['4']?.subject === '5-4 과학', d?.periods?.['4']?.subject);
 
     // 주간 교시 칸을 눌러 여는 수정 팝업도 같은 제안 목록
     await page.getByRole('button', { name: '주간', exact: true }).first().click();
     await page.getByTitle('4교시 5-4 과학').first().click();
-    const detail = page.locator('[role=dialog] input[data-slot-input]');
+    const detail = page.locator('[role=dialog] input[data-slot-class-input]');
     await detail.waitFor({ timeout: 5000 }).catch(() => {});
     await detail.click();
     await waitOptions(page, 4);

@@ -8,7 +8,7 @@ import { useTeachingMode } from './useTeachingMode';
 import { useTimetableTemplate } from './useTimetableTemplate';
 import { schoolYearOf } from '../lib/schoolSetting';
 import { formatDateStr } from '../lib/dateUtils';
-import { slotSuggestions, teachingClasses } from '../lib/teachingSlot';
+import { slotSuggestions, teachingClasses, teachingSubjects } from '../lib/teachingSlot';
 
 /** dateStr의 학년도에 가르치는 반 (없으면 오늘). subjectsByDate가 있으면 수업 칸에 적힌 반도 */
 export function useTeachingClasses(dateStr?: string, subjectsByDate?: Record<string, Record<string, string>>): string[] {
@@ -30,4 +30,13 @@ export function useSlotOptions(dateStr?: string): string[] {
   const { mode } = useTeachingMode();
   const classes = useTeachingClasses(dateStr);
   return useMemo(() => slotSuggestions(classes, mode.subjects), [classes, mode.subjects]);
+}
+
+/** 전담 수업 칸 두 칸(학년-반 · 과목)의 ▼ 목록 (2026-10-07) */
+export function useSlotPairOptions(dateStr?: string): { classes: string[]; subjects: string[] } {
+  const { mode } = useTeachingMode();
+  const classes = useTeachingClasses(dateStr);
+  const { templates } = useTimetableTemplate();
+  const subjects = useMemo(() => teachingSubjects(mode.subjects, templates), [mode.subjects, templates]);
+  return { classes, subjects };
 }

@@ -120,30 +120,32 @@ try {
     const card = page.locator(`[data-focus-key="period:${DAY}:2"]`).first();
     await card.waitFor({ timeout: 15000 });
     await card.click();
-    const input = page.locator('input[data-slot-input]');
+    // 전담 칸은 학년-반 + 과목 두 칸 (2026-10-07) - 반 칸의 ▼ 목록을 본다
+    const input = page.locator('input[data-slot-class-input]');
+    const subjectInput = page.locator('input[data-slot-subject-input]');
     await input.waitFor({ timeout: 5000 });
-    check("teacher3: 수업 칸에 '5-3 과학'이 적혀 있다", (await input.inputValue()) === '5-3 과학', await input.inputValue());
-    await waitComboAtLeast(page, 5);
+    check("teacher3: 수업 칸에 반 '5-3' · 과목 '과학'", (await input.inputValue()) === '5-3' && (await subjectInput.inputValue()) === '과학', `${await input.inputValue()} / ${await subjectInput.inputValue()}`);
+    await waitComboAtLeast(page, 3);
     let opts = await comboOptions(page);
-    check("teacher3: 칸에 들어가면 ▼ 목록이 전체 - 다른 반 '5-1 과학'도", opts.includes('5-1 과학') && opts.includes('5-4 과학'), opts.join(','));
-    check("teacher3: 명렬표에 없는 반을 시간표에만 적어도 나온다 '6-3 과학'", opts.includes('6-3 과학'));
+    check("teacher3: 칸에 들어가면 ▼ 목록이 전체 - 다른 반 '5-1'도", opts.includes('5-1') && opts.includes('5-4'), opts.join(','));
+    check("teacher3: 명렬표에 없는 반을 시간표에만 적어도 나온다 '6-3'", opts.includes('6-3'));
 
     await input.fill('6');
     await page.waitForTimeout(200);
     opts = await comboOptions(page);
-    check("teacher3: 글자를 치면 거른다 ('6' → '6-3 과학'만)", opts.join(',') === '6-3 과학', opts.join(','));
+    check("teacher3: 글자를 치면 거른다 ('6' → '6-3'만)", opts.join(',') === '6-3', opts.join(','));
 
     await input.press('Escape');
     await page.waitForTimeout(200);
     check('teacher3: ESC는 목록만 닫는다 (칸은 그대로)', (await page.locator('[data-combobox-list]').count()) === 0 && (await input.count()) === 1);
 
-    await card.locator('[data-combobox-toggle]').click();
+    await card.locator('[data-combobox-toggle]').first().click();
     await page.waitForTimeout(200);
     opts = await comboOptions(page);
-    check("teacher3: '6'이 적힌 채 ▼를 눌러도 전체 목록", opts.includes('5-1 과학') && opts.includes('6-3 과학'), String(opts.length));
-    await page.locator('[data-combobox-option="5-2 과학"]').click();
+    check("teacher3: '6'이 적힌 채 ▼를 눌러도 전체 목록", opts.includes('5-1') && opts.includes('6-3'), String(opts.length));
+    await page.locator('[data-combobox-option="5-2"]').click();
     await page.waitForTimeout(200);
-    check("teacher3: 목록에서 고르면 칸에 '5-2 과학', 수정 칸은 열린 채", (await input.inputValue()) === '5-2 과학');
+    check("teacher3: 목록에서 고르면 반 칸에 '5-2'(과목 '과학' 그대로), 수정 칸은 열린 채", (await input.inputValue()) === '5-2' && (await subjectInput.inputValue()) === '과학');
     await input.press('Escape'); // 목록은 고르며 닫혔다 - 수정 취소
     await page.waitForTimeout(300);
     check('teacher3: 목록이 닫힌 뒤의 ESC는 수정 칸을 닫는다', (await input.count()) === 0);
@@ -167,7 +169,7 @@ try {
     await input.waitFor({ timeout: 5000 });
     await waitComboAtLeast(page, 7);
     opts = await comboOptions(page);
-    check("teacher3: 설정의 반도 ▼ 목록에 '7-1 과학'", opts.includes('7-1 과학'), opts.join(','));
+    check("teacher3: 설정의 반도 ▼ 목록에 '7-1'", opts.includes('7-1'), opts.join(','));
     await input.press('Escape');
     await input.press('Escape');
     await page.waitForTimeout(300);

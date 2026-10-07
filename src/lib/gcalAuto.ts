@@ -4,7 +4,8 @@
 // 구글 캘린더(SP(work))에도 반영한다. 수동 '구글 캘린더로 보내기'(lib/calendarSync)와 같은 캘린더·같은 글 모양·같은 sp_id.
 //
 // 자료 (V4 전용 - V3와 같이 쓰는 라벨 객체에 칸을 더하지 않는다):
-//   users/{uid}/settings/v4_gcal       { labels: { [일정 라벨 id]: true } }
+//   users/{uid}/settings/v4_gcal       { labels: { [일정 라벨 id]: true }, used? } - used: 일정 칸에서 일정 하나라도 켠 적이 있다(라벨을 다 꺼도 보낸다)
+//   일정 항목의 gcal(true/false, 없거나 null이면 라벨을 따름) - 일정 칸 속성 줄에서 고친다(2026-10-07)
 //   users/{uid}/v4_gcalQueue/{날짜}     { date, at, fails? } - 보낼 날짜. 계정에 있어 다른 기기에서도 보낸다.
 // 흐름: 일정 날짜 문서 쓰기(lib/gcalNote.setEventDoc) → 그 날짜를 큐에 → 조용한 토큰이 있으면 곧바로 보낸다(flushGcalQueue).
 //   보낼 때 그날 일정을 서버에서 다시 읽어 구글의 그날 것과 맞춘다(lib/gcalPlan) - 무엇을 바꿨는지 따로 들고 다니지 않는다.
@@ -32,6 +33,8 @@ const state = {
   uid: '' as string,
   enabled: new Set<string>(),
   settingsLoaded: false,
+  /** 일정 칸에서 '구글 캘린더'를 켠 적이 있다 - 켠 라벨이 없어도 날짜를 큐에 넣는다 */
+  used: false,
   eventLabels: [] as LabelDef[],
   pending: new Set<string>(),
   timer: null as ReturnType<typeof setTimeout> | null,
@@ -50,8 +53,25 @@ export async function saveGcalLabels(ids: string[]): Promise<void> {
   const uid = auth.currentUser?.uid;
   if (!uid) return;
   // merge로 쓰면 끈 라벨이 지도에 남는다 - 문서를 통째로 쓴다(이 문서에는 이것뿐)
-  await setDoc(settingsRef(uid), { labels: Object.fromEntries(ids.map((id) => [id, true])), updatedAt: Date.now() });
+  await setDoc(settingsRef(uid), {
+    labels: Object.fromEntries(ids.map((id) => [id, true])),
+    ...(state.used ? { used: true } : {}),
+    updatedAt: Date.now(),
+  });
 }
+
+/** 일정 칸에서 '구글 캘린더'를 켰다 - 처음 한 번 계정에 적는다(다른 기기에서도 날짜를 큐에 넣게) */
+export function markGcalUsed() {
+  const uid = auth.currentUser?.uid;
+  if (!uid || state.used) return;
+  state.used = true;
+  setDoc(settingsRef(uid), { used: true, updatedAt: Date.now() }, { merge: true }).catch((e) =>
+    console.warn("'구글 캘린더' 사용 표시를 적지 못했습니다:", e)
+  );
+}
+
+/** 보낼 일이 있을 수 있나 (켠 라벨이 있거나 일정에서 켠 적이 있다) */
+const active = () => state.enabled.size > 0 || state.used;
 
 /** '구글 캘린더'를 켠 라벨 id들 (라벨 관리 창이 열 때 읽는다) */
 export async function readGcalLabels(): Promise<string[]> {
@@ -62,9 +82,10 @@ export async function readGcalLabels(): Promise<string[]> {
   return Object.keys(labels).filter((k) => labels[k]);
 }
 
-/** 일정 날짜 문서가 바뀌었다 → 큐에 (켠 라벨이 하나라도 있을 때만) */
-function noteDate(date: string) {
-  if (!state.uid || state.enabled.size === 0) return;
+/** 일정 날짜 문서가 바뀌었다 → 큐에 (켠 라벨이 있거나, 일정에서 켠 적이 있거나, 이 목록에 켠 일정이 있을 때만) */
+function noteDate(date: string, list?: any[]) {
+  if (!state.uid) return;
+  if (!active() && !(list || []).some((e) => e?.gcal === true)) return;
   state.pending.add(date);
   if (state.timer) clearTimeout(state.timer);
   state.timer = setTimeout(() => void commitPending(), DEBOUNCE_MS);
@@ -145,8 +166,8 @@ export async function flushGcalQueue(interactive: boolean): Promise<FlushResult>
     let token = interactive ? await getValidGoogleToken() : null;
     const queued = await getDocsFromServer(queueCol(uid));
     if (queued.empty) return 'empty';
-    // 라벨을 모두 껐으면 보내지 않는다(쌓인 것은 다시 켜면 보낸다)
-    if (state.enabled.size === 0) return 'off';
+    // 라벨을 모두 껐고 일정에서 켠 적도 없으면 보내지 않는다(쌓인 것은 다시 켜면 보낸다)
+    if (!active()) return 'off';
     if (!token) token = await getGoogleTokenQuietly();
     if (!token) return 'no-token';
     if (!state.calId) state.calId = await getOrCreateCalendarByName(token, CALENDAR);
@@ -212,16 +233,18 @@ export function useGcalAuto(eventLabels: LabelDef[]) {
     state.calId = '';
     state.enabled = new Set();
     state.settingsLoaded = false;
+    state.used = false;
     if (!uid) return;
     const offWrite = onEventDocWrite(noteDate);
     const offSettings = subscribeDocWithServerFallback(settingsRef(uid), (data) => {
       const labels = data?.labels && typeof data.labels === 'object' ? data.labels : {};
       state.enabled = new Set(Object.keys(labels).filter((k) => labels[k]));
+      state.used = !!data?.used;
       const first = !state.settingsLoaded;
       state.settingsLoaded = true;
       notify();
       // 앱을 열 때 (설정을 처음 받은 뒤) 쌓인 것을 조용히 보낸다
-      if (first && state.enabled.size > 0) void flushGcalQueue(false);
+      if (first && active()) void flushGcalQueue(false);
     });
     const offQueue = onSnapshot(
       queueCol(uid),
@@ -229,7 +252,7 @@ export function useGcalAuto(eventLabels: LabelDef[]) {
       () => setQueued(0)
     );
     const onVisible = () => {
-      if (document.visibilityState === 'visible' && state.enabled.size > 0) void flushGcalQueue(false);
+      if (document.visibilityState === 'visible' && active()) void flushGcalQueue(false);
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {

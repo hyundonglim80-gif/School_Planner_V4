@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { takeTrailingHashLabels } from './hashLabels';
+import { takeHashLabels as takeTrailingHashLabels } from './hashLabels';
 
 describe('takeTrailingHashLabels', () => {
   it('마지막 줄의 #이름 여럿 → 라벨, 줄은 지운다', () => {
@@ -26,6 +26,13 @@ describe('takeTrailingHashLabels', () => {
   });
   it('글이 그 줄 하나뿐이면 그대로', () => {
     expect(takeTrailingHashLabels('#업무')).toEqual({ text: '#업무', names: [] });
+    expect(takeTrailingHashLabels('#업무\n#회의')).toEqual({ text: '#업무\n#회의', names: [] });
+  });
+  it('첫 줄도 본다 (2026-10-07)', () => {
+    expect(takeTrailingHashLabels('#회의 #업무\n회의 내용')).toEqual({ text: '회의 내용', names: ['회의', '업무'] });
+    expect(takeTrailingHashLabels('\n#회의\n\n내용\n#업무')).toEqual({ text: '내용', names: ['회의', '업무'] });
+    expect(takeTrailingHashLabels('#상담 #26040305\n내용')).toEqual({ text: '#26040305\n내용', names: ['상담'] });
+    expect(takeTrailingHashLabels('오늘 #회의\n내용')).toEqual({ text: '오늘 #회의\n내용', names: [] });
   });
   it('20자까지', () => {
     const r = takeTrailingHashLabels(`글\n#${'가'.repeat(25)}`);

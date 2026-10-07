@@ -1575,6 +1575,7 @@ export default function RosterModal({ isOpen, onClose }: RosterModalProps) {
           <ImageViewerModal
             isOpen
             onClose={() => setPhotoViewer(null)}
+            frame="portrait"
             images={[{ url: photoViewer.url, name: `${photoViewer.student.num}번 ${photoViewer.student.name}` }]}
             footer={
               <>

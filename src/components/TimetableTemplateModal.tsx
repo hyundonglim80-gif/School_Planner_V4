@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { showToast, showErrorToast } from '../utils/toast';
+import { auth } from '../lib/firebase';
 import {
   useTimetableTemplate,
   getSemesterRanges,
@@ -23,8 +24,9 @@ import {
   type CellPos,
 } from '../lib/gridNav';
 import { useTeachingMode } from '../hooks/useTeachingMode';
-import { normalizeSlotText, slotSuggestions, teachingClasses } from '../lib/teachingSlot';
-import SlotCombobox from './SlotCombobox';
+import { normalizeSlotText, parseSlot, slotSuggestions, teachingClasses, teachingSubjects as teachingSubjectList } from '../lib/teachingSlot';
+import SlotPairInput from './SlotPairInput';
+import { TEACHER_PRESETS, presetPatch, saveTeachingMode, type TeacherPreset } from '../lib/teachingMode';
 import { useTeachingClasses } from '../hooks/useTeachingClasses';
 
 interface TimetableTemplateModalProps {
@@ -55,7 +57,17 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
   const { eventLabels } = useLabels();
   // 교과 모드: 칸에 '5-2 과학' - 제안 목록을 달고, 어떻게 적어도 한 모양으로 맞춘다 (lib/teachingSlot).
   // 초등 담임은 손대지 않는다 ('3-2 국어'를 그대로 쓰는 담임이 있다).
-  const { isClassUnit, mode: { subjects: teachingSubjects } } = useTeachingMode();
+  const { isClassUnit, preset, mode: { subjects: teachingSubjects, homeroomClass } } = useTeachingMode();
+  const choosePreset = async (p: TeacherPreset) => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || p === preset) return;
+    try {
+      await saveTeachingMode(uid, presetPatch(p));
+      showToast(`👩‍🏫 교사 구분을 '${TEACHER_PRESETS.find((x) => x.value === p)?.label}'(으)로 저장했습니다.`);
+    } catch (e) {
+      showErrorToast('교사 구분을 저장하지 못했습니다.', e);
+    }
+  };
 
   // 현재 편집 중인 템플릿의 로컬 상태
   const [editingTemplates, setEditingTemplates] = useState<Record<string, TimetableTemplateItem>>({});
@@ -70,6 +82,14 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
           )
         : [],
     [isClassUnit, editingTemplates, savedClasses, teachingSubjects]
+  );
+  // 두 칸(학년-반 · 과목)의 ▼ 목록 - 반은 위 목록의 반, 과목은 설정 + 고치는 표에 적힌 과목
+  const pairOptions = useMemo(
+    () => ({
+      classes: [...new Set(slotOptions.map((o) => parseSlot(o).cls).filter(Boolean))],
+      subjects: teachingSubjectList(teachingSubjects, editingTemplates),
+    }),
+    [slotOptions, teachingSubjects, editingTemplates]
   );
   // 시간표 표. 칸을 오갈 때 이 안에서 찾는다.
   // (아래에 isOpen 조건부 반환이 있어, 훅은 그보다 위에 있어야 한다)
@@ -501,6 +521,29 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
 
         {/* 스크롤 컨텐츠 */}
         <div className="p-6 overflow-y-auto overscroll-contain space-y-5 flex-1 min-h-0" data-scroll-lock>
+          {/* 교사 구분 (2026-10-07 사용자 요청) - 환경설정의 교사 유형과 같은 값. 고르는 즉시 저장 */}
+          <div className="flex items-center gap-2 flex-wrap" data-teacher-preset>
+            <span className="text-xs font-bold text-slate-700">교사 구분</span>
+            {TEACHER_PRESETS.map((p) => (
+              <button
+                key={p.value}
+                type="button"
+                data-teacher-preset-option={p.value}
+                aria-pressed={preset === p.value}
+                title={p.desc}
+                onClick={() => void choosePreset(p.value)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${
+                  preset === p.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+            <span className="text-2xs text-slate-400">
+              {isClassUnit ? '전담: 칸마다 수업하는 학년-반과 과목을 적거나 ▼에서 고릅니다.' : '담임: 칸마다 과목을 적습니다.'}
+              {preset === 'subjectHomeroom' && !homeroomClass ? ' 담임반은 환경설정 > 교사 유형에서 고릅니다.' : ''}
+            </span>
+          </div>
           {/* 1. 시간표 테이블 (교시 관리 포함) */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -560,21 +603,32 @@ export default function TimetableTemplateModal({ isOpen, onClose }: TimetableTem
                             return (
                               <td key={d.key} className="p-1 border-r border-slate-100 last:border-r-0">
                                 {isClassUnit ? (
-                                  // 화살표로 칸을 옮겨 다니는 표라 들어갈 때 목록을 열지 않는다 - ▼·Alt+↓·글자 치기로 연다
-                                  <SlotCombobox
+                                  // 전담: 한 칸에 학년-반 + 과목 두 칸 (2026-10-07). 저장은 칸 글자 '5-2 과학' 하나.
+                                  // 화살표로 칸을 옮겨 다니는 표라 들어갈 때 목록을 열지 않는다 - ▼·Alt+↓·글자 치기로 연다.
+                                  // 반 칸에서 Tab은 같은 칸의 과목으로, 과목 칸에서 Shift+Tab은 반으로 (브라우저에 맡긴다).
+                                  <SlotPairInput
                                     value={val}
                                     onValueChange={(v) => handleUpdateSubject(d.key, periodNum, v)}
-                                    options={slotOptions}
+                                    classOptions={pairOptions.classes}
+                                    subjectOptions={pairOptions.subjects}
+                                    layout="stack"
                                     openOnFocus={false}
-                                    data-cell={`${pIdx}-${dIdx + 1}`}
-                                    onBlur={(e) => {
-                                      const norm = normalizeSlotText(e.target.value);
-                                      if (norm !== e.target.value) handleUpdateSubject(d.key, periodNum, norm);
+                                    classProps={{
+                                      'data-cell': `${pIdx}-${dIdx + 1}`,
+                                      onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+                                        if (e.key === 'Tab' && !e.shiftKey) return;
+                                        handleCellKeyDown(e, pIdx, dIdx + 1);
+                                      },
+                                      onPaste: (e: React.ClipboardEvent<HTMLInputElement>) => handleCellPaste(e, pIdx, dIdx + 1),
                                     }}
-                                    onKeyDown={(e) => handleCellKeyDown(e, pIdx, dIdx + 1)}
-                                    onPaste={(e) => handleCellPaste(e, pIdx, dIdx + 1)}
-                                    placeholder="5-2 과학"
-                                    className="w-full text-center bg-white border border-transparent hover:border-slate-200 focus:border-blue-500 rounded px-1 py-1 font-bold text-slate-800 focus:outline-none"
+                                    subjectProps={{
+                                      onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+                                        if (e.key === 'Tab' && e.shiftKey) return;
+                                        handleCellKeyDown(e, pIdx, dIdx + 1);
+                                      },
+                                      onPaste: (e: React.ClipboardEvent<HTMLInputElement>) => handleCellPaste(e, pIdx, dIdx + 1),
+                                    }}
+                                    inputClassName="w-full text-center bg-white border border-transparent hover:border-slate-200 focus:border-blue-500 rounded px-1 py-0.5 font-bold text-slate-800 focus:outline-none"
                                   />
                                 ) : (
                                   <input

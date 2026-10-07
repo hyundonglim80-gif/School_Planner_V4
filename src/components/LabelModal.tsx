@@ -938,7 +938,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
               </div>
 
               {/* 일정 라벨 목록 (한 줄 배열) */}
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              <div className="space-y-2">
                 {eventLabels.map((lbl, idx) => {
                   return (
                     <div
@@ -1176,7 +1176,7 @@ export default function LabelModal({ isOpen, onClose, initialTab = 'event' }: La
               )}
 
               {/* 메모·기록 라벨 목록 - 상위 밑에 하위를 들여 쓴다 */}
-              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              <div className="space-y-2">
                 <TreeLabelRows
                   labels={entryLabels}
                   setLabels={setEntryLabels}

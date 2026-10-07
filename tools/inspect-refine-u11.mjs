@@ -2,7 +2,7 @@
 //
 // 19번 U11 일정 라벨 '구글 캘린더' - 바뀐 부분만 실제 크롬으로 본다 (docs/ROADMAP-REFINE.md U11, PC 1400px, teacher).
 // 클라우드 컨테이너는 googleapis를 막으므로 구글 캘린더 API를 흉내 낸다(page.route, 메모리에 일정을 든다).
-//   - 라벨 관리 일정 탭에 '구글 캘린더' 체크(달력과 다름) / 일정 칸에 '📅 구글 캘린더로 보냄'
+//   - 라벨 관리 일정 탭에 '구글 캘린더' 체크(달력과 다름) / 일정 칸 속성 줄에 '구글 캘린더' 체크(라벨을 따름, 일정마다 고침 - 2026-10-07)
 //   - '달력' 라벨에 켜 둔 채 새 일정 저장 → 큐 → SP(work)에 sp_id·sp_auto로 들어간다, 큐가 빈다, 켜지 않은 라벨 일정은 안 간다
 //   - 완료 → 구글 글 앞 ✅ (PUT)
 //   - 토큰이 없을 때 지우기 → 머리줄 '📅 못 보낸 날 1' → (로그인한 셈 치고) 누르면 DELETE, 단추가 사라진다
@@ -154,9 +154,11 @@ try {
   const chip = drawer.getByRole('button', { name: '달력', exact: true }).first();
   // 맨 위 라벨이라 미리 골라져 있을 수 있다 - 꺼져 있으면 켠다
   await page.waitForTimeout(300);
-  if (!(await drawer.locator('[data-event-gcal]').count())) await chip.click();
-  await drawer.locator('[data-event-gcal]').waitFor({ timeout: 5000 });
-  check("일정 칸에 '📅 구글 캘린더로 보냄'", /구글 캘린더로 보냄/.test(await drawer.locator('[data-event-gcal]').innerText()));
+  const gcalBox = drawer.locator('[data-event-attr="gcal"]');
+  await gcalBox.waitFor({ timeout: 5000 });
+  if (!(await gcalBox.isChecked())) await chip.click();
+  await page.waitForTimeout(300);
+  check("일정 칸 속성 줄에 '구글 캘린더' 체크 - 라벨 '달력'을 따라 켜진다", await gcalBox.isChecked());
   await page.getByRole('button', { name: '저장', exact: true }).click();
   const sent = await until(() => mine().find((ev) => ev.summary.includes('공문')));
   const priv = sent?.extendedProperties?.private || {};
@@ -170,6 +172,22 @@ try {
   await card.locator('[title^="클릭하여 완료"]').first().click();
   const done = await until(() => mine().find((ev) => ev.summary.includes('공문') && /✅/.test(ev.summary)));
   check('완료 → 구글 글 앞 ✅ (PUT)', !!done && done.extendedProperties.private.completed === 'true' && calls.some((c) => c.startsWith('PUT')), done?.summary);
+
+  // ── 일정마다: 켜지 않은 라벨(이월) 일정도 칸에서 '구글 캘린더'를 켜면 보낸다 (2026-10-07) ──
+  // 앞서 연 일정 칸을 닫고 연다 (칸이 쌓이면 어느 칸인지 헷갈린다)
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  await page.getByText(`${MARK} 안 보낼 일`).first().click();
+  const drawer2 = page.locator('aside', { has: page.locator('[data-event-attr="gcal"]') }).first();
+  await drawer2.locator('[data-event-attr="gcal"]').waitFor({ timeout: 5000 });
+  const wasOff = !(await drawer2.locator('[data-event-attr="gcal"]').isChecked());
+  await drawer2.locator('[data-event-attr="gcal"]').check();
+  await drawer2.getByRole('button', { name: '저장', exact: true }).click();
+  const one = await until(() => mine().find((ev) => ev.summary.includes('안 보낼 일')));
+  const evNow = (await read(dayRef))?.eventList?.find((e) => e.id === 'ev_u11_other');
+  check("라벨이 꺼진 일정도 칸에서 '구글 캘린더'를 켜면 보낸다 (일정에 gcal:true)", wasOff && !!one && evNow?.gcal === true, JSON.stringify({ wasOff, gcal: evNow?.gcal }));
+  await drawer2.getByTitle('닫기').first().click().catch(() => {});
+  await page.waitForTimeout(500);
 
   // ── 토큰 없음 → 못 보낸 날 단추 ──
   tokenOk = false;

@@ -7,7 +7,8 @@
 import type { DocumentReference, Transaction } from 'firebase/firestore';
 import { eventDocPayload } from './eventText';
 
-type Listener = (date: string) => void;
+/** date: 바뀐 날짜, list: 그날 새 일정 목록 (일정마다 켠 '구글 캘린더'를 보려고) */
+type Listener = (date: string, list?: any[]) => void;
 let listener: Listener | null = null;
 
 /** gcalAuto가 듣는다 (하나만) */
@@ -19,13 +20,13 @@ export function onEventDocWrite(fn: Listener): () => void {
 }
 
 /** 개인 공간의 일정 날짜 문서면 그 날짜를 알린다 (그룹 공간은 1차에서 뺀다) */
-export function noteEventDocWrite(path: string) {
+export function noteEventDocWrite(path: string, list?: any[]) {
   const m = /^users\/[^/]+\/events\/(\d{4}-\d{2}-\d{2})$/.exec(path);
-  if (m && listener) listener(m[1]);
+  if (m && listener) listener(m[1], list);
 }
 
 /** 일정 날짜 문서 쓰기: tx.set(ref, eventDocPayload(list), merge) + 알리기 */
 export function setEventDoc(tx: Transaction, ref: DocumentReference, list: any[]) {
   tx.set(ref, eventDocPayload(list), { merge: true });
-  noteEventDocWrite(ref.path);
+  noteEventDocWrite(ref.path, list);
 }

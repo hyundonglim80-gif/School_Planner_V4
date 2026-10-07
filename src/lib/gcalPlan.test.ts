@@ -14,6 +14,10 @@ describe('gcalPlan', () => {
     expect(isGcalEvent({ label: '공문' }, on, labels)).toBe(true);
     expect(isGcalEvent({ label: '회의' }, on, labels)).toBe(false);
     expect(isGcalEvent({ label: '공문' }, new Set(), labels)).toBe(false);
+    // 일정에 적은 값이 라벨보다 먼저 (2026-10-07)
+    expect(isGcalEvent({ label: '회의', gcal: true }, new Set(), labels)).toBe(true);
+    expect(isGcalEvent({ label: '공문', gcal: false }, on, labels)).toBe(false);
+    expect(isGcalEvent({ label: '공문', gcal: null }, on, labels)).toBe(true);
   });
 
   it('켠 라벨 일정만, 수동 보내기와 같은 차례 번호, sp_auto 표시', () => {

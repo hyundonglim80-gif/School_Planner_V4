@@ -178,45 +178,65 @@ export default function EntryCard(props: EntryCardProps) {
       setPendingLine(null);
     }
   };
+  /**
+   * 본문. 체크 줄(☐/☑)은 누르면 체크한다. 체크한 줄(☑)은 카드 아래쪽에 모아 줄을 긋고 바탕을 칠한다(구글 Keep처럼, 2026-10-07 사용자 요청) -
+   * 보이는 차례만 바꾼다. 저장된 글의 차례는 그대로이고, 누를 때는 원래 줄 번호로 고친다(toggleCheckLine).
+   */
   const renderBody = () => {
     if (!onToggleCheckLine || !hasCheckLines(body)) return renderFormattedText(body);
-    return body.split('\n').map((line, idx) => {
-      const state = checkLineState(line);
+    const lines = body.split('\n').map((line, idx) => ({ line, idx, state: checkLineState(line) }));
+    const open = lines.filter((l) => l.state !== 'done');
+    const done = lines.filter((l) => l.state === 'done');
+    // 위쪽의 끝 빈 줄은 뺀다 (체크한 줄이 빠진 자리)
+    while (open.length > 0 && !open[open.length - 1].line.trim()) open.pop();
+    const checkSpan = (line: string, idx: number, state: 'open' | 'done', extra: string) => {
       // 들여쓰기는 누르는 칸 밖에 둔다 (체크한 줄의 줄긋기가 빈칸까지 긋지 않게)
-      const indent = state ? line.length - line.trimStart().length : 0;
+      const indent = line.length - line.trimStart().length;
       return (
-        <React.Fragment key={idx}>
-          {idx > 0 && '\n'}
-          {indent > 0 && line.slice(0, indent)}
-          {state ? (
-            <span
-              role="checkbox"
-              aria-checked={state === 'done'}
-              tabIndex={0}
-              title={state === 'done' ? '눌러서 체크 풀기' : '눌러서 체크'}
-              data-check-line={idx}
-              onClick={(e) => {
-                e.stopPropagation();
-                void toggleLine(idx, line);
-              }}
-              onKeyDown={(e) => {
-                if (e.key !== 'Enter' && e.key !== ' ') return;
-                e.preventDefault();
-                e.stopPropagation();
-                void toggleLine(idx, line);
-              }}
-              className={`rounded px-0.5 -mx-0.5 cursor-pointer hover:bg-slate-100 ${
-                state === 'done' && !completed ? 'text-slate-400 line-through' : ''
-              } ${pendingLine === idx ? 'opacity-50' : ''}`}
-            >
-              {renderFormattedText(line.slice(indent))}
-            </span>
-          ) : (
-            renderFormattedText(line)
-          )}
-        </React.Fragment>
+        <>
+          {state === 'open' && indent > 0 && line.slice(0, indent)}
+          <span
+            role="checkbox"
+            aria-checked={state === 'done'}
+            tabIndex={0}
+            title={state === 'done' ? '눌러서 체크 풀기' : '눌러서 체크'}
+            data-check-line={idx}
+            onClick={(e) => {
+              e.stopPropagation();
+              void toggleLine(idx, line);
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return;
+              e.preventDefault();
+              e.stopPropagation();
+              void toggleLine(idx, line);
+            }}
+            className={`rounded px-0.5 -mx-0.5 cursor-pointer hover:bg-slate-100 ${extra} ${pendingLine === idx ? 'opacity-50' : ''}`}
+          >
+            {renderFormattedText(line.slice(indent))}
+          </span>
+        </>
       );
-    });
+    };
+    return (
+      <>
+        {open.map(({ line, idx, state }, i) => (
+          <React.Fragment key={idx}>
+            {i > 0 && '\n'}
+            {state ? checkSpan(line, idx, state, '') : renderFormattedText(line)}
+          </React.Fragment>
+        ))}
+        {done.length > 0 && (
+          <span data-check-done-section className={`block space-y-0.5 ${open.length > 0 ? 'mt-1.5 pt-1.5 border-t border-dashed border-slate-200' : ''}`}>
+            {done.map(({ line, idx }) => (
+              <span key={idx} className="block" data-check-done={idx}>
+                {checkSpan(line, idx, 'done', `block !mx-0 px-1.5 py-0.5 bg-slate-100 text-slate-400 line-through`)}
+              </span>
+            ))}
+          </span>
+        )}
+      </>
+    );
   };
 
   const handleDelete = async (e: React.MouseEvent) => {
@@ -243,7 +263,7 @@ export default function EntryCard(props: EntryCardProps) {
         e.stopPropagation();
         onOpen?.();
       }}
-      className={`w-full rounded-2xl p-3 sm:p-4 min-w-0 transition-all duration-200 border flex flex-col gap-2 group shadow-sm hover:shadow-md hover:border-slate-300 cursor-pointer ${
+      className={`relative w-full rounded-2xl p-3 sm:p-4 min-w-0 transition-all duration-200 border flex flex-col gap-2 group shadow-sm hover:shadow-md hover:border-slate-300 cursor-pointer ${
         completed ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white border-slate-200/80'
       }`}
       title="클릭하여 수정"
@@ -251,6 +271,8 @@ export default function EntryCard(props: EntryCardProps) {
       {/* 머리줄 */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-x-1.5 gap-y-1 flex-wrap min-w-0">
+          {/* 단추·라벨 칩은 한 줄에 (라벨이 여럿이어도 첫 줄에 - 2026-10-07 사용자 요청). 날짜·표시는 넘치면 다음 줄로 */}
+          <span className="flex items-center gap-1.5 flex-nowrap min-w-0 max-w-full">
           <button
             type="button"
             onClick={(e) => {
@@ -326,11 +348,12 @@ export default function EntryCard(props: EntryCardProps) {
               key={l.name}
               data-entry-card-label={l.name}
               title={labelPath(l.name, labelParents)}
-              className={`px-2 py-0.5 rounded-md text-xs font-bold border ${CHIP_COLOR[l.color] || CHIP_COLOR.gray}`}
+              className={`px-2 py-0.5 rounded-md text-xs font-bold border whitespace-nowrap truncate min-w-0 max-w-[10rem] ${CHIP_COLOR[l.color] || CHIP_COLOR.gray}`}
             >
               {l.name}
             </span>
           ))}
+          </span>
           <span className="text-xs text-slate-400">{dateText}</span>
           {props.note && (
             <span className="text-2xs font-bold text-slate-400" data-entry-card-note>
@@ -387,7 +410,8 @@ export default function EntryCard(props: EntryCardProps) {
             </span>
           )}
         </div>
-        <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        {/* 마우스를 올렸을 때만 - 자리를 차지하지 않게 위에 띄운다 (칩이 밀려 줄바꿈되지 않게) */}
+        <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 absolute top-2 right-2 bg-white/95 rounded-lg shadow-xs">
           {onOpen && (
             <button
               type="button"

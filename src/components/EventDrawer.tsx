@@ -42,7 +42,7 @@ import { dueOf, isDueDate, newChainId } from '../lib/eventDue';
 import { setChainDue } from '../lib/eventDueStore';
 import { auth } from '../lib/firebase';
 import { formatDateStr } from '../lib/dateUtils';
-import { useGcalEnabled } from '../lib/gcalAuto';
+import { markGcalUsed, useGcalEnabled } from '../lib/gcalAuto';
 
 interface EventDrawerProps {
   /** 어느 날짜의 일정인가 (YYYY-MM-DD) */
@@ -77,9 +77,11 @@ interface Attrs {
   period: boolean;
   recur: boolean;
   skip: boolean;
+  /** 구글 캘린더로 보내기 (19번 U11 라벨 속성 → 2026-10-07 일정마다 고칠 수 있게) */
+  gcal: boolean;
 }
 
-const NO_ATTRS: Attrs = { calendar: false, forward: false, period: false, recur: false, skip: false };
+const NO_ATTRS: Attrs = { calendar: false, forward: false, period: false, recur: false, skip: false, gcal: false };
 
 function formatAlarmBadge(time?: string) {
   if (!time) return null;
@@ -123,12 +125,8 @@ export default function EventDrawer({
 
   const [text, setText] = useState('');
   const [labels, setLabels] = useState<string[]>([]);
+  // '구글 캘린더'를 켠 라벨 (lib/gcalAuto) - 일정마다 따로 켜고 끌 수 있다(event.gcal). 개인 공간 일정만 보낸다(1차).
   const gcalEnabled = useGcalEnabled();
-  // 개인 공간 일정만 보낸다 (1차)
-  const gcalLabelNames = groupId ? [] : labels.filter((n) => {
-    const l = eventLabels.find((x) => x.name === n || x.id === n);
-    return !!l && gcalEnabled.has(l.id);
-  });
   const [attrs, setAttrs] = useState<Attrs>({ ...NO_ATTRS, calendar: true });
   const [alarmTime, setAlarmTime] = useState('');
   /** 기한 (YYYY-MM-DD, 없으면 '') */
@@ -175,7 +173,10 @@ export default function EventDrawer({
     period: !!def.period,
     recur: !!def.recur,
     skip: !!def.skip,
+    gcal: gcalEnabled.has(def.id),
   });
+  /** 라벨대로라면 구글 캘린더로 보내나 - 같으면 일정에 따로 적지 않는다(나중에 라벨을 바꾸면 따라가게) */
+  const gcalOfLabels = (names: string[]) => labelPropOf(names, (d) => gcalEnabled.has(d.id));
 
   /** 이월이 켜진 것으로 보여야 하는가 - 이월 엔진(lib/forwarding의 isForwardTarget)과 같은 순서 */
   const forwardStateOf = (event: any, names: string[]) => {
@@ -231,6 +232,7 @@ export default function EventDrawer({
         period: item.period !== undefined ? !!item.period : labelPropOf(l, (d) => !!d.period),
         recur: item.recur !== undefined ? !!item.recur : labelPropOf(l, (d) => !!d.recur),
         skip: item.skip !== undefined ? !!item.skip : labelPropOf(l, (d) => !!d.skip),
+        gcal: typeof (item as any).gcal === 'boolean' ? !!(item as any).gcal : gcalOfLabels(l),
       };
     } else {
       // 새 일정은 통합 라벨 관리의 맨 위 라벨을 미리 골라 두고, 그 라벨의 속성을 따른다.
@@ -262,7 +264,7 @@ export default function EventDrawer({
     if (isEditing && !current) return;
     fill(current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemKey, eventLabels, labelsLoaded, chainDueKey]);
+  }, [itemKey, eventLabels, labelsLoaded, chainDueKey, gcalEnabled]);
 
   // ─── 고치기 ────────────────────────────────────────────────────
   const setAttr = (key: keyof Attrs, on: boolean) => {
@@ -432,7 +434,10 @@ export default function EventDrawer({
       period: attrs.period,
       recur: attrs.recur,
       skip: attrs.skip,
+      // 라벨과 같으면 null(라벨을 따름), 다르면 true/false (lib/gcalPlan.isGcalEvent)
+      gcal: groupId || attrs.gcal === gcalOfLabels(labels) ? null : attrs.gcal,
     };
+    if (attrs.gcal && !groupId) markGcalUsed();
     try {
       if (entryId && dateChanged) {
         // 다른 날짜로 옮긴다. 고친 내용도 같은 트랜잭션에 함께 쓴다.
@@ -792,6 +797,8 @@ export default function EventDrawer({
                   ['period', '기간', '연속 기간 등록', 'text-indigo-600'],
                   ['recur', '반복', '매주/매월 반복', 'text-purple-600'],
                   ['skip', '수업X', '지정 날짜의 수업 과목 비움', 'text-amber-600'],
+                  // 개인 공간 일정만 보낸다 (1차)
+                  ...(groupId ? [] : ([['gcal', '구글 캘린더', '저장·완료·옮기기·지우기를 구글 캘린더(SP(work))에도 반영 - 라벨 관리에서 라벨마다 기본값을 정합니다', 'text-sky-600']] as const)),
                 ] as const
               ).map(([key, name, title, color]) => (
                 <label
@@ -801,6 +808,7 @@ export default function EventDrawer({
                 >
                   <input
                     type="checkbox"
+                    data-event-attr={key}
                     checked={attrs[key]}
                     onChange={(e) => setAttr(key, e.target.checked)}
                     className={`rounded ${color} focus:ring-0 w-3.5 h-3.5 cursor-pointer`}
@@ -809,12 +817,6 @@ export default function EventDrawer({
                 </label>
               ))}
             </div>
-            {/* 라벨 속성 '구글 캘린더' (19번 U11) - 라벨에만 있다, 여기서는 보이기만 */}
-            {gcalLabelNames.length > 0 && (
-              <p data-event-gcal className="text-2xs font-bold text-sky-700">
-                📅 구글 캘린더로 보냄 - 라벨 {gcalLabelNames.join(', ')} (저장·완료·옮기기·지우기가 구글 캘린더에도)
-              </p>
-            )}
           </div>
 
         </div>

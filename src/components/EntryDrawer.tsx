@@ -21,7 +21,7 @@ import { applyMention, findMention, type Mention, type MentionCandidate } from '
 import SidePanelFrame, { sidePanelClass } from './SidePanelFrame';
 import { labelPath, orderByTree } from '../lib/labelTree';
 import { continueOnEnter, toggleCheckAtCaret, toggleLinesPrefix } from '../lib/checkLines';
-import { takeTrailingHashLabels } from '../lib/hashLabels';
+import { takeHashLabels } from '../lib/hashLabels';
 import { formatBinding, resolveBindings } from '../lib/shortcuts';
 import { isTopSideItem } from './PopupFrame';
 import EntryTableView from './EntryTableView';
@@ -271,10 +271,10 @@ export default function EntryDrawer({
 
   const [saving, setSaving] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
-  /** 학생 태그 고르는 칸 (기록에만) */
+  /** 학생 태그 고르는 칸 (기록·메모) */
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   /**
-   * '@이름'으로 학생 태그 넣기 (기록에만, ROADMAP 10-1). 목록은 StudentMentionList가 그리고,
+   * '@이름'으로 학생 태그 넣기 (기록·메모, ROADMAP 10-1 · 메모는 2026-10-07). 목록은 StudentMentionList가 그리고,
    * 키보드는 글 칸이 받는다(목록으로 초점을 옮기면 한글 조합이 끊긴다).
    */
   const contentRef = useRef<HTMLTextAreaElement>(null);
@@ -282,7 +282,6 @@ export default function EntryDrawer({
   const [mentionIndex, setMentionIndex] = useState(0);
   const mentionCandidates = useRef<MentionCandidate[]>([]);
   const updateMention = (el: HTMLTextAreaElement) => {
-    if (kind !== 'journal') return;
     const next = findMention(el.value, el.selectionStart ?? el.value.length);
     if (!next || next.query !== mention?.query || next.start !== mention?.start) setMentionIndex(0);
     setMention(next);
@@ -299,7 +298,7 @@ export default function EntryDrawer({
     });
   };
   // 마지막 줄 '#라벨' (19번 U10) - 칸 아래에 미리 보인다
-  const hashPreview = React.useMemo(() => takeTrailingHashLabels(content).names, [content]);
+  const hashPreview = React.useMemo(() => takeHashLabels(content).names, [content]);
   // ── 체크 목록 (19번 U9, lib/checkLines) ──
   /**
    * 글을 바꾸고 커서를 그 자리에 둔다. React가 값을 다시 그린 바로 뒤(useLayoutEffect)에 둔다 -
@@ -669,7 +668,7 @@ export default function EntryDrawer({
     savingRef.current = true;
 
     // 마지막 줄의 '#라벨'은 라벨로 붙이고 그 줄은 글에서 뗀다 (19번 U10, lib/hashLabels)
-    const hash = takeTrailingHashLabels(content);
+    const hash = takeHashLabels(content);
     const saveText = hash.names.length > 0 ? hash.text : content;
     const saveLabels = [...selectedLabels, ...hash.names.filter((n) => !selectedLabels.includes(n))];
 
@@ -862,7 +861,7 @@ export default function EntryDrawer({
                 placeholder={text.placeholder}
                 className="w-full min-h-[84px] p-4 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-slate-800 leading-relaxed placeholder-slate-400 text-sm"
               />
-              {kind === 'journal' && mention && (
+              {mention && (
                 <StudentMentionList
                   query={mention.query}
                   activeIndex={mentionIndex}
@@ -876,7 +875,7 @@ export default function EntryDrawer({
             {/* 마지막 줄 '#라벨' 미리보기 (19번 U10) - 저장하면 무엇이 일어날지 */}
             {hashPreview.length > 0 && (
               <div data-hash-preview className="flex flex-wrap items-center gap-1 text-2xs font-bold text-slate-500">
-                <span>저장하면 마지막 줄을 라벨로:</span>
+                <span>저장하면 #줄을 라벨로:</span>
                 {hashPreview.map((n) => {
                   const isNew = !labelOptions.includes(n);
                   return (
@@ -895,7 +894,7 @@ export default function EntryDrawer({
             )}
             <p className="text-2xs text-slate-400">
               ▦ 엑셀·한셀·구글 시트에서 복사해 여기에 붙여넣으면 서식째 표로 붙습니다.
-              {kind === 'journal' ? ' @이름을 치면 학생 태그를 고릅니다.' : ''}
+              {' @이름을 치면 학생 태그를 고릅니다. 첫 줄·마지막 줄의 #이름은 라벨이 됩니다.'}
             </p>
             {/* 붙인 표 (lib/entryTable). 칸을 눌러 글자를 고치고, 줄·열을 더하고 뺀다 */}
             {tables.map((t, i) => (
@@ -907,8 +906,7 @@ export default function EntryDrawer({
                 onRemove={() => setTables((prev) => prev.filter((x) => x.id !== t.id))}
               />
             ))}
-            {/* 학생 태그 (#26040305). 붙여 두면 '학생 누가기록'에 모인다. */}
-            {kind === 'journal' && (
+            {/* 학생 태그 (#26040305). 붙여 두면 '학생 누가기록'에 모인다 - 메모에도 (2026-10-07 사용자 요청) */}
               <div className="space-y-1.5">
                 <button
                   type="button"
@@ -916,7 +914,7 @@ export default function EntryDrawer({
                   className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                   title="학생을 골라 #학년도학년반번호 태그를 붙입니다. 학생 누가기록에 모입니다."
                 >
-                  🧑‍🎓 학생 태그 {tagPickerOpen ? '닫기' : '넣기'}
+                  🧑‍🎓 학생 누가기록 (학생 태그 {tagPickerOpen ? '닫기' : '넣기'})
                 </button>
                 {tagPickerOpen && (
                   <StudentTagPicker
@@ -931,7 +929,6 @@ export default function EntryDrawer({
                   />
                 )}
               </div>
-            )}
           </div>
 
           <div className="space-y-2">

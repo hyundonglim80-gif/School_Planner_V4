@@ -3,7 +3,7 @@
 // 19번 U3 '하루 수업 칸' - 바뀐 부분만 실제 크롬으로 본다 (docs/ROADMAP-REFINE.md U3, PC 1400px).
 //   - teacher: 진도 없는 교시를 고치면 '📘 진도 만들기' → 진도 관리 창이 과목 그 글자로 새 진도. 칸 aria '과목'
 //   - teacher: 주간에서 연 'N교시 수정' 팝업에도 '📘 진도 만들기'
-//   - teacher3: '5-3 과학' 교시 → 과목 과학 + 반 5-3, 칸 placeholder '학년-반 과목'
+//   - teacher3: '5-3 과학' 교시 → 과목 과학 + 반 5-3, 칸은 '학년-반'·'과목' 두 칸 (2026-10-07)
 //   - teacher3: 진도 줄에 단원·📖 교과서 쪽, 카드 차례 진도 줄 → 준비물 → 메모
 // 점검이 만든 진도와 고친 수업 문서는 끝에 되돌린다.
 //
@@ -127,9 +127,10 @@ try {
     await goDate(page, '2026-11-03'); // 화: 2교시 5-3 과학, 4교시 5-4 과학
     await card(page, '2026-11-03', 2).click();
     const edit = card(page, '2026-11-03', 2);
-    const input = edit.locator('input[data-slot-input]');
+    // 전담 칸은 학년-반 + 과목 두 칸 (2026-10-07)
+    const input = edit.locator('input[data-slot-class-input]');
     await input.waitFor({ timeout: 5000 });
-    check("teacher3: 칸 placeholder·aria '학년-반 과목'", /학년-반 과목/.test((await input.getAttribute('placeholder')) || '') && (await input.getAttribute('aria-label')) === '학년-반 과목');
+    check("teacher3: 칸 두 개 aria '학년-반'·'과목'", (await input.getAttribute('aria-label')) === '학년-반' && (await edit.locator('input[data-slot-subject-input]').getAttribute('aria-label')) === '과목');
     await edit.locator('[data-progress-create]').click();
     const dlg = progressDialog(page);
     await dlg.waitFor({ timeout: 10000 });
@@ -177,7 +178,7 @@ try {
     check('카드 차례: 진도 줄 → 준비물 → 메모', order.every((v) => v >= 0) && order[0] < order[1] && order[1] < order[2], order.join(','));
     check("진도가 있는 교시를 고칠 때는 '진도 만들기'가 없다", await (async () => {
       await c.click();
-      await c.locator('input[data-slot-input]').waitFor({ timeout: 5000 });
+      await c.locator('input[data-slot-subject-input], input[aria-label="과목"]').first().waitFor({ timeout: 5000 });
       return (await c.locator('[data-progress-create]').count()) === 0;
     })());
     await page.keyboard.press('Escape');

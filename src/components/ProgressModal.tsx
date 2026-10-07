@@ -810,7 +810,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
                   ))}
                   <span />
                 </div>
-                <div className="max-h-72 overflow-y-auto space-y-1 pr-0.5">
+                <div className="space-y-1 pr-0.5">
                   {draft.lessons.map((l, r) => (
                     <div key={l._k} className={ROW_GRID}>
                       {FIELDS.map((f, c) => (
