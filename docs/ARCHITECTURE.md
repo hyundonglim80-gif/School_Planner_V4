@@ -355,6 +355,11 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   명렬표는 `RosterModal embedded`(창 대신 `data-roster-embedded` 판, 닫기 없음, 판 안 Ctrl+S = 저장). 처음 학급은 `readHubClass`(hubKeyRef -
   명렬표를 받기 전의 빈 1-1을 지나치려고 받은 뒤 한 번만 본다). 탭은 `rosterTab`에 기억(onTabChange). 단축키·`runAppAction({id:'roster'})`는
   `openClassRoster(tab)`. `data-class-view`는 학생 명단의 이름/사진 단추라 겹치지 않게 `data-class-mode`를 썼다.
+  **암기 탭**(`roster/RosterMemorizeTab`, `hooks/usePhotoQuiz`, `lib/photoQuiz`, 2026-10-07 사용자 요청): 문제·정답이 같은 사진 틀(`data-quiz-photo`
+  w-60, 카드 aspect 4/5·object-cover)이고 정답은 그 아래 `data-quiz-answer`에 이름만. 설정 `data-quiz-settings`(이 기기 localStorage `sp4-photo-quiz`,
+  `readQuizSettings`): 자동 넘김 초(0 끔 - 문제 → `reveal()`(성적 안 넣음) → `next()`), 출제 수(0 계속 - `buildRound`/판 끝에 `extendDeck`, 바퀴 수 = round),
+  함께 외울 학급(같은 학년도, 학급마다 보이지 않는 `ClassQuizPhotos`가 `useStudentPhotos`를 하나씩 부르고, 모두 받은 뒤 판을 짠다 - 받는 중에 판이 다시 짜이지 않게).
+  학생마다 `QuizStudent.cls`로 성적 열쇠(`quizKey`)를 그 학급으로 만든다. 성적 문서는 예전과 같은 `settings/photoQuiz`.
   화면 종류를 더하면: store `Scope`·`App`·Layout `scopes`·`scopeOrder`·`MobileTabBar`·`shortcuts`·`COMMAND_META`·`PaletteScope`·
   `useGlobalGestures`·시작 화면(`preferenceSync`·`SettingsModal`).
 - 화면 폭 판단은 창이 아니라 **본문 폭**(`useMainWidth`, `@container`)으로 한다. 오른쪽 칸이 열리면 그만큼 좁아진다.
@@ -639,6 +644,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-side-tabs.mjs` | 오른쪽 칸 탭(9) - 칸 하나면 탭 없음, 메모+기록 → 탭 둘, 탭 누르기·글 남음, 탭 이름, 팝업도 탭, × 그 칸만, ESC 모두 |
 | `tools/inspect-link-preview.mjs` | 링크 미리보기(6) - 메모 카드의 유튜브·지도·사이트 카드, 지도 보기, 새 탭·쓰는 칸 안 열림, 쓰는 칸 글 아래 |
 | `tools/inspect-class-roster.mjs` | 명렬표를 학급 화면 안으로(10) - ⋮에 없음, 학급 도구 \| 명렬표 전환, 창 아닌 판·세 탭, 고른 학급으로, 닫기 없음, 다른 화면 갔다 와도 그대로, 도구 칸 '명렬표' |
+| `tools/inspect-memorize.mjs` | 암기(10) - 설정 줄, 문제·정답 사진 틀 같음(가로·세로로 긴 사진), 정답은 이름만, 출제 수 2·0(계속), 함께 외울 학급 9-2, 자동 넘김 1초·0. 드라이브를 흉내 내고 9-1·9-2를 심었다가 명렬표·암기 성적을 되돌린다 |
 | `tools/inspect-class-bell.mjs` | 수업 종(5) - 시간표 창에서 켜기·1분 전, 시계를 돌려 08:59 시작 종·09:40 끝 종, 이 기기에서 끄기. 교시 시각·종 설정을 되돌린다 |
 | `tools/inspect-ux-audit.mjs` | UX-AUDIT 적용(12) - 머리줄 ?, ⋮ 차례·환경설정의 설치·밝기, 일정 ☐ 완료, 📘 진도, ✏️, + 메모, + 새 라벨, 라벨로 보기 ?, 구글 캘린더 안내 |
 | `tools/inspect-batch-1007.mjs` | 10-07 요청 묶음(13) - 첫 줄 #라벨, 카드 라벨 한 줄·체크한 줄 아래, 라벨 관리 한 스크롤, teacher3 시간표 교사 구분·두 칸, 메모 학생 태그(명렬표·직접)·누가기록 '📝 메모'. 메모·라벨을 되돌린다 |

@@ -8,6 +8,9 @@ import {
   recordOf,
   quizKey,
   MASTERED_STREAK,
+  buildRound,
+  extendDeck,
+  sanitizeQuizSettings,
   type QuizRecords,
 } from './photoQuiz';
 
@@ -132,5 +135,35 @@ describe('quizKey', () => {
     expect(quizKey(cls, '배유나')).toBe('2026-3-2-배유나');
     // 번호가 밀려도 열쇠가 같으므로 성적이 이어진다
     expect(quizKey(cls, '배 유나')).toBe('2026-3-2-배유나');
+  });
+});
+
+describe('buildRound / extendDeck (출제 수, 2026-10-07)', () => {
+  const C = ['a', 'b', 'c'].map((key) => ({ key }));
+  it('0이면 한 바퀴 그대로', () => {
+    expect(buildRound(C, {}, { count: 0 }).map((c) => c.key).sort()).toEqual(['a', 'b', 'c']);
+  });
+  it('후보보다 적으면 그만큼만', () => {
+    expect(buildRound(C, {}, { count: 2 })).toHaveLength(2);
+  });
+  it('후보보다 많으면 바퀴를 이어 채우고, 바퀴 사이에 같은 학생이 잇따르지 않는다', () => {
+    for (let t = 0; t < 20; t++) {
+      const d = buildRound(C, {}, { count: 8 });
+      expect(d).toHaveLength(8);
+      for (let i = 1; i < d.length; i++) expect(d[i].key).not.toBe(d[i - 1].key);
+    }
+  });
+  it('외운 학생만 남아도 이어 붙이는 바퀴는 비지 않는다', () => {
+    const rec = { a: { o: 3, x: 0, streak: 3 }, b: { o: 3, x: 0, streak: 3 }, c: { o: 0, x: 1, streak: 0 } };
+    const d = extendDeck([{ key: 'c' }], C, rec);
+    expect(d.length).toBe(4);
+  });
+});
+
+describe('sanitizeQuizSettings', () => {
+  it('음수·글자·소수를 0 또는 정수로, 학급키만 남긴다', () => {
+    expect(sanitizeQuizSettings({ auto: -3, count: '5.7', classes: ['2026_5_2', 3, 'x'] })).toEqual({ auto: 0, count: 5, classes: ['2026_5_2'] });
+    expect(sanitizeQuizSettings(null)).toEqual({ auto: 0, count: 0, classes: [] });
+    expect(sanitizeQuizSettings({ auto: 999 }).auto).toBe(60);
   });
 });

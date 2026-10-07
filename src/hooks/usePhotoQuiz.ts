@@ -10,7 +10,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import {
-  buildDeck,
+  buildRound,
+  extendDeck,
   applyAnswer,
   undoAnswer,
   recordOf,
@@ -29,6 +30,8 @@ export interface QuizStudent {
   note?: string;
   /** 사진 주소. 없으면 판에 올리지 않는다. */
   url: string;
+  /** 여러 학급을 함께 외울 때 이 학생의 학급 (없으면 판의 학급) - 2026-10-07 */
+  cls?: ClassKey;
 }
 
 interface DeckItem extends QuizStudent {
@@ -42,7 +45,11 @@ interface LastAnswer {
   prevStreak: number;
 }
 
-export function usePhotoQuiz(cls: ClassKey | null, students: QuizStudent[]) {
+/**
+ * @param opts.count 한 판의 출제 수 (0 = 계속 - 판 끝에서 한 바퀴씩 이어 붙인다, 2026-10-07)
+ */
+export function usePhotoQuiz(cls: ClassKey | null, students: QuizStudent[], opts: { count?: number } = {}) {
+  const count = Math.max(0, opts.count || 0);
   const [records, setRecords] = useState<QuizRecords>({});
   const [loaded, setLoaded] = useState(false);
   const [deck, setDeck] = useState<DeckItem[]>([]);
@@ -55,7 +62,7 @@ export function usePhotoQuiz(cls: ClassKey | null, students: QuizStudent[]) {
   const [tally, setTally] = useState({ o: 0, x: 0 });
 
   const clsKey = cls ? `${cls.year}-${cls.grade}-${cls.classNum}` : '';
-  const rosterKey = students.map((s) => `${s.num}:${s.name}:${s.url ? 1 : 0}`).join('|');
+  const rosterKey = students.map((s) => `${s.cls ? quizKey(s.cls, '') : ''}${s.num}:${s.name}:${s.url ? 1 : 0}`).join('|');
 
   const docRef = useCallback(() => {
     const user = auth.currentUser;
@@ -133,16 +140,16 @@ export function usePhotoQuiz(cls: ClassKey | null, students: QuizStudent[]) {
       if (!cls) return;
       const candidates: DeckItem[] = students
         .filter((s) => s.url && s.name)
-        .map((s) => ({ ...s, key: quizKey(cls, s.name) }));
+        .map((s) => ({ ...s, key: quizKey(s.cls || cls, s.name) }));
 
-      setDeck(buildDeck(candidates, records, { weighted }));
+      setDeck(buildRound(candidates, records, { weighted, count }));
       setIndex(0);
       setRevealed(false);
       setLast(null);
       setTally({ o: 0, x: 0 });
       if (!opts.keepRound) setRound((r) => r + 1);
     },
-    [cls, students, records, weighted]
+    [cls, students, records, weighted, count]
   );
 
   /** 성적을 다 읽고 명단이 갖춰지면 첫 판을 짠다 */
@@ -151,8 +158,8 @@ export function usePhotoQuiz(cls: ClassKey | null, students: QuizStudent[]) {
     if (!cls) return;
     const candidates: DeckItem[] = students
       .filter((s) => s.url && s.name)
-      .map((s) => ({ ...s, key: quizKey(cls, s.name) }));
-    setDeck(buildDeck(candidates, records, { weighted }));
+      .map((s) => ({ ...s, key: quizKey(s.cls || cls, s.name) }));
+    setDeck(buildRound(candidates, records, { weighted, count }));
     setIndex(0);
     setRevealed(false);
     setLast(null);
@@ -161,7 +168,7 @@ export function usePhotoQuiz(cls: ClassKey | null, students: QuizStudent[]) {
     // records를 의존성에 넣으면 답을 누를 때마다 판이 다시 짜인다.
     // 판은 시작할 때 한 번만 정하고, 성적은 다음 판에 반영한다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, clsKey, rosterKey, weighted]);
+  }, [loaded, clsKey, rosterKey, weighted, count]);
 
   const current = deck[index] || null;
   const total = deck.length;
@@ -195,11 +202,26 @@ export function usePhotoQuiz(cls: ClassKey | null, students: QuizStudent[]) {
     scheduleFlush(next);
   }, [last, records, scheduleFlush]);
 
+  /** 답하지 않고 이름만 보인다 (자동 넘김 - 성적에는 넣지 않는다) */
+  const reveal = useCallback(() => {
+    if (!current || revealed) return;
+    setLast(null);
+    setRevealed(true);
+  }, [current, revealed]);
+
   const next = useCallback(() => {
     setRevealed(false);
     setLast(null);
+    // '계속'(출제 수 0): 판 끝에 닿으면 한 바퀴를 더 붙여 이어 간다 (마침 화면 없이)
+    if (count === 0 && cls && index + 1 >= deck.length && deck.length > 0) {
+      const candidates: DeckItem[] = students
+        .filter((s) => s.url && s.name)
+        .map((s) => ({ ...s, key: quizKey(s.cls || cls, s.name) }));
+      setDeck((d) => extendDeck(d, candidates, records, { weighted }));
+      setRound((r) => r + 1);
+    }
     setIndex((i) => i + 1);
-  }, []);
+  }, [count, cls, index, deck.length, students, records, weighted]);
 
   return {
     loaded,
@@ -217,11 +239,14 @@ export function usePhotoQuiz(cls: ClassKey | null, students: QuizStudent[]) {
     answer,
     undo,
     next,
+    reveal,
     shuffle,
+    /** 출제 수 (0 = 계속) */
+    count,
     /** 방금 무엇을 눌렀는가. 정답 화면에서 그대로 되비쳐 준다. */
     lastKnown: last ? last.known : null,
     canUndo: !!last,
-    finished: loaded && total > 0 && index >= total,
+    finished: loaded && total > 0 && index >= total && count > 0,
     tally,
   };
 }

@@ -1573,6 +1573,8 @@ export default function RosterModal({ isOpen, onClose, embedded = false, initial
               )}
               <RosterMemorizeTab
                 cls={currentClass}
+                classes={currentClasses}
+                photosOn={showPhotos}
                 candidates={quizCandidates}
                 withoutPhoto={
                   students.filter((s) => s.isActive !== false && !photoState.photos.has(s.num))
