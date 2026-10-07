@@ -646,3 +646,6 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 14. **색을 주나?** Tailwind 색 클래스, style이면 `var(--color-…)`(hex는 다크 모드에서 안 바뀐다). `src/dark.css`는 `tools/gen-dark-css.mjs`로만.
 15. **인쇄할 화면인가?** `lib/print.printNode`, 찍지 않을 것에 `data-print-hide`.
 16. **매니페스트·서비스 워커를 바꾸나?** 설치된 앱은 늦게 받는다 - 사용자에게 '다시 설치'를 함께 알린다(8장 공유받기).
+17. **일정 날짜 문서를 새로 쓰나?** `tx.set(ref, eventDocPayload(list))` 대신 `lib/gcalNote.setEventDoc(tx, ref, list)` - 그래야 구글 캘린더 자동 보내기(U11)가 그날을 맞춘다
+    (링크·알림처럼 구글 글이 바뀌지 않는 쓰기만 예외).
+18. **메모·기록에 칸을 더하나?** 기록은 읽는 곳(`applyJournalData`·`JournalPeekModal`)에도, 날짜 칸 옮기기(`moveEntry.toJournalEntry`·`toMemoDoc`)에도 - 어느 칸을 넘길지 정한다.

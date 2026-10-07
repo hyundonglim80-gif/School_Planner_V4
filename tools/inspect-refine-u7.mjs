@@ -135,8 +135,12 @@ try {
     j?.content === `${MARK} 메모` && (j?.labelIds || []).join() === 'j_1' && j?.attachments?.[0]?.name === 'u7.txt' && j?.tables?.[0]?.id === 'tb_u7' && j?.createdAt === 1700000000000,
     JSON.stringify({ labelIds: j?.labelIds, att: j?.attachments?.length, tables: j?.tables?.length })
   );
-  check('메모는 사라진다', !(await read(memoRef)));
-  const trash = (await getDocsFromServer(collection(db, 'users', user.uid, 'trash'))).docs.map((d) => d.data());
+  // 원본 지우기·휴지통은 새 기록을 쓴 뒤에 온다 - 기다려 읽는다
+  check('메모는 사라진다', !(await serverUntil(() => read(memoRef), (d) => !d)));
+  const trash = await serverUntil(
+    async () => (await getDocsFromServer(collection(db, 'users', user.uid, 'trash'))).docs.map((d) => d.data()),
+    (ts) => ts.some((t) => String(t.content).startsWith('(날짜를 바꿈)') && String(t.content).includes(MARK))
+  );
   check("휴지통에 '(날짜를 바꿈)' 사본", trash.some((t) => String(t.content).startsWith('(날짜를 바꿈)') && String(t.content).includes(MARK)));
   const ev = (await read(refs.ev)).eventList.find((e) => e.id === EV_ID);
   check('링크된 일정의 링크가 새 기록을 가리킨다', ev?.linkedItems?.some((l) => l.targetType === 'journal' && l.targetId === j?.id && l.targetDate === DAY), JSON.stringify(ev?.linkedItems));
@@ -163,7 +167,7 @@ try {
   await panel().locator('textarea').first().fill(`${MARK} 메모 (고침)`);
   await panel().locator('textarea').first().press('Control+s');
   const d2 = await serverUntil(() => entriesOf(refs.d2), (es) => mine(es).length === 1);
-  const d1 = await entriesOf(refs.d1);
+  const d1 = await serverUntil(() => entriesOf(refs.d1), (es) => mine(es).length === 0);
   check('기록 날짜 바꾸기 → 고친 글째 다른 날로, 원래 날에서 빠진다', mine(d2)[0]?.content === `${MARK} 메모 (고침)` && mine(d1).length === 0, `${mine(d2).length}/${mine(d1).length}`);
   await page.waitForTimeout(1200);
   await panel().locator('[data-entry-date-clear]').click();
@@ -171,7 +175,8 @@ try {
   const memos = await serverUntil(memosMine, (ds) => ds.length === 1);
   const m = memos[0]?.data();
   check('기록 날짜 빼기 → 메모(fromDate, 글에 날짜 줄 없음), 그날 기록에서 빠진다',
-    m?.fromDate === DAY2 && m?.content === `${MARK} 메모 (고침)` && mine(await entriesOf(refs.d2)).length === 0, JSON.stringify({ fromDate: m?.fromDate }));
+    m?.fromDate === DAY2 && m?.content === `${MARK} 메모 (고침)` && mine(await serverUntil(() => entriesOf(refs.d2), (es) => mine(es).length === 0)).length === 0,
+    JSON.stringify({ fromDate: m?.fromDate }));
   await page.waitForTimeout(800);
   await page.getByTitle('닫기').first().click().catch(() => {});
   await page.waitForTimeout(800);
