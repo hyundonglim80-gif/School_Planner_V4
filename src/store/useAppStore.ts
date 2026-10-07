@@ -282,7 +282,9 @@ interface AppState {
   progressModalPlanId: string | null;
   /** 과정이면 미리보기에서 먼저 보일 반 '5-2' (수업 칸의 진도 줄을 누르면 그 반) */
   progressModalClass: string | null;
-  setProgressModalOpen: (isOpen: boolean, planId?: string, cls?: string) => void;
+  /** '📘 진도 만들기'(19번 U2·U3): planId가 NEW_PLAN_ID일 때 새 진도를 채울 수업 칸 글자 ('국어', '5-2 과학') */
+  progressModalPreset: string | null;
+  setProgressModalOpen: (isOpen: boolean, planId?: string, cls?: string, preset?: string) => void;
   /** 주간학습안내 창 (ROADMAP 12-2). 열면 그 주의 아무 날(''이면 다음 주), 닫혀 있으면 null */
   weeklyGuideDate: string | null;
   openWeeklyGuide: (dateStr?: string) => void;
@@ -723,11 +725,13 @@ export const useAppStore = create<AppState>()(
       isProgressModalOpen: false,
       progressModalPlanId: null,
       progressModalClass: null,
-      setProgressModalOpen: (isOpen: boolean, planId?: string, cls?: string) =>
+      progressModalPreset: null,
+      setProgressModalOpen: (isOpen: boolean, planId?: string, cls?: string, preset?: string) =>
         set({
           isProgressModalOpen: isOpen,
           progressModalPlanId: isOpen ? planId ?? null : null,
           progressModalClass: isOpen ? cls ?? null : null,
+          progressModalPreset: isOpen ? preset ?? null : null,
         }),
 
       weeklyGuideDate: null,

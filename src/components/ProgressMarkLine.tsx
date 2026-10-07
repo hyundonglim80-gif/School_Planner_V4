@@ -1,12 +1,12 @@
 // src/components/ProgressMarkLine.tsx
 //
 // 수업 칸에 겹쳐 보이는 진도 한 줄 (docs/ROADMAP.md 5-3). 하루 화면 교시 카드와 'N교시 수정' 팝업이 쓴다.
-//   📘 5/12차시 · 비유 표현   🎒 교과서   [밀기]
+//   📘 단원 · 5/12차시 · 비유 표현 · 📖 12~13쪽   🎒 준비물   [밀기]   (교과서 쪽은 19번 U3)
 // 진도는 화면에만 겹친다 - 수업 문서(V3와 함께 씀)에는 쓰지 않는다. 밀기는 진도 문서(v4_progress)의 bumps 한 칸만 바꾼다.
 // 줄을 누르면 진도 관리 창이 그 진도로 열린다.
 import React, { useState } from 'react';
 import { auth } from '../lib/firebase';
-import { setProgressBump, type ProgressMark } from '../lib/progress';
+import { lessonPageLabel, setProgressBump, type ProgressMark } from '../lib/progress';
 import { useAppStore } from '../store/useAppStore';
 import { showErrorToast, showToast } from '../utils/toast';
 
@@ -21,6 +21,7 @@ interface ProgressMarkLineProps {
 export default function ProgressMarkLine({ mark, dateStr, period, alwaysShowAction = false }: ProgressMarkLineProps) {
   const [busy, setBusy] = useState(false);
   const lesson = mark.lesson;
+  const page = lessonPageLabel(lesson?.page);
 
   const openPlan = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -51,6 +52,7 @@ export default function ProgressMarkLine({ mark, dateStr, period, alwaysShowActi
     : `${mark.key} 진도 ${mark.index! + 1}/${mark.total}차시` +
       (lesson?.unit ? ` · ${lesson.unit}` : '') +
       (lesson?.content ? ` · ${lesson.content}` : '') +
+      (page ? ` · 교과서 ${page}` : '') +
       (lesson?.supplies ? ` · 준비물 ${lesson.supplies}` : '') +
       ' (누르면 진도 관리)';
 
@@ -61,10 +63,12 @@ export default function ProgressMarkLine({ mark, dateStr, period, alwaysShowActi
           <span className="text-amber-700 font-bold">⏭ 밀림 · 이 교시는 차시 없음</span>
         ) : (
           <span className="text-indigo-700">
-            📘 <b className="tabular-nums">
+            📘 {lesson?.unit && <span className="text-indigo-500">{lesson.unit} · </span>}
+            <b className="tabular-nums">
               {mark.index! + 1}/{mark.total}차시
             </b>
             {lesson?.content && ` · ${lesson.content}`}
+            {page && <span data-progress-page> · 📖 {page}</span>}
           </span>
         )}
       </button>

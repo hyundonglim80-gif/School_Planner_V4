@@ -60,6 +60,13 @@ export const newDraft = (): Draft => ({
 });
 export const newCourseDraft = (subject = ''): Draft => ({ ...newDraft(), subject, classes: [] });
 
+/** 수업 칸 글자로 채운 새 진도 ('📘 진도 만들기', 19번 U3). 교과 모드면 '5-2 과학' → 과목 과학 + 반 5-2 */
+export function draftForSlot(text: string, classUnit: boolean): Draft {
+  if (!classUnit) return { ...newDraft(), key: progressKey(text) };
+  const slot = parseSlot(text);
+  return { ...newCourseDraft(slot.subject), classes: slot.cls ? [slot.cls] : [] };
+}
+
 /**
  * 이 초안을 저장할 모양. 과정이면 subject·classes, 아니면 세는 칸 글자 하나(key).
  * 교과 모드: 반 둘 이상 → 과정. 옛 진도에 반 하나 이하 → 옛 모양(과목·반을 그대로 두면 글자도 그대로).

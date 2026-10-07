@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   cleanLessons,
+  draftForSlot,
   draftTarget,
   emptyLesson,
   insertRowAfter,
@@ -111,5 +112,17 @@ describe('저장된 교과서 쪽 읽기', () => {
   it('page를 읽고, 옛 문서(page 없음)는 빈 글자', () => {
     const p = sanitizePlan('x', { key: '국어', lessons: [{ content: '가', page: '12~15' }, { content: '나' }] });
     expect(p.lessons.map((l) => l.page)).toEqual(['12~15', '']);
+  });
+});
+
+describe("'📘 진도 만들기' - 수업 칸 글자로 새 진도 (19번 U3)", () => {
+  it("초등 담임: 과목 '국어'", () => {
+    expect(draftForSlot(' 국어 ', false)).toMatchObject({ key: '국어', classes: null });
+  });
+  it("교과 모드: '5-2 과학' → 과목 과학 + 반 5-2 (과정 모양), 반 없는 칸은 과목만", () => {
+    const d = draftForSlot('5-2과학', true);
+    expect(d).toMatchObject({ subject: '과학', classes: ['5-2'], legacyKey: null });
+    expect(draftTarget(d)).toEqual({ key: '', subject: '과학', classes: ['5-2'] });
+    expect(draftTarget(draftForSlot('창체', true))).toEqual({ key: '창체' });
   });
 });

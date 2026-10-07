@@ -107,6 +107,8 @@ export const slotId = (date: string, period: string | number) => `${date}#${peri
 
 /** 진도 관리 창을 '새 과정'으로 열 때 넘기는 자리표 id (명령 창 '과정 만들기', ROADMAP-SUBJECT S10) */
 export const NEW_COURSE_PLAN_ID = '__new_course__';
+/** 수업 칸의 '📘 진도 만들기'로 열 때 - store progressModalPreset의 칸 글자로 채운 새 진도 (19번 U3) */
+export const NEW_PLAN_ID = '__new_plan__';
 
 // ── 과정 (여러 반) ──────────────────────────────────────────────────────
 
@@ -635,6 +637,13 @@ export async function saveProgressPlan(
     },
     { merge: true }
   );
+}
+
+/** 진도 줄의 교과서 쪽 '12~13쪽' (이미 '쪽'·'p'가 적혀 있으면 그대로, 비면 '') - 19번 U3 */
+export function lessonPageLabel(page: string | undefined): string {
+  const p = (page || '').trim();
+  if (!p) return '';
+  return /쪽|p\.?$|page/i.test(p) || /^p\.?\s*\d/i.test(p) ? p : `${p}쪽`;
 }
 
 /** 그 교시를 밀거나(on) 되돌린다. 문서를 읽지 않고 한 칸만 더하고 뺀다. 실패하면 던진다 */

@@ -406,7 +406,12 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   `cleanLessons`가 뺀다). '+ 행 추가'(`data-progress-add-row`)는 마지막으로 커서가 있던 행 아래(`insertRowAfter`), 칸에서 Ctrl+Enter도.
   **교과서(쪽) 칸** `lessons[].page`(글자): 머리줄 '교과서'·'쪽'·'쪽수'·'교과서(쪽)', 머리줄 없는 표는 **칸 수로 가른다**(차시 뒤 칸이
   셋 이상 = 내용·교과서·준비물, 둘 = 옛 4칸 표의 내용·준비물). 쪽 '12~13'도 차시 숫자처럼 보여서 차시 칸 고르기는 같은 만큼 채워졌으면
-  바로 뒤가 글자 칸인 쪽, 그다음 왼쪽. 예시 CSV도 5칸. 하루 칸 진도 줄에 쪽을 보이는 것은 U3.
+  바로 뒤가 글자 칸인 쪽, 그다음 왼쪽. 예시 CSV도 5칸.
+  **19번 U3**: 진도 줄(`ProgressMarkLine`)은 `📘 단원 · 5/12차시 · 내용 · 📖 12~13쪽`(`lessonPageLabel` - '쪽'·'p'가 있으면 그대로,
+  `data-progress-page`) + 🎒. 하루 카드 차례는 과목 → 진도 줄 → 준비물(`data-period-supplies`) → 메모(`data-period-memo`).
+  진도가 없는 교시를 고치는 중이면(개인 공간, 과목이 있을 때) **'📘 진도 만들기'**(`ProgressCreateButton`, `data-progress-create`) -
+  하루 카드 수정 칸과 `DetailEditModal`. store `setProgressModalOpen(true, NEW_PLAN_ID, undefined, 칸 글자)` → `progressModalPreset` →
+  `progressDraft.draftForSlot`(담임은 과목 글자, 교과 모드는 '5-2 과학' → 과목 + 반). 수업 칸 입력 aria: 담임 '과목', 교과 모드 '학년-반 과목'.
   **S5**: `ProgressInputs.notesByDate`(같은 수업 스냅숏에서 `scheduleNotes` - memo, 없으면 content의 첫 줄)와
   `teachingSlot.previousSlotOf`(정규화한 같은 칸 글자의 바로 앞 교시, 수업 없는 날 건너뜀)로 하루 카드의 '지난 시간' 줄(`data-prev-note`).
   그래서 `useProgressMarks`는 **교과 모드면 진도가 없어도** 그 학년도 3월 1일부터 읽는다(초등 담임은 그대로 진도가 있을 때만).
@@ -539,6 +544,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-progress.mjs` | 진도 관리 - 시간표 적용 건너뛰기·진도 관리 창·수업 칸 겹쳐 보기·밀기·알림장 준비물·V3 옛 문서·그룹 공간(39항목). 자료는 2027-03에 심고 지운다 |
 | `tools/inspect-manual.mjs` | 사용 설명서대로 동작하는지 89항목. 여러 작업을 모아 마지막에 한 번. `SITE=http://localhost:4190/School_Planner_V4/`(기본값 4173은 vite preview) |
 | `tools/inspect-refine-u2.mjs` | 19번 U2 진도 관리(24) - teacher 과목 칸·교과서 칸(5칸·옛 4칸 붙여넣기)·'+ 행 추가'·Ctrl+Enter·page 저장, teacher3 새 진도 하나·과목 + 반 하나·옛 칸 글자 진도 그대로 저장·하루 칸 차시. 만든 진도는 지운다 |
+| `tools/inspect-refine-u3.mjs` | 19번 U3 하루 수업 칸(12) - '📘 진도 만들기'(하루 카드·N교시 수정 팝업, teacher 과목·teacher3 과목 + 반), 칸 aria, 진도 줄 단원·📖 쪽, 카드 차례. 고친 수업·진도는 되돌린다 |
 | `tools/inspect-progress-csv.mjs` | 진도 관리 예시 CSV(6) - 받기(머리줄·예시 내용)·불러오기 15차시·CP949 CSV 한글. 저장하지 않아 자료는 그대로 |
 | `tools/inspect-slot-live.mjs` | 과목을 고치면 배너도 따라감·학년반 숫자 403(8) - teacher3 주간 1교시 수정 배너에 '403과학' → 서버·배너 '4-3 과학', 연 채로 다른 곳에서 고친 과목, 고치는 중이면 그대로, 하루 출결 배너 머리줄. 2026-11-02 수업 문서를 끝에 되돌린다 |
 | `tools/inspect-today-scroll.mjs` | 상단 날짜 → 오늘로(17) - 휴대폰 390px·PC에서 하루(맨 위)·주간·월간(다음 달에서)·년간 학사력·자세히(지난 학년도에서). 자료를 바꾸지 않는다 |

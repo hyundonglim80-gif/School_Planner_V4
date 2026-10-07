@@ -23,6 +23,7 @@ import {
   deleteProgressPlan,
   isCourse,
   NEW_COURSE_PLAN_ID,
+  NEW_PLAN_ID,
   parseLessonCsv,
   parseLessonTable,
   progressKey,
@@ -38,6 +39,7 @@ import {
 import { useProgressInputs, useProgressPlans } from '../hooks/useProgress';
 import {
   cleanLessons,
+  draftForSlot,
   draftTarget,
   emptyLesson,
   hasText,
@@ -87,6 +89,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   // 수업 칸의 진도 줄을 눌러 열면 그 진도부터 (열려 있을 때 다른 줄을 눌러도 그리로)
   const wantedId = useAppStore((s) => s.progressModalPlanId);
   const wantedClass = useAppStore((s) => s.progressModalClass);
+  const wantedPreset = useAppStore((s) => s.progressModalPreset);
   const { mode, isClassUnit } = useTeachingMode();
   // 과정의 반 고르기는 명렬표의 반 - 교과 모드에서만 읽는다(초등 담임은 읽기가 늘지 않게)
   const { rosterList } = useRoster(isClassUnit);
@@ -105,6 +108,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   useEffect(() => {
     if (!loaded || draft) return;
     if (wantedId === NEW_COURSE_PLAN_ID) return setDraft(newCourseDraft(mode.subjects[0] || ''));
+    if (wantedId === NEW_PLAN_ID) return setDraft(draftForSlot(wantedPreset || '', isClassUnit));
     const first = plans.find((p) => p.id === wantedId) || plans[0];
     setDraft(first ? toDraft(first, isClassUnit) : freshDraft());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -253,12 +257,13 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   };
 
   // 열린 채로 다른 교시의 진도 줄을 누르면 그 진도로 (과정이면 그 반 탭으로)
-  const wantedToken = `${wantedId || ''}|${wantedClass || ''}`;
+  const wantedToken = `${wantedId || ''}|${wantedClass || ''}|${wantedPreset || ''}`;
   const handledWanted = useRef(wantedToken);
   useEffect(() => {
     if (!draft || !wantedId || handledWanted.current === wantedToken) return;
     handledWanted.current = wantedToken;
     if (wantedId === NEW_COURSE_PLAN_ID) return startNew();
+    if (wantedId === NEW_PLAN_ID) return switchTo(draftForSlot(wantedPreset || '', isClassUnit));
     const plan = plans.find((p) => p.id === wantedId);
     if (plan && plan.id !== draft.id) switchTo(toDraft(plan, isClassUnit));
     if (wantedClass) setPreviewClass(wantedClass);

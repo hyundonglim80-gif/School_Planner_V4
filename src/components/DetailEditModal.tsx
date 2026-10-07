@@ -5,6 +5,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useLabels } from '../hooks/useLabels';
 import { useProgressMarks } from '../hooks/useProgress';
 import { slotId } from '../lib/progress';
+import ProgressCreateButton from './ProgressCreateButton';
 import ProgressMarkLine from './ProgressMarkLine';
 
 import { closeAllModals } from '../hooks/useModalLayer';
@@ -382,6 +383,8 @@ export default function DetailEditModal({
                       📑 연결된 링크 ({currentLinkedItems.length})
                     </button>
                   )}
+                  {/* 이 교시에 진도가 없으면 그 과목으로 진도 만들기 (19번 U3, 개인 공간만) */}
+                  {!progressMark && !targetGroupId && <ProgressCreateButton subject={subject} />}
                 </>
               )}
               {type === 'event' && (
@@ -429,13 +432,14 @@ export default function DetailEditModal({
               {type === 'schedule' && (
                 <>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">과목명</label>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">{isClassUnit ? '학년-반 과목' : '과목'}</label>
                     {isClassUnit ? (
                       <SlotCombobox
                         value={subject}
                         onValueChange={setSubject}
                         options={slotOptions}
-                        placeholder="5-2 과학"
+                        placeholder="학년-반 과목 (예: 5-2 과학)"
+                        aria-label="학년-반 과목"
                         data-slot-input
                         className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary"
                       />
@@ -444,6 +448,8 @@ export default function DetailEditModal({
                         type="text"
                         value={subject}
                         onChange={(e) => setSubject(e.target.value)}
+                        placeholder="과목"
+                        aria-label="과목"
                         className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary"
                       />
                     )}

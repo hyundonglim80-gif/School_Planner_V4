@@ -19,6 +19,7 @@ import {
   progressMarks,
   suppliesByPeriod,
   progressUntil,
+  lessonPageLabel,
   sanitizePlan,
   scheduleNotes,
   scheduleSubjects,
@@ -526,5 +527,17 @@ describe('decodeTextBytes - 엑셀이 저장한 CSV의 글자', () => {
     // '단원,차시' 를 CP949로 적은 바이트
     const cp949 = new Uint8Array([0xb4, 0xdc, 0xbf, 0xf8, 0x2c, 0xc2, 0xf7, 0xbd, 0xc3]);
     expect(decodeTextBytes(cp949)).toBe('단원,차시');
+  });
+});
+
+describe('진도 줄의 교과서 쪽 (19번 U3)', () => {
+  it("'12~13' → '12~13쪽', 이미 쪽·p가 있으면 그대로, 비면 ''", () => {
+    expect(lessonPageLabel('12~13')).toBe('12~13쪽');
+    expect(lessonPageLabel(' 40 ')).toBe('40쪽');
+    expect(lessonPageLabel('12~13쪽')).toBe('12~13쪽');
+    expect(lessonPageLabel('p.12')).toBe('p.12');
+    expect(lessonPageLabel('12p')).toBe('12p');
+    expect(lessonPageLabel('')).toBe('');
+    expect(lessonPageLabel(undefined)).toBe('');
   });
 });

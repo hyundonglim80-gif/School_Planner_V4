@@ -13,6 +13,7 @@ import { periodStateAt, periodRangeLabel } from '../../lib/periodTimes';
 import { formatDateStr, parseDateStr } from '../../lib/dateUtils';
 import { shortDateLabel } from '../../lib/notices';
 import DayMeals from './DayMeals';
+import ProgressCreateButton from '../../components/ProgressCreateButton';
 import ProgressMarkLine from '../../components/ProgressMarkLine';
 import { useProgressMarks } from '../../hooks/useProgress';
 import { slotId } from '../../lib/progress';
@@ -296,6 +297,8 @@ export default function DaySchedule({
                       📑 연결된 링크 ({linkCount})
                     </button>
                   )}
+                  {/* 이 교시에 진도가 없으면 그 과목으로 진도 만들기 (개인 공간만 - 진도는 개인 수업으로 센다) */}
+                  {!mark && dateStr && !selectedGroupId && <ProgressCreateButton subject={editSubject} />}
                 </div>
                 {mark && dateStr && <ProgressMarkLine mark={mark} dateStr={dateStr} period={period} alwaysShowAction />}
                 <div 
@@ -313,7 +316,8 @@ export default function DaySchedule({
                       value={editSubject}
                       onValueChange={setEditSubject}
                       options={slotOptions}
-                      placeholder="5-2 과학"
+                      placeholder="학년-반 과목 (예: 5-2 과학)"
+                      aria-label="학년-반 과목"
                       data-slot-input
                       wrapperClassName="col-span-1"
                       className="w-full px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
@@ -325,6 +329,7 @@ export default function DaySchedule({
                       value={editSubject}
                       onChange={(e) => setEditSubject(e.target.value)}
                       placeholder="과목"
+                      aria-label="과목"
                       className="col-span-1 px-3 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
                       autoFocus
                     />
@@ -575,18 +580,19 @@ export default function DaySchedule({
                     </div>
                   )}
 
+                  {/* 차례: 과목 / 진도 줄 / 준비물 / 메모 (19번 U3) */}
                   {(memoText || suppliesText) && (
                     <div className={`grid grid-cols-1 ${memoText && suppliesText ? 'sm:grid-cols-2' : ''} gap-3 text-xs`}>
-                      {memoText && (
-                        <div className="flex flex-col">
-                          <span className="text-slate-400 text-xs mb-0.5">📝 수업 메모</span>
-                          <p className="text-slate-600 whitespace-pre-wrap leading-relaxed">{memoText}</p>
-                        </div>
-                      )}
                       {suppliesText && (
-                        <div className="flex flex-col">
+                        <div className="flex flex-col" data-period-supplies>
                           <span className="text-slate-400 text-xs mb-0.5">📌 비고 / 준비물</span>
                           <p className="text-amber-600 font-medium whitespace-pre-wrap leading-relaxed">{suppliesText}</p>
+                        </div>
+                      )}
+                      {memoText && (
+                        <div className="flex flex-col" data-period-memo>
+                          <span className="text-slate-400 text-xs mb-0.5">📝 수업 메모</span>
+                          <p className="text-slate-600 whitespace-pre-wrap leading-relaxed">{memoText}</p>
                         </div>
                       )}
                     </div>
