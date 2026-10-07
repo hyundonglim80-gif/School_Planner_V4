@@ -94,8 +94,31 @@ try {
 
   const saved = await until(() => read(dayRef), (d) => d?.eventList?.find((e) => e.id === ID)?.alarmTriggered === true);
   check('서버의 그 일정에 alarmTriggered', saved?.eventList?.find((e) => e.id === ID)?.alarmTriggered === true);
-  check('페이지 오류 없음', errors.length === 0, errors.join(' | '));
   await ctx.close();
+
+  // ── 3초마다 3번(약 10초)에서 멈춘다 (10-08 사용자가 정함) ──
+  {
+    const cur = await read(dayRef);
+    await setDoc(dayRef, {
+      ...cur,
+      eventList: [...cur.eventList, { id: `${ID}_2`, content: '알림 소리 횟수', text: '알림 소리 횟수', completed: false, time: alarmTime, alarmTriggered: false }],
+      updatedAt: Date.now(),
+    });
+    const ctx2 = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+    const p2 = await ctx2.newPage();
+    p2.on('pageerror', (e) => errors.push(e.message.slice(0, 160)));
+    await p2.goto(V4, { waitUntil: 'domcontentloaded' });
+    await p2.getByRole('button', { name: '하루', exact: true }).first().click({ timeout: 40000 });
+    await p2.locator('[data-alarm-mute]').waitFor({ timeout: 40000 });
+    const n = () => p2.evaluate(() => window.__spAlarmSoundCount || 0);
+    await p2.waitForTimeout(7000);
+    const at7 = await n();
+    await p2.waitForTimeout(5000);
+    const at12 = await n();
+    check('소리는 3초마다 3번에서 멈춘다 (약 10초)', at7 === 3 && at12 === 3, `7초 ${at7} / 12초 ${at12}`);
+    await ctx2.close();
+  }
+  check('페이지 오류 없음', errors.length === 0, errors.join(' | '));
 } catch (e) {
   check('점검이 끝까지 돌았다', false, String(e?.message || e).slice(0, 300));
 } finally {

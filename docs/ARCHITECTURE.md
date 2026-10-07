@@ -38,7 +38,7 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
    - `runAutoForwarding(selectedGroupId)`: 이월 (라벨을 다 읽은 뒤 한 번 더 돈다)
    - `useEventAlarms`: 20초마다 오늘 일정 문서의 알림 시각을 보고 `EventAlarmPopup`. 처음 울린 기기가 서버의 그 일정에 `alarmTriggered`를 써서
      **다른 기기는 울리지 않는다**(먼저 확인한 기기 하나만). 앱이 닫혀 있거나 휴대폰 브라우저가 백그라운드면 울리지 않는다(서버 푸시 없음).
-     소리는 `lib/sound.playAlarmChime`(수업 종과 같은 Web Audio) - 창이 떠 있는 동안 3초마다 1분까지, '🔇 소리 끄기'(`data-alarm-mute`)·확인으로 멈춘다.
+     소리는 `lib/sound.playAlarmChime`(수업 종과 같은 Web Audio) - 창이 뜨면 3초마다 3번(약 10초, 10-08 사용자가 정함), '🔇 소리 끄기'(`data-alarm-mute`)·확인으로 멈춘다.
      브라우저는 페이지를 한 번 누르기 전에는 소리를 막아 `wakeAudioOnGesture`로 깨운다. 점검 `tools/inspect-alarm-sound.mjs`.
    - `Layout` 안에 scope에 맞는 화면 하나
 4. `Layout.tsx` — 머리줄(D-Day·휴지통·검색·화면 탭·공간 선택·⋮ 메뉴·프로필), 둘째 줄(주말·일정·수업 토글, 날짜 이동),

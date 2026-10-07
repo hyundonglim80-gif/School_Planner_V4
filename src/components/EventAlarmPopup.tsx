@@ -3,9 +3,9 @@ import { useVisualViewport } from '../hooks/useVisualViewport';
 import type { RingingAlarm } from '../hooks/useEventAlarms';
 import { playAlarmChime } from '../lib/sound';
 
-/** 알림 소리를 되풀이하는 간격과 가장 오래 울리는 시간 (확인을 누르거나 '소리 끄기'를 누르면 바로 멈춘다) */
+/** 알림 소리: 3초마다 3번(0·3·6초, 약 10초) - 2026-10-08 사용자가 정함. 확인·'소리 끄기'를 누르면 바로 멈춘다 */
 const CHIME_EVERY_MS = 3000;
-const CHIME_FOR_MS = 60_000;
+const CHIME_TIMES = 3;
 
 interface EventAlarmPopupProps {
   alarms: RingingAlarm[];
@@ -27,13 +27,11 @@ export default function EventAlarmPopup({ alarms, onDismiss }: EventAlarmPopupPr
   useEffect(() => {
     if (!ringKey || muted) return;
     playAlarmChime();
-    const started = Date.now();
+    let played = 1;
     const id = setInterval(() => {
-      if (Date.now() - started >= CHIME_FOR_MS) {
-        clearInterval(id);
-        return;
-      }
       playAlarmChime();
+      played += 1;
+      if (played >= CHIME_TIMES) clearInterval(id);
     }, CHIME_EVERY_MS);
     return () => clearInterval(id);
   }, [ringKey, muted]);
