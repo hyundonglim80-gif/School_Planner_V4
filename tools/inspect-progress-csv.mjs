@@ -3,7 +3,7 @@
 // 진도 관리의 예시 CSV (2026-10-04 사용자 요청)를 실제 크롬으로 본다 (teacher1, PC 1400px).
 //   - '⬇️ 예시 CSV 받기' → 파일이 내려오고 머리줄·예시 차시가 들어 있다
 //     (컨테이너 Chromium은 파일 이름을 'download'로 준다 - 이름은 사용자 PC에서 본다)
-//   - '📂 CSV 불러오기'로 그 파일을 고르면 15차시가 칸에 들어온다 (저장하지 않는다 - 자료는 그대로)
+//   - '📂 CSV 불러오기'로 그 파일을 고르면 17차시(차시 칸 2인 두 행은 두 번)가 칸에 들어온다 (저장하지 않는다 - 자료는 그대로)
 //   - CP949로 저장한 CSV도 한글이 깨지지 않는다
 //
 //   npm run emu / node tools/serve-both.mjs / npm run seed / VITE_USE_EMULATOR=1 npm run build
@@ -46,8 +46,8 @@ try {
   check('[받기] 예시 데이터가 들어 있다', text.includes('잎의 생김새 관찰하기') && text.includes('2. 물의 상태 변화'));
 
   await dialog.locator('[data-progress-csv-input]').setInputFiles(file);
-  await page.getByText('15차시를 불러왔습니다').first().waitFor({ timeout: 5000 });
-  check('[불러오기] 15차시를 불러왔다는 안내', true);
+  await page.getByText('17차시를 불러왔습니다').first().waitFor({ timeout: 5000 });
+  check('[불러오기] 17차시를 불러왔다는 안내 (차시 칸 2 → 같은 내용 2행)', true);
   const values = await dialog.locator('input').evaluateAll((els) => els.map((e) => e.value));
   check('[불러오기] 칸에 예시 차시가 들어온다', values.includes('잎의 생김새 관찰하기') && values.includes('끓음 관찰하기'));
 

@@ -20,6 +20,8 @@ import {
   suppliesByPeriod,
   progressUntil,
   lessonPageLabel,
+  looksNumbered,
+  parseLessonTableInfo,
   sanitizePlan,
   scheduleNotes,
   scheduleSubjects,
@@ -46,14 +48,14 @@ describe('차시 표 붙여넣기', () => {
     const text = tsv(
       ['단원', '차시', '내용', '준비물'],
       ['1. 비유하는 표현', '1', '비유 표현 찾기', '교과서'],
-      ['', '2', '비유 표현 만들기', ''],
+      ['', '1', '비유 표현 만들기', ''],
       ['', '', '', ''],
-      ['2. 이야기 속 세상', '3', '인물 말 읽기', '활동지']
+      ['2. 이야기 속 세상', '1', '인물 말 읽기', '활동지']
     );
     expect(parseLessonTable(text)).toEqual([
       { unit: '1. 비유하는 표현', no: '1', content: '비유 표현 찾기', page: '', supplies: '교과서' },
-      { unit: '1. 비유하는 표현', no: '2', content: '비유 표현 만들기', page: '', supplies: '' },
-      { unit: '2. 이야기 속 세상', no: '3', content: '인물 말 읽기', page: '', supplies: '활동지' },
+      { unit: '1. 비유하는 표현', no: '1', content: '비유 표현 만들기', page: '', supplies: '' },
+      { unit: '2. 이야기 속 세상', no: '1', content: '인물 말 읽기', page: '', supplies: '활동지' },
     ]);
   });
 
@@ -63,10 +65,10 @@ describe('차시 표 붙여넣기', () => {
   });
 
   it('단원 칸만 있는 줄은 단원 제목 - 아래 차시들에 붙는다', () => {
-    const text = tsv(['1단원 수와 연산', '', '', ''], ['', '1', '큰 수 읽기', ''], ['', '2', '큰 수 쓰기', '']);
+    const text = tsv(['1단원 수와 연산', '', '', ''], ['', '1', '큰 수 읽기', ''], ['', '1', '큰 수 쓰기', '']);
     expect(parseLessonTable(text).map((l) => [l.unit, l.no, l.content])).toEqual([
       ['1단원 수와 연산', '1', '큰 수 읽기'],
-      ['1단원 수와 연산', '2', '큰 수 쓰기'],
+      ['1단원 수와 연산', '1', '큰 수 쓰기'],
     ]);
   });
 
@@ -90,9 +92,9 @@ describe('차시 표 붙여넣기', () => {
     ]);
     expect(parseLessonTable(tsv(['가', '나', '다', '라']))[0]).toMatchObject({ page: '', supplies: '라' });
     // 교과서 쪽도 숫자처럼 보이고 준비물이 비어도 - 차시는 내용 앞의 숫자 칸
-    expect(parseLessonTable(tsv(['1', '1', '가', '8~9', ''], ['1', '2', '나', '10', '']))).toEqual([
+    expect(parseLessonTable(tsv(['1', '1', '가', '8~9', ''], ['1', '1', '나', '10', '']))).toEqual([
       { unit: '1', no: '1', content: '가', page: '8~9', supplies: '' },
-      { unit: '1', no: '2', content: '나', page: '10', supplies: '' },
+      { unit: '1', no: '1', content: '나', page: '10', supplies: '' },
     ]);
   });
 
@@ -123,11 +125,11 @@ describe('차시 표 붙여넣기', () => {
       { unit: '', no: '2~3', content: '규칙 정하기', page: '', supplies: '' },
     ]);
     // 단원 번호도 숫자일 때 - 듬성듬성한 단원 칸이 아니라 차시 칸을 고른다
-    const parsed = parseLessonTable(tsv(['1', '1', '가'], ['', '2', '나'], ['2', '3', '다']));
+    const parsed = parseLessonTable(tsv(['1', '1', '가'], ['', '1', '나'], ['2', '1', '다']));
     expect(parsed.map((l) => [l.unit, l.no, l.content])).toEqual([
       ['1', '1', '가'],
-      ['1', '2', '나'],
-      ['2', '3', '다'],
+      ['1', '1', '나'],
+      ['2', '1', '다'],
     ]);
   });
 
@@ -495,22 +497,24 @@ describe('같은 과정의 다른 반에 조사표 (ROADMAP-SUBJECT S8)', () => 
 
 // 예시 CSV (진도 관리 '⬇️ 예시 CSV 받기', 2026-10-04) - 받은 그대로 불러오면 차시 목록이 된다
 describe('예시 CSV · parseLessonCsv', () => {
-  it('예시 CSV를 그대로 불러오면 15차시, 단원 칸이 비면 위 단원을 잇고 단원만 적힌 줄은 세지 않는다', () => {
+  it('예시 CSV를 그대로 불러오면 17차시(차시 칸 2인 두 내용은 두 번씩), 단원 칸이 비면 위 단원을 잇고 단원만 적힌 줄은 세지 않는다', () => {
     const lessons = parseLessonCsv(toCsv(PROGRESS_SAMPLE_ROWS));
-    expect(lessons).toHaveLength(15);
+    expect(lessons).toHaveLength(17);
+    expect(lessons[4]).toMatchObject({ no: '2', content: '강이나 연못에 사는 식물의 특징' });
+    expect(lessons[5]).toMatchObject({ no: '', content: '강이나 연못에 사는 식물의 특징', supplies: '부레옥잠' });
     expect(lessons[0]).toEqual({ unit: '1. 식물의 생활', no: '1', content: '우리 주변 식물 이야기하기', page: '8~9', supplies: '식물 사진 카드' });
-    expect(lessons[8].page).toBe('28~29');
-    expect(lessons[1]).toMatchObject({ unit: '1. 식물의 생활', no: '2', supplies: '돋보기, 여러 가지 잎' });
+    expect(lessons[9].page).toBe('28~29');
+    expect(lessons[1]).toMatchObject({ unit: '1. 식물의 생활', no: '1', supplies: '돋보기, 여러 가지 잎' });
     expect(lessons[3].supplies).toBe('');
-    expect(lessons[8]).toMatchObject({ unit: '2. 물의 상태 변화', no: '1', content: '물의 세 가지 상태 알아보기' });
-    expect(lessons[14]).toMatchObject({ unit: '2. 물의 상태 변화', no: '7', content: '단원 정리' });
+    expect(lessons[9]).toMatchObject({ unit: '2. 물의 상태 변화', no: '1', content: '물의 세 가지 상태 알아보기' });
+    expect(lessons[16]).toMatchObject({ unit: '2. 물의 상태 변화', content: '단원 정리' });
   });
 
   it('엑셀에서 고쳐 저장한 모양(따옴표 없음·칸 차례 바뀜·앞뒤 빈칸)도 읽는다', () => {
-    const csv = '차시,내용,준비물,단원\r\n1, 비유 표현 알기 ,,1. 생각과 느낌\r\n2,"시를 읽고, 느낌 나누기",시집,\r\n';
+    const csv = '차시,내용,준비물,단원\r\n1, 비유 표현 알기 ,,1. 생각과 느낌\r\n1,"시를 읽고, 느낌 나누기",시집,\r\n';
     expect(parseLessonCsv(csv)).toEqual([
       { unit: '1. 생각과 느낌', no: '1', content: '비유 표현 알기', page: '', supplies: '' },
-      { unit: '1. 생각과 느낌', no: '2', content: '시를 읽고, 느낌 나누기', page: '', supplies: '시집' },
+      { unit: '1. 생각과 느낌', no: '1', content: '시를 읽고, 느낌 나누기', page: '', supplies: '시집' },
     ]);
   });
 
@@ -539,5 +543,46 @@ describe('진도 줄의 교과서 쪽 (19번 U3)', () => {
     expect(lessonPageLabel('12p')).toBe('12p');
     expect(lessonPageLabel('')).toBe('');
     expect(lessonPageLabel(undefined)).toBe('');
+  });
+});
+
+// 차시 칸의 숫자 = 그 내용을 몇 차시 동안 (2026-10-07 사용자가 정함)
+describe('차시 칸의 숫자만큼 같은 내용을 잇달아', () => {
+  it("'2'면 같은 내용 2행, 뒤 행의 차시 칸은 비운다 (다시 붙여 넣어도 또 늘지 않게)", () => {
+    const info = parseLessonTableInfo(tsv(['단원', '차시', '내용', '준비물'], ['1단원', '1', '가', ''], ['', '2', '나', '자'], ['', '1', '다', '']));
+    expect(info.lessons.map((l) => [l.no, l.content, l.supplies])).toEqual([
+      ['1', '가', ''],
+      ['2', '나', '자'],
+      ['', '나', '자'],
+      ['1', '다', ''],
+    ]);
+    expect(info.repeated).toBe(1);
+    expect(info.numbered).toBe(false);
+    // 늘린 표를 다시 붙여 넣으면 그대로
+    const again = tsv(['단원', '차시', '내용', '준비물'], ...info.lessons.map((l) => [l.unit, l.no, l.content, l.supplies]));
+    expect(parseLessonTable(again)).toHaveLength(4);
+  });
+
+  it("'3차시'·'2'도 숫자, 범위('5~6')·글자는 한 행, 너무 큰 수는 10행까지", () => {
+    expect(parseLessonTable(tsv(['차시', '내용'], ['3차시', '가']))).toHaveLength(3);
+    expect(parseLessonTable(tsv(['차시', '내용'], ['5~6', '가']))).toHaveLength(1);
+    expect(parseLessonTable(tsv(['차시', '내용'], ['보충', '가']))).toHaveLength(1);
+    expect(parseLessonTable(tsv(['차시', '내용'], ['40', '가']))).toHaveLength(10);
+  });
+
+  it('옛 진도표처럼 차시 칸이 1, 2, 3 … 차례 번호면 늘리지 않는다 (단원마다 다시 1부터, 범위 포함)', () => {
+    const info = parseLessonTableInfo(
+      tsv(['단원', '차시', '내용'], ['1단원', '1', '가'], ['', '2', '나'], ['', '3~4', '다'], ['', '5', '라'], ['2단원', '1', '마'], ['', '2', '바'])
+    );
+    expect(info.numbered).toBe(true);
+    expect(info.lessons).toHaveLength(6);
+  });
+
+  it('차례 번호 판단: 셋 이상 이어지고 어긋나는 단원이 없어야', () => {
+    const L2 = (unit: string, no: string) => ({ unit, no });
+    expect(looksNumbered([L2('a', '1'), L2('a', '2'), L2('a', '3')])).toBe(true);
+    expect(looksNumbered([L2('a', '1'), L2('a', '2')])).toBe(false);
+    expect(looksNumbered([L2('a', '1'), L2('a', '1'), L2('a', '2'), L2('a', '1')])).toBe(false);
+    expect(looksNumbered([L2('a', '9'), L2('a', '10'), L2('a', '11'), L2('b', '12')])).toBe(true);
   });
 });

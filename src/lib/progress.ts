@@ -231,27 +231,91 @@ function positionalFields(rows: string[][]): Array<Field | null> {
  *   (칸이 넷이면 옛 표 '단원 | 차시 | 내용 | 준비물' - 교과서 칸을 더하기 전의 표도 그대로 읽는다).
  * - 빈 줄은 뺀다. 단원 칸만 있는 줄은 단원 제목으로 보고 아래 차시들에 붙인다.
  * - 단원 칸이 비면 위 줄의 단원을 잇는다(엑셀에서 합친 칸은 첫 줄에만 글자가 온다).
+ * - 차시 칸의 숫자는 그 내용을 몇 차시 동안 하는지다(2026-10-07 사용자가 정함): '2'면 같은 내용을 2행으로 넣는다(lessonRepeat).
  */
 export function parseLessonTable(text: string): ProgressLesson[] {
-  return parseLessonRows(parseClipboardGrid(text));
+  return parseLessonTableInfo(text).lessons;
 }
 
 /** CSV 파일의 차시 표 (예시 CSV를 엑셀에서 고쳐 저장한 것 - '단원,차시,내용,교과서,준비물'). 읽는 규칙은 붙여넣기와 같다 */
 export function parseLessonCsv(text: string): ProgressLesson[] {
+  return parseLessonCsvInfo(text).lessons;
+}
+
+export interface LessonParseInfo {
+  lessons: ProgressLesson[];
+  /** 차시 칸의 숫자만큼 더 넣은 행 수 (0이면 늘린 것 없음) */
+  repeated: number;
+  /** 차시 칸이 1, 2, 3 … 차례 번호로 보여 늘리지 않았다 (옛 진도표) */
+  numbered: boolean;
+}
+
+export function parseLessonTableInfo(text: string): LessonParseInfo {
+  return parseLessonRows(parseClipboardGrid(text));
+}
+
+export function parseLessonCsvInfo(text: string): LessonParseInfo {
   return parseLessonRows(parseCsv(text).map((r) => r.map((c) => c.trim())));
 }
 
+/** 차시 칸이 숫자 하나면 그 숫자 ('2', '2차시'). 범위('5~6')·글자는 null */
+const countOf = (no: string): number | null => {
+  const m = /^(\d{1,3})\s*(차시)?$/.exec(no.trim());
+  return m ? Number(m[1]) : null;
+};
+/** 범위 '5~6'의 끝 (차례 번호 판단용) */
+const rangeEnd = (no: string): [number, number] | null => {
+  const m = /^(\d{1,3})\s*[~\-–]\s*(\d{1,3})\s*(차시)?$/.exec(no.trim());
+  return m ? [Number(m[1]), Number(m[2])] : null;
+};
+
+/** 한 행을 몇 번 넣을까 - 차시 칸의 숫자(1~10). 차례 번호 표이거나 숫자가 아니면 1 */
+export const MAX_LESSON_REPEAT = 10;
+export function lessonRepeat(no: string, numbered: boolean): number {
+  if (numbered) return 1;
+  const n = countOf(no);
+  return n && n >= 1 ? Math.min(n, MAX_LESSON_REPEAT) : 1;
+}
+
+/**
+ * 차시 칸이 차례 번호인가 (옛 진도표 1, 2, 3 …). 단원마다 숫자가 한 칸씩 늘어나고(범위 '3~4'는 4까지 쓴 것으로),
+ * 그런 숫자가 셋 이상인 단원이 있고 어긋나는 단원이 없으면 차례 번호로 본다. 수를 적은 표(1, 1, 2, 1 …)는 어긋나서 '차시 수'다.
+ */
+export function looksNumbered(lessons: Pick<ProgressLesson, 'unit' | 'no'>[]): boolean {
+  const byUnit = new Map<string, string[]>();
+  for (const l of lessons) {
+    if (!l.no.trim()) continue;
+    const list = byUnit.get(l.unit) || [];
+    list.push(l.no);
+    byUnit.set(l.unit, list);
+  }
+  let longRun = false;
+  for (const nos of byUnit.values()) {
+    let prev: number | null = null;
+    for (const no of nos) {
+      const r = rangeEnd(no);
+      const n = countOf(no);
+      const [from, to] = r || (n !== null ? [n, n] : [NaN, NaN]);
+      if (Number.isNaN(from)) return false;
+      if (prev !== null && from !== prev + 1) return false;
+      prev = to;
+    }
+    if (nos.length >= 3) longRun = true;
+  }
+  return longRun;
+}
+
 /** 칸으로 나뉜 표를 차시 목록으로 (붙여넣기·CSV가 함께 쓴다) */
-function parseLessonRows(grid: string[][]): ProgressLesson[] {
+function parseLessonRows(grid: string[][]): LessonParseInfo {
   const rows = grid.filter((r) => r.some((c) => c !== ''));
-  if (rows.length === 0) return [];
+  if (rows.length === 0) return { lessons: [], repeated: 0, numbered: false };
 
   const header = headerFields(rows[0]);
   const body = header ? rows.slice(1) : rows;
-  if (body.length === 0) return [];
+  if (body.length === 0) return { lessons: [], repeated: 0, numbered: false };
   const fields = header || positionalFields(body);
 
-  const out: ProgressLesson[] = [];
+  const read: ProgressLesson[] = [];
   let unit = '';
   for (const row of body) {
     const lesson: ProgressLesson = { unit: '', no: '', content: '', page: '', supplies: '' };
@@ -260,9 +324,27 @@ function parseLessonRows(grid: string[][]): ProgressLesson[] {
     });
     if (lesson.unit) unit = lesson.unit;
     if (!lesson.no && !lesson.content && !lesson.page && !lesson.supplies) continue; // 단원 제목 줄 (또는 쓸 칸이 없는 줄)
-    out.push({ ...lesson, unit });
+    read.push({ ...lesson, unit });
   }
-  return out;
+
+  // 차시 칸의 숫자만큼 같은 내용을 잇달아 넣는다. 뒤따르는 행의 차시 칸은 비운다 - 그 표를 다시 붙여 넣어도 또 늘지 않게.
+  const numbered = looksNumbered(read);
+  const lessons: ProgressLesson[] = [];
+  let repeated = 0;
+  read.forEach((l, i) => {
+    // 이미 늘려 둔 표(바로 뒤에 차시 칸이 빈 같은 내용 행)를 다시 붙여 넣으면 그 행들을 센다
+    let already = 0;
+    while (already + 1 < MAX_LESSON_REPEAT) {
+      const next = read[i + 1 + already];
+      if (!next || next.no.trim() || next.content !== l.content || next.unit !== l.unit) break;
+      already++;
+    }
+    const extra = Math.max(0, lessonRepeat(l.no, numbered) - 1 - already);
+    lessons.push(l);
+    for (let k = 0; k < extra; k++) lessons.push({ ...l, no: '' });
+    repeated += extra;
+  });
+  return { lessons, repeated, numbered };
 }
 
 // ── 세기 ───────────────────────────────────────────────────────────────

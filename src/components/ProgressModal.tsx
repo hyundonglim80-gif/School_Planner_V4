@@ -24,8 +24,9 @@ import {
   isCourse,
   NEW_COURSE_PLAN_ID,
   NEW_PLAN_ID,
-  parseLessonCsv,
-  parseLessonTable,
+  parseLessonCsvInfo,
+  parseLessonTableInfo,
+  type LessonParseInfo,
   progressKey,
   planKeys,
   planLabel,
@@ -292,19 +293,25 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
   // ── 표 붙여넣기·칸 고치기 ──────────────────────────────────────────
 
   /** 읽어 온 차시 목록으로 바꾼다 (붙여넣기·CSV 불러오기). 이미 목록이 있으면 먼저 묻는다 */
-  const replaceLessons = (parsed: ProgressLesson[], how: '붙여 넣은' | '불러온') => {
+  const replaceLessons = ({ lessons: parsed, repeated, numbered }: LessonParseInfo, how: '붙여 넣은' | '불러온') => {
     if (!draft) return;
     const cur = cleanLessons(draft.lessons).length;
     if (cur > 0 && !window.confirm(`지금 차시 목록 ${cur}개를 ${how} ${parsed.length}개로 바꿀까요?`)) return;
     update({ lessons: parsed.map(withKey) });
-    showToast(`✅ ${parsed.length}차시를 ${how === '붙여 넣은' ? '붙여 넣었습니다' : '불러왔습니다'}. 미리보기를 보고 💾 저장을 누르세요.`);
+    // 차시 칸의 숫자 = 그 내용을 몇 차시 동안 (2이면 같은 내용 2행, lib/progress.lessonRepeat)
+    const note = repeated > 0
+      ? ` 차시 칸의 숫자만큼 같은 내용을 ${repeated}행 더 넣었습니다.`
+      : numbered
+        ? ' 차시 칸이 1, 2, 3 … 차례 번호라 늘리지 않았습니다.'
+        : '';
+    showToast(`✅ ${parsed.length}차시를 ${how === '붙여 넣은' ? '붙여 넣었습니다' : '불러왔습니다'}.${note} 미리보기를 보고 💾 저장을 누르세요.`);
   };
 
   const handleTablePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     e.preventDefault();
     if (!draft) return;
-    const parsed = parseLessonTable(e.clipboardData.getData('text/plain'));
-    if (parsed.length === 0) {
+    const parsed = parseLessonTableInfo(e.clipboardData.getData('text/plain'));
+    if (parsed.lessons.length === 0) {
       showErrorToast('붙여 넣은 것에서 차시를 찾지 못했습니다. 엑셀·한셀에서 표를 복사해 주세요.');
       return;
     }
@@ -318,8 +325,8 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
     e.target.value = ''; // 같은 파일을 다시 골라도 불러오게
     if (!file || !draft) return;
     try {
-      const parsed = parseLessonCsv(decodeTextBytes(await file.arrayBuffer()));
-      if (parsed.length === 0) {
+      const parsed = parseLessonCsvInfo(decodeTextBytes(await file.arrayBuffer()));
+      if (parsed.lessons.length === 0) {
         showErrorToast(`'${file.name}'에서 차시를 찾지 못했습니다. 예시 CSV처럼 '단원, 차시, 내용, 교과서, 준비물' 칸으로 적어 주세요.`);
         return;
       }
@@ -790,7 +797,7 @@ export default function ProgressModal({ isOpen, onClose }: ProgressModalProps) {
               rows={2}
               data-progress-paste
               aria-label="차시 표 붙여넣기"
-              placeholder={"엑셀·한셀에서 '단원 | 차시 | 내용 | 교과서 | 준비물' 표를 복사해 여기를 누르고 Ctrl + V\n(머리줄이 있으면 그 이름으로 칸을 맞춥니다)"}
+              placeholder={"엑셀·한셀에서 '단원 | 차시 | 내용 | 교과서 | 준비물' 표를 복사해 여기를 누르고 Ctrl + V\n(차시 칸 2 = 같은 내용을 2차시 연속으로 넣습니다)"}
               className="w-full px-3 py-2 text-xs bg-indigo-50/40 border border-dashed border-indigo-300 rounded-lg resize-none focus:outline-none focus:ring-1 focus:ring-indigo-400 placeholder:text-indigo-400"
             />
             {draft.lessons.length > 0 && (

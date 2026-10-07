@@ -401,7 +401,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   (`suppliesByPeriod` → `notices.draftLinesFrom`, 개인 공간 알림장만).
   **차시 목록 넣기 세 길**(2026-10-04): 붙여넣기 `parseLessonTable`(탭 표), CSV 파일 `parseLessonCsv`(`lib/csv.parseCsv`) - 둘 다
   `parseLessonRows` 하나로 읽는다(머리줄 이름으로 칸 맞추기·빈 단원 잇기·단원만 줄은 제목). 파일 글자는 `csv.decodeTextBytes`(UTF-8 fatal →
-  안 되면 EUC-KR, 한국어 엑셀의 기본 CSV). 창의 '⬇️ 예시 CSV 받기'(`data-progress-sample`)는 `lib/progressSample`(4학년 과학 15차시,
+  안 되면 EUC-KR, 한국어 엑셀의 기본 CSV). 창의 '⬇️ 예시 CSV 받기'(`data-progress-sample`)는 `lib/progressSample`(4학년 과학 15행·17차시,
   `진도표_예시.csv`), '📂 CSV 불러오기'(`data-progress-csv-open`, 숨은 input `data-progress-csv-input`). 넣은 뒤에는 저장하지 않는다(💾 저장으로).
   **과정(여러 반, 교과 모드 S4)**: `classes`가 있으면 `planKeys`가 반마다 열쇠 '5-1 과학'을 내고, `progressMarks`가 열쇠마다
   `computeProgress(…, keyOverride)`로 **따로** 센다(목록 끝 `break`도 반마다, 표식에 `cls`). 과정의 칸 견주기는 `normalizeSlotText`,
@@ -418,6 +418,10 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
   **교과서(쪽) 칸** `lessons[].page`(글자): 머리줄 '교과서'·'쪽'·'쪽수'·'교과서(쪽)', 머리줄 없는 표는 **칸 수로 가른다**(차시 뒤 칸이
   셋 이상 = 내용·교과서·준비물, 둘 = 옛 4칸 표의 내용·준비물). 쪽 '12~13'도 차시 숫자처럼 보여서 차시 칸 고르기는 같은 만큼 채워졌으면
   바로 뒤가 글자 칸인 쪽, 그다음 왼쪽. 예시 CSV도 5칸.
+  **차시 칸 = 그 내용의 차시 수** (2026-10-07 사용자가 정함): `parseLessonRows`가 차시 칸 숫자 n(1~10, '2차시'도)만큼 같은 내용을
+  잇달아 넣는다(`lessonRepeat`, 뒤 행의 차시 칸은 비움 - 바로 뒤에 차시 칸이 빈 같은 내용 행이 있으면 이미 늘린 것으로 세어 다시
+  붙여 넣어도 또 늘지 않는다). 범위 '5~6'·글자는 한 행. 옛 표처럼 단원마다 1, 2, 3 … 차례 번호면(`looksNumbered` - 셋 이상 이어지고
+  어긋나는 단원이 없을 때) 늘리지 않는다. 창 안내는 `parseLessonTableInfo`·`parseLessonCsvInfo`의 `repeated`·`numbered`. 저장한 진도는 그대로.
   **19번 U3**: 진도 줄(`ProgressMarkLine`)은 `📘 단원 · 5/12차시 · 내용 · 📖 12~13쪽`(`lessonPageLabel` - '쪽'·'p'가 있으면 그대로,
   `data-progress-page`) + 🎒. 하루 카드 차례는 과목 → 진도 줄 → 준비물(`data-period-supplies`) → 메모(`data-period-memo`).
   진도가 없는 교시를 고치는 중이면(개인 공간, 과목이 있을 때) **'📘 진도 만들기'**(`ProgressCreateButton`, `data-progress-create`) -
@@ -556,7 +560,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-refine-u2.mjs` | 19번 U2 진도 관리(24) - teacher 과목 칸·교과서 칸(5칸·옛 4칸 붙여넣기)·'+ 행 추가'·Ctrl+Enter·page 저장, teacher3 새 진도 하나·과목 + 반 하나·옛 칸 글자 진도 그대로 저장·하루 칸 차시. 만든 진도는 지운다 |
 | `tools/inspect-refine-u3.mjs` | 19번 U3 하루 수업 칸(12) - '📘 진도 만들기'(하루 카드·N교시 수정 팝업, teacher 과목·teacher3 과목 + 반), 칸 aria, 진도 줄 단원·📖 쪽, 카드 차례. 고친 수업·진도는 되돌린다 |
 | `tools/inspect-refine-u5.mjs` | 19번 U5 메모·기록 라벨 한 목록(11) - 라벨 관리 탭 둘·한 목록, 새 라벨이 두 배열에(문자열 모양·기록 id 그대로), 일정 라벨 V3 이름, 쓰는 칸 칩 같음, 메모에만 있던 라벨로 기록 저장 → jm_ id 채움, 이름 바꾸기. 라벨 문서·트리·자료를 되돌린다 |
-| `tools/inspect-progress-csv.mjs` | 진도 관리 예시 CSV(6) - 받기(머리줄·예시 내용)·불러오기 15차시·CP949 CSV 한글. 저장하지 않아 자료는 그대로 |
+| `tools/inspect-progress-csv.mjs` | 진도 관리 예시 CSV(6) - 받기(머리줄·예시 내용)·불러오기 17차시·CP949 CSV 한글. 저장하지 않아 자료는 그대로 |
 | `tools/inspect-slot-live.mjs` | 과목을 고치면 배너도 따라감·학년반 숫자 403(8) - teacher3 주간 1교시 수정 배너에 '403과학' → 서버·배너 '4-3 과학', 연 채로 다른 곳에서 고친 과목, 고치는 중이면 그대로, 하루 출결 배너 머리줄. 2026-11-02 수업 문서를 끝에 되돌린다 |
 | `tools/inspect-today-scroll.mjs` | 상단 날짜 → 오늘로(17) - 휴대폰 390px·PC에서 하루(맨 위)·주간·월간(다음 달에서)·년간 학사력·자세히(지난 학년도에서). 자료를 바꾸지 않는다 |
 | `tools/inspect-help-tree.mjs` | 설명서 왼쪽 목차(20) - 오른쪽 칸·가운데 팝업·휴대폰, 펴기·짚기·따로 스크롤·접기 기억, 월간 31일 ▶, 검색 기간 처음 값, 반복 일정 창 닫힘(2031-03 일정을 만들고 지운다). 팝업 모양을 바꾸면 끝에 되돌린다 |
