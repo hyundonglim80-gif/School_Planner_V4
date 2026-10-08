@@ -159,6 +159,9 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
   (`readEventList`의 eventText·id 없는 항목, V3 라벨 이름 등)은 한 번에 옮기는(마이그레이션) 작업 없이 지우지 않는다.
   아래 항목은 지난 사고의 기록으로 둔다. 무엇을 걷어낼지는 사용자와 정한다(10-08 분석).
 
+- **보안 규칙의 정본은 V5 저장소 `firestore.rules`다** (2026-10-08 V5 P1-2): 기본 데이터베이스의 규칙은 한 벌이라 V5 것 = V4 규칙 전부 + V5 블록.
+  이 저장소의 `firestore.rules`는 같은 내용의 복사본 - 여기서 고치지 않는다(V5에서 고치고 `npm run check:rules`(V5) 뒤 복사).
+  두 파일이 같으니 에뮬레이터는 어느 저장소에서 켜도 같은 규칙이다. 운영 배포도 V5 저장소에서(사용자에게 묻고).
 - `School_Planner_V3`(바닐라 JS)와 V4(React+Vite+TS)는 **같은 Firebase 프로젝트**(`schoolplannerv3`),
   같은 Firestore 경로, 같은 출처라 **같은 localStorage**를 쓴다.
 - "V4에서 데이터가 사라졌다"는 대부분 실제 삭제가 아니라 **두 앱이 같은 것을 다른 이름으로 읽고 쓰는 문제**다.

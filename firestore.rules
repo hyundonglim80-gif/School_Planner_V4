@@ -1,15 +1,21 @@
 rules_version = '2';
 
 // ┌──────────────────────────────────────────────────────────────────────┐
-// │ V3와 V4가 같은 프로젝트(schoolplannerv3)를 쓴다. 두 앱의 접근 경로를   │
-// │ 모두 만족해야 한다.                                                   │
+// │ V3·V4·V5가 같은 프로젝트(schoolplannerv3)의 기본 데이터베이스를 쓴다.  │
+// │ 규칙은 데이터베이스마다 한 벌이라 세 앱의 접근 경로를 모두 만족해야 한다.│
 // │                                                                      │
-// │ 고칠 때마다 반드시 돌릴 것:  npm run check:rules                      │
-// │   되어야 하는 일과 막혀야 하는 일 35가지를 에뮬레이터에서 확인한다.    │
-// │   눈으로만 읽으면 놓친다. 실제로 이 검사가 '구성원이면 누구나 그룹을   │
-// │   지울 수 있다'는 구멍을 잡아냈다.                                     │
+// │ ★ 정본은 V5 저장소(School_Planner_V5)의 이 파일이다.                  │
+// │   V4 저장소 firestore.rules는 같은 내용의 복사본 - 거기서 고치지 않는다.│
+// │   고치면 V4 쪽에 그대로 복사한다(두 저장소 어느 쪽에서 에뮬레이터를     │
+// │   켜도 같은 규칙이 되게).                                              │
 // │                                                                      │
-// │   Firebase 콘솔 → Firestore Database → 규칙 에 붙여넣어 배포한다.     │
+// │ 고칠 때마다 반드시 돌릴 것:  npm run check:rules (V5 저장소)          │
+// │   V4 35가지 + V5 것을 에뮬레이터에서 확인한다. 눈으로만 읽으면 놓친다. │
+// │   실제로 이 검사가 '구성원이면 누구나 그룹을 지울 수 있다'는 구멍을    │
+// │   잡아냈다.                                                           │
+// │                                                                      │
+// │ 배포(사용자에게 묻고): V5 저장소에서                                   │
+// │   npx firebase deploy --only firestore:rules --project schoolplannerv3│
 // └──────────────────────────────────────────────────────────────────────┘
 
 service cloud.firestore {
@@ -145,6 +151,103 @@ service cloud.firestore {
     match /groups/{groupId}/{sub}/{document=**} {
       allow read, write: if signedIn()
         && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // V5 — spaces · spaceInvites · v5alarms (V3·V4는 이 이름을 쓰지 않는다)
+    //
+    // 공간 = 개인 `u_{uid}`(그 사람만) 또는 그룹 `g_{id}`(구성원만).
+    // 구성원은 맵 members: { uid: 'owner' | 'member' } (V4 groups는 배열이었다).
+    // 자세히는 V5 docs/DESIGN.md 4-1·4-9.
+    // ══════════════════════════════════════════════════════════════════
+
+    // 내 개인 공간 id인가. 문서를 읽지 않고 이름만으로 안다.
+    function isMySpaceId(sid) {
+      return signedIn() && sid == 'u_' + request.auth.uid;
+    }
+
+    // 공간 문서(data)의 구성원인가. 문서가 없으면 오류 = 거부.
+    function isSpaceMember(data) {
+      return signedIn() && data.members[request.auth.uid] in ['owner', 'member'];
+    }
+
+    match /spaces/{sid} {
+      // 내 개인 공간은 문서가 없어도 읽어 본다(없으면 로그인할 때 만든다).
+      allow get: if isMySpaceId(sid) || isSpaceMember(resource.data);
+      // 내 공간 목록은 where('members.<uid>', 'in', ['owner', 'member'])로만 묻는다.
+      allow list: if isSpaceMember(resource.data);
+
+      // 만들 때는 내가 주인이고 나 혼자 구성원이다.
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.members.keys().hasOnly([request.auth.uid])
+        && request.resource.data.members[request.auth.uid] == 'owner'
+        && (
+          (isMySpaceId(sid) && request.resource.data.kind == 'personal')
+          || (sid.matches('g_.+') && request.resource.data.kind == 'group')
+        );
+
+      allow update: if (
+          // 주인: 무엇이든 고친다. 다만 종류·주인은 그대로, 주인은 늘 'owner',
+          // 개인 공간은 구성원도 그대로(나 혼자).
+          signedIn()
+          && resource.data.ownerId == request.auth.uid
+          && request.resource.data.kind == resource.data.kind
+          && request.resource.data.ownerId == resource.data.ownerId
+          && request.resource.data.members[request.auth.uid] == 'owner'
+          && (resource.data.kind == 'group' || request.resource.data.members == resource.data.members)
+        ) || (
+          // 그 밖의 사람: 그룹에서 '나'만 넣거나 뺀다(참여·나가기).
+          signedIn()
+          && resource.data.kind == 'group'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt'])
+          && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.auth.uid])
+          && (
+            // 참여: 초대 코드가 열려 있을 때(주인이 inviteCode를 지우면 닫힌다), 'member'로만
+            (resource.data.get('inviteCode', null) != null
+              && !(request.auth.uid in resource.data.members)
+              && request.resource.data.members[request.auth.uid] == 'member')
+            // 나가기: 구성원이 나를 뺀다(주인은 나가지 못한다 - 그룹을 지운다)
+            || (resource.data.members[request.auth.uid] == 'member'
+              && !(request.auth.uid in request.resource.data.members))
+          )
+        );
+
+      // 그룹은 주인만 지운다(아래 자료를 먼저 비운다). 개인 공간 문서는 지우지 않는다.
+      allow delete: if signedIn()
+        && resource.data.kind == 'group'
+        && resource.data.ownerId == request.auth.uid;
+    }
+
+    // 공간 아래 자료(items·labels·settings …). 개인 공간은 이름만 보고(문서 읽기 없음),
+    // 그룹은 공간 문서의 members를 본다.
+    // ⚠️ V4 groups처럼 공간 문서 자신이 걸리지 않게 하위 컬렉션 이름 자리 {sub}를 둔다.
+    match /spaces/{sid}/{sub}/{document=**} {
+      allow read, write: if isMySpaceId(sid)
+        || (sid.matches('g_.+')
+          && isSpaceMember(get(/databases/$(database)/documents/spaces/$(sid)).data));
+    }
+
+    // 초대 코드 → 그룹 공간. 코드를 아는 사람만 하나 읽는다(목록으로 훑지 못한다).
+    // 만들기·고치기는 그 그룹의 주인만(같은 묶음 쓰기에서 그룹을 만들어도 되게 getAfter).
+    match /spaceInvites/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && getAfter(/databases/$(database)/documents/spaces/$(request.resource.data.sid)).data.kind == 'group'
+        && getAfter(/databases/$(database)/documents/spaces/$(request.resource.data.sid)).data.ownerId == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == request.auth.uid
+        && getAfter(/databases/$(database)/documents/spaces/$(request.resource.data.sid)).data.kind == 'group'
+        && getAfter(/databases/$(database)/documents/spaces/$(request.resource.data.sid)).data.ownerId == request.auth.uid;
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
+    // 서버 푸시 알림 큐. 함수(관리자 권한)만 읽고 쓴다 - 앱은 막는다.
+    match /v5alarms/{itemId} {
+      allow read, write: if false;
     }
 
   }
