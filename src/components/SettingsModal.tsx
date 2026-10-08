@@ -26,6 +26,7 @@ import ShortcutModal from './ShortcutModal';
 import { loadAdminConfig, saveAdminGovApiKey } from '../lib/adminConfig';
 import { clearNeisCache, loadNeisKey, saveNeisKey, testNeisKey } from '../lib/neis';
 import SchoolSettingPanel from './SchoolSettingPanel';
+import PushAlarmPanel from './PushAlarmPanel';
 import { runAppAction } from '../lib/appActions';
 import { loadSharedHolidays, saveSharedHolidays } from '../lib/holidays';
 import { fetchHolidaysFromGovApi } from '../lib/govApi';
@@ -718,6 +719,13 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               </button>
             ))}
           </div>
+        </Section>
+
+        <Section
+          title="일정 알림 (앱을 닫아도)"
+          desc="켜 두면 일정에 건 ⏰ 알림 시각에 앱을 닫아 두었어도 이 기기(휴대폰·PC)에 알림이 옵니다. 앱을 보고 있으면 알림 창과 소리로 알려 줍니다. 기기마다 따로 켭니다 - 휴대폰은 휴대폰에서 이 단추를 눌러 주세요."
+        >
+          <PushAlarmPanel />
         </Section>
 
         <Section
