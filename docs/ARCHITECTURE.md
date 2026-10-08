@@ -36,10 +36,11 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
    - `usePreferenceSync(uid)`: 환경설정을 계정에서 받아 store에 넣고, 바뀌면 다시 올린다
    - `useTeachingModeSync(uid)`: 교사 유형 문서(`v4_teaching`)를 store에 (`useTeachingMode()`로 읽는다)
    - `runAutoForwarding(selectedGroupId)`: 이월 (라벨을 다 읽은 뒤 한 번 더 돈다)
-   - `useEventAlarms`: 20초마다 오늘 일정 문서의 알림 시각을 보고 `EventAlarmPopup`. 처음 울린 기기가 서버의 그 일정에 `alarmTriggered`를 써서
-     **다른 기기는 울리지 않는다**(먼저 확인한 기기 하나만). 앱이 닫혀 있거나 휴대폰 브라우저가 백그라운드면 울리지 않는다(서버 푸시 없음).
-     소리는 `lib/sound.playAlarmChime`(수업 종과 같은 Web Audio) - 창이 뜨면 3초마다 3번(약 10초, 10-08 사용자가 정함), '🔇 소리 끄기'(`data-alarm-mute`)·확인으로 멈춘다.
-     브라우저는 페이지를 한 번 누르기 전에는 소리를 막아 `wakeAudioOnGesture`로 깨운다. 점검 `tools/inspect-alarm-sound.mjs`.
+   - `useEventAlarms`: 일정 알림을 울린다(`EventAlarmPopup`, 소리 `lib/sound.playAlarmChime` - 3초마다 3번, '🔇 소리 끄기' `data-alarm-mute`).
+     두 길로 온다 - ① **서버 푸시**(2026-10-08, 아래 '일정 알림 서버 푸시') ② 이 탭이 20초마다 오늘 일정 문서를 보는 예비 길.
+     ②는 처음 울린 기기가 `alarmTriggered`를 써서 다른 기기의 ②를 막는다(①은 상관없이 간다). 같은 일정은 한 번만(`triggeredThisSessionRef`).
+     앱이 뜰 때 `lib/push.refreshPushToken`(알림이 허용되어 있고 끈 적이 없으면 토큰을 저절로 올림). 브라우저는 페이지를 한 번 누르기 전에는
+     소리를 막아 `wakeAudioOnGesture`로 깨운다. 점검 `tools/inspect-alarm-sound.mjs`·`inspect-push-alarm.mjs`.
    - `Layout` 안에 scope에 맞는 화면 하나
 4. `Layout.tsx` — 머리줄(D-Day·휴지통·검색·화면 탭·공간 선택·⋮ 메뉴·프로필), 둘째 줄(주말·일정·수업 토글, 날짜 이동),
    전역 단축키, 모든 팝업의 자리, 오른쪽 줄(쓰는 칸·팝업), 왼쪽 클립보드 칸
@@ -74,6 +75,8 @@ V4의 거의 모든 어려움은 **V3와 같은 데이터를 함께 쓴다**는 
 | `users/{uid}/v4_subjectAttendance/{classKey}_{date}` | `{ classKey, year, grade, classNum, date, periods: { '교시': { '번호': { num, name, kind: 'absent'(결과)·'late'·'early', reason, note? } } }, updatedAt }` | V4 전용. 교과 출결(`lib/subjectAttendance`·`subjectAttendanceStore`, 교과 모드 S6). 담임 출석부(`attendance`)와 따로 - 기록 칸을 만들지 않는다. 쓰기는 `saveSubjectRecord`가 학생 한 칸(`FieldPath('periods', 교시, 번호)`)만 mergeFields, 지우기는 deleteField |
 | `users/{uid}/v4_progress/{id}` | `{ key(시간표 칸 글자), startDate, lessons: [{unit, no, content, page, supplies}], bumps: ['YYYY-MM-DD#교시'], subject?, classes?: ['5-1',…] }` (subject·classes가 있으면 과정 - key에는 첫 반 열쇠) | V4 전용. 진도 관리(`lib/progress`). 수업 문서에는 쓰지 않고 화면에서만 겹쳐 본다. 차시 목록은 `saveProgressPlan`(merge, bumps 빼고), 밀기는 `setProgressBump`(arrayUnion/Remove 한 칸) - 다른 기기에서 민 것을 덮지 않게 |
 | `sharedConfig/neis` | `{ key, updatedAt, updatedBy }` | 나이스 인증키. **로그인하면 누구나 읽고** 개발자만 쓴다(`admin/config`는 개발자만 읽어 따로 둠). 없거나 못 읽으면 키 없이 5건씩 나눠 받는다 |
+| `users/{uid}/v4_pushTokens/{id}` | `{ token, device:'pc'\|'mobile', ua, updatedAt }` | V4 전용. 일정 알림 서버 푸시를 받을 이 기기의 FCM 토큰(`lib/push`, id는 토큰의 해시). 켜고 끄기는 기기마다 localStorage `sp4-push`, 이 기기가 올린 문서는 `sp4-push-token`. 로그아웃하면 지운다. 보내다 죽은 토큰은 함수가 지운다 |
+| `v4_alarms/{id}` | `{ path(일정 문서), eventId, time, atMs, content, recipients:[uid], sent, pendingAt(보낼 시각 ms, 보내면 null), updatedAt, sentAt? }` | **함수만 읽고 쓴다**(규칙에 없어 앱은 막힘). 일정 문서가 바뀌면 `alarmIndexUser/Group`이 그날 칸을 맞추고(`functions/alarmPlan.planDayAlarms`), `sendDueAlarms`가 매분 `pendingAt <= 지금`을 보낸다. 지난 지 30일 넘은 칸은 `cleanupAlarms`가 지운다 |
 | `users/{uid}/settings/v4_autoBackup` | `{ enabled, intervalDays, keep, lastAt?, lastName?, lastSummary?, folderLink? }` | V4 전용. 드라이브 자동 백업(`lib/autoBackup`, `hooks/useAutoBackup`). PC에서 토큰이 이미 있을 때만 조용히 백업. '나중에'는 기기별 localStorage `sp4_autoBackupSnoozeUntil` |
 | (메모·기록 항목의) `tables` | 붙인 표 `[{ id, rows: [{ h?, cells: [{ v, cs?, rs?, x?, s? }] }], cols?, styles?, createdAt }]` | V4 전용 칸. `lib/entryTable` |
 | `users/{uid}/settings/v4_labelTree` | `{ entry, memo, journal }` 각각 "하위 이름 → 상위 이름" (19번 U5부터 셋이 같다 - entry가 정본) | V4 전용. 메모·기록 라벨 상위/하위 |
@@ -606,6 +609,21 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 
 ---
 
+### 일정 알림 서버 푸시 (`functions/`, `lib/push`, `public/sw.js`, 2026-10-08)
+- 웹앱은 기기에 알람을 예약할 수 없어(탭을 닫으면 코드가 멈추고 서비스 워커도 정한 시각에 깨울 수 없다) 서버가 그 시각에 푸시로 깨운다.
+  Firebase는 종량제(Blaze). 함수는 Firestore와 같은 서울(`asia-northeast3`), Node 22, 2세대.
+- **함수**(`functions/index.js`): `alarmIndexUser`/`alarmIndexGroup` - `events/{날짜}` 쓰기마다 그날의 `v4_alarms` 칸을 맞춘다(앱의 어느 저장 길이든
+  한 곳에서 잡힌다). 받는 사람: 개인 = 그 사람, 그룹 = 일정의 `authorId`(없으면 구성원 모두). `sendDueAlarms` - 매분(서울 시각) 칸을 먼저 '보냄'으로
+  바꾸고(`lastUpdateTime` 조건 - 두 번 보내지 않게) FCM `sendEachForMulticast`(data만, webpush Urgency high·TTL 1시간). 같은 시각은 다시 보내지 않고,
+  시각을 바꾸면 다시, 알림을 끄거나(`time: ''`) 완료·삭제하면 칸을 지운다. 1시간 넘게 지난 것은 보내지 않는다. 계산은 순수 함수 `alarmPlan.js`(테스트 `npm run test:functions`).
+- **서비스 워커**(`sw.js` push): 앱 화면을 보고 있는 창이 있으면 `postMessage({type:'sp4-event-alarm'})` → 앱의 알림 창·소리, 없으면 `showNotification`
+  (tag `sp4-alarm-<id>` - 앱이 띄우는 알림과 같아 겹치면 하나). 알림을 누르면 앱 창으로.
+- **앱**: `lib/push` - 환경설정 '일정 알림 (앱을 닫아도)'(`PushAlarmPanel`)에서 켠다(휴대폰은 누른 직후에만 허용을 묻는다). 아이폰은 설치한 앱(iOS 16.4+)에서만.
+  에뮬레이터 빌드는 진짜 FCM 대신 가짜 토큰 `emulator-token-pc`.
+- 배포: `npx firebase deploy --only functions --project schoolplannerv3` (Pages 배포와 따로 - main 푸시로는 함수가 올라가지 않는다). 로그는 `npx firebase functions:log`.
+  첫 2세대 배포는 Eventarc 권한이 퍼질 때까지 몇 분 실패한다 - 기다렸다 다시.
+- 에뮬레이터에서 함수까지 돌리려면 `npx firebase emulators:start --only auth,firestore,functions` (seed가 일정 914건을 써서 트리거가 한참 돈다).
+
 ## 9. 점검 도구
 
 | 무엇 | 언제 |
@@ -657,6 +675,7 @@ ESC·배경 누르기에 묻지 않고 닫았다(새 일정은 없는 일정의 
 | `tools/inspect-memorize.mjs` | 암기(10) - 설정 줄, 문제·정답 사진 틀 같음(가로·세로로 긴 사진), 정답은 이름만, 출제 수 2·0(계속), 함께 외울 학급 9-2, 자동 넘김 1초·0. 드라이브를 흉내 내고 9-1·9-2를 심었다가 명렬표·암기 성적을 되돌린다 |
 | `tools/inspect-class-bell.mjs` | 수업 종(5) - 시간표 창에서 켜기·1분 전, 시계를 돌려 08:59 시작 종·09:40 끝 종, 이 기기에서 끄기. 교시 시각·종 설정을 되돌린다 |
 | `tools/inspect-alarm-sound.mjs` | 일정 알림 소리 - 1분 전 알림을 심고 창·소리·3초 되풀이, '🔇 소리 끄기', 확인으로 멈춤, 서버 alarmTriggered. 그날 문서를 되돌린다 |
+| `tools/inspect-push-alarm.mjs` | 일정 알림 서버 푸시(앱 쪽) - 알림 허용된 기기의 토큰 저절로 올림, 환경설정 끄기/받기 → 토큰 문서, 서비스 워커 메시지 → 알림 창·소리·alarmTriggered·한 번만. 실제 FCM은 없어 가짜 토큰. 함수 계산은 `npm run test:functions` |
 | `tools/inspect-ux-audit.mjs` | UX-AUDIT 적용(12) - 머리줄 ?, ⋮ 차례·환경설정의 설치·밝기, 일정 ☐ 완료, 📘 진도, ✏️, + 메모, + 새 라벨, 라벨로 보기 ?, 구글 캘린더 안내 |
 | `tools/inspect-batch-1007.mjs` | 10-07 요청 묶음(13) - 첫 줄 #라벨, 카드 라벨 한 줄·체크한 줄 아래, 라벨 관리 한 스크롤, teacher3 시간표 교사 구분·두 칸, 메모 학생 태그(명렬표·직접)·누가기록 '📝 메모'. 메모·라벨을 되돌린다 |
 | `tools/inspect-clicks.mjs` | 19번 U12 클릭 수표 - 자주 하는 일 20가지를 하루 화면에서 따라 하며 누르기·키를 센다(마지막 되돌리기 어려운 단추는 +1로). 결과는 `docs/UX-AUDIT.md`. 일정·기록·메모·출석·알림장·라벨·휴지통을 되돌린다 (8분쯤) |
