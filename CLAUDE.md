@@ -335,6 +335,9 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
   `forwarding`(이월) · `eventGroups`(기간·반복 묶음) · `periodBars` · `useEventMove`(옮기기). 라벨 속성이 기본값, 일정에 값이 있으면 그 값이 이긴다.
 - **구글 캘린더 자동 보내기**(U11): `lib/gcalNote`(일정 날짜 쓰기 알림) → `gcalAuto`(날짜 큐 → 서버에서 그날을 다시 읽어 맞춤, 토큰 없으면 '📅 못 보낸 날 N',
   라벨을 끄면 `queueSentDates`, 저장 때 로그인 묻기 `ensureGcalLogin`) → `gcalPlan.planDateSync`(보낼 것에 없는 sp_auto 일정은 지움). 수동 보내기는 `calendarSync`.
+- **일정 알림**(10-08): 앱 안 `useEventAlarms`+`EventAlarmPopup`(소리 `lib/sound` 3초마다 3번) + **서버 푸시** - 함수 `functions/`(일정 문서 쓰기 → `v4_alarms` 칸,
+  매분 FCM, 서울 지역, **main 푸시로는 안 올라간다 - `npx firebase deploy --only functions`**), 기기 토큰 `lib/push`(`users/{uid}/v4_pushTokens`, 환경설정
+  '일정 알림 (앱을 닫아도)'), `sw.js` push(보는 창이 있으면 앱으로, 없으면 휴대폰·PC 알림). ARCHITECTURE 8장 '일정 알림 서버 푸시'.
 - **구글 로그인**: `lib/googleApi` - `getGoogleTokenQuietly`(창 없이), `getValidGoogleToken(까닭)`(누른 직후면 로그인 창, 막히면 `GoogleLoginPrompt` 묻는 창).
   사용자가 시키지 않은 일에서 로그인 창을 띄우지 않는다. 드라이브(첨부·사진·백업)도 같은 길.
 - **수업·시간표**: `features/day/DaySchedule`(교시 카드, 🔕/🔔 종 단추·📘 진도, 교과 모드 반 색·🙋 출결·⏪ 지난 시간) · `TimetableTemplateModal`

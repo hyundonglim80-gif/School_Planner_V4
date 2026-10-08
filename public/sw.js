@@ -31,6 +31,55 @@ async function receiveShare(request) {
   }
 }
 
+// 일정 알림 서버 푸시 (2026-10-08, functions/index.js의 sendDueAlarms가 FCM으로 보낸다).
+// FCM 웹 푸시는 { data: {...}, from, ... } 모양으로 온다 - data.type === 'event-alarm'만 다룬다.
+// 앱 화면을 보고 있는 창이 있으면 그 창에 넘겨 알림 창·소리로 울리고(src/hooks/useEventAlarms - 같은 일정은 한 번만),
+// 없으면(앱을 닫았거나 다른 앱을 보는 중) 휴대폰·PC 알림을 띄운다. 알림 tag는 앱이 띄우는 알림과 같다(겹치면 하나로).
+self.addEventListener('push', event => {
+  let msg = {};
+  try {
+    msg = event.data ? event.data.json() : {};
+  } catch {
+    msg = {};
+  }
+  const d = (msg && msg.data) || msg || {};
+  if (d.type !== 'event-alarm') return;
+  event.waitUntil(
+    (async () => {
+      const wins = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const visible = wins.filter(c => c.visibilityState === 'visible' && c.url.startsWith(self.registration.scope));
+      if (visible.length > 0) {
+        visible.forEach(c => c.postMessage({ type: 'sp4-event-alarm', alarm: d }));
+        return;
+      }
+      await self.registration.showNotification('⏰ 일정 알림', {
+        body: d.content || '예정된 일정이 있습니다.',
+        tag: `sp4-alarm-${d.id}`,
+        renotify: true,
+        requireInteraction: true,
+        vibrate: [400, 200, 400, 200, 400],
+        icon: `${self.registration.scope}icon-192.png`,
+        badge: `${self.registration.scope}icon-192.png`,
+        data: { url: `${self.registration.scope}index.html` },
+      });
+    })()
+  );
+});
+
+// 알림을 누르면 열려 있는 앱 창으로, 없으면 새로 연다
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || self.registration.scope;
+  event.waitUntil(
+    (async () => {
+      const wins = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const mine = wins.find(c => c.url.startsWith(self.registration.scope));
+      if (mine) return mine.focus();
+      return clients.openWindow(url);
+    })()
+  );
+});
+
 self.addEventListener('install', event => {
   self.skipWaiting();
 });

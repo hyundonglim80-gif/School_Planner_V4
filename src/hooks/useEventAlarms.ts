@@ -5,6 +5,7 @@ import { useAppStore } from '../store/useAppStore';
 import { formatDateStr } from '../lib/dateUtils';
 import { eventDocPayload, readEventList } from '../lib/eventText';
 import { wakeAudioOnGesture } from '../lib/sound';
+import { refreshPushToken } from '../lib/push';
 
 export interface RingingAlarm {
   id: string;
@@ -12,9 +13,13 @@ export interface RingingAlarm {
   content: string;
 }
 
-// V3의 일정 알림 기능 이식: 일정에 지정된 time(YYYY-MM-DDTHH:mm)이 지나고
-// 1시간 이내면 전체화면 알림을 울린다. 브라우저 탭이 열려있는 동안만 동작한다
-// (V3와 동일 - 서버 푸시가 아닌 클라이언트 폴링 방식).
+// 일정 알림: 일정에 지정된 time(YYYY-MM-DDTHH:mm)이 지나고 1시간 이내면 전체화면 알림을 울린다.
+// 두 길로 온다 (2026-10-08 서버 푸시를 더함):
+//   1) 서버 푸시 - functions/index.js가 알림 시각에 FCM으로 보내고, 서비스 워커(public/sw.js)가 이 창을 보고 있으면
+//      'sp4-event-alarm' 메시지로 넘긴다. 앱을 보고 있는 기기는 모두 울린다. 닫혀 있으면 서비스 워커가 휴대폰·PC 알림을 띄운다.
+//   2) 이 탭이 20초마다 오늘 일정 문서를 보는 것 - 푸시를 못 받는 기기(알림을 허용하지 않음)를 위한 예비.
+//      먼저 울린 기기가 alarmTriggered를 써서 다른 기기의 이 길은 건너뛴다(푸시는 alarmTriggered와 상관없이 간다).
+// 같은 일정은 한 번만 울린다(triggeredThisSessionRef).
 function nowYMDHM() {
   const d = new Date();
   return `${formatDateStr(d)}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -22,6 +27,25 @@ function nowYMDHM() {
 
 const CHECK_INTERVAL_MS = 20000;
 const ALARM_WINDOW_MS = 60 * 60 * 1000; // V3와 동일하게 지난 지 1시간 넘은 알림은 무시
+
+/** 울린 일정에 alarmTriggered를 쓴다 (트랜잭션 - 20초마다 도는 일이 편집 중인 내용을 덮지 않게) */
+async function markTriggered(path: string, ids: string[]) {
+  const ref = doc(db, path);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const list: any[] = readEventList(snap.data());
+    let changed = false;
+    const updated = list.map((item) => {
+      if (ids.includes(String(item.id)) && !item.alarmTriggered) {
+        changed = true;
+        return { ...item, alarmTriggered: true };
+      }
+      return item;
+    });
+    if (changed) tx.set(ref, eventDocPayload(updated), { merge: true });
+  });
+}
 
 export function useEventAlarms() {
   const selectedGroupId = useAppStore((s) => s.selectedGroupId);
@@ -89,25 +113,7 @@ export function useEventAlarms() {
 
       const ds = dateRef.current;
       try {
-        const ref = eventDocRefFor(ds);
-        // 이 함수는 20초마다 돈다. 읽고-고쳐-쓰기로 처리하면 사용자가 그때
-        // 편집 중이던 내용을 통째로 덮어쓸 수 있어 트랜잭션으로 감싼다.
-        await runTransaction(db, async (tx) => {
-          const snap = await tx.get(ref);
-          if (!snap.exists()) return;
-          const list: any[] = readEventList(snap.data());
-          let changed = false;
-          const updated = list.map((item) => {
-            if (toTrigger.some((t) => String(t.id) === String(item.id))) {
-              changed = true;
-              return { ...item, alarmTriggered: true };
-            }
-            return item;
-          });
-          if (changed) {
-            tx.set(ref, eventDocPayload(updated), { merge: true });
-          }
-        });
+        await markTriggered(eventDocRefFor(ds).path, toTrigger.map((t) => String(t.id)));
       } catch (err) {
         console.error('알림 확인 처리 반영 실패:', err);
       }
@@ -157,6 +163,28 @@ export function useEventAlarms() {
     // (앱 최초 로딩 시 이 훅이 로그인 완료 전에 먼저 마운트되는 경우) 이 effect가 다시
     // 실행되도록 uid를 의존성에 명시한다. useDayData.ts와 동일한 패턴.
   }, [selectedGroupId, auth.currentUser?.uid]);
+
+  // 서버 푸시: 이 기기 토큰을 맞추고(허용되어 있을 때만, 창 없이), 서비스 워커가 넘기는 알림을 울린다
+  const uid = auth.currentUser?.uid;
+  useEffect(() => {
+    if (!uid) return;
+    void refreshPushToken(uid);
+    if (typeof navigator === 'undefined' || !navigator.serviceWorker) return;
+    const onMessage = (e: MessageEvent) => {
+      const m = e.data;
+      if (!m || m.type !== 'sp4-event-alarm' || !m.alarm?.id) return;
+      const a = m.alarm as { id: string; content?: string; path?: string };
+      if (triggeredThisSessionRef.current.has(a.id)) return;
+      triggeredThisSessionRef.current.add(a.id);
+      const dateStr = (a.path || '').split('/').pop() || formatDateStr();
+      setRingingAlarms((prev) =>
+        prev.some((p) => p.id === a.id) ? prev : [...prev, { id: a.id, dateStr, content: a.content || '예정된 일정이 있습니다.' }]
+      );
+      if (a.path) markTriggered(a.path, [a.id]).catch((err) => console.error('알림 확인 처리 반영 실패:', err));
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, [uid]);
 
   const dismissAlarms = useCallback(() => {
     setRingingAlarms([]);

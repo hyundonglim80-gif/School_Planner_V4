@@ -11,6 +11,7 @@ import type { User, UserCredential } from 'firebase/auth';
 import { auth, googleProvider } from '../../lib/firebase';
 import { useAppStore } from '../../store/useAppStore';
 import { showErrorToast } from '../../utils/toast';
+import { forgetPushOnLogout } from '../../lib/push';
 
 /** 구글 액세스 토큰을 챙겨 둔다. 시트·캘린더 연동이 이 값을 읽는다. */
 function keepAccessToken(result: UserCredential | null) {
@@ -108,6 +109,8 @@ export function useAuth() {
 
   const logout = async () => {
     try {
+      // 이 기기의 일정 알림 푸시 토큰을 계정에서 지운다 (다른 사람이 로그인해도 앞사람 알림이 오지 않게)
+      await forgetPushOnLogout();
       await signOut(auth);
       // 💡 로그아웃할 때 계정에 딸린 상태를 지우지 않아, 다른 계정으로 바꿔도
       // 이전 사용자의 선택된 그룹/토큰/선택 항목이 그대로 남아 있었다.
