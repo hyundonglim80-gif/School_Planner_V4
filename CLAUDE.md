@@ -62,7 +62,8 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
 - **V5를 만든다 (2026-10-08 사용자가 정함)**: V5 = 화면·기능은 V4 그대로, 자료 모양·뼈대는 새로(V3·V4와 자료를 함께 쓰지 않음, V4 자료는 한 방향 가져오기).
   정해야 하는 것은 Claude 권장안을 따른다(사용자). 계획은 **`docs/V5/`** - `PLAN.md`(작업 순서·끊겨도 이어 하는 규칙)·`DESIGN.md`·`MENU.md`(메뉴 재배치)·`PARITY.md`·`CLAUDE.md`(V5 공유 기억 초안).
   **'이어서' = `docs/V5/PLAN.md`의 지금 하는 일(P1-1)** - 대화를 열면 `docs/V5/CLAUDE.md`와 `docs/V5/PLAN.md` 0장부터 읽는다.
-  👤 사용자에게 부탁: GitHub에 빈 저장소 `School_Planner_V5`(Private, README 없이) - P1-1에서 문서를 그리로 옮긴다. V4를 고치는 요청이 오면 이 파일 규칙대로.
+  👤 사용자에게 부탁: GitHub CLI 설치·로그인(`winget install --id GitHub.cli -e` → VS Code 껐다 켜기 → `gh auth login`) - 되어 있으면 P1-1에서 Claude가
+  `gh repo create hyundonglim80-gif/School_Planner_V5 --private`로 만들고 문서를 그리로 옮긴다(gh가 없으면 웹에서 빈 저장소). V4를 고치는 요청이 오면 이 파일 규칙대로.
 - 로드맵 1~17번과 Web Share Target(공유받기) **모두 끝**, 실제 사이트·휴대폰 확인까지 마쳤다. wip 브랜치 없음. 설명서 전체 점검은 17번 끝에 89/89.
   끝난 기능의 코드 자리·함정은 **ARCHITECTURE 6~8장**, 점검 스크립트는 **9장**, 새 기능을 더할 때 확인할 것은 **10장 체크리스트**에 있다.
 - **18번 교과 전담 모드 S1~S10 끝(10-02)** - 자세한 것은 ARCHITECTURE 8장 '교과 전담 모드', 계획·결과는 `docs/ROADMAP-SUBJECT.md`.

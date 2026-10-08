@@ -26,8 +26,8 @@
 ## 지금 상태 (진행 중인 것·사용자에게 부탁한 것만 - 세션마다 2줄 이하)
 
 - **2026-10-08 P0(계획) 끝.** 다음 대화의 '이어서' = **P1-1**(`PLAN.md` 지금 하는 일). 계획 문서 다섯은 V4 저장소 `docs/V5/`.
-- 👤 **사용자에게 부탁**: GitHub에 빈 저장소 `hyundonglim80-gif/School_Planner_V5` - Private, README·.gitignore 없이(P1-1 시작 조건).
-  (권장) GitHub CLI `winget install --id GitHub.cli` → `gh auth login`.
+- 👤 **사용자에게 부탁**: GitHub CLI 설치·로그인(`winget install --id GitHub.cli -e` → VS Code 껐다 켜기 → `gh auth login`).
+  로그인되어 있으면 P1-1에서 Claude가 `gh repo create … --private`로 저장소를 만든다. gh가 없으면 웹에서 빈 저장소 `School_Planner_V5`(Private, README 없이).
 
 ## 작업 저장과 이어 하기 (요약 - 자세히는 `PLAN.md` 0·1장)
 

@@ -194,10 +194,13 @@ P3 끝부터 사용자가 **내 자료로** 써 볼 수 있게 한다. 수업(P6
 - [x] ■3 V4 `CLAUDE.md` 지금 상태·`docs/ROADMAP.md` 지금 하는 일에 V5 안내, 커밋·푸시
 
 ### P1-1. 저장소·도구·문서 옮기기·CI
-**시작 조건**: 👤 GitHub에 빈 저장소 `hyundonglim80-gif/School_Planner_V5` — **Private**, README·.gitignore·라이선스 없이.
-확인: `git ls-remote https://github.com/hyundonglim80-gif/School_Planner_V5.git`가 오류 없이 끝난다(빈 저장소면 아무것도 나오지 않는다).
-없으면 ■1~■3을 로컬에서 하고 ■4에서 멈춘다 - 지금 상태에 '로컬에만(기기 이름)'을 적고, 그동안은 V4 `docs/V5/`가 정본이다.
-👤 (권장) GitHub CLI: `winget install --id GitHub.cli` → `gh auth login` - 있으면 Claude가 Actions 결과를 직접 본다.
+**시작 조건**: GitHub에 빈 저장소 `hyundonglim80-gif/School_Planner_V5` — **Private**, README·.gitignore·라이선스 없이.
+- **gh가 로그인되어 있으면**(`gh auth status`에 hyundonglim80-gif) Claude가 `gh repo create hyundonglim80-gif/School_Planner_V5 --private`로 만든다
+  (10-08 계획에서 사용자가 저장소 만들기를 맡김 - 이미 있으면 만들지 않는다). gh가 없거나 로그인 전이면 👤 웹에서 만들어 달라고 한다.
+  gh 설치: `winget install --id GitHub.cli -e` → VS Code를 완전히 껐다 켜기(PATH) → `gh auth login`(GitHub.com · HTTPS · Yes · 웹 브라우저).
+- 확인: `git ls-remote https://github.com/hyundonglim80-gif/School_Planner_V5.git`가 오류 없이 끝난다(빈 저장소면 아무것도 나오지 않는다).
+- 저장소가 없으면 ■1~■3을 로컬에서 하고 ■4에서 멈춘다 - 지금 상태에 '로컬에만(기기 이름)'을 적고, 그동안은 V4 `docs/V5/`가 정본이다.
+- gh가 있으면 Claude가 Actions 결과도 직접 본다(`gh run list`·`gh run watch`).
 👤 클라우드 세션도 쓰려면 Claude GitHub 앱에 이 저장소 권한을 더한다.
 **먼저 읽을 것**: `DESIGN.md` 7-1, V4 `package.json`·`tsconfig*.json`·`vite.config.ts`·`vitest.config.ts`·`.github/workflows/deploy.yml`·`.gitignore`, V4 `CLAUDE.md` 0~2장.
 - [ ] ■1 폴더와 도구: V4 옆 `School_Planner_V5`. `package.json`은 V4와 같은 판(React 19·Vite 8·TS 6·Tailwind 4·zustand 5·firebase 12·
