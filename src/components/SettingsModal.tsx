@@ -723,7 +723,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
         <Section
           title="일정 알림 (앱을 닫아도)"
-          desc="켜 두면 일정에 건 ⏰ 알림 시각에 앱을 닫아 두었어도 이 기기(휴대폰·PC)에 알림이 옵니다. 앱을 보고 있으면 알림 창과 소리로 알려 줍니다. 기기마다 따로 켭니다 - 휴대폰은 휴대폰에서 이 단추를 눌러 주세요."
+          desc="앱을 닫아 두었을 때의 알림은 V5로 옮겼습니다(같은 일정이 두 번 울리지 않게 V4 서버 알림은 내렸습니다). V4는 앱을 열어 두었을 때 알림 창과 소리로 알려 줍니다."
         >
           <PushAlarmPanel />
         </Section>

@@ -6,7 +6,8 @@
 //   2) sendDueAlarms - 매분 pendingAt <= 지금인 칸을 골라 받는 사람의 기기 토큰(users/{uid}/v4_pushTokens)으로 FCM을 보낸다.
 // 계산은 alarmPlan.js(순수 함수, alarmPlan.test.js). v4_alarms는 규칙상 앱이 못 읽고 못 쓴다(이 함수들만, 관리자 권한).
 //
-// 배포: npx firebase deploy --only functions   (Firestore 위치와 같은 지역 - REGION)
+// 2026-10-14 V5로 옮기며 운영에서 내렸다(같은 일정이 V4·V5에서 두 번 울리지 않게 - V5 함수 codebase 'v5'가 보낸다).
+// firebase.json에서도 뺐다 - 다시 배포하지 않는다. 코드는 기록으로 둔다.
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
