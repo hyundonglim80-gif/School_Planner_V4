@@ -61,7 +61,7 @@ main에 합쳐(`git checkout main && git merge <브랜치>`) 확인한 뒤 푸�
 
 - **보관 - V4는 고칠 때만 (2026-10-14 V5 P9-4)**: 사용자는 V5(https://schoolplanner-v5.web.app)로 옮겼다. 정본 기억은 **V5 `CLAUDE.md`**.
   V4 화면 맨 위에 'V5로 옮겼습니다' 띠(`MovedToV5Banner` - 이 기기에서 닫기 `sp4-moved-to-v5-closed`). V4 사이트·저장소는 지우지 않는다(해마다 공휴일 받기 등).
-  **V4 알림 함수 넷(alarmIndexUser·alarmIndexGroup·sendDueAlarms·cleanupAlarms)은 내린다**(10-14 사용자 결정 - PC에서 `functions:delete`, V5 `CLAUDE.md` 지금 상태) - `firebase.json`에서 functions를 뺐다, 다시 배포하지 않는다
+  **V4 알림 함수 넷(alarmIndexUser·alarmIndexGroup·sendDueAlarms·cleanupAlarms)은 10-14 운영에서 지웠다**(사용자 결정 - PC에서 `functions:delete`) - `firebase.json`에서 functions를 뺐다, 다시 배포하지 않는다
   (서버 알림은 V5 codebase `v5`). 환경설정 '일정 알림 (앱을 닫아도)'는 V5 안내와 '이 기기에서 끄기'만.
 - **V5를 만든다 (2026-10-08 사용자가 정함)**: V5 = 화면·기능은 V4 그대로, 자료 모양·뼈대는 새로(V3·V4와 자료를 함께 쓰지 않음, V4 자료는 한 방향 가져오기).
   정해야 하는 것은 Claude 권장안을 따른다(사용자). **V5는 따로 저장소 `School_Planner_V5`**(이 폴더 옆, 10-08 P1-1에서 계획 문서를 그리로 옮김).
