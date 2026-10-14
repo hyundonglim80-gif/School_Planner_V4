@@ -57,6 +57,7 @@ import ColumnResizer from './ColumnResizer';
 import { purgeExpiredTrashDaily } from '../lib/trashRetention';
 import { useAutoBackupRunner } from '../hooks/useAutoBackup';
 import AutoBackupBanner from './AutoBackupBanner';
+import MovedToV5Banner from './MovedToV5Banner';
 import { MainWidthContext } from '../hooks/useMainWidth';
 import { useMinWidth } from '../hooks/useMinWidth';
 import { useGlobalGestures } from '../hooks/useGlobalGestures';
@@ -1033,6 +1034,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* 하단 탭바에 내용이 가리지 않도록 아래 여백을 둔다 */}
       <main ref={mainRef} className="@container px-3 py-3 sm:p-5 max-w-7xl mx-auto pb-24 sm:pb-5">
+        <MovedToV5Banner />
         {autoBackup.nag && (
           <AutoBackupBanner overdue={autoBackup.overdue} keep={autoBackup.settings.keep} onSnooze={autoBackup.snooze} />
         )}

@@ -5,18 +5,6 @@
   "storage": {
     "rules": "storage.rules"
   },
-  "functions": [
-    {
-      "source": "functions",
-      "codebase": "default",
-      "ignore": [
-        "node_modules",
-        ".git",
-        "*.test.js",
-        "*.log"
-      ]
-    }
-  ],
   "emulators": {
     "auth": {
       "port": 9099

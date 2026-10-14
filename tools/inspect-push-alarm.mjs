@@ -3,7 +3,7 @@
 // 일정 알림 서버 푸시 - 앱 쪽 (2026-10-08). 실제 크롬, PC 1400px, teacher. 진짜 FCM은 에뮬레이터에 없어
 // 에뮬레이터 빌드는 가짜 토큰(emulator-token-pc)을 쓰고, 서비스 워커가 넘기는 메시지는 직접 흘려 넣는다.
 //   - 알림이 이미 허용된 기기는 앱이 뜰 때 토큰을 저절로 올린다 (users/{uid}/v4_pushTokens)
-//   - 환경설정 '일정 알림 (앱을 닫아도)': 이 기기에서 끄기 → 토큰 문서 지움 / 🔔 이 기기에서 받기 → 다시
+//   - 환경설정 '일정 알림 (앱을 닫아도)': 이 기기에서 끄기 → 토큰 문서 지움 / 켜기는 V5로 옮겼다는 안내(10-14)
 //   - 서비스 워커 메시지 'sp4-event-alarm' → 알림 창·소리, 그 일정에 alarmTriggered, 같은 것을 두 번 받아도 한 번
 // 심은 것(그날 일정 문서·토큰)은 끝에 되돌린다.
 //
@@ -77,10 +77,8 @@ try {
   await page.locator('[data-push-alarm][data-push-state="off"]').waitFor();
   const off = await until(tokens, (l) => l.length === 0);
   check('  이 기기에서 끄기 → 토큰 문서가 지워진다', off.length === 0);
-  await page.locator('[data-push-on]').click();
-  await page.locator('[data-push-alarm][data-push-state="on"]').waitFor();
-  const on = await until(tokens, (l) => l.length === 1);
-  check('  🔔 이 기기에서 받기 → 다시 올린다', on.length === 1);
+  // 2026-10-14 V5로 옮기며 켜기 단추를 없앴다 - V5 안내만
+  check('  켜기 단추 없이 V5 안내', (await page.locator('[data-push-on]').count()) === 0 && (await page.locator('[data-push-moved]').isVisible()));
   await page.keyboard.press('Escape');
 
   // 서비스 워커가 넘기는 알림
