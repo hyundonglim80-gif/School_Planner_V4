@@ -25,7 +25,7 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // 등록된 개발자 계정. src/lib/developers.ts 와 같은 목록을 유지해야 한다.
+    // 등록된 개발자 계정. src/domain/developers.ts 와 같은 목록을 유지해야 한다(V4는 src/lib/developers.ts).
     function isDeveloper() {
       return signedIn() && request.auth.token.email in [
         'hyundonglim@gmail.com',
