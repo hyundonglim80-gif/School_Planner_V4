@@ -223,13 +223,18 @@ service cloud.firestore {
           && (resource.data.kind == 'group' || request.resource.data.members == resource.data.members)
         ) || (
           // 그 밖의 사람: 그룹에서 '나'만 넣거나 뺀다(참여·나가기).
+          // 참여할 때 낸 코드는 joinCodes.<나>에 적는다(P14-1) - 칸 하나(joinCode)면 앞사람이 남긴 맞는 코드로
+          // 코드를 모르는 사람이 members만 써도 통과한다(request.resource.data는 고친 뒤 문서 전체).
           signedIn()
           && resource.data.kind == 'group'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt', 'joinCodes'])
           && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.get('joinCodes', {}).diff(resource.data.get('joinCodes', {})).affectedKeys().hasOnly([request.auth.uid])
           && (
-            // 참여: 초대 코드가 열려 있을 때(주인이 inviteCode를 지우면 닫힌다), 'member'로만
-            ((resource.data.get('inviteCode', null) != null || isV4GroupMember(sid))
+            // 참여: 내 칸에 적은 코드 == 지금 열린 초대 코드(주인이 inviteCode를 지우거나 바꾸면 옛 코드는 막힌다), 'member'로만
+            (((resource.data.get('inviteCode', null) != null
+                && request.resource.data.get('joinCodes', {}).get(request.auth.uid, null) == resource.data.inviteCode)
+              || isV4GroupMember(sid))
               && !(request.auth.uid in resource.data.members)
               && request.resource.data.members[request.auth.uid] == 'member')
             // (V4 그룹에서 가져온 공간은 V4 구성원이면 초대 코드 없이도 - 남이 먼저 가져온 뒤 V4에 들어온 사람)
