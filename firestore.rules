@@ -298,6 +298,30 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // 오류 알림(P14-2 - src/data/errorReport.ts). 로그인한 사람은 제 오류를 하나씩 만들기만, 읽기·지우기는 개발자만.
+    // 칸과 길이는 src/domain/errorReport.ts LIMITS와 같게 - 글 내용은 앱이 지운 뒤 보낸다. 만든 뒤 고치지 않는다.
+    // expireAt은 콘솔 TTL 정책이 지난 것을 지운다(30일).
+    match /v5Errors/{id} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['kind', 'message', 'stack', 'note', 'build', 'scope', 'device', 'standalone', 'ua', 'uid', 'at', 'expireAt'])
+        && request.resource.data.keys().hasAll(['kind', 'message', 'stack', 'note', 'build', 'scope', 'device', 'standalone', 'ua', 'uid', 'at', 'expireAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.kind in ['error', 'rejection', 'react', 'toast']
+        && request.resource.data.message is string && request.resource.data.message.size() <= 300
+        && request.resource.data.stack is string && request.resource.data.stack.size() <= 1500
+        && request.resource.data.note is string && request.resource.data.note.size() <= 300
+        && request.resource.data.build is string && request.resource.data.build.size() <= 40
+        && request.resource.data.scope is string && request.resource.data.scope.size() <= 40
+        && request.resource.data.ua is string && request.resource.data.ua.size() <= 200
+        && request.resource.data.device in ['pc', 'mobile']
+        && request.resource.data.standalone is bool
+        && request.resource.data.at == request.time
+        && request.resource.data.expireAt is timestamp
+        && request.resource.data.expireAt < request.time + duration.value(32, 'd');
+      allow read, delete: if isDeveloper();
+      allow update: if false;
+    }
+
   }
 }
 
